@@ -5,6 +5,19 @@ include { SEARCH   } from './workflows/search'
 include { CLUSTER  } from './workflows/cluster'
 include { VALIDATE } from './workflows/validate'
 
+// Resolve a FASTA basename against data_dir, checking the flat layout first
+// then the listed subdirectories (so configs that reference bare basenames
+// still find files under data_dir/pep/ and data_dir/dna/).
+def resolve_fa(String basename, List<String> subdirs) {
+    if (!basename) return []
+    def candidates = ([''] + subdirs).collect { sub ->
+        file(sub ? "${params.data_dir}/${sub}/${basename}" : "${params.data_dir}/${basename}")
+    }
+    def hit = candidates.find { it.exists() }
+    if (!hit) error "Cannot locate FASTA '${basename}' under ${params.data_dir} (also tried subdirs: ${subdirs.join(', ')})"
+    return hit
+}
+
 workflow {
     // Derive project name from config filename when not explicitly set
     def project = params.project ?: file(params.config).baseName
@@ -25,8 +38,8 @@ workflow {
                 strain:  row.Strain ?: '',
                 taxon:   row.TaxonGroup
             ]
-            def protein_fa = file("${params.data_dir}/${row.Protein}")
-            def dna_fa     = row.DNA ? file("${params.data_dir}/${row.DNA}") : []
+            def protein_fa = resolve_fa(row.Protein, ['pep', 'proteins'])
+            def dna_fa     = resolve_fa(row.DNA,     ['dna', 'genome', 'scaffolds'])
             [ meta, protein_fa, dna_fa ]
         }
 
