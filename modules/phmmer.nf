@@ -1,5 +1,5 @@
 process PHMMER_SEARCH {
-    label 'high_cpu'
+    label 'med_cpu'
     tag "${meta_q.id}_vs_${meta_t.id}"
 
     storeDir "${params.outdir}/${params.project}/search_cache"
