@@ -27,10 +27,14 @@ workflow {
     if (!file(params.data_dir).isDirectory()) error "ERROR: --data_dir is not a directory: ${params.data_dir}"
     if (params.run_tool !in ['phmmer', 'diamond', 'blast']) error "ERROR: --run_tool must be phmmer, diamond, or blast (got: ${params.run_tool})"
 
-    // Resolve DB and config paths to absolute so they work inside Nextflow work directories
-    if (params.pfam_hmm)         params.pfam_hmm         = file(params.pfam_hmm).toAbsolutePath().toString()
-    if (params.swissprot_dmnd)   params.swissprot_dmnd   = file(params.swissprot_dmnd).toAbsolutePath().toString()
-    if (params.modelorgs_config) params.modelorgs_config = file(params.modelorgs_config).toAbsolutePath().toString()
+    // Resolve DB paths to absolute so they work inside Nextflow work directories.
+    // params mutations for pfam/swissprot are read in process script blocks (OK).
+    // modelorgs_config is passed explicitly as a channel value to avoid scoping issues.
+    if (params.pfam_hmm)       params.pfam_hmm       = file(params.pfam_hmm).toAbsolutePath().toString()
+    if (params.swissprot_dmnd) params.swissprot_dmnd = file(params.swissprot_dmnd).toAbsolutePath().toString()
+    def morgs_abs = params.modelorgs_config
+        ? file(params.modelorgs_config).toAbsolutePath().toString()
+        : ''
 
     // Parse the analysis description CSV into a channel of [meta, protein_fa, dna_fa]
     samples_ch = Channel
@@ -62,7 +66,7 @@ workflow {
 
     VALIDATE(CLUSTER.out.representatives, outgroup_dna_ch, CLUSTER.out.cluster_tsv)
 
-    ANNOTATE(CLUSTER.out.candidates_fa, SEARCH.out.matrix)
+    ANNOTATE(CLUSTER.out.candidates_fa, SEARCH.out.matrix, morgs_abs)
 
     SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, file(params.config))
 }
