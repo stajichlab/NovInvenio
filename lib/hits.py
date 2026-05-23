@@ -1,5 +1,15 @@
+import gzip
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
+
+
+def open_input(path):
+    """Open a file for reading, transparently decompressing if .gz."""
+    p = Path(path)
+    if p.suffix == '.gz':
+        return gzip.open(p, 'rt')
+    return p.open()
 
 
 @dataclass

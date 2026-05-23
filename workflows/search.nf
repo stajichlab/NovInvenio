@@ -5,6 +5,10 @@ include { DIAMOND_SEARCH        } from '../modules/diamond'
 include { BLAST_SEARCH          } from '../modules/blast'
 include { PARSE_HITS            } from '../modules/parse_hits'
 include { BUILD_PRESENCE_MATRIX } from '../modules/build_presence_matrix'
+include { PHMMER_SELF           } from '../modules/self_search'
+include { DIAMOND_SELF          } from '../modules/self_search'
+include { BLAST_SELF            } from '../modules/self_search'
+include { PARSE_SELF_HITS       } from '../modules/parse_self_hits'
 
 workflow SEARCH {
     take:
@@ -34,8 +38,18 @@ workflow SEARCH {
         config_csv
     )
 
+    // Self-vs-self searches: each ingroup proteome against itself (top 2 hits, relaxed e-value)
+    // Rank-1 = self-hit; rank-2 = best within-proteome paralog — used to calibrate score cutoffs
+    raw_self_ch = params.run_tool == 'phmmer'  ? PHMMER_SELF(ingroup_ch)  :
+                  params.run_tool == 'diamond' ? DIAMOND_SELF(ingroup_ch) :
+                  params.run_tool == 'blast'   ? BLAST_SELF(ingroup_ch)   :
+                  { error "Unknown --run_tool '${params.run_tool}'" }()
+
+    PARSE_SELF_HITS(raw_self_ch)
+
     emit:
     hits        = PARSE_HITS.out             // [meta_pair, parsed_tsv]
     matrix      = BUILD_PRESENCE_MATRIX.out.matrix
     candidates  = BUILD_PRESENCE_MATRIX.out.candidates
+    self_hits   = PARSE_SELF_HITS.out.tsv    // [meta, self_hits_tsv] — one per ingroup proteome
 }

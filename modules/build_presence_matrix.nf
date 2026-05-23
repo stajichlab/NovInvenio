@@ -1,6 +1,6 @@
 process BUILD_PRESENCE_MATRIX {
     label 'low_cpu'
-    publishDir "${params.outdir}/${params.project}", mode: 'copy'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
     path(parsed_tsvs)   // collected list of all parsed hit TSVs

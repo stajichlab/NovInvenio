@@ -8,7 +8,7 @@ process DIAMOND_SEARCH {
     tuple val(meta_q), path(query_fa), val(meta_t), path(target_fa)
 
     output:
-    tuple val(meta_pair), path("${meta_q.id}_vs_${meta_t.id}.diamond.tsv")
+    tuple val(meta_pair), path("${meta_q.id}_vs_${meta_t.id}.diamond.tsv.gz")
 
     script:
     meta_pair = [
@@ -18,6 +18,7 @@ process DIAMOND_SEARCH {
         target_group: meta_t.group,
         tool:         'diamond'
     ]
+    def prefix = "${meta_q.id}_vs_${meta_t.id}"
     """
     diamond makedb --in ${target_fa} --db target_db --quiet
 
@@ -28,6 +29,7 @@ process DIAMOND_SEARCH {
         --evalue ${params.evalue} \
         --threads ${task.cpus} \
         --quiet \
-        --out ${meta_q.id}_vs_${meta_t.id}.diamond.tsv
+        --out ${prefix}.diamond.tsv
+    gzip ${prefix}.diamond.tsv
     """
 }

@@ -8,7 +8,7 @@ process PHMMER_SEARCH {
     tuple val(meta_q), path(query_fa), val(meta_t), path(target_fa)
 
     output:
-    tuple val(meta_pair), path("${meta_q.id}_vs_${meta_t.id}.phmmer.tblout")
+    tuple val(meta_pair), path("${meta_q.id}_vs_${meta_t.id}.phmmer.tblout.gz")
 
     script:
     meta_pair = [
@@ -18,12 +18,14 @@ process PHMMER_SEARCH {
         target_group: meta_t.group,
         tool:         'phmmer'
     ]
+    def prefix = "${meta_q.id}_vs_${meta_t.id}"
     """
     phmmer \
         --cpu ${task.cpus} \
-        --tblout ${meta_q.id}_vs_${meta_t.id}.phmmer.tblout \
+        --tblout ${prefix}.phmmer.tblout \
         --noali \
         ${query_fa} ${target_fa} \
         > /dev/null
+    gzip ${prefix}.phmmer.tblout
     """
 }

@@ -8,7 +8,7 @@ process BLAST_SEARCH {
     tuple val(meta_q), path(query_fa), val(meta_t), path(target_fa)
 
     output:
-    tuple val(meta_pair), path("${meta_q.id}_vs_${meta_t.id}.blast.tsv")
+    tuple val(meta_pair), path("${meta_q.id}_vs_${meta_t.id}.blast.tsv.gz")
 
     script:
     meta_pair = [
@@ -18,6 +18,7 @@ process BLAST_SEARCH {
         target_group: meta_t.group,
         tool:         'blast'
     ]
+    def prefix = "${meta_q.id}_vs_${meta_t.id}"
     """
     makeblastdb -in ${target_fa} -dbtype prot -out blast_db -parse_seqids 2>/dev/null
 
@@ -27,6 +28,7 @@ process BLAST_SEARCH {
         -outfmt "6 qseqid sseqid evalue bitscore" \
         -evalue ${params.evalue} \
         -num_threads ${task.cpus} \
-        -out ${meta_q.id}_vs_${meta_t.id}.blast.tsv
+        -out ${prefix}.blast.tsv
+    gzip ${prefix}.blast.tsv
     """
 }

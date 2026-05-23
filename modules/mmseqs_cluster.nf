@@ -1,7 +1,7 @@
 process MMSEQS_CLUSTER {
     label 'high_cpu'
     tag "mmseqs_cluster"
-    publishDir "${params.outdir}/${params.project}/clusters", mode: 'copy'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/clusters" }, mode: 'copy'
 
     input:
     path(candidates_fa)   // FASTA of candidate proteins
@@ -11,15 +11,16 @@ process MMSEQS_CLUSTER {
     path("clusters_all_seqs.fasta"), emit: all_seqs
     path("clusters_cluster.tsv"),    emit: tsv
 
-    script:
-    """
+    shell:
+    '''
+    tmpdir=${SCRATCH:-${TMPDIR:-/tmp}}
     mmseqs easy-cluster \
-        ${candidates_fa} \
+        !{candidates_fa} \
         clusters \
-        tmp \
-        --threads ${task.cpus} \
+        ${tmpdir}/mmseqs_$$ \
+        --threads !{task.cpus} \
         --min-seq-id 0.3 \
         -c 0.8 \
         --cov-mode 0
-    """
+    '''
 }
