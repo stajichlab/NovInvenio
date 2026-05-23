@@ -8,6 +8,7 @@ Identifies lineage-specific (novel) genes: proteins present in ≥N% of an ingro
 Config CSV
     │
     ├─► SEARCH   — pairwise proteome searches (phmmer / diamond / BLAST)
+    │             + self-vs-self search per ingroup species → paralog_cutoffs.tsv
     │               → presence_matrix.tsv, candidates.txt
     │
     ├─► CLUSTER  — mmseqs2 easy-cluster of candidate proteins
@@ -67,12 +68,16 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 | `--config` | *(required)* | Analysis config CSV (see format below) |
 | `--data_dir` | *(required)* | Directory containing FASTA files listed in the CSV |
 | `--run_tool` | `phmmer` | Search tool: `phmmer`, `diamond`, or `blast` |
-| `--evalue` | `1e-5` | E-value cutoff for all search steps |
+| `--evalue` | `1e-5` | Fallback e-value for proteins with no detectable within-proteome paralog |
+| `--parse_evalue` | `0.01` | Noise ceiling applied when parsing raw pairwise hits; the authoritative per-gene cutoff comes from the self-vs-self paralog search |
 | `--ingroup_min_frac` | `0.75` | Min fraction of ingroup proteomes that must contain a hit |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd` database; skips if unset |
 | `--modelorgs_config` | `null` | YAML listing model organisms for gene name lookup (see `configs/modelorgs.yaml`) |
+| `--project` | *(auto)* | Output subdirectory name; defaults to config CSV basename |
 | `--outdir` | `results` | Root output directory |
+| `--hmm_mpi` | `false` | Run hmmsearch in MPI mode (requires MPI-enabled HMMER) |
+| `--hmm_mpi_tasks` | `null` | Number of MPI tasks; defaults to `max_cpus` when `--hmm_mpi true` |
 
 ## Config CSV format
 
@@ -130,7 +135,8 @@ All outputs are written to `results/<project>/`:
 
 | File | Description |
 |---|---|
-| `presence_matrix.tsv` | Gene × proteome presence/absence matrix |
+| `self_hits/<SHORT>.paralog_cutoffs.tsv` | Per-gene paralog e-value cutoffs from self-vs-self search (columns: `protein_ID`, `paralog_protein_ID`, `bitscore`, `evalue`) |
+| `presence_matrix.tsv` | Gene × proteome presence/absence matrix (presence scored against paralog cutoffs) |
 | `candidates.txt` | Protein IDs meeting ingroup/outgroup criteria |
 | `candidates.fa` | FASTA of all candidate proteins |
 | `clusters/` | mmseqs2 cluster output (TSV, rep FASTA, all-seqs FASTA) |
@@ -166,6 +172,33 @@ nextflow run main.nf \
     --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
     --modelorgs_config configs/modelorgs.yaml
 ```
+
+### MPI mode for hmmsearch
+
+When running the downstream `HMMSEARCH` process on SLURM with an MPI-enabled
+HMMER build (e.g. from conda-forge), pass `--hmm_mpi true` to use
+`mpirun -np N hmmsearch --mpi` instead of `hmmsearch --cpu N`.  The SLURM
+profile automatically requests `--ntasks N` instead of `--cpus-per-task N`.
+
+```bash
+nextflow run main.nf \
+    -profile slurm \
+    --config configs/pezio4_asco.csv \
+    --data_dir /bigdata/stajichlab/shared/data/fungi/proteomes \
+    --run_tool diamond \
+    --hmm_mpi true \
+    --hmm_mpi_tasks 16
+```
+
+If `--hmm_mpi_tasks` is omitted it defaults to `--max_cpus` (32 by default).
+
+### Database paths
+
+The pipeline resolves `--pfam_hmm`, `--swissprot_dmnd`, and
+`--modelorgs_config` to absolute paths at startup and automatically creates a
+`db/` symlink inside every task work directory.  You can pass relative paths
+(e.g. `db/pfam/Pfam-A.hmm`) from the project root and they will resolve
+correctly regardless of where Nextflow stages the task.
 
 ## Development
 
