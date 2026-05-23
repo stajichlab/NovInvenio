@@ -32,12 +32,6 @@ workflow SEARCH {
 
     PARSE_HITS(raw_hits_ch)
 
-    // Collect all parsed TSVs into one process to build the presence/absence matrix
-    BUILD_PRESENCE_MATRIX(
-        PARSE_HITS.out.map { meta_pair, tsv -> tsv }.collect(),
-        config_csv
-    )
-
     // Self-vs-self searches: each ingroup proteome against itself (top 2 hits, relaxed e-value)
     // Rank-1 = self-hit; rank-2 = best within-proteome paralog — used to calibrate score cutoffs
     raw_self_ch = params.run_tool == 'phmmer'  ? PHMMER_SELF(ingroup_ch)  :
@@ -46,6 +40,14 @@ workflow SEARCH {
                   { error "Unknown --run_tool '${params.run_tool}'" }()
 
     PARSE_SELF_HITS(raw_self_ch)
+
+    // Collect all parsed TSVs and per-species paralog cutoffs; build presence/absence matrix.
+    // Matrix building waits for both pairwise hits and all paralog cutoff files.
+    BUILD_PRESENCE_MATRIX(
+        PARSE_HITS.out.map { meta_pair, tsv -> tsv }.collect(),
+        PARSE_SELF_HITS.out.tsv.map { meta, tsv -> tsv }.collect(),
+        config_csv
+    )
 
     emit:
     hits        = PARSE_HITS.out             // [meta_pair, parsed_tsv]
