@@ -1,8 +1,7 @@
 GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
 OUT,Neolecta irregularis,,Neolecta_irregularis_DAH-3.proteins.fa,Neolecta_irregularis_DAH-3.scaffolds.fa,Nirr,Taphrinomycotina
 OUT,Schizosaccharomyces pombe,,Schizosaccharomyces_pombe_972h-.proteins.fa,Schizosaccharomyces_pombe_972h-.scaffolds.fa,Spom,Taphrinomycotina
-OUT,Saccharomyces cerevisiae,S288C,Saccharomyces_cerevisiae_S288C.proteins.fa,Saccharomyces_cerevisiae_S288C.scaffolds.fa,Scer,Saccharomycotina
 IN,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.proteins.fa,Neurospora_crassa_OR74A.scaffolds.fa,Ncra,Pezizomycotina
 IN,Aspergillus fumigatus,Af293,Aspergillus_fumigatus_Af293.pep.fa,Aspergillus_fumigatus_Af293.dna.fa,Afum,Pezizomycotina
-IN,Pyronema omphalodes,CBS144459,Pyronema_omphalodes_CBS144459.proteins.fa,Pyronema_omphalodes_CBS144459.scaffolds.fa,Pomp,Pezizomycotina
+IN,Zymoseptoria tritici,,Zymoseptoria_tritici.proteins.fa,Zymoseptoria_tritici.scaffolds.fa,Ztri,Pezizomycotina
 IN,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidioides_immitis_WA_211.scaffolds.fa,Cimm,Pezizomycotina
