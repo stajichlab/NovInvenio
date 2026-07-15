@@ -1,3 +1,17 @@
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# nextflow run state and outputs
+.nextflow/
+.nextflow.log*
+work/
+results/
+
+# python
+__pycache__/
+*.pyc
+
+# scratch left behind when the test profile is run in place
+tests/data/.nextflow*
+tests/data/logs/
