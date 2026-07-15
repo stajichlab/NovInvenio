@@ -1,4 +1,4 @@
-#!/usr/bin/bash -l
+#!/usr/bin/env bash
 #SBATCH -c 16 --mem 32gb --time 2:00:00 --out logs/annotate_run.log
 # Annotate presence_matrix.tsv with functional information.
 # Run after the Nextflow pipeline has produced results/<PROJECT>/presence_matrix.tsv
