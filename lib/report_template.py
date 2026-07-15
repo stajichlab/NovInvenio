@@ -1044,7 +1044,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       out.push(">" + ROWS[ri][F.id] + "\n" + (s.match(/.{1,60}/g) || []).join("\n"));
     });
     if (!out.length) {
-      alert("No sequences are embedded for the current selection. Re-run make_report.py with --sequences all.");
+      alert("No sequences are embedded for the current selection. Re-run make_report.py " +
+            "with --sequences novelties (or all) and --candidates_fa pointing at candidates.fa.");
       return;
     }
     if (missing) {
