@@ -30,12 +30,15 @@ def main():
 
     parser = PARSERS[args.format]
 
-    rank2_hit = {}   # query_id -> best Hit where target_id != query_id
+    rank2_hit = {}   # query_id -> best (lowest-evalue) Hit where target_id != query_id
 
     with open_input(args.input) as fh:
         for hit in parser(fh):
-            if hit.target_id != hit.query_id:
-                rank2_hit.setdefault(hit.query_id, hit)
+            if hit.target_id == hit.query_id:
+                continue
+            prev = rank2_hit.get(hit.query_id)
+            if prev is None or float(hit.evalue) < float(prev.evalue):
+                rank2_hit[hit.query_id] = hit
 
     with open(args.output, 'w') as out:
         out.write('protein_ID\tparalog_protein_ID\tbitscore\tevalue\n')

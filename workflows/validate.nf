@@ -1,6 +1,7 @@
 nextflow.enable.dsl=2
 
-include { TBLASTN } from '../modules/tblastn'
+include { TBLASTN_MAKEDB } from '../modules/tblastn'
+include { TBLASTN        } from '../modules/tblastn'
 
 workflow VALIDATE {
     take:
@@ -9,8 +10,10 @@ workflow VALIDATE {
     cluster_tsv          // path: mmseqs *_cluster.tsv (rep → member mapping)
 
     main:
-    // One TBLASTN job per outgroup genome; all reps searched together
-    TBLASTN(outgroup_dna_ch, representatives_fa)
+    // Build each outgroup genome DB once (storeDir-cached), then run one
+    // TBLASTN job per genome with all reps searched together.
+    genome_db_ch = TBLASTN_MAKEDB(outgroup_dna_ch)
+    TBLASTN(genome_db_ch, representatives_fa)
 
     // Summarise TBLASTN hits — expand rep-level hits to cluster members
     SUMMARIZE_TBLASTN(

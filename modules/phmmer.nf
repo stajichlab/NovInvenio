@@ -2,7 +2,7 @@ process PHMMER_SEARCH {
     label 'med_cpu'
     tag "${meta_q.id}_vs_${meta_t.id}"
 
-    storeDir "${params.outdir}/${params.project}/search_cache"
+    storeDir { "${params.outdir}/${Helpers.projectName(params)}/search_cache" }
 
     input:
     tuple val(meta_q), path(query_fa), val(meta_t), path(target_fa)

@@ -1,7 +1,9 @@
 nextflow.enable.dsl=2
 
 include { PHMMER_SEARCH         } from '../modules/phmmer'
+include { DIAMOND_MAKEDB        } from '../modules/diamond'
 include { DIAMOND_SEARCH        } from '../modules/diamond'
+include { BLAST_MAKEDB          } from '../modules/blast'
 include { BLAST_SEARCH          } from '../modules/blast'
 include { PARSE_HITS            } from '../modules/parse_hits'
 include { BUILD_PRESENCE_MATRIX } from '../modules/build_presence_matrix'
@@ -19,26 +21,39 @@ workflow SEARCH {
     main:
     all_proteomes_ch = ingroup_ch.mix(outgroup_ch)
 
-    // Every ingroup proteome searched against all other proteomes (no self-hits)
-    pairs_ch = ingroup_ch
-        .combine(all_proteomes_ch)
-        .filter { meta_q, fa_q, meta_t, fa_t -> meta_q.id != meta_t.id }
-
-    // Run the selected search tool
-    raw_hits_ch = params.run_tool == 'phmmer'  ? PHMMER_SEARCH(pairs_ch)  :
-                  params.run_tool == 'diamond' ? DIAMOND_SEARCH(pairs_ch) :
-                  params.run_tool == 'blast'   ? BLAST_SEARCH(pairs_ch)   :
-                  { error "Unknown --run_tool '${params.run_tool}': choose phmmer, diamond, or blast" }()
+    // Run the selected search tool. diamond/blast build a per-proteome database
+    // once (storeDir-cached) and reuse it across every query, rather than
+    // rebuilding the target DB for each of the |IN|×(N-1) pairwise jobs.
+    // phmmer searches the target FASTA directly, so no DB step is needed.
+    // Self-vs-self searches (rank-2 = best within-proteome paralog) calibrate cutoffs.
+    if (params.run_tool == 'phmmer') {
+        pairs_ch = ingroup_ch
+            .combine(all_proteomes_ch)
+            .filter { meta_q, fa_q, meta_t, fa_t -> meta_q.id != meta_t.id }
+        raw_hits_ch = PHMMER_SEARCH(pairs_ch)
+        raw_self_ch = PHMMER_SELF(ingroup_ch)
+    }
+    else if (params.run_tool == 'diamond') {
+        db_ch = DIAMOND_MAKEDB(all_proteomes_ch)
+        pairs_ch = ingroup_ch
+            .combine(db_ch)
+            .filter { meta_q, fa_q, meta_t, db_t -> meta_q.id != meta_t.id }
+        raw_hits_ch = DIAMOND_SEARCH(pairs_ch)
+        raw_self_ch = DIAMOND_SELF(ingroup_ch)
+    }
+    else if (params.run_tool == 'blast') {
+        db_ch = BLAST_MAKEDB(all_proteomes_ch)
+        pairs_ch = ingroup_ch
+            .combine(db_ch)
+            .filter { meta_q, fa_q, meta_t, db_t -> meta_q.id != meta_t.id }
+        raw_hits_ch = BLAST_SEARCH(pairs_ch)
+        raw_self_ch = BLAST_SELF(ingroup_ch)
+    }
+    else {
+        error "Unknown --run_tool '${params.run_tool}': choose phmmer, diamond, or blast"
+    }
 
     PARSE_HITS(raw_hits_ch)
-
-    // Self-vs-self searches: each ingroup proteome against itself (top 2 hits, relaxed e-value)
-    // Rank-1 = self-hit; rank-2 = best within-proteome paralog — used to calibrate score cutoffs
-    raw_self_ch = params.run_tool == 'phmmer'  ? PHMMER_SELF(ingroup_ch)  :
-                  params.run_tool == 'diamond' ? DIAMOND_SELF(ingroup_ch) :
-                  params.run_tool == 'blast'   ? BLAST_SELF(ingroup_ch)   :
-                  { error "Unknown --run_tool '${params.run_tool}'" }()
-
     PARSE_SELF_HITS(raw_self_ch)
 
     // Collect all parsed TSVs and per-species paralog cutoffs; build presence/absence matrix.

@@ -28,20 +28,31 @@
 model_organisms:
 
   # Neurospora crassa OR74A
-  # Local JGI protein IDs must be mapped to FungiDB NCU IDs via a diamond search.
+  # Local BFD project protein IDs must be mapped to FungiDB NCU IDs via a diamond search.
   - short: Ncra
     gene_names_csv: db/modelorgs/Neurospora_crassa_gene_names_FungiDB.csv
-    id_transform: diamond_fasta
-    diamond_hits: db/modelorgs/Ncra_vs_FungiDB_Ncra.diamond.tsv
-    protein_fasta: db/modelorgs/FungiDB-68_NcrassaOR74A_AnnotatedProteins.fasta
-    fasta_gene_field: gene      # parses "gene=NCU10129" from FungiDB FASTA headers
+    id_transform: strip
+    strip_pattern: "-t\\d+_1-p\\d$"
 
   # Aspergillus fumigatus Af293
   # FungiDB protein IDs end in "-T-p<N>"; stripping that suffix gives the gene ID.
   - short: Afum
     gene_names_csv: db/modelorgs/Aspergillus_fumigatus_gene_names_FungiDB.csv
+    protein_fasta: db/modelorgs/FungiDB-68_AfumigatusAf293_AnnotatedProteins.fasta
     id_transform: strip
     strip_pattern: "-T-p\\d+$"
+
+  - short: Scer
+    gene_names_csv: db/modelorgs/Scerevisiae_gene_names_FungiDB.csv
+    protein_fasta: db/modelorgs/FungiDB-68_ScerevisiaeS288C_AnnotatedProteins.fasta
+    id_transform: strip
+    strip_pattern: "-t\\d+_1-p\\d+$"
+
+  - short: Spom
+    gene_names_csv: db/modelorgs/Spombe_gene_names_FungiDB.csv
+    protein_fasta: db/modelorgs/FungiDB-68_Spombe972h_AnnotatedProteins.fasta
+    id_transform: strip
+    strip_pattern: "-p\\d+$"
 
 # ── Adding a new organism ─────────────────────────────────────────────────────
 #

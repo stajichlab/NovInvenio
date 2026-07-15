@@ -41,30 +41,27 @@ def load_paralog_info(cutoff_files):
         df = pd.read_csv(path, sep='\t')
         if df.empty:
             continue
-        for _, row in df.iterrows():
-            pid = row['protein_ID']
-            cutoffs[pid]    = float(row['evalue'])
-            paralog_of[pid] = row['paralog_protein_ID']
+        cutoffs.update(dict(zip(df['protein_ID'], df['evalue'].astype(float))))
+        paralog_of.update(dict(zip(df['protein_ID'], df['paralog_protein_ID'])))
     return cutoffs, paralog_of
 
 
-def build_hit_lookup(hit_files):
-    """Build (source_proteome, protein_id, target_proteome) -> best evalue.
+HIT_COLUMNS = ['query_id', 'target_id', 'evalue', 'bitscore',
+               'query_proteome', 'target_proteome']
 
-    Covers every ingroup query across all pairwise TSVs; used to check how
-    well a paralog hits the same target as its query protein.
-    """
-    lookup: dict[tuple, float] = {}
+
+def load_hits(hit_files):
+    """Concatenate all parsed pairwise-hit TSVs into a single DataFrame."""
+    frames = []
     for tsv_path in hit_files:
         df = pd.read_csv(tsv_path, sep='\t')
-        if df.empty:
-            continue
-        for _, row in df.iterrows():
-            key = (row['query_proteome'], row['query_id'], row['target_proteome'])
-            ev  = float(row['evalue'])
-            if ev < lookup.get(key, float('inf')):
-                lookup[key] = ev
-    return lookup
+        if not df.empty:
+            frames.append(df)
+    if not frames:
+        return pd.DataFrame(columns=HIT_COLUMNS)
+    hits = pd.concat(frames, ignore_index=True)
+    hits['evalue'] = hits['evalue'].astype(float)
+    return hits
 
 
 def main():
@@ -91,61 +88,70 @@ def main():
 
     paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
 
-    # Pass 1: build lookup of best evalue per (source_proteome, protein_id, target_proteome).
-    # Needed by filter 2 to check how well a paralog hits the same target.
-    hit_lookup = build_hit_lookup(args.hits)
+    hits = load_hits(args.hits)
 
-    # Pass 2: apply both filters and accumulate presence.
+    # Best evalue per (source_proteome, protein_id, target_proteome).
+    # Used by filter 2 to check how well a paralog hits the same target.
+    if hits.empty:
+        best_ev = {}
+    else:
+        best_ev = (hits.groupby(['query_proteome', 'query_id', 'target_proteome'])
+                       ['evalue'].min().to_dict())
+
+    # Restrict to ingroup queries, then apply both paralog-aware filters vectorised.
+    ing = hits[hits['query_proteome'].isin(ingroup_ids)].copy()
+
+    if not ing.empty:
+        # Filter 1: hit evalue must beat the query's paralog cutoff (fallback default).
+        cutoff = ing['query_id'].map(paralog_cutoffs).fillna(args.default_evalue)
+        ing = ing[ing['evalue'] < cutoff]
+
+    if not ing.empty:
+        # Filter 2: disqualify if the query's paralog hits this same target better.
+        paralog_ids = ing['query_id'].map(paralog_of)
+        paralog_ev = [
+            best_ev.get((qp, pid, tp)) if pid is not None and not pd.isna(pid) else None
+            for qp, pid, tp in zip(ing['query_proteome'], paralog_ids, ing['target_proteome'])
+        ]
+        paralog_ev = pd.Series(paralog_ev, index=ing.index, dtype='float64')
+        disqualified = paralog_ev.notna() & (paralog_ev < ing['evalue'])
+        ing = ing[~disqualified]
+
     # protein_key (query_proteome, protein_id) -> set of target proteomes with qualifying hits
     presence: dict[tuple, set] = defaultdict(set)
+    for qp, qid, tp in zip(ing['query_proteome'], ing['query_id'], ing['target_proteome']):
+        presence[(qp, qid)].add(tp)
 
-    for tsv_path in args.hits:
-        df = pd.read_csv(tsv_path, sep='\t')
-        if df.empty:
-            continue
-        for _, row in df.iterrows():
-            qp = row['query_proteome']
-            if qp not in ingroup_ids:
-                continue
-            qid = row['query_id']
-            tp  = row['target_proteome']
-            ev  = float(row['evalue'])
-
-            # Filter 1: hit must be better than the paralog cutoff.
-            if ev >= paralog_cutoffs.get(qid, args.default_evalue):
-                continue
-
-            # Filter 2: if the paralog hits this same target better, disqualify.
-            paralog_id = paralog_of.get(qid)
-            if paralog_id is not None:
-                paralog_ev = hit_lookup.get((qp, paralog_id, tp))
-                if paralog_ev is not None and paralog_ev < ev:
-                    continue
-
-            presence[(qp, qid)].add(tp)
-
-    # Build the full matrix
+    # Build the full matrix (always emit the id columns + one column per proteome,
+    # so an empty result still writes a well-formed header).
+    sorted_ids = sorted(all_ids)
+    columns = ['protein_id', 'source_proteome'] + sorted_ids
     rows = []
     for (qp, pid), hit_proteomes in presence.items():
         all_present = hit_proteomes | {qp}
         row = {'protein_id': pid, 'source_proteome': qp}
-        for sp in sorted(all_ids):
+        for sp in sorted_ids:
             row[sp] = int(sp in all_present)
         rows.append(row)
 
-    matrix = pd.DataFrame(rows).fillna(0)
+    matrix = pd.DataFrame(rows, columns=columns)
     matrix.to_csv(args.output_matrix, sep='\t', index=False)
 
-    n_ingroup  = len(ingroup_ids)
-    candidates = []
-    for _, row in matrix.iterrows():
-        ingroup_count  = sum(int(row.get(s, 0)) for s in ingroup_ids)
-        outgroup_count = sum(int(row.get(s, 0)) for s in outgroup_ids)
-        if ingroup_count / n_ingroup >= args.ingroup_min_frac and outgroup_count == 0:
-            candidates.append(f"{row['source_proteome']}::{row['protein_id']}")
+    n_ingroup      = len(ingroup_ids)
+    ingroup_cols   = sorted(ingroup_ids)
+    outgroup_cols  = sorted(outgroup_ids)
+    if matrix.empty:
+        candidates = []
+    else:
+        ingroup_count  = matrix[ingroup_cols].sum(axis=1)
+        outgroup_count = matrix[outgroup_cols].sum(axis=1) if outgroup_cols else 0
+        keep = (ingroup_count / n_ingroup >= args.ingroup_min_frac) & (outgroup_count == 0)
+        kept = matrix[keep]
+        candidates = (kept['source_proteome'] + '::' + kept['protein_id']).tolist()
 
     with open(args.output_candidates, 'w') as fh:
-        fh.write('\n'.join(candidates) + '\n')
+        if candidates:
+            fh.write('\n'.join(candidates) + '\n')
 
     print(f"Candidates: {len(candidates)} / {len(matrix)} ingroup proteins pass thresholds",
           file=sys.stderr)

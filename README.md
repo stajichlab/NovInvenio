@@ -48,9 +48,9 @@ names file and describes how protein IDs map to gene IDs.  See the comments in
 ```bash
 nextflow run main.nf \
     --config configs/pezio4_asco.csv \
-    --data_dir /path/to/fastas \
+    --data_dir data \
     --run_tool diamond \
-    --pfam_hmm db/pfam/Pfam-A.hmm \
+    --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
     --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
     --modelorgs_config configs/modelorgs.yaml
 ```

@@ -14,7 +14,7 @@ process PARSE_HITS {
     parse_hits.py \
         --input ${hits_file} \
         --format ${meta_pair.tool} \
-        --evalue ${params.evalue} \
+        --evalue ${params.parse_evalue} \
         --query-proteome ${meta_pair.query_id} \
         --target-proteome ${meta_pair.target_id} \
         --output ${out}
