@@ -6,6 +6,7 @@ include { CLUSTER  } from './workflows/cluster'
 include { VALIDATE } from './workflows/validate'
 include { ANNOTATE } from './workflows/annotate'
 include { SUMMARIZE } from './workflows/summarize'
+include { REPORT   } from './workflows/report'
 
 // Resolve a FASTA basename against data_dir, checking the flat layout first
 // then the listed subdirectories (so configs that reference bare basenames
@@ -68,4 +69,12 @@ workflow {
     ANNOTATE(CLUSTER.out.candidates_fa, SEARCH.out.matrix, pfam_abs, sprot_abs, morgs_abs)
 
     SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, file(params.config))
+
+    REPORT(
+        ANNOTATE.out.annotated_matrix,
+        VALIDATE.out.summary,
+        SUMMARIZE.out.novelties,
+        CLUSTER.out.candidates_fa,
+        file(params.config)
+    )
 }
