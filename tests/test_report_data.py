@@ -191,6 +191,38 @@ def test_function_sources_are_interned(run_dir, samples):
     assert rows['n2'][F['fsrc']] == -1  # no annotation
 
 
+def test_payload_has_no_families_without_cluster_tsv(run_dir, samples):
+    payload = payload_for(run_dir, samples)
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    assert payload['families'] == []
+    assert all(r[F['fam']] == -1 for r in payload['rows'])
+
+
+def test_payload_groups_candidates_into_gene_families(run_dir, samples):
+    # n1 (Ncra) and n2 (Afum) are independent hits of the same gene family
+    # recovered in two different ingroup species; mmseqs clusters them together.
+    (run_dir / 'clusters_cluster.tsv').write_text('n1\tn1\nn1\tn2\n')
+    payload = payload_for(run_dir, samples, cluster_tsv=run_dir / 'clusters_cluster.tsv')
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = rows_by_id(payload)
+
+    assert payload['families'] == [{'rep': 'n1', 'size': 2, 'species': ['Afum', 'Ncra']}]
+    assert rows['n1'][F['fam']] == 0
+    assert rows['n2'][F['fam']] == 0
+    # shared/lonely never appear in candidates.fa's cluster, so they carry no family.
+    assert rows['shared'][F['fam']] == -1
+    assert rows['lonely'][F['fam']] == -1
+
+
+def test_payload_ignores_singleton_clusters(run_dir, samples):
+    # A cluster where the rep is its own only member has nothing to collapse.
+    (run_dir / 'clusters_cluster.tsv').write_text('n1\tn1\n')
+    payload = payload_for(run_dir, samples, cluster_tsv=run_dir / 'clusters_cluster.tsv')
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    assert payload['families'] == []
+    assert rows_by_id(payload)['n1'][F['fam']] == -1
+
+
 def test_build_payload_rejects_a_matrix_with_no_config_columns(run_dir, samples):
     (run_dir / 'other.tsv').write_text('protein_id\tsource_proteome\tXxxx\nfoo\tXxxx\t1\n')
     with pytest.raises(ValueError, match='No proteome columns'):

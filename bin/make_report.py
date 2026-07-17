@@ -14,6 +14,7 @@ Example:
       --tblastn_summary results/pezio4_asco/tblastn_summary.tsv \
       --novelties results/pezio4_asco/novelties.*.tsv \
       --candidates_fa results/pezio4_asco/candidates.fa \
+      --cluster_tsv results/pezio4_asco/clusters/clusters_cluster.tsv \
       --output results/pezio4_asco/report.html
 """
 import argparse
@@ -42,6 +43,9 @@ def main():
                          'recomputed from the matrix when omitted)')
     ap.add_argument('--candidates_fa',
                     help='candidates.fa, used to fill in protein sequences (optional)')
+    ap.add_argument('--cluster_tsv',
+                    help='mmseqs easy-cluster *_cluster.tsv (rep -> member), used to group '
+                         'candidates into gene families across ingroup species (optional)')
     ap.add_argument('--project', default=None,
                     help='Project name shown in the report title (default: matrix parent dir)')
     ap.add_argument('--ingroup_min_frac', type=float, default=0.75,
@@ -71,6 +75,7 @@ def main():
         tblastn_path=args.tblastn_summary,
         novelty_paths=novelty_paths,
         candidates_fa=args.candidates_fa,
+        cluster_tsv=args.cluster_tsv,
         ingroup_min_frac=args.ingroup_min_frac,
         project=project,
         sequences=args.sequences,

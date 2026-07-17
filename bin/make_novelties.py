@@ -13,11 +13,21 @@ The annotated presence matrix (presence_matrix.function.tsv) must already
 contain the Best_Swissprot and Pfam_Names columns added by
 annotate_presence_matrix.py.  If tblastn_summary.tsv is absent, step 4 is
 skipped with a warning.
+
+When --cluster_tsv (mmseqs easy-cluster *_cluster.tsv) is supplied, each row
+also gets family_id/family_size/family_members columns identifying the
+mmseqs cluster its candidate belongs to — the same gene family recurring
+across other ingroup species shows up under one family_id rather than as
+unrelated rows in each species' table.
 """
 import argparse
 import csv
 import os
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+from clusters import build_families, read_cluster_tsv
 
 
 def load_groups(config_csv):
@@ -54,6 +64,9 @@ def main():
                     help='presence_matrix.function.tsv (annotated, with Best_Swissprot/Pfam_Names)')
     ap.add_argument('--tblastn_summary',
                     help='tblastn_summary.tsv from summarize_tblastn.py (optional)')
+    ap.add_argument('--cluster_tsv',
+                    help='mmseqs easy-cluster *_cluster.tsv (rep -> member) for gene-family '
+                         'grouping across ingroup species (optional)')
     ap.add_argument('--config', required=True,
                     help='Analysis config CSV (GROUP, Short, Species columns required)')
     ap.add_argument('--ingroup_min', type=float, default=0.75,
@@ -69,6 +82,11 @@ def main():
 
     ingroup_ids, outgroup_ids = load_groups(args.config)
     tblastn = load_tblastn_summary(args.tblastn_summary)
+
+    families = {}
+    if args.cluster_tsv and os.path.exists(args.cluster_tsv):
+        families = build_families(read_cluster_tsv(args.cluster_tsv))
+    member_to_rep = {m: rep for rep, members in families.items() for m in members}
 
     if args.tblastn_summary and not tblastn and os.path.exists(args.tblastn_summary):
         print('WARNING: tblastn_summary loaded but contains no hits', file=sys.stderr)
@@ -94,7 +112,8 @@ def main():
     presence_cols = ingroup_ids + outgroup_ids
     annotation_cols = [c for c in header if c not in presence_cols]
     # Reorder: annotation first, then ingroup presence, then outgroup presence
-    out_fields = annotation_cols + ingroup_ids + outgroup_ids + ['tblastn_outgroup_hits']
+    out_fields = (annotation_cols + ['family_id', 'family_size', 'family_members']
+                  + ingroup_ids + outgroup_ids + ['tblastn_outgroup_hits'])
 
     counts: dict[str, tuple[int, int]] = {}
 
@@ -130,6 +149,18 @@ def main():
                     continue
 
                 row['tblastn_outgroup_hits'] = ','.join(sorted(tblastn_hit_genomes))
+
+                rep = member_to_rep.get(pid)
+                if rep:
+                    members = families[rep]
+                    row['family_id'] = rep
+                    row['family_size'] = len(members)
+                    row['family_members'] = ','.join(m for m in members if m != pid)
+                else:
+                    row['family_id'] = ''
+                    row['family_size'] = 1
+                    row['family_members'] = ''
+
                 writer.writerow(row)
                 n_kept += 1
 

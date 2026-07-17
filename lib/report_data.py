@@ -12,6 +12,8 @@ import csv
 import re
 from pathlib import Path
 
+from clusters import build_families, read_cluster_tsv
+
 # Order of the per-protein arrays in payload['rows'].  The browser reads these
 # positionally via the same names exported in payload['fields'].
 ROW_FIELDS = [
@@ -27,6 +29,7 @@ ROW_FIELDS = [
     'pfam_a',    # Pfam_Accessions (comma-separated)
     'pfam_e',    # Pfam_Evalues (comma-separated)
     'nov',       # 1 if this protein is a novelty candidate for its source proteome
+    'fam',       # index into payload['families'], or -1 if not part of a multi-member cluster
     'seq',       # protein sequence ('' when not loaded)
 ]
 
@@ -136,6 +139,7 @@ def build_payload(
     tblastn_path=None,
     novelty_paths=None,
     candidates_fa=None,
+    cluster_tsv=None,
     ingroup_min_frac=0.75,
     project='NovInvenio',
     sequences='novelties',
@@ -144,8 +148,23 @@ def build_payload(
 
     sequences: 'novelties' (default), 'all', or 'none' — which rows carry a
     protein_sequence.  Sequences dominate payload size, so 'all' is opt-in.
+
+    cluster_tsv: mmseqs easy-cluster *_cluster.tsv (rep -> member), used to
+    group candidates from different ingroup species into a gene family — a
+    lineage-specific gene recovered independently in several ingroup taxa
+    otherwise shows up as unrelated rows with no way to tell they're the same
+    locus.  Clusters with a single member carry no family (fam == -1); there
+    is nothing to collapse.
     """
     header, rows = read_matrix(matrix_path)
+
+    families: dict[str, list[str]] = {}
+    if cluster_tsv and Path(cluster_tsv).exists():
+        families = build_families(read_cluster_tsv(cluster_tsv))
+    member_to_rep = {m: rep for rep, members in families.items() for m in members}
+    fam_reps = sorted(families.keys())
+    fam_index = {rep: i for i, rep in enumerate(fam_reps)}
+    fam_species: list[set] = [set() for _ in fam_reps]
 
     # Only proteomes that actually have a column in the matrix are shown; ingroup
     # first so the heatmap's column blocks read left-to-right IN then OUT.
@@ -204,6 +223,11 @@ def build_payload(
         else:
             seq = ''
 
+        rep = member_to_rep.get(pid)
+        fam_i = fam_index.get(rep, -1) if rep else -1
+        if fam_i >= 0 and src:
+            fam_species[fam_i].add(src)
+
         out_rows.append([
             pid,
             shorts.index(src) if src in shorts else -1,
@@ -217,8 +241,14 @@ def build_payload(
             row.get('Pfam_Accessions', '') or '',
             row.get('Pfam_Evalues', '') or '',
             is_nov,
+            fam_i,
             seq,
         ])
+
+    families_payload = [
+        {'rep': rep, 'size': len(families[rep]), 'species': sorted(fam_species[i])}
+        for i, rep in enumerate(fam_reps)
+    ]
 
     return {
         'project': project,
@@ -236,5 +266,6 @@ def build_payload(
         ],
         'tblastn_genomes': tb_genomes,
         'fsources': fsources,
+        'families': families_payload,
         'rows': out_rows,
     }

@@ -335,6 +335,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     <input type="search" id="f-search" placeholder="Search ID, gene, product, Pfam…" aria-label="Search proteins">
     <select id="f-src" aria-label="Source proteome"></select>
     <select id="f-fsrc" aria-label="Annotation source"></select>
+    <select id="f-family" aria-label="Gene family"></select>
     <label class="check"><input type="checkbox" id="f-nov" checked> Novelty candidates only</label>
     <label class="check"><input type="checkbox" id="f-pfam"> Has Pfam</label>
     <label class="check"><input type="checkbox" id="f-notb"> No TBLASTN hit</label>
@@ -408,7 +409,17 @@ HTML_TEMPLATE = r"""<!doctype html>
   var ROWS = DATA.rows;
   var PROTEOMES = DATA.proteomes;
   var TB_GENOMES = DATA.tblastn_genomes;
+  var FAMILIES = DATA.families || [];
   var N_IN = PROTEOMES.filter(function (p) { return p.group === "IN"; }).length;
+
+  // Gene families group candidates recovered independently in several ingroup
+  // species (via mmseqs clustering of the candidate set) — see lib/clusters.py.
+  // Membership is carried per-row via F.fam; family-level stats (size, species)
+  // come precomputed from the payload rather than scanning ROWS at render time.
+  function familyLabel(fam) {
+    return fam.rep + " (" + fam.size + " in " + fam.species.length +
+      (fam.species.length === 1 ? " species)" : " species)");
+  }
 
   // ---- column model -------------------------------------------------------
   // Column position carries ingroup/outgroup/TBLASTN; hue only carries the kind
@@ -461,11 +472,14 @@ HTML_TEMPLATE = r"""<!doctype html>
   }
 
   // Lowercased haystack per row, built once — search runs on every keystroke.
+  // Includes the row's family representative ID, so searching for any one
+  // member's family rep surfaces every other ingroup species' copy too.
   var HAY = new Array(nRows);
   for (var h = 0; h < nRows; h++) {
     var row = ROWS[h];
+    var famRep = row[F.fam] >= 0 ? FAMILIES[row[F.fam]].rep : "";
     HAY[h] = (row[F.id] + " " + row[F.gene] + " " + row[F.prod] + " " +
-              row[F.pfam_n] + " " + row[F.sprot]).toLowerCase();
+              row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
   }
 
   // ---- state --------------------------------------------------------------
@@ -473,6 +487,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     search: "",
     src: "",
     fsrc: "",
+    family: -1,
     novOnly: true,
     pfamOnly: false,
     noTb: false,
@@ -535,7 +550,11 @@ HTML_TEMPLATE = r"""<!doctype html>
     view = [];
     for (var i = 0; i < nRows; i++) {
       var row = ROWS[i];
-      if (state.novOnly && !row[F.nov]) continue;
+      // A family filter is a request to see every member regardless of that
+      // member's own novelty status, so it overrides (not stacks with) novOnly.
+      if (state.family >= 0) {
+        if (row[F.fam] !== state.family) continue;
+      } else if (state.novOnly && !row[F.nov]) continue;
       if (srcIdx >= 0 && row[F.src] !== srcIdx) continue;
       if (state.fsrc && row[F.fsrc] !== fsrcIdx) continue;
       if (state.pfamOnly && !hasPfam[i]) continue;
@@ -829,6 +848,20 @@ HTML_TEMPLATE = r"""<!doctype html>
         Math.round(DATA.ingroup_min_frac * 100) + "% of the ingroup and absent from every outgroup proteome."));
     }
 
+    if (row[F.fam] >= 0) {
+      var fam = FAMILIES[row[F.fam]];
+      var famBox = el("div");
+      famBox.appendChild(el("div", "field-value",
+        fam.size + " members across " + fam.species.length + " species (" + fam.species.join(", ") + ")"));
+      var famLinks = el("div", "links");
+      var famBtn = el("button", null, "Show family members (" + fam.size + ")");
+      famBtn.type = "button";
+      famBtn.addEventListener("click", function () { setFamilyFilter(row[F.fam]); setView("table"); });
+      famLinks.appendChild(famBtn);
+      famBox.appendChild(famLinks);
+      detailEl.appendChild(field("Gene family — independently recovered in multiple ingroup species", famBox));
+    }
+
     // presence chips: colour + the short ID text, so identity is never colour-alone
     var mini = el("div", "presence-mini");
     PROTEOMES.forEach(function (p, i) {
@@ -941,6 +974,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
     { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
     { label: "Novelty", get: function (r) { return ROWS[r][F.nov] ? "yes" : "no"; } },
+    {
+      label: "Gene family", cls: "wrap-cell",
+      get: function (r) {
+        var fi = ROWS[r][F.fam];
+        return fi >= 0 ? FAMILIES[fi].rep + " (" + FAMILIES[fi].size + ")" : "";
+      }
+    },
     { label: "Ingroup", get: function (r) { return inN[r] + "/" + N_IN; }, cls: "num" },
     { label: "Outgroup", get: function (r) { return outN[r] + "/" + (PROTEOMES.length - N_IN); }, cls: "num" },
     { label: "TBLASTN", get: function (r) { return TB_GENOMES.length ? tbN[r] + "/" + TB_GENOMES.length : "—"; }, cls: "num" },
@@ -1121,6 +1161,18 @@ HTML_TEMPLATE = r"""<!doctype html>
     var fs = document.getElementById("f-fsrc");
     fs.appendChild(new Option("Any annotation source", ""));
     DATA.fsources.slice().sort().forEach(function (f) { fs.appendChild(new Option(f, f)); });
+
+    var fam = document.getElementById("f-family");
+    fam.appendChild(new Option(
+      FAMILIES.length ? "All families (" + FAMILIES.length + ")" : "No multi-species families", ""
+    ));
+    FAMILIES.forEach(function (f, i) { fam.appendChild(new Option(familyLabel(f), String(i))); });
+  }
+
+  function setFamilyFilter(idx) {
+    state.family = idx;
+    document.getElementById("f-family").value = idx >= 0 ? String(idx) : "";
+    refresh(true);
   }
 
   var searchTimer = null;
@@ -1131,16 +1183,21 @@ HTML_TEMPLATE = r"""<!doctype html>
   });
   document.getElementById("f-src").addEventListener("change", function (e) { state.src = e.target.value; refresh(true); });
   document.getElementById("f-fsrc").addEventListener("change", function (e) { state.fsrc = e.target.value; refresh(true); });
+  document.getElementById("f-family").addEventListener("change", function (e) {
+    state.family = e.target.value === "" ? -1 : Number(e.target.value);
+    refresh(true);
+  });
   document.getElementById("f-nov").addEventListener("change", function (e) { state.novOnly = e.target.checked; refresh(true); });
   document.getElementById("f-pfam").addEventListener("change", function (e) { state.pfamOnly = e.target.checked; refresh(true); });
   document.getElementById("f-notb").addEventListener("change", function (e) { state.noTb = e.target.checked; refresh(true); });
   document.getElementById("f-sort").addEventListener("change", function (e) { state.sort = e.target.value; refresh(true); });
   document.getElementById("f-reset").addEventListener("click", function () {
-    state.search = ""; state.src = ""; state.fsrc = "";
+    state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
     state.novOnly = true; state.pfamOnly = false; state.noTb = false; state.sort = "ingroup";
     document.getElementById("f-search").value = "";
     document.getElementById("f-src").value = "";
     document.getElementById("f-fsrc").value = "";
+    document.getElementById("f-family").value = "";
     document.getElementById("f-nov").checked = true;
     document.getElementById("f-pfam").checked = false;
     document.getElementById("f-notb").checked = false;

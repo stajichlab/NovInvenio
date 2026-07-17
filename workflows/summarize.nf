@@ -9,10 +9,11 @@ workflow SUMMARIZE {
     take:
     annotated_matrix   // path: presence_matrix.function.tsv
     tblastn_summary    // path: tblastn_summary.tsv (protein × genome hit matrix)
+    cluster_tsv        // path: mmseqs *_cluster.tsv (rep -> member) for gene-family grouping
     config_csv         // path: analysis CSV
 
     main:
-    MAKE_NOVELTIES(annotated_matrix, tblastn_summary, config_csv)
+    MAKE_NOVELTIES(annotated_matrix, tblastn_summary, cluster_tsv, config_csv)
 
     emit:
     novelties = MAKE_NOVELTIES.out.novelties
@@ -25,6 +26,7 @@ process MAKE_NOVELTIES {
     input:
     path(annotated_matrix)
     path(tblastn_summary)
+    path(cluster_tsv)
     path(config_csv)
 
     output:
@@ -35,6 +37,7 @@ process MAKE_NOVELTIES {
     make_novelties.py \
         --matrix ${annotated_matrix} \
         --tblastn_summary ${tblastn_summary} \
+        --cluster_tsv ${cluster_tsv} \
         --config ${config_csv} \
         --ingroup_min ${params.ingroup_min_frac} \
         --output_dir . \

@@ -68,13 +68,14 @@ workflow {
 
     ANNOTATE(CLUSTER.out.candidates_fa, SEARCH.out.matrix, pfam_abs, sprot_abs, morgs_abs)
 
-    SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, file(params.config))
+    SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, CLUSTER.out.cluster_tsv, file(params.config))
 
     REPORT(
         ANNOTATE.out.annotated_matrix,
         VALIDATE.out.summary,
         SUMMARIZE.out.novelties,
         CLUSTER.out.candidates_fa,
+        CLUSTER.out.cluster_tsv,
         file(params.config)
     )
 }

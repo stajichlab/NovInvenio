@@ -63,6 +63,7 @@ NovInvenio/
 │   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns
 │   ├── make_novelties.py          # Per-species novelties.<SHORT>.tsv (with --skip_tblastn_filter option)
 │   ├── make_report.py             # Self-contained interactive report.html
+│   ├── make_config.py             # Generate a run config CSV from configs/samples.csv by taxon/lineage matching
 │   ├── filter_candidates.py       # (standalone helper — not yet wired into pipeline)
 │   ├── split_fasta.py             # (standalone helper)
 │   └── summarize_clusters.py      # (standalone helper)
@@ -80,6 +81,7 @@ NovInvenio/
 │   ├── test_hits.py
 │   └── data/                      # test.csv + small FASTAs for -profile test
 ├── configs/
+│   ├── samples.csv                 # Master species pool (Species,Strain,Protein,DNA,Short,Lineage) — source for bin/make_config.py
 │   ├── pezio4_asco.csv            # Main analysis config (Pezizomycotina ingroup, Asco outgroup)
 │   └── modelorgs.yaml             # Model organism YAML for gene name lookups
 └── results/
@@ -318,6 +320,69 @@ bin/make_report.py \
   window; the scroll height comes from the spacer div.
 - **The table tab is the accessibility twin** of the heatmap and must keep every value
   reachable without hovering.
+
+### Testing template JS changes
+
+`lib/report_template.py` has no test runner of its own — pytest only covers the Python
+side (`tests/test_report_data.py` checks the embedded payload, not the JS behaviour). When
+editing the JS inside `HTML_TEMPLATE`, verify it in two stages:
+
+1. **Syntax check with `node --check`.** Extract the `<script>` body (the second one — the
+   first is the `application/json` payload) and check it parses:
+
+   ```bash
+   python3 -c "
+   from lib.report_template import HTML_TEMPLATE
+   import re
+   m = re.search(r'<script>\n(.*)</script>\n</body>', HTML_TEMPLATE, re.S)
+   open('/tmp/report_js_check.js', 'w').write(m.group(1))
+   "
+   node --check /tmp/report_js_check.js
+   ```
+
+2. **Drive a real generated report with jsdom** to exercise DOM wiring end-to-end (filters,
+   selects, detail-panel buttons, table rendering). This project has no JS dependencies
+   checked in, so install jsdom into a scratch dir rather than the repo:
+
+   ```bash
+   npm install --prefix /tmp/novinv_check jsdom --no-audit --no-fund --silent
+   ```
+
+   Generate a small `report.html` from a hand-written fixture matrix/config (same shape as
+   the fixtures in `tests/test_report_data.py`) via `bin/make_report.py`, then load it with
+   `JSDOM({ runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true })`.
+   jsdom does not implement `<canvas>` or `matchMedia`, and the report page calls both
+   unconditionally on load — stub them in the `beforeParse(window)` hook *before* the
+   page's inline script runs, or every event handler that calls `drawGrid()` throws:
+
+   ```js
+   beforeParse(window) {
+     window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+     const ctxStub = {
+       setTransform() {}, clearRect() {}, fillRect() {}, strokeRect() {},
+       measureText: (t) => ({ width: (t || '').length * 6 }),
+       fillText() {}, save() {}, restore() {}, translate() {}, rotate() {},
+       beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
+     };
+     window.HTMLCanvasElement.prototype.getContext = () => ctxStub;
+   }
+   ```
+
+   From there, drive the page like a user: set `select.value` / `input.value`, dispatch a
+   plain `new window.Event('change'|'input'|'click', { bubbles: true })` (jsdom doesn't need
+   real `MouseEvent`/`InputEvent` for this page's listeners), await a short `setTimeout` for
+   the debounced search box (140ms), and assert on `textContent` of `#count`, `#tbl-body`,
+   and `#detail` rather than the canvas heatmap (canvas is stubbed to a no-op, so pixel
+   output isn't observable — assert through the table tab instead).
+
+   This caught a real behavioural requirement during the gene-family feature: with default
+   filters, a family member that doesn't independently clear its own species' novelty
+   threshold stays hidden until the detail panel's "Show family members" button is clicked,
+   which must override (not stack with) the novelty-only filter. A payload/unit test
+   wouldn't have exercised that filter-override interaction — only driving the actual DOM did.
+
+   Clean up the scratch install and generated fixtures afterward (`rm -rf /tmp/novinv_check`);
+   none of it belongs in the repo.
 
 ---
 

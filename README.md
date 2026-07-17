@@ -97,6 +97,46 @@ IN,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
 - `Protein`, `DNA`: FASTA basenames resolved relative to `--data_dir`
 - Config filename (without `.csv`) becomes the results subdirectory
 
+### Generating config files (`bin/make_config.py`)
+
+For larger sample collections, keep one master `configs/samples.csv` (every
+available proteome listed once) instead of copy-pasting rows into a new config
+per run:
+
+```csv
+Species,Strain,Protein,DNA,Short,Lineage
+Neurospora crassa,OR74A,Ncra.pep.fa,Ncra.dna.fa,Ncra,Fungi;Ascomycota;Pezizomycotina;Sordariomycetes;Neurospora
+```
+
+`Lineage` is a semicolon-delimited list, highest→lowest rank. `bin/make_config.py`
+slices a run-specific `GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup` config
+out of that pool by matching lineage tokens — it's taxonomy-string matching, not
+phylogenetic inference (no species tree is consulted):
+
+```bash
+bin/make_config.py \
+    --samples configs/samples.csv \
+    --ingroup-taxon Pezizomycotina \
+    --max-per-outgroup-taxon 2 \
+    --output configs/pezio_new.csv
+```
+
+This puts every species whose `Lineage` contains `Pezizomycotina` in the
+ingroup. With no `--outgroup-taxon` given, the outgroup defaults to "siblings
+of the ingroup's parent clade" (everything else under Ascomycota here), capped
+at 2 species per sibling lineage so no single outgroup clade dominates.
+
+Other options: `--outgroup-taxon NAME` (repeatable) to name the outgroup pool
+explicitly instead of using the sibling default; `--exclude-taxon NAME`
+(repeatable) to drop known-bad species; `--ingroup-short SHORT` (repeatable) to
+pin exact species into the ingroup for focal-species configs (like
+`configs/nirr.csv`, where the ingroup is intentionally one species); `--random`
++ `--seed` for random rather than deterministic stratified sampling; and
+`--data-dir PATH` to fail fast if any selected `Protein`/`DNA` file doesn't
+actually resolve on disk. If a real species tree becomes available later, a
+`--tree` mode for true MRCA/sister-clade selection would be the natural
+extension, but isn't implemented yet.
+
 ## Model organism config (configs/modelorgs.yaml)
 
 Gene name lookup is driven by a separate YAML file.  This decouples annotation
@@ -163,6 +203,19 @@ Each file contains proteins that are:
 Columns include: `protein_id`, `source_proteome`, per-species presence columns,
 `gene_name`, `product_description`, `function_source`, `Best_Swissprot`,
 `Pfam_Names`.
+
+### Single-ingroup-species configs
+
+With only one `IN` species in the config CSV, `--ingroup_min_frac` is trivially
+satisfied (1/1), so the only filter that determines candidates is "absent from every
+outgroup proteome." It's normal for this to yield zero candidates — a single species
+compared against a handful of outgroups may simply have no protein that fails to hit
+any of them. When `candidates.txt`/`candidates.fa` come out empty, `MMSEQS_CLUSTER`
+(`modules/mmseqs_cluster.nf`) detects the empty FASTA and skips clustering rather than
+invoking mmseqs, which otherwise dies ungracefully (`Cannot seek at the end of file`)
+on empty input — it emits empty `clusters_rep_seq.fasta`/`clusters_all_seqs.fasta`/
+`clusters_cluster.tsv` and the pipeline continues to completion with empty downstream
+outputs.
 
 ## Interactive report (report.html)
 

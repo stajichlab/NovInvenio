@@ -13,6 +13,15 @@ process MMSEQS_CLUSTER {
 
     shell:
     '''
+    if [ ! -s !{candidates_fa} ]; then
+        # No candidates (e.g. a single-ingroup-species run where nothing
+        # cleared the "absent from all outgroups" filter) — mmseqs
+        # createdb fails ungracefully on an empty FASTA, so skip clustering
+        # and emit empty outputs instead.
+        touch clusters_rep_seq.fasta clusters_all_seqs.fasta clusters_cluster.tsv
+        exit 0
+    fi
+
     tmpdir=${SCRATCH:-${TMPDIR:-/tmp}}
     mmseqs easy-cluster \
         !{candidates_fa} \
