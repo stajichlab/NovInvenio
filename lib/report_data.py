@@ -375,6 +375,11 @@ LOSSES_ROW_FIELDS = [
     'id',          # protein_id (an outgroup protein)
     'src',         # index into payload['proteomes']
     'frac',        # presence fraction across outgroup proteome columns only
+    'out_breadth', # # distinct outgroup species carrying any member of this gene family
+                   #   (or, for a singleton, this protein's own outgroup presence count)
+    'in_retained', # # distinct ingroup species that still retain any member of this family
+                   #   (or, for a singleton, this protein's own ingroup presence count) — 0 is a
+                   #   clean loss; >0 means "nearly missing" (allowed by loss_ingroup_max_frac)
     'gene',        # gene_name (from the outgroup side's own annotation)
     'prod',        # product_description
     'fsrc',        # index into payload['fsources'], or -1
@@ -393,6 +398,7 @@ def build_losses_payload(
     tblastn_path=None,
     cluster_tsv=None,
     outgroup_min_frac=0.75,
+    loss_ingroup_max_frac=0.0,
     project='NovInvenio',
 ) -> dict:
     """Build the embedded payload for the LOSSES (candidate gene-loss) report.
@@ -400,9 +406,30 @@ def build_losses_payload(
     matrix_path is loss_presence_matrix.function.tsv — built by the same
     build_presence_matrix.py machinery as the novelty matrix, but with
     --query-group OUT (see workflows/loss_search.nf): rows are sourced from
-    outgroup proteins, and a row exists only when that protein is absent
-    from every ingroup proteome. So unlike build_core_payload(), no absence
-    filter is needed here — it is already baked into which rows exist.
+    outgroup proteins.
+
+    The *matrix* is the full presence/absence table (every outgroup query
+    with any qualifying hit) — LOSS_ANNOTATE runs on it, not on the filtered
+    candidate list. So, exactly like build_core_payload() and
+    derive_novelties(), this recomputes the candidate predicate here rather
+    than trusting the matrix's row set:
+
+      - present in >= outgroup_min_frac of the outgroup  (conserved), AND
+      - present in <= loss_ingroup_max_frac of the ingroup  (lost / nearly lost).
+
+    loss_ingroup_max_frac mirrors build_presence_matrix.py's --other-max-frac
+    (default 0.0 = strictly absent from the ingroup); pass the same value the
+    loss search used so the reported rows match loss_candidates.txt and hence
+    the mmseqs families built from it.
+
+    Beyond the per-protein outgroup fraction (frac), each row also carries two
+    *family-level* aggregates — the biological unit of a loss is the gene
+    family, not one outgroup protein:
+      - out_breadth: how many distinct outgroup species carry any member of the
+        family (conservation breadth of the whole family).
+      - in_retained: how many ingroup species still retain any member (0 = clean
+        loss across the ingroup; >0 only when loss_ingroup_max_frac was raised).
+    Singletons (no multi-member cluster) fall back to their own row's counts.
 
     tblastn_path, if given, is loss_tblastn_summary.tsv — TBLASTN of the
     loss candidates against ingroup *genomic* DNA (not just the annotated
@@ -421,6 +448,7 @@ def build_losses_payload(
     outgroup = [s for s in config_samples if s.group == 'OUT' and s.short in header]
     proteomes = ingroup + outgroup
     shorts = [s.short for s in proteomes]
+    ingroup_ids = [s.short for s in ingroup]
     outgroup_ids = [s.short for s in outgroup]
     outgroup_index = {s.short for s in outgroup}
 
@@ -432,19 +460,35 @@ def build_losses_payload(
 
     tb_genomes, tb_hits = read_tblastn_summary(tblastn_path)
 
-    fsources: list[str] = []
-    fsource_idx: dict[str, int] = {}
-    out_rows = []
-
+    # Pass 1: keep only rows that clear the loss predicate, and accumulate each
+    # gene family's outgroup breadth / ingroup retention across its members.
+    kept = []
+    fam_out_species: dict[int, set] = {}
+    fam_in_species: dict[int, set] = {}
     for row in rows:
         src = row.get('source_proteome', '')
         if src not in outgroup_index:
             continue
 
-        pid = row.get('protein_id', '')
-        present = sum(1 for s in outgroup_ids if row.get(s, '0') == '1')
-        frac = present / len(outgroup_ids) if outgroup_ids else 0.0
+        out_present = [s for s in outgroup_ids if row.get(s, '0') == '1']
+        in_present = [s for s in ingroup_ids if row.get(s, '0') == '1']
+        out_frac = len(out_present) / len(outgroup_ids) if outgroup_ids else 0.0
+        in_frac = len(in_present) / len(ingroup_ids) if ingroup_ids else 0.0
+        if out_frac < outgroup_min_frac or in_frac > loss_ingroup_max_frac:
+            continue
 
+        pid = row.get('protein_id', '')
+        fam_i = fam_index.index_of(pid, src)
+        if fam_i >= 0:
+            fam_out_species.setdefault(fam_i, set()).update(out_present)
+            fam_in_species.setdefault(fam_i, set()).update(in_present)
+        kept.append((row, pid, src, out_frac, out_present, in_present, fam_i))
+
+    # Pass 2: emit rows, resolving the family-level aggregates.
+    fsources: list[str] = []
+    fsource_idx: dict[str, int] = {}
+    out_rows = []
+    for row, pid, src, out_frac, out_present, in_present, fam_i in kept:
         fsrc = row.get('function_source', '') or ''
         if fsrc:
             if fsrc not in fsource_idx:
@@ -454,13 +498,21 @@ def build_losses_payload(
         else:
             fsrc_i = -1
 
+        if fam_i >= 0:
+            out_breadth = len(fam_out_species[fam_i])
+            in_retained = len(fam_in_species[fam_i])
+        else:
+            out_breadth = len(out_present)
+            in_retained = len(in_present)
+
         hit_genomes = sorted(tb_hits.get(pid, set()))
-        fam_i = fam_index.index_of(pid, src)
 
         out_rows.append([
             pid,
             shorts.index(src),
-            round(frac, 4),
+            round(out_frac, 4),
+            out_breadth,
+            in_retained,
             row.get('gene_name', '') or '',
             row.get('product_description', '') or '',
             fsrc_i,
@@ -475,6 +527,9 @@ def build_losses_payload(
     return {
         'project': project,
         'outgroup_min_frac': outgroup_min_frac,
+        'loss_ingroup_max_frac': loss_ingroup_max_frac,
+        'n_ingroup': len(ingroup_ids),
+        'n_outgroup': len(outgroup_ids),
         'fields': LOSSES_ROW_FIELDS,
         'proteomes': [
             {

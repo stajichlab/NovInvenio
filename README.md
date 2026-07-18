@@ -24,11 +24,41 @@ Config CSV
     ├─► SUMMARIZE — per-species novelty files
     │               → novelties.<SHORT>.tsv for each ingroup species
     │
-    └─► REPORT   — interactive HTML report of the candidates and the matrix
-                    → novelties.html (self-contained; opens offline in a browser)
+    ├─► LOSS_* — a mirror of SEARCH→…→ANNOTATE with the ingroup/outgroup roles
+    │             swapped (outgroup as query) → loss_presence_matrix.function.tsv,
+    │               loss_tblastn_summary.tsv — candidate lineage-specific gene losses
+    │
+    └─► REPORT   — self-contained interactive HTML reports (open offline in a browser)
+                    → novelties.html, core.html, losses.html
+                      then COLLATE_REPORTS copies all three into view/<project>/
+                      with a report.html landing page describing the run
 ```
 
 ## Quick start
+
+### Run it now (built-in test data)
+
+The repository ships a tiny four-proteome dataset under `tests/data/`, wired up as a
+Nextflow `test` profile, so you can run the whole pipeline end-to-end before downloading
+any databases:
+
+```bash
+pixi install                       # one-time: create the tool environment
+nextflow run main.nf -profile test # runs SEARCH → … → REPORT on tests/data/
+```
+
+When it finishes, open the collated landing page and follow the links to the three
+interactive reports:
+
+```bash
+open view/test/report.html   # macOS; Linux: xdg-open
+# view/test/report.html links to copies of novelties.html · core.html · losses.html
+```
+
+The test data is deliberately small (a handful of genes each), so the reports will be
+nearly empty — the point is to confirm the pipeline runs and the reports render on your
+machine. For a real analysis, set up the databases and use one of the `configs/*.csv`
+files below.
 
 ### 1. Set up databases (one time)
 
@@ -50,7 +80,7 @@ names file and describes how protein IDs map to gene IDs.  See the comments in
 
 ```bash
 nextflow run main.nf \
-    --config configs/pezio4_asco.csv \
+    --config configs/pezizo4_asco.csv \
     --data_dir data \
     --run_tool diamond \
     --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
@@ -75,6 +105,7 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 | `--parse_evalue` | `0.01` | Noise ceiling applied when parsing raw pairwise hits; the authoritative per-gene cutoff comes from the self-vs-self paralog search |
 | `--ingroup_min_frac` | `0.75` | Min fraction of ingroup proteomes that must contain a hit |
 | `--outgroup_min_frac` | `0.75` | Min fraction of outgroup proteomes that must contain a hit, for the loss-search direction (`loss_presence_matrix.tsv`) |
+| `--loss_ingroup_max_frac` | `0.0` | Max fraction of the ingroup a loss candidate may still be present in. `0.0` = strictly absent from the ingroup; raise it (e.g. `0.1`) to allow genes *nearly*, but not entirely, lost — retained in a few ingroup species |
 | `--core_min_frac` | `0.95` | Min presence fraction across *all* proteomes (ingroup + outgroup) for `core.html` |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd` database; skips if unset |
@@ -193,12 +224,20 @@ All outputs are written to `results/<project>/`:
 | `presence_matrix.function.tsv` | Annotated matrix (gene_name, Best_Swissprot, Pfam_Names) |
 | `novelties.<SHORT>.tsv` | Per-species novelty candidates (one file per ingroup species) |
 | `loss_presence_matrix.tsv` | Mirror of `presence_matrix.tsv` with outgroup proteomes as the query — candidate lineage-specific losses |
-| `loss_candidates.txt` / `loss_candidates.fa` | Outgroup protein IDs / FASTA absent from every ingroup proteome |
+| `loss_candidates.txt` / `loss_candidates.fa` | Outgroup protein IDs / FASTA present in ≥ `outgroup_min_frac` of the outgroup and in ≤ `loss_ingroup_max_frac` of the ingroup |
 | `loss_tblastn_summary.tsv` | Loss candidates × ingroup genome TBLASTN hit matrix (the loss-direction validation check) |
 | `loss_presence_matrix.function.tsv` | Annotated loss matrix (gene_name, Best_Swissprot, Pfam_Names, from the outgroup side) |
 | `novelties.html` | Interactive report — browse the candidates and the presence matrix ([below](#interactive-report-noveltieshtml)) |
 | `core.html` | Interactive report — near-universally conserved genes (`--core_min_frac`, default 0.95), for contrast against the novelty candidates ([below](#core-genes-report-corehtml)) |
 | `losses.html` | Interactive report — candidate lineage-specific gene losses ([below](#losses-report-losseshtml)) |
+
+A final `COLLATE_REPORTS` step also copies the three reports into a separate, shareable
+folder alongside a landing page:
+
+| File | Description |
+|---|---|
+| `view/<project>/report.html` | Landing page linking to the three reports, with a run summary (ingroup/outgroup proteomes, search tool, thresholds) |
+| `view/<project>/novelties.html` · `core.html` · `losses.html` | Copies of the three reports, so the whole result set is one self-contained folder to `scp` or share |
 
 ### novelties.\<SHORT\>.tsv columns
 
@@ -233,7 +272,7 @@ makes no network requests, so copy it anywhere and open it directly:
 
 ```bash
 # from your laptop
-scp cluster:/path/to/NovInvenio/results/pezio4_asco/novelties.html .
+scp cluster:/path/to/NovInvenio/results/pezizo4_asco/novelties.html .
 open novelties.html       # macOS  (Linux: xdg-open, or just drag into a browser)
 ```
 
@@ -265,12 +304,12 @@ Useful after re-annotating, or to embed every sequence rather than just the nove
 
 ```bash
 bin/make_report.py \
-    --matrix results/pezio4_asco/presence_matrix.function.tsv \
-    --config configs/pezio4_asco.csv \
-    --tblastn_summary results/pezio4_asco/tblastn_summary.tsv \
-    --novelties results/pezio4_asco/novelties.*.tsv \
-    --candidates_fa results/pezio4_asco/candidates.fa \
-    --output results/pezio4_asco/novelties.html
+    --matrix results/pezizo4_asco/presence_matrix.function.tsv \
+    --config configs/pezizo4_asco.csv \
+    --tblastn_summary results/pezizo4_asco/tblastn_summary.tsv \
+    --novelties results/pezizo4_asco/novelties.*.tsv \
+    --candidates_fa results/pezizo4_asco/candidates.fa \
+    --output results/pezizo4_asco/novelties.html
 ```
 
 `--tblastn_summary`, `--novelties` and `--candidates_fa` are all optional: without
@@ -312,42 +351,62 @@ Regenerate standalone the same way as `novelties.html`:
 
 ```bash
 bin/make_core_report.py \
-    --matrix results/pezio4_asco/presence_matrix.function.tsv \
-    --config configs/pezio4_asco.csv \
-    --cluster_tsv results/pezio4_asco/clusters/clusters_cluster.tsv \
-    --output results/pezio4_asco/core.html
+    --matrix results/pezizo4_asco/presence_matrix.function.tsv \
+    --config configs/pezizo4_asco.csv \
+    --cluster_tsv results/pezizo4_asco/clusters/clusters_cluster.tsv \
+    --output results/pezizo4_asco/core.html
 ```
 
 ## Losses report (losses.html)
 
-The pipeline also writes `results/<project>/losses.html` — genes present in the outgroup
-but absent from the entire ingroup: candidate lineage-specific gene losses, the kind of
-signal worth chasing for a missing pathway. It answers a question `novelties.html` cannot:
-that report only ever runs searches with ingroup proteomes as the query, so it has no way
-to ask "is this outgroup gene present in the ingroup?" `losses.html` is built from a
-second, symmetric search direction (`LOSS_SEARCH` in `workflows/loss_search.nf`) that
-queries with the outgroup instead — roughly doubling total pairwise search volume, so
-expect a run with losses enabled to take about as long as the novelty search itself.
+The pipeline also writes `results/<project>/losses.html` — **gene families conserved
+across the outgroups but (nearly) absent from the ingroup**: candidate lineage-specific
+gene losses, the kind of signal worth chasing for a missing pathway. It answers a question
+`novelties.html` cannot: that report only ever runs searches with ingroup proteomes as the
+query, so it has no way to ask "is this outgroup gene present in the ingroup?" `losses.html`
+is built from a second, symmetric search direction (`LOSS_SEARCH` in
+`workflows/loss_search.nf`) that queries with the outgroup instead — roughly doubling total
+pairwise search volume, so expect a run with losses enabled to take about as long as the
+novelty search itself.
 
-Rows are prioritized, not just listed: a locus lost from the whole ingroup but conserved
-across most of the outgroup is a much stronger loss call than one seen in a single
-outgroup species (could be that species' own gain, an assembly gap, or a paralog quirk).
+**Which rows appear.** A protein is a loss candidate when it is present in ≥
+`--outgroup_min_frac` of the outgroup (conserved there) **and** in ≤
+`--loss_ingroup_max_frac` of the ingroup (lost, or nearly so). With the default
+`--loss_ingroup_max_frac 0.0` that second condition means "absent from *every* ingroup
+proteome"; raise it to surface genes retained in just one or two ingroup species. The
+report enforces this predicate itself (the annotated `loss_presence_matrix.function.tsv`
+is the full presence table, not a pre-filtered list), so pass the same threshold values
+the search used when regenerating it standalone.
+
+**The family is the unit.** A single loss is much more convincing when the gene is
+recovered independently across many outgroup species than when it shows up in only one
+(which could be that species' own gain, an assembly artefact, or a paralog quirk). Rows
+are grouped into gene families (mmseqs clusters) and each row carries two family-level
+columns:
+
+- **Outgroup breadth** — how many outgroup species carry *any* member of the family.
+- **Ingroup retained** — how many ingroup species still keep a member (`0` is a clean
+  loss across the whole ingroup; non-zero only appears when `--loss_ingroup_max_frac > 0`).
+
+The default sort ranks the cleanest, broadest losses first: fewest ingroup species
+retaining the gene, then widest outgroup breadth, then no ingroup genomic evidence.
 `loss_tblastn_summary.tsv` — TBLASTN of the loss candidates against ingroup *genomic* DNA,
-not just the annotated proteins — flags (but does not remove) rows where a hit suggests
-the "loss" might just be a missed gene model rather than a real one; the default sort
-puts unflagged, broadly-conserved losses first. Sequences are never embedded; the detail
-panel's external links resolve against the *outgroup* protein (e.g. "this looks like S.
-cerevisiae's `ERG3`"), since that's where the gene actually is.
+not just the annotated proteins — flags (but does not remove) rows where a hit suggests the
+"loss" might just be a missed gene model rather than a real one. Sequences are never
+embedded; the detail panel's external links resolve against the *outgroup* protein (e.g.
+"this looks like S. cerevisiae's `ERG3`"), since that's where the gene actually is.
 
-Regenerate standalone:
+Regenerate standalone (pass the same thresholds the run used):
 
 ```bash
 bin/make_losses_report.py \
-    --matrix results/pezio4_asco/loss_presence_matrix.function.tsv \
-    --config configs/pezio4_asco.csv \
-    --tblastn_summary results/pezio4_asco/loss_tblastn_summary.tsv \
-    --cluster_tsv results/pezio4_asco/clusters/loss_clusters_cluster.tsv \
-    --output results/pezio4_asco/losses.html
+    --matrix results/pezizo4_asco/loss_presence_matrix.function.tsv \
+    --config configs/pezizo4_asco.csv \
+    --tblastn_summary results/pezizo4_asco/loss_tblastn_summary.tsv \
+    --cluster_tsv results/pezizo4_asco/clusters/loss_clusters_cluster.tsv \
+    --outgroup_min_frac 0.75 \
+    --loss_ingroup_max_frac 0.0 \
+    --output results/pezizo4_asco/losses.html
 ```
 
 ## Running on SLURM
@@ -355,7 +414,7 @@ bin/make_losses_report.py \
 ```bash
 nextflow run main.nf \
     -profile slurm \
-    --config configs/pezio4_asco.csv \
+    --config configs/pezizo4_asco.csv \
     --data_dir /bigdata/stajichlab/shared/data/fungi/proteomes \
     --run_tool diamond \
     --ingroup_min_frac 0.8 \
@@ -374,7 +433,7 @@ profile automatically requests `--ntasks N` instead of `--cpus-per-task N`.
 ```bash
 nextflow run main.nf \
     -profile slurm \
-    --config configs/pezio4_asco.csv \
+    --config configs/pezizo4_asco.csv \
     --data_dir /bigdata/stajichlab/shared/data/fungi/proteomes \
     --run_tool diamond \
     --hmm_mpi true \

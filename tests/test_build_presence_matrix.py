@@ -24,7 +24,7 @@ def run_dir(tmp_path):
     return tmp_path
 
 
-def run(run_dir, hits_text, query_group='IN', min_frac='1.0'):
+def run(run_dir, hits_text, query_group='IN', min_frac='1.0', other_max_frac='0.0'):
     hits_path = run_dir / 'hits.tsv'
     hits_path.write_text(HIT_HEADER + hits_text)
     matrix_out = run_dir / 'matrix.tsv'
@@ -35,6 +35,7 @@ def run(run_dir, hits_text, query_group='IN', min_frac='1.0'):
          '--config', str(run_dir / 'config.csv'),
          '--ingroup-min-frac', min_frac,
          '--query-group', query_group,
+         '--other-max-frac', other_max_frac,
          '--output-matrix', str(matrix_out),
          '--output-candidates', str(candidates_out)],
         check=True, capture_output=True, text=True,
@@ -64,7 +65,8 @@ def test_query_group_out_finds_a_loss_candidate(run_dir):
 
 
 def test_query_group_out_excludes_hits_present_in_ingroup(run_dir):
-    # h2 (Out1) also hits In1 — present in the ingroup, so not a loss.
+    # h2 (Out1) also hits In1 — present in 1/2 of the ingroup, so not a loss
+    # under the default strict absence (--other-max-frac 0.0).
     matrix, candidates = run(
         run_dir,
         'h2\th2_in1\t1e-10\t100\tOut1\tIn1\n',
@@ -73,3 +75,16 @@ def test_query_group_out_excludes_hits_present_in_ingroup(run_dir):
     assert candidates == []
     row = matrix[matrix['protein_id'] == 'h2'].iloc[0]
     assert row['Out1'] == 1 and row['In1'] == 1
+
+
+def test_query_group_out_allows_nearly_missing_with_other_max_frac(run_dir):
+    # Same h2 present in 1/2 of the ingroup (frac 0.5): excluded at the default
+    # 0.0 above, but kept once --other-max-frac allows up to half the ingroup —
+    # a "nearly missing" (lost from most, not all, of the ingroup) candidate.
+    matrix, candidates = run(
+        run_dir,
+        'h2\th2_in1\t1e-10\t100\tOut1\tIn1\n',
+        query_group='OUT',
+        other_max_frac='0.5',
+    )
+    assert candidates == ['Out1::h2']
