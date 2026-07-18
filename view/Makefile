@@ -1,4 +1,4 @@
-REPORTS := $(wildcard */report.html)
+REPORTS := $(wildcard */*.html)
 
 .PHONY: all clean
 

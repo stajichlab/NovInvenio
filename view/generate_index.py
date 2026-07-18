@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 Regenerate view/index.html: a landing page linking to each sub-project's
-report.html.
+HTML pages.
 
-Scans immediate subdirectories of this script's directory for a report.html
-file and lists them as links, sorted alphabetically. Re-run this any time a
-new sub-project report is added or an existing one is regenerated.
+Scans immediate subdirectories of this script's directory for *.html files
+and lists them as links (report.html first, then any others alphabetically),
+grouped by sub-project directory. Re-run this any time a new sub-project
+report is added or an existing one is regenerated.
 
 Example:
   ./generate_index.py
@@ -44,6 +45,13 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
   a {{ font-size: 1.1rem; text-decoration: none; color: #0645ad; }}
   a:hover {{ text-decoration: underline; }}
   .meta {{ color: #666; font-size: 0.85rem; margin-top: 0.2rem; }}
+  .pages {{ list-style: none; padding: 0; margin: 0.5rem 0 0; }}
+  .pages li {{
+    border: none;
+    padding: 0.15rem 0;
+    margin: 0;
+  }}
+  .pages a {{ font-size: 0.95rem; }}
   footer {{ margin-top: 2rem; color: #999; font-size: 0.8rem; }}
   @media (prefers-color-scheme: dark) {{
     body {{ background: #1a1a1a; color: #ddd; }}
@@ -66,31 +74,63 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 
 ITEM_TEMPLATE = """  <li>
     <a href="{href}">{title}</a>
-    <div class="meta">updated {mtime}</div>
+    <div class="meta">updated {mtime}</div>{pages}
   </li>"""
 
+PAGE_ITEM_TEMPLATE = """      <li><a href="{href}">{title}</a></li>"""
 
-def find_reports(root: Path) -> list[Path]:
+PAGES_LIST_TEMPLATE = """
+    <ul class="pages">
+{pages}
+    </ul>"""
+
+
+def find_project_dirs(root: Path) -> list[Path]:
     return sorted(
         p for p in root.iterdir()
-        if p.is_dir() and (p / REPORT_NAME).is_file()
+        if p.is_dir() and any(p.glob("*.html"))
     )
+
+
+def find_html_pages(project_dir: Path) -> list[Path]:
+    pages = sorted(project_dir.glob("*.html"))
+    # report.html leads the list; the rest follow alphabetically.
+    return sorted(pages, key=lambda p: (p.name != REPORT_NAME, p.name))
 
 
 def project_title(dirname: str) -> str:
     return dirname.replace("_", " ").replace("-", " ")
 
 
+def page_title(filename: str) -> str:
+    return filename[:-len(".html")].replace("_", " ").replace("-", " ")
+
+
 def render(root: Path) -> str:
-    project_dirs = find_reports(root)
+    project_dirs = find_project_dirs(root)
     items = []
     for d in project_dirs:
-        report = d / REPORT_NAME
-        mtime = datetime.datetime.fromtimestamp(report.stat().st_mtime)
+        pages = find_html_pages(d)
+        main = next((p for p in pages if p.name == REPORT_NAME), pages[0])
+        others = [p for p in pages if p != main]
+
+        pages_html = ""
+        if others:
+            page_items = "\n".join(
+                PAGE_ITEM_TEMPLATE.format(
+                    href=f"{d.name}/{p.name}",
+                    title=html.escape(page_title(p.name)),
+                )
+                for p in others
+            )
+            pages_html = PAGES_LIST_TEMPLATE.format(pages=page_items)
+
+        mtime = datetime.datetime.fromtimestamp(main.stat().st_mtime)
         items.append(ITEM_TEMPLATE.format(
-            href=f"{d.name}/{REPORT_NAME}",
+            href=f"{d.name}/{main.name}",
             title=html.escape(project_title(d.name)),
             mtime=mtime.strftime("%Y-%m-%d"),
+            pages=pages_html,
         ))
     generated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     return PAGE_TEMPLATE.format(items="\n".join(items), generated=generated)
