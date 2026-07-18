@@ -25,6 +25,7 @@ process BUILD_PRESENCE_MATRIX {
         --ingroup-min-frac ${min_frac} \
         --query-group ${query_group} \
         --other-max-frac ${other_max_frac} \
+        --paralog-competition-scope ${params.paralog_competition_scope} \
         --output-matrix ${matrix_name} \
         --output-candidates ${candidates_name}
     """

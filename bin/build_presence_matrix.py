@@ -8,9 +8,18 @@ Presence scoring uses two paralog-aware filters (both must pass):
      paralog fall back to --default-evalue (1e-5).
 
   2. Paralog-competition filter: if the query's paralog hits the same target
-     proteome with a *better* (lower) e-value than the query does, the hit is
+     with a *better* (lower) e-value than the query does, the hit is
      disqualified.  The logic is that such a hit is better explained by the
      conserved domain shared with the paralog than by the query protein itself.
+     --paralog-competition-scope controls what "the same target" means:
+       proteome (default) — the paralog's best hit anywhere in the target
+         *proteome* out-scores the query. Strict; can drop a real ortholog when
+         the query's paralog also has a strong (but distinct) ortholog in the
+         target genome — e.g. HEX-1, a derivative of eIF5A, is dropped because
+         the genome's true eIF5A hits slightly harder than the HEX-1 ortholog.
+       target — the paralog out-scores the query on the *same target protein*.
+         Preserves a hit when the paralog wins only on a different gene, so the
+         HEX-1 ortholog call survives.
 
 A candidate protein (from a --query-group proteome, default IN) must be:
   - present in >= --ingroup-min-frac of all --query-group proteomes
@@ -95,6 +104,14 @@ def main():
                          'proteome). Relax it in the loss direction to allow candidates '
                          'that survive in a small fraction of the ingroup — genes nearly, '
                          'but not entirely, lost.')
+    ap.add_argument('--paralog-competition-scope', choices=['proteome', 'target'],
+                    default='proteome', dest='paralog_competition_scope',
+                    help="Granularity of filter 2 (paralog-competition). 'proteome' "
+                         "(default, original behaviour): disqualify a hit if the query's "
+                         "paralog out-scores the query anywhere in the same target proteome. "
+                         "'target': disqualify only if the paralog beats the query on the "
+                         "*same target protein* — keeps calls where the paralog wins on a "
+                         "different gene (e.g. HEX-1 vs its ancestral eIF5A).")
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue',
                     help='Fallback e-value cutoff for proteins with no detectable paralog')
@@ -113,12 +130,16 @@ def main():
 
     hits = load_hits(args.hits)
 
-    # Best evalue per (source_proteome, protein_id, target_proteome).
-    # Used by filter 2 to check how well a paralog hits the same target.
+    # Best evalue lookup for filter 2, keyed by how well a paralog hits the target.
+    # 'proteome' scope keys on the whole target proteome; 'target' scope keys on the
+    # individual target protein so a paralog only disqualifies a hit it beats head-to-head.
     if hits.empty:
         best_ev = {}
-    else:
+    elif args.paralog_competition_scope == 'proteome':
         best_ev = (hits.groupby(['query_proteome', 'query_id', 'target_proteome'])
+                       ['evalue'].min().to_dict())
+    else:  # 'target'
+        best_ev = (hits.groupby(['query_proteome', 'query_id', 'target_id'])
                        ['evalue'].min().to_dict())
 
     # Restrict to --query-group queries, then apply both paralog-aware filters vectorised.
@@ -130,11 +151,14 @@ def main():
         ing = ing[ing['evalue'] < cutoff]
 
     if not ing.empty:
-        # Filter 2: disqualify if the query's paralog hits this same target better.
+        # Filter 2: disqualify if the query's paralog beats it. The key is the target
+        # proteome ('proteome' scope) or the individual target protein ('target' scope).
         paralog_ids = ing['query_id'].map(paralog_of)
+        target_key = (ing['target_proteome'] if args.paralog_competition_scope == 'proteome'
+                      else ing['target_id'])
         paralog_ev = [
-            best_ev.get((qp, pid, tp)) if pid is not None and not pd.isna(pid) else None
-            for qp, pid, tp in zip(ing['query_proteome'], paralog_ids, ing['target_proteome'])
+            best_ev.get((qp, pid, tk)) if pid is not None and not pd.isna(pid) else None
+            for qp, pid, tk in zip(ing['query_proteome'], paralog_ids, target_key)
         ]
         paralog_ev = pd.Series(paralog_ev, index=ing.index, dtype='float64')
         disqualified = paralog_ev.notna() & (paralog_ev < ing['evalue'])
