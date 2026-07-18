@@ -45,9 +45,16 @@ def main():
                     help='loss mmseqs easy-cluster *_cluster.tsv (rep -> member), used to '
                          'group candidates into gene families across outgroup species (optional)')
     ap.add_argument('--outgroup_min_frac', type=float, default=0.75,
-                    help='Fraction of outgroup proteomes required for a loss candidate '
-                         '(informational only here — filtering already happened in '
-                         'build_presence_matrix.py; default: 0.75)')
+                    help='Minimum fraction of outgroup proteomes a loss candidate must be '
+                         'present in (conservation threshold). Applied here to trim the '
+                         'annotated matrix, which is the full presence table rather than the '
+                         'filtered candidate list; pass the same value the loss search used '
+                         '(default: 0.75)')
+    ap.add_argument('--loss_ingroup_max_frac', type=float, default=0.0,
+                    help='Maximum fraction of ingroup proteomes a loss candidate may still be '
+                         'present in (0.0 = strictly absent). Must match build_presence_matrix.py '
+                         "--other-max-frac from the loss search so reported rows match the "
+                         'clustered candidate set (default: 0.0)')
     ap.add_argument('--project', default=None,
                     help='Project name shown in the report title (default: matrix parent dir)')
     ap.add_argument('--output', required=True, help='Output HTML file')
@@ -55,6 +62,8 @@ def main():
 
     if not (0.0 < args.outgroup_min_frac <= 1.0):
         sys.exit('--outgroup_min_frac must be in (0, 1]')
+    if not (0.0 <= args.loss_ingroup_max_frac < 1.0):
+        sys.exit('--loss_ingroup_max_frac must be in [0, 1)')
 
     samples = parse_config(args.config)
     project = args.project or Path(args.matrix).resolve().parent.name
@@ -65,6 +74,7 @@ def main():
         tblastn_path=args.tblastn_summary,
         cluster_tsv=args.cluster_tsv,
         outgroup_min_frac=args.outgroup_min_frac,
+        loss_ingroup_max_frac=args.loss_ingroup_max_frac,
         project=project,
     )
 
