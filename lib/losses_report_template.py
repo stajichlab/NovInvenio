@@ -84,7 +84,8 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       <input type="checkbox" id="f-notb"> No ingroup TBLASTN hit
     </label>
     <select id="f-sort" aria-label="Sort by">
-      <option value="priority">Sort: priority (outgroup breadth, no TBLASTN hit first)</option>
+      <option value="priority">Sort: priority (clean loss, broad in outgroup, no TBLASTN hit first)</option>
+      <option value="breadth">Sort: outgroup family breadth</option>
       <option value="frac">Sort: outgroup presence fraction</option>
       <option value="id">Sort: protein ID</option>
       <option value="src">Sort: source proteome</option>
@@ -126,6 +127,10 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   var PROTEOMES = DATA.proteomes;
   var FAMILIES = DATA.families || [];
   var nRows = ROWS.length;
+  var N_OUT = DATA.n_outgroup != null ? DATA.n_outgroup :
+    PROTEOMES.filter(function (p) { return p.group === "OUT"; }).length;
+  var N_IN = DATA.n_ingroup != null ? DATA.n_ingroup :
+    PROTEOMES.filter(function (p) { return p.group === "IN"; }).length;
 
 """ + EL_HELPER_JS + LINKOUT_HELPERS_JS + DOWNLOAD_JS + r"""
 
@@ -185,11 +190,15 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     if (s === "id") cmp = cmpId;
     else if (s === "src") cmp = function (a, b) { return (ROWS[a][F.src] - ROWS[b][F.src]) || cmpId(a, b); };
     else if (s === "frac") cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
-    // priority: a locus lost from the whole ingroup but conserved across most of the
-    // outgroup is a stronger loss call than one seen in a single outgroup species; no
-    // ingroup TBLASTN hit at all ranks above "hit found, might just be a missed gene model".
+    else if (s === "breadth") cmp = function (a, b) { return (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) || cmpId(a, b); };
+    // priority: the strongest loss call is a gene family retained in the fewest ingroup
+    // species (cleanest loss), conserved across the most outgroup species (broadest
+    // ortholog set), with no ingroup TBLASTN hit — a genomic hit means "might just be a
+    // missed gene model", so it ranks below rows with none.
     else cmp = function (a, b) {
-      return (ROWS[a][F.tb_hit] - ROWS[b][F.tb_hit]) || (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b);
+      return (ROWS[a][F.in_retained] - ROWS[b][F.in_retained]) ||
+             (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) ||
+             (ROWS[a][F.tb_hit] - ROWS[b][F.tb_hit]) || cmpId(a, b);
     };
     view.sort(cmp);
   }
@@ -198,6 +207,8 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   var TBL_COLS = [
     { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
     { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
+    { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num" },
+    { label: "Ingroup retained", get: function (r) { return ROWS[r][F.in_retained] + " / " + N_IN + " species"; }, cls: "num" },
     { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num" },
     { label: "Ingroup TBLASTN", get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; }, cls: "wrap-cell" },
     {
@@ -295,8 +306,13 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
         sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short + " · outgroup"));
     }
 
-    var statusText = "Absent from every ingroup proteome; present in " +
-      Math.round(row[F.frac] * 100) + "% of the outgroup.";
+    var retained = row[F.in_retained];
+    var statusText = (retained === 0
+        ? "Absent from every ingroup proteome"
+        : "Retained in " + retained + " of " + N_IN + " ingroup species") +
+      "; the gene family is present in " + row[F.out_breadth] + " of " + N_OUT +
+      " outgroup species (this protein hits " + Math.round(row[F.frac] * 100) +
+      "% of the outgroup).";
     var statusBox = el("div");
     statusBox.appendChild(el("div", "field-value", statusText));
     if (row[F.tb_hit]) {
@@ -403,10 +419,14 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     for (var i = 0; i < nRows; i++) { if (ROWS[i][F.tb_hit]) flagged++; }
     var nOut = PROTEOMES.filter(function (p) { return p.group === "OUT"; }).length;
 
+    var absenceText = (DATA.loss_ingroup_max_frac > 0)
+      ? "retained in at most " + Math.round(DATA.loss_ingroup_max_frac * 100) + "% of the ingroup"
+      : "absent from every ingroup proteome";
     document.getElementById("summary-note").textContent =
-      "Outgroup proteins absent from every ingroup proteome — candidate lineage-specific " +
-      "gene losses, prioritized by outgroup conservation breadth and absence of ingroup " +
-      "genomic evidence.";
+      "Gene families conserved in ≥" + Math.round((DATA.outgroup_min_frac || 0) * 100) +
+      "% of the outgroup but " + absenceText + " — candidate lineage-specific gene losses, " +
+      "prioritized by ingroup retention (cleanest loss first), outgroup family breadth, and " +
+      "absence of ingroup genomic (TBLASTN) evidence.";
     document.getElementById("t-total").textContent = nRows.toLocaleString();
     document.getElementById("t-out").textContent = nOut + (nOut === 1 ? " species" : " species");
     document.getElementById("t-fam").textContent = FAMILIES.length.toLocaleString();

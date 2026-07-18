@@ -28,10 +28,20 @@ workflow REPORT {
     MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv)
     MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv)
 
+    // Final step: gather the three reports under view/<project>/ with a report.html
+    // landing page describing the run (ingroup/outgroup, tool, thresholds).
+    COLLATE_REPORTS(
+        MAKE_REPORT.out.report,
+        MAKE_CORE_REPORT.out.report,
+        MAKE_LOSSES_REPORT.out.report,
+        config_csv,
+    )
+
     emit:
     report        = MAKE_REPORT.out.report
     core_report   = MAKE_CORE_REPORT.out.report
     losses_report = MAKE_LOSSES_REPORT.out.report
+    index_report  = COLLATE_REPORTS.out.index
 }
 
 process MAKE_REPORT {
@@ -111,6 +121,41 @@ process MAKE_LOSSES_REPORT {
         --cluster_tsv ${loss_cluster_tsv} \
         --project ${Helpers.projectName(params)} \
         --outgroup_min_frac ${params.outgroup_min_frac} \
+        --loss_ingroup_max_frac ${params.loss_ingroup_max_frac} \
         --output losses.html
+    """
+}
+
+// Collate the three reports into view/<project>/ and generate a report.html
+// landing page. The three HTML files are re-published here (copied) so the whole
+// result set lives in one shareable folder alongside its index.
+process COLLATE_REPORTS {
+    label 'low_cpu'
+    publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
+
+    input:
+    path(novelties_html)
+    path(core_html)
+    path(losses_html)
+    path(config_csv)
+
+    output:
+    path("report.html"),     emit: index
+    path(novelties_html),    emit: novelties
+    path(core_html),         emit: core
+    path(losses_html),       emit: losses
+
+    script:
+    """
+    make_index_report.py \
+        --config ${config_csv} \
+        --project ${Helpers.projectName(params)} \
+        --reports_dir . \
+        --run_tool ${params.run_tool} \
+        --ingroup_min_frac ${params.ingroup_min_frac} \
+        --outgroup_min_frac ${params.outgroup_min_frac} \
+        --loss_ingroup_max_frac ${params.loss_ingroup_max_frac} \
+        --core_min_frac ${params.core_min_frac} \
+        --output report.html
     """
 }

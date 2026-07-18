@@ -8,6 +8,7 @@ process BUILD_PRESENCE_MATRIX {
     path(config_csv)
     val(query_group)          // 'IN' (default, novelty direction) or 'OUT' (loss direction)
     val(min_frac)             // presence threshold within query_group
+    val(other_max_frac)       // max fraction of the other group a candidate may still be present in
     val(matrix_name)          // output matrix filename
     val(candidates_name)      // output candidates filename
 
@@ -23,6 +24,7 @@ process BUILD_PRESENCE_MATRIX {
         --config ${config_csv} \
         --ingroup-min-frac ${min_frac} \
         --query-group ${query_group} \
+        --other-max-frac ${other_max_frac} \
         --output-matrix ${matrix_name} \
         --output-candidates ${candidates_name}
     """

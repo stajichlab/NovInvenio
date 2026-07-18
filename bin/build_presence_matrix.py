@@ -14,7 +14,8 @@ Presence scoring uses two paralog-aware filters (both must pass):
 
 A candidate protein (from a --query-group proteome, default IN) must be:
   - present in >= --ingroup-min-frac of all --query-group proteomes
-  - absent from every proteome in the other group
+  - present in <= --other-max-frac of the other group's proteomes (default 0.0,
+    i.e. absent from every other-group proteome)
 
 --query-group OUT runs the same logic in the opposite direction — outgroup
 proteomes as query, looking for genes conserved in the outgroup but absent
@@ -87,6 +88,13 @@ def main():
                     help='Which config group supplies the query proteomes candidates are '
                          'sourced from (default: IN, the novelty-search direction). OUT '
                          'runs the loss-search direction: outgroup query, ingroup must be 0.')
+    ap.add_argument('--other-max-frac', type=float, default=0.0,
+                    dest='other_max_frac',
+                    help='Max fraction of the *other* group a candidate may still be '
+                         'present in (default: 0.0 = must be absent from every other-group '
+                         'proteome). Relax it in the loss direction to allow candidates '
+                         'that survive in a small fraction of the ingroup — genes nearly, '
+                         'but not entirely, lost.')
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue',
                     help='Fallback e-value cutoff for proteins with no detectable paralog')
@@ -160,7 +168,8 @@ def main():
     else:
         query_count = matrix[query_cols].sum(axis=1)
         other_count = matrix[other_cols].sum(axis=1) if other_cols else 0
-        keep = (query_count / n_query >= args.ingroup_min_frac) & (other_count == 0)
+        other_frac = (other_count / len(other_cols)) if other_cols else 0
+        keep = (query_count / n_query >= args.ingroup_min_frac) & (other_frac <= args.other_max_frac)
         kept = matrix[keep]
         candidates = (kept['source_proteome'] + '::' + kept['protein_id']).tolist()
 

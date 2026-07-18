@@ -14,7 +14,7 @@ pixi install
 
 # Run the full pipeline
 nextflow run main.nf \
-    --config configs/pezio4_asco.csv \
+    --config configs/pezizo4_asco.csv \
     --data_dir /path/to/fastas \
     --run_tool phmmer
 
@@ -55,7 +55,7 @@ NovInvenio/
 │   ├── annotate.nf                # ANNOTATE — Pfam hmmsearch + SwissProt diamond + matrix merge (reused as LOSS_ANNOTATE)
 │   ├── summarize.nf               # SUMMARIZE — MAKE_NOVELTIES per ingroup species
 │   └── report.nf                  # REPORT — MAKE_REPORT (novelties.html), MAKE_CORE_REPORT (core.html),
-│                                   #   MAKE_LOSSES_REPORT (losses.html)
+│                                   #   MAKE_LOSSES_REPORT (losses.html), COLLATE_REPORTS (view/<project>/report.html + copies)
 ├── bin/                           # Executable Python helpers; NF adds bin/ to PATH automatically
 │   ├── parse_hits.py              # Normalise phmmer/diamond/blast → query_id, target_id, evalue, bitscore, query_proteome, target_proteome TSV
 │   ├── parse_self_hits.py         # Self-hit rank-2 → per-gene paralog_cutoffs.tsv
@@ -67,6 +67,7 @@ NovInvenio/
 │   ├── make_report.py             # Self-contained interactive novelties.html
 │   ├── make_core_report.py        # Self-contained interactive core.html (near-universal genes)
 │   ├── make_losses_report.py      # Self-contained interactive losses.html (candidate gene losses)
+│   ├── make_index_report.py       # Self-contained view/<project>/report.html landing page linking the three reports
 │   ├── make_config.py             # Generate a run config CSV from configs/samples.csv by taxon/lineage matching
 │   ├── filter_candidates.py       # (standalone helper — not yet wired into pipeline)
 │   ├── split_fasta.py             # (standalone helper)
@@ -90,7 +91,7 @@ NovInvenio/
 │   └── data/                      # test.csv + small FASTAs for -profile test
 ├── configs/
 │   ├── samples.csv                 # Master species pool (Species,Strain,Protein,DNA,Short,Lineage) — source for bin/make_config.py
-│   ├── pezio4_asco.csv            # Main analysis config (Pezizomycotina ingroup, Asco outgroup)
+│   ├── pezizo4_asco.csv            # Main analysis config (Pezizomycotina ingroup, Asco outgroup)
 │   └── modelorgs.yaml             # Model organism YAML for gene name lookups
 └── results/
     └── <config_basename>/
@@ -111,6 +112,13 @@ NovInvenio/
         ├── novelties.html         # Self-contained interactive novelty-candidate report
         ├── core.html              # Self-contained interactive core-genes report
         └── losses.html            # Self-contained interactive candidate gene-loss report
+
+view/                              # sibling of results/ — one shareable folder per project
+└── <config_basename>/
+    ├── report.html               # Landing page (run summary + links to the three reports)
+    ├── novelties.html            # copies of the three results/ reports
+    ├── core.html
+    └── losses.html
 ```
 
 ## Architecture: Data Flow
@@ -126,6 +134,7 @@ NovInvenio/
    - `BUILD_PRESENCE_MATRIX` applies two paralog-aware filters:
      1. **Paralog-cutoff filter**: hit evalue must be < the query's paralog evalue (falls back to `--default-evalue` 1e-5 if no paralog detected).
      2. **Paralog-competition filter**: if the query's paralog hits the same target proteome with a better evalue, the hit is disqualified.
+   - The `candidates.txt` keep filter is `query_frac >= min_frac AND other_frac <= --other-max-frac` (`other_frac` = fraction of the *other* group the protein is present in). `--other-max-frac` defaults to `0.0` — absent from every other-group proteome, the strict novelty/loss rule. The loss direction passes `params.loss_ingroup_max_frac` here to allow "nearly missing" candidates; the novelty direction always passes `0.0`. Note: this filter shapes only `candidates.txt`, not the matrix — the matrix always holds every scored row.
    - Produces `presence_matrix.tsv` (protein × proteome 0/1 matrix with `protein_id` and `source_proteome` columns) and `candidates.txt` (lines of `source_proteome::protein_id`).
 
 3. **CLUSTER workflow** (`workflows/cluster.nf`):
@@ -211,12 +220,27 @@ NovInvenio/
      report offers.
    - `MAKE_LOSSES_REPORT` calls `make_losses_report.py` against the **loss-direction**
      annotated matrix/TBLASTN summary/cluster_tsv (all from step 7, not step 2–6) —
-     candidate lineage-specific gene losses, sourced from outgroup proteins that are
-     absent from the whole ingroup. `--outgroup_min_frac`-scoped presence fraction and
-     the ingroup-genome TBLASTN flag (reporting-only, not filtering — same
-     `--skip_tblastn_filter` rationale as `MAKE_NOVELTIES`) drive the default priority
-     sort in `losses.html`. No sequences embedded, same linkout fallback chain as
-     `core.html`, but resolved against the *outgroup* protein (that's where the gene is).
+     candidate lineage-specific gene losses, sourced from outgroup proteins conserved in
+     the outgroup but (nearly) absent from the ingroup. The annotated matrix is the *full*
+     presence table (`LOSS_ANNOTATE` runs on `LOSS_SEARCH.out.matrix`, not the filtered
+     candidate list), so `build_losses_payload()` **re-applies the candidate predicate
+     itself** — keep a row iff `outgroup_frac >= outgroup_min_frac AND ingroup_frac <=
+     loss_ingroup_max_frac` — exactly mirroring `build_core_payload()`/`derive_novelties()`.
+     Pass the same `--outgroup_min_frac`/`--loss_ingroup_max_frac` the loss search used so
+     the reported rows match `loss_candidates.txt` and hence the mmseqs families built from
+     it. Each row also carries two **family-level** aggregates — `out_breadth` (# distinct
+     outgroup species carrying any family member) and `in_retained` (# ingroup species that
+     still retain one; `0` = clean loss) — since the biological unit of a loss is the gene
+     family, not one outgroup protein. Default priority sort: fewest `in_retained`, then
+     widest `out_breadth`, then no ingroup-genome TBLASTN hit (reporting-only, not
+     filtering — same `--skip_tblastn_filter` rationale as `MAKE_NOVELTIES`). No sequences
+     embedded, same linkout fallback chain as `core.html`, resolved against the *outgroup*
+     protein (that's where the gene is).
+   - `COLLATE_REPORTS` (final `REPORT` step) copies `novelties.html`, `core.html` and
+     `losses.html` into `view/<project>/` and generates `report.html` there via
+     `bin/make_index_report.py` — a self-contained landing page linking the three reports
+     with a run summary (ingroup/outgroup proteomes, search tool, thresholds). Published to
+     `view/<project>/` (not `results/`) so the whole set is one shareable folder.
    - `lib/clusters.py`'s `FamilyIndex` (mmseqs cluster membership → per-protein family
      index + per-family species set) is shared by `build_payload()`,
      `build_core_payload()` and `build_losses_payload()`; `lib/report_common.py` holds
@@ -224,7 +248,9 @@ NovInvenio/
      `losses_report_template.py`) — `report_template.py`'s canvas-heatmap page is not
      wired to it.
 
-9. **Final outputs** in `results/<project>/`: `presence_matrix.tsv`, `presence_matrix.function.tsv`, `candidates.fa`, `tblastn_summary.tsv`, `novelties.<SHORT>.tsv` for each ingroup species, the loss-direction equivalents (`loss_presence_matrix.tsv`, `loss_presence_matrix.function.tsv`, `loss_candidates.fa`, `loss_tblastn_summary.tsv`), `novelties.html`, `core.html`, and `losses.html`.
+9. **Final outputs** in `results/<project>/`: `presence_matrix.tsv`, `presence_matrix.function.tsv`, `candidates.fa`, `tblastn_summary.tsv`, `novelties.<SHORT>.tsv` for each ingroup species, the loss-direction equivalents (`loss_presence_matrix.tsv`, `loss_presence_matrix.function.tsv`, `loss_candidates.fa`, `loss_tblastn_summary.tsv`), `novelties.html`, `core.html`, and `losses.html`. A final
+`COLLATE_REPORTS` step additionally writes `view/<project>/` containing copies of the three
+reports and a `report.html` landing page (run summary + links).
 
 ## Key Parameters (`nextflow.config`)
 
@@ -239,6 +265,7 @@ NovInvenio/
 | `--parse_evalue` | `0.01` | Loose noise ceiling passed to `parse_hits.py`; final filtering uses paralog cutoffs |
 | `--ingroup_min_frac` | `0.75` | Fraction of ingroup proteomes that must contain a hit |
 | `--outgroup_min_frac` | `0.75` | Fraction of outgroup proteomes that must contain a hit, for `LOSS_SEARCH` (the loss-search direction's own presence threshold) |
+| `--loss_ingroup_max_frac` | `0.0` | Max fraction of the ingroup a loss candidate may still be present in (loss-search direction). `0.0` = strictly absent from the ingroup; raise for "nearly missing" losses. Wired through to `build_presence_matrix.py --other-max-frac` and `make_losses_report.py --loss_ingroup_max_frac` |
 | `--core_min_frac` | `0.95` | Presence fraction (across all proteomes, ingroup + outgroup) for the CORE genes report |
 | `--use_orthofinder` | `false` | Placeholder — OrthoFinder clustering not yet implemented |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
@@ -268,7 +295,7 @@ All processes activate the pixi environment via `beforeScript` and symlink `db/`
 
 ```bash
 nextflow run main.nf \
-    --config configs/pezio4_asco.csv \
+    --config configs/pezizo4_asco.csv \
     --data_dir /path/to/fastas \
     --run_tool phmmer
 ```
@@ -278,7 +305,7 @@ nextflow run main.nf \
 ```bash
 nextflow run main.nf \
     -profile slurm \
-    --config configs/pezio4_asco.csv \
+    --config configs/pezizo4_asco.csv \
     --data_dir /path/to/fastas \
     --run_tool diamond \
     --ingroup_min_frac 0.8 \
@@ -366,12 +393,12 @@ Regenerate standalone from an existing results directory without re-running the 
 
 ```bash
 bin/make_report.py \
-    --matrix results/pezio4_asco/presence_matrix.function.tsv \
-    --config configs/pezio4_asco.csv \
-    --tblastn_summary results/pezio4_asco/tblastn_summary.tsv \
-    --novelties results/pezio4_asco/novelties.*.tsv \
-    --candidates_fa results/pezio4_asco/candidates.fa \
-    --output results/pezio4_asco/novelties.html
+    --matrix results/pezizo4_asco/presence_matrix.function.tsv \
+    --config configs/pezizo4_asco.csv \
+    --tblastn_summary results/pezizo4_asco/tblastn_summary.tsv \
+    --novelties results/pezizo4_asco/novelties.*.tsv \
+    --candidates_fa results/pezizo4_asco/candidates.fa \
+    --output results/pezizo4_asco/novelties.html
 ```
 
 ### Constraints to preserve when editing the page

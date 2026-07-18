@@ -64,6 +64,7 @@ workflow SEARCH {
         config_csv,
         'IN',
         params.ingroup_min_frac,
+        0.0,
         'presence_matrix.tsv',
         'candidates.txt'
     )

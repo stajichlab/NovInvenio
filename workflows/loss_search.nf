@@ -71,6 +71,7 @@ workflow LOSS_SEARCH {
         config_csv,
         'OUT',
         params.outgroup_min_frac,
+        params.loss_ingroup_max_frac,
         'loss_presence_matrix.tsv',
         'loss_candidates.txt'
     )

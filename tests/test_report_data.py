@@ -51,23 +51,33 @@ low\tNcra\t1\t0\t0\t0\t\t\t\t\t\t\t
 an_outgroup_row\tSpom\t1\t1\t1\t1\t\t\t\t\t\t\t
 """
 
-# loss1 (Spom) is conserved across the whole outgroup and absent from the ingroup —
-# a strong loss candidate. loss2 (Scer) is present in only one outgroup species.
-# an_ingroup_row is present everywhere too, but sourced from an ingroup proteome — it
-# must never appear in a LOSSES payload (mirrors CORE_MATRIX's opposite-direction check).
+# The loss matrix is the *full* presence table (LOSS_ANNOTATE annotates it, not the
+# filtered candidate list), so build_losses_payload re-applies the loss predicate:
+#   present in >= outgroup_min_frac of the outgroup AND <= loss_ingroup_max_frac of ingroup.
+#   loss1 (Spom) + loss1b (Scer): the same gene recovered from two outgroup species,
+#     conserved across the whole outgroup, absent from the ingroup — the strong candidate,
+#     and a two-member gene family once clustered.
+#   weak (Scer): present in only 1 of 2 outgroup species (frac 0.5) — dropped at the 0.75
+#     default, kept only when outgroup_min_frac is lowered.
+#   ingpres (Spom): conserved in the outgroup but still present in 1/2 of the ingroup —
+#     dropped at the strict 0.0 default, kept only when loss_ingroup_max_frac is raised.
+#   an_ingroup_row (Ncra): sourced from an ingroup proteome — must never appear (mirrors
+#     CORE_MATRIX's opposite-direction check).
 LOSSES_MATRIX = """\
 protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\tgene_name\tproduct_description\tfunction_source\tBest_Swissprot\tPfam_Names\tPfam_Accessions
 loss1\tSpom\t0\t0\t1\t1\tERG-like\tsterol biosynthesis\tPfam\t\tp450\tPF00067.1
-loss2\tScer\t0\t0\t0\t1\t\t\t\t\t\t
+loss1b\tScer\t0\t0\t1\t1\t\t\t\t\t\t
+weak\tScer\t0\t0\t0\t1\t\t\t\t\t\t
+ingpres\tSpom\t1\t0\t1\t1\t\t\t\t\t\t
 an_ingroup_row\tNcra\t1\t1\t1\t1\t\t\t\t\t\t
 """
 
 # TBLASTN of the loss candidates against ingroup genomic DNA (Ncra, Afum columns) —
-# loss2 gets a hit in Ncra, which should flag but not remove it.
+# loss1b gets a hit in Ncra, which should flag but not remove it.
 LOSSES_TBLASTN = """\
 protein_id\tNcra\tAfum
 loss1\t0\t0
-loss2\t1\t0
+loss1b\t1\t0
 """
 
 TBLASTN = """\
@@ -357,17 +367,39 @@ def losses_rows_by_id(payload):
     return {r[idx]: r for r in payload['rows']}
 
 
-def test_losses_payload_excludes_ingroup_sourced_rows(losses_run_dir, samples):
+def test_losses_payload_keeps_only_conserved_ingroup_absent_rows(losses_run_dir, samples):
+    # Default thresholds (outgroup_min_frac 0.75, loss_ingroup_max_frac 0.0): the two
+    # whole-outgroup, ingroup-absent rows survive; the single-outgroup 'weak', the
+    # ingroup-present 'ingpres', and the ingroup-sourced row are all filtered out.
     payload = build_losses_payload(losses_run_dir / 'losses_matrix.tsv', samples)
-    assert set(losses_rows_by_id(payload)) == {'loss1', 'loss2'}
+    assert set(losses_rows_by_id(payload)) == {'loss1', 'loss1b'}
 
 
-def test_losses_payload_records_outgroup_presence_fraction(losses_run_dir, samples):
-    payload = build_losses_payload(losses_run_dir / 'losses_matrix.tsv', samples)
+def test_losses_payload_outgroup_min_frac_admits_narrower_candidates(losses_run_dir, samples):
+    # Lowering the outgroup conservation threshold lets 'weak' (1 of 2 outgroup species) in.
+    payload = build_losses_payload(
+        losses_run_dir / 'losses_matrix.tsv', samples, outgroup_min_frac=0.5,
+    )
     F = {n: i for i, n in enumerate(payload['fields'])}
     rows = losses_rows_by_id(payload)
-    assert rows['loss1'][F['frac']] == 1.0   # present in both outgroup species
-    assert rows['loss2'][F['frac']] == 0.5   # present in one of two
+    assert 'weak' in rows
+    assert rows['weak'][F['frac']] == 0.5
+    assert rows['loss1'][F['frac']] == 1.0
+
+
+def test_losses_payload_loss_ingroup_max_frac_admits_nearly_missing(losses_run_dir, samples):
+    # 'ingpres' still survives in 1 of 2 ingroup species (frac 0.5): excluded at the
+    # strict 0.0 default, admitted once loss_ingroup_max_frac allows half the ingroup.
+    strict = build_losses_payload(losses_run_dir / 'losses_matrix.tsv', samples)
+    assert 'ingpres' not in losses_rows_by_id(strict)
+
+    relaxed = build_losses_payload(
+        losses_run_dir / 'losses_matrix.tsv', samples, loss_ingroup_max_frac=0.5,
+    )
+    F = {n: i for i, n in enumerate(relaxed['fields'])}
+    rows = losses_rows_by_id(relaxed)
+    assert 'ingpres' in rows
+    assert rows['ingpres'][F['in_retained']] == 1   # retained in one ingroup species
 
 
 def test_losses_payload_flags_but_keeps_tblastn_hits(losses_run_dir, samples):
@@ -381,8 +413,8 @@ def test_losses_payload_flags_but_keeps_tblastn_hits(losses_run_dir, samples):
     rows = losses_rows_by_id(payload)
     assert rows['loss1'][F['tb_hit']] == 0
     assert rows['loss1'][F['tb_genomes']] == ''
-    assert rows['loss2'][F['tb_hit']] == 1
-    assert rows['loss2'][F['tb_genomes']] == 'Ncra'
+    assert rows['loss1b'][F['tb_hit']] == 1
+    assert rows['loss1b'][F['tb_genomes']] == 'Ncra'
 
 
 def test_losses_payload_without_tblastn_path_has_no_hits(losses_run_dir, samples):
@@ -391,8 +423,19 @@ def test_losses_payload_without_tblastn_path_has_no_hits(losses_run_dir, samples
     assert all(r[F['tb_hit']] == 0 for r in payload['rows'])
 
 
+def test_losses_payload_singleton_breadth_is_its_own_presence(losses_run_dir, samples):
+    # With no cluster file every kept row is a singleton: out_breadth is the row's own
+    # outgroup presence count, in_retained its own ingroup presence count.
+    payload = build_losses_payload(losses_run_dir / 'losses_matrix.tsv', samples)
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = losses_rows_by_id(payload)
+    assert rows['loss1'][F['out_breadth']] == 2   # present in both outgroup species
+    assert rows['loss1'][F['in_retained']] == 0
+
+
 def test_losses_payload_groups_candidates_into_gene_families(losses_run_dir, samples):
-    (losses_run_dir / 'loss_clusters_cluster.tsv').write_text('loss1\tloss1\nloss1\tloss2\n')
+    # loss1 + loss1b are the same gene recovered from two outgroup species.
+    (losses_run_dir / 'loss_clusters_cluster.tsv').write_text('loss1\tloss1\nloss1\tloss1b\n')
     payload = build_losses_payload(
         losses_run_dir / 'losses_matrix.tsv', samples,
         cluster_tsv=losses_run_dir / 'loss_clusters_cluster.tsv',
@@ -401,7 +444,11 @@ def test_losses_payload_groups_candidates_into_gene_families(losses_run_dir, sam
     rows = losses_rows_by_id(payload)
     assert payload['families'] == [{'rep': 'loss1', 'size': 2, 'species': ['Scer', 'Spom']}]
     assert rows['loss1'][F['fam']] == 0
-    assert rows['loss2'][F['fam']] == 0
+    assert rows['loss1b'][F['fam']] == 0
+    # Family-level aggregates span every member: both outgroup species, no ingroup retention.
+    assert rows['loss1'][F['out_breadth']] == 2
+    assert rows['loss1b'][F['out_breadth']] == 2
+    assert rows['loss1'][F['in_retained']] == 0
 
 
 def test_losses_payload_carries_annotation_columns(losses_run_dir, samples):
