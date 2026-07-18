@@ -48,21 +48,25 @@ NovInvenio/
 │   ├── hmmbuild.nf                # HMMBUILD (imported but not yet wired into cluster workflow)
 │   └── hmmsearch.nf               # HMMSEARCH (imported but not yet wired into cluster workflow)
 ├── workflows/
-│   ├── search.nf                  # SEARCH — pairwise search + self-hits + presence matrix
-│   ├── cluster.nf                 # CLUSTER — extract candidates + mmseqs2 clustering
-│   ├── validate.nf                # VALIDATE — TBLASTN + SUMMARIZE_TBLASTN
-│   ├── annotate.nf                # ANNOTATE — Pfam hmmsearch + SwissProt diamond + matrix merge
+│   ├── search.nf                  # SEARCH — pairwise search + self-hits + presence matrix (ingroup query)
+│   ├── loss_search.nf             # LOSS_SEARCH — same, outgroup query (loss-search direction)
+│   ├── cluster.nf                 # CLUSTER — extract candidates + mmseqs2 clustering (reused as LOSS_CLUSTER)
+│   ├── validate.nf                # VALIDATE — TBLASTN + SUMMARIZE_TBLASTN (reused as LOSS_VALIDATE)
+│   ├── annotate.nf                # ANNOTATE — Pfam hmmsearch + SwissProt diamond + matrix merge (reused as LOSS_ANNOTATE)
 │   ├── summarize.nf               # SUMMARIZE — MAKE_NOVELTIES per ingroup species
-│   └── report.nf                  # REPORT — MAKE_REPORT, interactive report.html
+│   └── report.nf                  # REPORT — MAKE_REPORT (novelties.html), MAKE_CORE_REPORT (core.html),
+│                                   #   MAKE_LOSSES_REPORT (losses.html)
 ├── bin/                           # Executable Python helpers; NF adds bin/ to PATH automatically
 │   ├── parse_hits.py              # Normalise phmmer/diamond/blast → query_id, target_id, evalue, bitscore, query_proteome, target_proteome TSV
 │   ├── parse_self_hits.py         # Self-hit rank-2 → per-gene paralog_cutoffs.tsv
-│   ├── build_presence_matrix.py   # Paralog-aware matrix construction + candidates.txt
-│   ├── extract_candidates.py      # Pull candidate sequences from ingroup FASTAs
+│   ├── build_presence_matrix.py   # Paralog-aware matrix construction + candidates.txt; --query-group IN|OUT
+│   ├── extract_candidates.py      # Pull candidate sequences from the given proteome FASTAs (ingroup or outgroup)
 │   ├── summarize_tblastn.py       # Aggregate per-genome TBLASTN TSVs → protein × genome matrix
 │   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns
 │   ├── make_novelties.py          # Per-species novelties.<SHORT>.tsv (with --skip_tblastn_filter option)
-│   ├── make_report.py             # Self-contained interactive report.html
+│   ├── make_report.py             # Self-contained interactive novelties.html
+│   ├── make_core_report.py        # Self-contained interactive core.html (near-universal genes)
+│   ├── make_losses_report.py      # Self-contained interactive losses.html (candidate gene losses)
 │   ├── make_config.py             # Generate a run config CSV from configs/samples.csv by taxon/lineage matching
 │   ├── filter_candidates.py       # (standalone helper — not yet wired into pipeline)
 │   ├── split_fasta.py             # (standalone helper)
@@ -72,8 +76,12 @@ NovInvenio/
 │   ├── config_parser.py           # parse_config() → list[Sample]; short_to_group()
 │   ├── fasta.py                   # FASTA utilities
 │   ├── model_organisms.py         # ModelOrgAnnotator — YAML-driven gene name lookup
-│   ├── report_data.py             # build_payload() — assembles the report's embedded JSON
-│   ├── report_template.py         # HTML_TEMPLATE — the report page (HTML/CSS/JS, no deps)
+│   ├── clusters.py                # build_families() + FamilyIndex — mmseqs cluster -> gene-family grouping
+│   ├── report_data.py             # build_payload() / build_core_payload() / build_losses_payload()
+│   ├── report_template.py         # HTML_TEMPLATE — the novelties.html page (canvas heatmap, HTML/CSS/JS, no deps)
+│   ├── report_common.py           # Shared CSS/JS fragments for the lighter single-table report templates
+│   ├── core_report_template.py    # CORE_HTML_TEMPLATE — the core.html page (single table, no deps)
+│   ├── losses_report_template.py  # LOSSES_HTML_TEMPLATE — the losses.html page (single table, no deps)
 │   └── Helpers.groovy             # Helpers.projectName(params) — derives results subdirectory name
 ├── tests/
 │   ├── conftest.py
@@ -95,12 +103,19 @@ NovInvenio/
         ├── candidates.txt
         ├── tblastn_summary.tsv
         ├── novelties.<SHORT>.tsv  # One per ingroup species
-        └── report.html            # Self-contained interactive report
+        ├── loss_presence_matrix.tsv
+        ├── loss_presence_matrix.function.tsv
+        ├── loss_candidates.fa
+        ├── loss_candidates.txt
+        ├── loss_tblastn_summary.tsv
+        ├── novelties.html         # Self-contained interactive novelty-candidate report
+        ├── core.html              # Self-contained interactive core-genes report
+        └── losses.html            # Self-contained interactive candidate gene-loss report
 ```
 
 ## Architecture: Data Flow
 
-1. **Config CSV** is parsed in `main.nf` using `Channel.fromPath(...).splitCsv(header:true)`. FASTA paths are resolved via `resolve_fa()`, which searches flat layout and subdirs (`pep/`, `dna/`, `genome/`, `scaffolds/`). Three channels are emitted: `ingroup_prot_ch`, `outgroup_prot_ch`, `outgroup_dna_ch`.
+1. **Config CSV** is parsed in `main.nf` using `Channel.fromPath(...).splitCsv(header:true)`. FASTA paths are resolved via `resolve_fa()`, which searches flat layout and subdirs (`pep/`, `dna/`, `genome/`, `scaffolds/`). Four channels are emitted: `ingroup_prot_ch`, `outgroup_prot_ch`, `outgroup_dna_ch`, `ingroup_dna_ch` (the last used only by the loss-search direction's TBLASTN validation).
 
 2. **SEARCH workflow** (`workflows/search.nf`):
    - Cross-joins every ingroup proteome against all other proteomes (ingroup ∪ outgroup, excluding self-pairs).
@@ -142,9 +157,41 @@ NovInvenio/
      - No TBLASTN hit in any outgroup genome (unless `--skip_tblastn_filter` is passed — hits still reported in `tblastn_outgroup_hits` column).
    - Currently wired with `--skip_tblastn_filter` in `workflows/summarize.nf`.
 
-7. **REPORT workflow** (`workflows/report.nf`):
+7. **LOSS_SEARCH → LOSS_CLUSTER → LOSS_VALIDATE → LOSS_ANNOTATE** — a mirror of steps
+   2–5 with the ingroup/outgroup roles swapped, run from `main.nf` right after the
+   ingroup-direction stages:
+   - `workflows/loss_search.nf`'s `LOSS_SEARCH` runs outgroup proteomes as the *query*
+     (`workflows/search.nf` only ever queries with the ingroup — see that file's module
+     docstring for why this needs its own search direction rather than reusing SEARCH's
+     output). Same tool selection, same self-search-based paralog calibration, same
+     `BUILD_PRESENCE_MATRIX` process — called with `--query-group OUT` and
+     `outgroup_min_frac` instead of `IN`/`ingroup_min_frac`. Produces
+     `loss_presence_matrix.tsv` / `loss_candidates.txt`: a row exists only when that
+     outgroup protein is present in ≥ `outgroup_min_frac` of the outgroup **and** absent
+     from every ingroup proteome.
+   - `LOSS_CLUSTER` is `workflows/cluster.nf`'s `CLUSTER` workflow imported under an
+     alias (`include { CLUSTER as LOSS_CLUSTER } from './workflows/cluster'`) and called
+     with `outgroup_prot_ch` (so `EXTRACT_CANDIDATES` pulls sequences from outgroup
+     FASTAs) and distinct output names (`loss_candidates.fa`, `loss_clusters` mmseqs
+     prefix) so it does not overwrite the ingroup-direction `CLUSTER` call's outputs in
+     the same `publishDir`.
+   - `LOSS_VALIDATE` is `VALIDATE` aliased likewise, called with `ingroup_dna_ch` as the
+     TBLASTN target genomes (`TBLASTN_MAKEDB`/`TBLASTN` are already keyed by
+     `meta_genome.id` in `storeDir`/output filenames, so no collision even without an
+     alias there) → `loss_tblastn_summary.tsv`.
+   - `LOSS_ANNOTATE` is `ANNOTATE` aliased likewise, called with an `output_prefix` of
+     `'loss_'` → `loss_presence_matrix.function.tsv`.
+   - Every reused process (`BUILD_PRESENCE_MATRIX`, `EXTRACT_CANDIDATES`,
+     `MMSEQS_CLUSTER`, `SUMMARIZE_TBLASTN`, `ANNOTATE_MATRIX`) took a small,
+     backward-compatible parameterization for this — an explicit query-group flag or
+     output filename/prefix `val` input, always defaulted so the original
+     ingroup-direction call sites in `main.nf` are unaffected. See
+     `bin/build_presence_matrix.py`'s `--query-group` and `bin/extract_candidates.py`'s
+     module docstring for the underlying logic.
+
+8. **REPORT workflow** (`workflows/report.nf`):
    - `MAKE_REPORT` calls `make_report.py`, which merges the annotated matrix, the
-     TBLASTN summary and the novelties tables into `report.html`.
+     TBLASTN summary and the novelties tables into `novelties.html`.
    - `lib/report_data.py` builds the payload; `lib/report_template.py` holds the page.
    - The payload is embedded as JSON in a `<script type="application/json">` block, so
      the page opens from `file://` with no network access — reports get copied off the
@@ -154,8 +201,30 @@ NovInvenio/
      from the matrix (mirroring `make_novelties.py` with the TBLASTN filter skipped).
    - Sequences dominate file size, so `--sequences` (`params.report_sequences`) defaults
      to `novelties` — roughly 5 MB for a 21k-protein, 4.8k-novelty run.
+   - `MAKE_CORE_REPORT` calls `make_core_report.py`, which asks the opposite question of
+     the novelty report from the **same** annotated matrix — no new search or annotation
+     step. A row (always ingroup-sourced, since that is the matrix's own scope) counts
+     as core when its presence fraction across every proteome column (ingroup + outgroup)
+     is `>= core_min_frac`. Sequences are never embedded in `core.html`; linkouts (Pfam →
+     InterPro, SwissProt → UniProt/AlphaFold, model-organism → FungiDB, otherwise a
+     generic NCBI Protein search) stand in for the BLASTP-with-sequence link the novelty
+     report offers.
+   - `MAKE_LOSSES_REPORT` calls `make_losses_report.py` against the **loss-direction**
+     annotated matrix/TBLASTN summary/cluster_tsv (all from step 7, not step 2–6) —
+     candidate lineage-specific gene losses, sourced from outgroup proteins that are
+     absent from the whole ingroup. `--outgroup_min_frac`-scoped presence fraction and
+     the ingroup-genome TBLASTN flag (reporting-only, not filtering — same
+     `--skip_tblastn_filter` rationale as `MAKE_NOVELTIES`) drive the default priority
+     sort in `losses.html`. No sequences embedded, same linkout fallback chain as
+     `core.html`, but resolved against the *outgroup* protein (that's where the gene is).
+   - `lib/clusters.py`'s `FamilyIndex` (mmseqs cluster membership → per-protein family
+     index + per-family species set) is shared by `build_payload()`,
+     `build_core_payload()` and `build_losses_payload()`; `lib/report_common.py` holds
+     the CSS/JS fragments shared by the single-table templates (`core_report_template.py`,
+     `losses_report_template.py`) — `report_template.py`'s canvas-heatmap page is not
+     wired to it.
 
-8. **Final outputs** in `results/<project>/`: `presence_matrix.tsv`, `presence_matrix.function.tsv`, `candidates.fa`, `tblastn_summary.tsv`, `novelties.<SHORT>.tsv` for each ingroup species, and `report.html`.
+9. **Final outputs** in `results/<project>/`: `presence_matrix.tsv`, `presence_matrix.function.tsv`, `candidates.fa`, `tblastn_summary.tsv`, `novelties.<SHORT>.tsv` for each ingroup species, the loss-direction equivalents (`loss_presence_matrix.tsv`, `loss_presence_matrix.function.tsv`, `loss_candidates.fa`, `loss_tblastn_summary.tsv`), `novelties.html`, `core.html`, and `losses.html`.
 
 ## Key Parameters (`nextflow.config`)
 
@@ -169,11 +238,13 @@ NovInvenio/
 | `--evalue` | `1e-5` | Fallback e-value for proteins with no detectable paralog; also TBLASTN significance cutoff |
 | `--parse_evalue` | `0.01` | Loose noise ceiling passed to `parse_hits.py`; final filtering uses paralog cutoffs |
 | `--ingroup_min_frac` | `0.75` | Fraction of ingroup proteomes that must contain a hit |
+| `--outgroup_min_frac` | `0.75` | Fraction of outgroup proteomes that must contain a hit, for `LOSS_SEARCH` (the loss-search direction's own presence threshold) |
+| `--core_min_frac` | `0.95` | Presence fraction (across all proteomes, ingroup + outgroup) for the CORE genes report |
 | `--use_orthofinder` | `false` | Placeholder — OrthoFinder clustering not yet implemented |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd`; skips SwissProt annotation if unset |
 | `--modelorgs_config` | `null` | Absolute path to model organisms YAML; skips gene-name lookup if unset |
-| `--report_sequences` | `novelties` | Which proteins carry a sequence in `report.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
+| `--report_sequences` | `novelties` | Which proteins carry a sequence in `novelties.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
 | `--hmm_mpi` | `false` | Run hmmsearch with MPI (`mpirun -np <hmm_mpi_tasks> hmmsearch --mpi`) |
 | `--hmm_mpi_tasks` | `null` | MPI task count; defaults to `max_cpus` when `hmm_mpi=true` |
 | `--max_cpus` | `32` | Cluster-wide CPU cap |
@@ -289,7 +360,7 @@ Pass `--run_tool phmmer|diamond|blast`. Results are keyed by tool name in the ca
 
 ---
 
-## The interactive report (`report.html`)
+## The interactive report (`novelties.html`)
 
 Regenerate standalone from an existing results directory without re-running the pipeline:
 
@@ -300,7 +371,7 @@ bin/make_report.py \
     --tblastn_summary results/pezio4_asco/tblastn_summary.tsv \
     --novelties results/pezio4_asco/novelties.*.tsv \
     --candidates_fa results/pezio4_asco/candidates.fa \
-    --output results/pezio4_asco/report.html
+    --output results/pezio4_asco/novelties.html
 ```
 
 ### Constraints to preserve when editing the page
@@ -348,7 +419,7 @@ editing the JS inside `HTML_TEMPLATE`, verify it in two stages:
    npm install --prefix /tmp/novinv_check jsdom --no-audit --no-fund --silent
    ```
 
-   Generate a small `report.html` from a hand-written fixture matrix/config (same shape as
+   Generate a small `novelties.html` from a hand-written fixture matrix/config (same shape as
    the fixtures in `tests/test_report_data.py`) via `bin/make_report.py`, then load it with
    `JSDOM({ runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true })`.
    jsdom does not implement `<canvas>` or `matchMedia`, and the report page calls both

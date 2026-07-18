@@ -1,23 +1,37 @@
 nextflow.enable.dsl=2
 
-// Render the interactive HTML report (report.html) from the annotated presence
-// matrix, the TBLASTN summary and the per-species novelties tables.
-// The page is self-contained — no network access is needed to open it.
+// Render the interactive HTML reports:
+//   - novelties.html — ingroup-specific candidates (annotated matrix + TBLASTN
+//     summary + per-species novelties tables)
+//   - core.html — near-universally conserved genes (annotated matrix +
+//     cluster_tsv only, no new search/annotation step)
+//   - losses.html — candidate lineage-specific gene losses (loss-search
+//     annotated matrix + loss TBLASTN summary + loss cluster_tsv, all produced
+//     by the LOSS_SEARCH/LOSS_CLUSTER/LOSS_VALIDATE/LOSS_ANNOTATE mirror
+//     pipeline in main.nf)
+// All three pages are self-contained — no network access is needed to open them.
 
 workflow REPORT {
     take:
-    annotated_matrix   // path: presence_matrix.function.tsv
-    tblastn_summary    // path: tblastn_summary.tsv
-    novelties          // path(s): novelties.<SHORT>.tsv
-    candidates_fa      // path: candidates.fa (protein sequences)
-    cluster_tsv        // path: mmseqs *_cluster.tsv (rep -> member) for gene-family grouping
-    config_csv         // path: analysis CSV
+    annotated_matrix       // path: presence_matrix.function.tsv
+    tblastn_summary        // path: tblastn_summary.tsv
+    novelties               // path(s): novelties.<SHORT>.tsv
+    candidates_fa           // path: candidates.fa (protein sequences)
+    cluster_tsv              // path: mmseqs *_cluster.tsv (rep -> member) for gene-family grouping
+    loss_annotated_matrix    // path: loss_presence_matrix.function.tsv
+    loss_tblastn_summary     // path: loss_tblastn_summary.tsv
+    loss_cluster_tsv         // path: loss mmseqs *_cluster.tsv
+    config_csv               // path: analysis CSV
 
     main:
     MAKE_REPORT(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv, config_csv)
+    MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv)
+    MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv)
 
     emit:
-    report = MAKE_REPORT.out.report
+    report        = MAKE_REPORT.out.report
+    core_report   = MAKE_CORE_REPORT.out.report
+    losses_report = MAKE_LOSSES_REPORT.out.report
 }
 
 process MAKE_REPORT {
@@ -33,7 +47,7 @@ process MAKE_REPORT {
     path(config_csv)
 
     output:
-    path("report.html"), emit: report
+    path("novelties.html"), emit: report
 
     script:
     """
@@ -47,6 +61,56 @@ process MAKE_REPORT {
         --project ${Helpers.projectName(params)} \
         --ingroup_min_frac ${params.ingroup_min_frac} \
         --sequences ${params.report_sequences} \
-        --output report.html
+        --output novelties.html
+    """
+}
+
+process MAKE_CORE_REPORT {
+    label 'low_cpu'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
+
+    input:
+    path(annotated_matrix)
+    path(cluster_tsv)
+    path(config_csv)
+
+    output:
+    path("core.html"), emit: report
+
+    script:
+    """
+    make_core_report.py \
+        --matrix ${annotated_matrix} \
+        --config ${config_csv} \
+        --cluster_tsv ${cluster_tsv} \
+        --project ${Helpers.projectName(params)} \
+        --core_min_frac ${params.core_min_frac} \
+        --output core.html
+    """
+}
+
+process MAKE_LOSSES_REPORT {
+    label 'low_cpu'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
+
+    input:
+    path(loss_annotated_matrix)
+    path(loss_tblastn_summary)
+    path(loss_cluster_tsv)
+    path(config_csv)
+
+    output:
+    path("losses.html"), emit: report
+
+    script:
+    """
+    make_losses_report.py \
+        --matrix ${loss_annotated_matrix} \
+        --config ${config_csv} \
+        --tblastn_summary ${loss_tblastn_summary} \
+        --cluster_tsv ${loss_cluster_tsv} \
+        --project ${Helpers.projectName(params)} \
+        --outgroup_min_frac ${params.outgroup_min_frac} \
+        --output losses.html
     """
 }

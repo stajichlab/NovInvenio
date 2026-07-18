@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Extract candidate protein sequences from ingroup proteome FASTAs.
+"""Extract candidate protein sequences from the given proteome FASTAs.
 
 candidates.txt format: source_proteome_short::protein_id  (one per line)
+
+--fastas is whatever set of proteome FASTAs the caller staged (ingroup for
+the novelty-search direction, outgroup for the loss-search direction) — the
+short-name lookup is built from every config sample, not filtered by group,
+so the same script serves both without a --group flag: a candidate whose
+short id has no matching file among --fastas is simply never found.
 """
 import argparse
 import sys
@@ -19,15 +25,17 @@ def main():
     ap.add_argument('--candidates', required=True,
                     help='candidates.txt with lines like short::protein_id')
     ap.add_argument('--fastas', nargs='+', required=True,
-                    help='Ingroup proteome FASTA files')
+                    help='Proteome FASTA files to search for candidate sequences')
     ap.add_argument('--config', required=True,
                     help='Analysis CSV (used to map FASTA filenames to short IDs)')
     ap.add_argument('--output', required=True)
     args = ap.parse_args()
 
-    # Build FASTA basename → short name from config
+    # Build FASTA basename → short name from config. Not filtered by group —
+    # which species actually get searched is determined by which FASTAs the
+    # caller passed via --fastas, not by this lookup.
     samples = parse_config(args.config)
-    basename_to_short = {s.protein: s.short for s in samples if s.group == 'IN'}
+    basename_to_short = {s.protein: s.short for s in samples}
 
     # Parse candidates grouped by short name
     wanted: dict[str, set] = defaultdict(set)

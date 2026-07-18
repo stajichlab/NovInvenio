@@ -15,7 +15,7 @@ Example:
       --novelties results/pezio4_asco/novelties.*.tsv \
       --candidates_fa results/pezio4_asco/candidates.fa \
       --cluster_tsv results/pezio4_asco/clusters/clusters_cluster.tsv \
-      --output results/pezio4_asco/report.html
+      --output results/pezio4_asco/novelties.html
 """
 import argparse
 import html

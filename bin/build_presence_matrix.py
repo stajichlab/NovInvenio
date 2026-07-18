@@ -12,9 +12,15 @@ Presence scoring uses two paralog-aware filters (both must pass):
      disqualified.  The logic is that such a hit is better explained by the
      conserved domain shared with the paralog than by the query protein itself.
 
-A candidate protein (from an ingroup proteome) must be:
-  - present in >= --ingroup-min-frac of all ingroup proteomes
-  - absent from every outgroup proteome
+A candidate protein (from a --query-group proteome, default IN) must be:
+  - present in >= --ingroup-min-frac of all --query-group proteomes
+  - absent from every proteome in the other group
+
+--query-group OUT runs the same logic in the opposite direction — outgroup
+proteomes as query, looking for genes conserved in the outgroup but absent
+from the ingroup (candidate lineage-specific losses). --ingroup-min-frac is
+reused as the query group's own presence threshold in both directions (pass
+--ingroup-min-frac params.outgroup_min_frac from the loss-search workflow).
 """
 import argparse
 import sys
@@ -73,7 +79,14 @@ def main():
                     help='Per-species paralog_cutoffs.tsv files from self-vs-self search')
     ap.add_argument('--config',  required=True, help='Analysis description CSV')
     ap.add_argument('--ingroup-min-frac', type=float, default=0.75,
-                    dest='ingroup_min_frac')
+                    dest='ingroup_min_frac',
+                    help='Presence threshold within --query-group (fraction of that '
+                         'group\'s proteomes that must contain a hit)')
+    ap.add_argument('--query-group', choices=['IN', 'OUT'], default='IN',
+                    dest='query_group',
+                    help='Which config group supplies the query proteomes candidates are '
+                         'sourced from (default: IN, the novelty-search direction). OUT '
+                         'runs the loss-search direction: outgroup query, ingroup must be 0.')
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue',
                     help='Fallback e-value cutoff for proteins with no detectable paralog')
@@ -85,6 +98,8 @@ def main():
     ingroup_ids  = {s.short for s in samples if s.group == 'IN'}
     outgroup_ids = {s.short for s in samples if s.group == 'OUT'}
     all_ids      = ingroup_ids | outgroup_ids
+    query_ids    = ingroup_ids if args.query_group == 'IN' else outgroup_ids
+    other_ids    = outgroup_ids if args.query_group == 'IN' else ingroup_ids
 
     paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
 
@@ -98,8 +113,8 @@ def main():
         best_ev = (hits.groupby(['query_proteome', 'query_id', 'target_proteome'])
                        ['evalue'].min().to_dict())
 
-    # Restrict to ingroup queries, then apply both paralog-aware filters vectorised.
-    ing = hits[hits['query_proteome'].isin(ingroup_ids)].copy()
+    # Restrict to --query-group queries, then apply both paralog-aware filters vectorised.
+    ing = hits[hits['query_proteome'].isin(query_ids)].copy()
 
     if not ing.empty:
         # Filter 1: hit evalue must beat the query's paralog cutoff (fallback default).
@@ -137,15 +152,15 @@ def main():
     matrix = pd.DataFrame(rows, columns=columns)
     matrix.to_csv(args.output_matrix, sep='\t', index=False)
 
-    n_ingroup      = len(ingroup_ids)
-    ingroup_cols   = sorted(ingroup_ids)
-    outgroup_cols  = sorted(outgroup_ids)
+    n_query     = len(query_ids)
+    query_cols  = sorted(query_ids)
+    other_cols  = sorted(other_ids)
     if matrix.empty:
         candidates = []
     else:
-        ingroup_count  = matrix[ingroup_cols].sum(axis=1)
-        outgroup_count = matrix[outgroup_cols].sum(axis=1) if outgroup_cols else 0
-        keep = (ingroup_count / n_ingroup >= args.ingroup_min_frac) & (outgroup_count == 0)
+        query_count = matrix[query_cols].sum(axis=1)
+        other_count = matrix[other_cols].sum(axis=1) if other_cols else 0
+        keep = (query_count / n_query >= args.ingroup_min_frac) & (other_count == 0)
         kept = matrix[keep]
         candidates = (kept['source_proteome'] + '::' + kept['protein_id']).tolist()
 
@@ -153,7 +168,8 @@ def main():
         if candidates:
             fh.write('\n'.join(candidates) + '\n')
 
-    print(f"Candidates: {len(candidates)} / {len(matrix)} ingroup proteins pass thresholds",
+    direction = 'ingroup' if args.query_group == 'IN' else 'outgroup'
+    print(f"Candidates: {len(candidates)} / {len(matrix)} {direction} proteins pass thresholds",
           file=sys.stderr)
 
 

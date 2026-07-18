@@ -25,7 +25,7 @@ Config CSV
     │               → novelties.<SHORT>.tsv for each ingroup species
     │
     └─► REPORT   — interactive HTML report of the candidates and the matrix
-                    → report.html (self-contained; opens offline in a browser)
+                    → novelties.html (self-contained; opens offline in a browser)
 ```
 
 ## Quick start
@@ -74,10 +74,12 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 | `--evalue` | `1e-5` | Fallback e-value for proteins with no detectable within-proteome paralog |
 | `--parse_evalue` | `0.01` | Noise ceiling applied when parsing raw pairwise hits; the authoritative per-gene cutoff comes from the self-vs-self paralog search |
 | `--ingroup_min_frac` | `0.75` | Min fraction of ingroup proteomes that must contain a hit |
+| `--outgroup_min_frac` | `0.75` | Min fraction of outgroup proteomes that must contain a hit, for the loss-search direction (`loss_presence_matrix.tsv`) |
+| `--core_min_frac` | `0.95` | Min presence fraction across *all* proteomes (ingroup + outgroup) for `core.html` |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd` database; skips if unset |
 | `--modelorgs_config` | `null` | YAML listing model organisms for gene name lookup (see `configs/modelorgs.yaml`) |
-| `--report_sequences` | `novelties` | Which proteins carry a sequence in `report.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
+| `--report_sequences` | `novelties` | Which proteins carry a sequence in `novelties.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
 | `--project` | *(auto)* | Output subdirectory name; defaults to config CSV basename |
 | `--outdir` | `results` | Root output directory |
 | `--hmm_mpi` | `false` | Run hmmsearch in MPI mode (requires MPI-enabled HMMER) |
@@ -190,7 +192,13 @@ All outputs are written to `results/<project>/`:
 | `candidates.swissprot.tsv` | SwissProt diamond hits (if `--swissprot_dmnd` set) |
 | `presence_matrix.function.tsv` | Annotated matrix (gene_name, Best_Swissprot, Pfam_Names) |
 | `novelties.<SHORT>.tsv` | Per-species novelty candidates (one file per ingroup species) |
-| `report.html` | Interactive report — browse the candidates and the presence matrix ([below](#interactive-report-reporthtml)) |
+| `loss_presence_matrix.tsv` | Mirror of `presence_matrix.tsv` with outgroup proteomes as the query — candidate lineage-specific losses |
+| `loss_candidates.txt` / `loss_candidates.fa` | Outgroup protein IDs / FASTA absent from every ingroup proteome |
+| `loss_tblastn_summary.tsv` | Loss candidates × ingroup genome TBLASTN hit matrix (the loss-direction validation check) |
+| `loss_presence_matrix.function.tsv` | Annotated loss matrix (gene_name, Best_Swissprot, Pfam_Names, from the outgroup side) |
+| `novelties.html` | Interactive report — browse the candidates and the presence matrix ([below](#interactive-report-noveltieshtml)) |
+| `core.html` | Interactive report — near-universally conserved genes (`--core_min_frac`, default 0.95), for contrast against the novelty candidates ([below](#core-genes-report-corehtml)) |
+| `losses.html` | Interactive report — candidate lineage-specific gene losses ([below](#losses-report-losseshtml)) |
 
 ### novelties.\<SHORT\>.tsv columns
 
@@ -217,16 +225,16 @@ on empty input — it emits empty `clusters_rep_seq.fasta`/`clusters_all_seqs.fa
 `clusters_cluster.tsv` and the pipeline continues to completion with empty downstream
 outputs.
 
-## Interactive report (report.html)
+## Interactive report (novelties.html)
 
-The pipeline writes `results/<project>/report.html` — a single file for browsing the
+The pipeline writes `results/<project>/novelties.html` — a single file for browsing the
 novelty candidates and the presence/absence matrix. It has no external dependencies and
 makes no network requests, so copy it anywhere and open it directly:
 
 ```bash
 # from your laptop
-scp cluster:/path/to/NovInvenio/results/pezio4_asco/report.html .
-open report.html          # macOS  (Linux: xdg-open, or just drag into a browser)
+scp cluster:/path/to/NovInvenio/results/pezio4_asco/novelties.html .
+open novelties.html       # macOS  (Linux: xdg-open, or just drag into a browser)
 ```
 
 No web server is needed — `file://` works, including offline.
@@ -262,7 +270,7 @@ bin/make_report.py \
     --tblastn_summary results/pezio4_asco/tblastn_summary.tsv \
     --novelties results/pezio4_asco/novelties.*.tsv \
     --candidates_fa results/pezio4_asco/candidates.fa \
-    --output results/pezio4_asco/report.html
+    --output results/pezio4_asco/novelties.html
 ```
 
 `--tblastn_summary`, `--novelties` and `--candidates_fa` are all optional: without
@@ -282,6 +290,65 @@ detail panel, and Download FASTA reports that it has nothing to write.
 Gene names and Pfam/SwissProt annotation are read from the **matrix**, so if the report
 shows an empty Gene column, re-run `ANNOTATE` with `--modelorgs_config` rather than
 looking for the problem in the report.
+
+## Core genes report (core.html)
+
+The pipeline also writes `results/<project>/core.html` — genes present in ≥
+`--core_min_frac` (default 0.95) of *every* sampled proteome, ingroup and outgroup alike.
+It answers the opposite question from `novelties.html`: not "unique to this lineage" but
+"conserved across the whole sampled tree" — useful as a sanity check (a run with almost
+no core genes probably has a search-sensitivity or config problem) and as contrast for
+the novelty candidates.
+
+It needs no new search or annotation step — it re-reads `presence_matrix.function.tsv`
+(or the plain matrix, if annotation was skipped) and `clusters_cluster.tsv`, the same
+inputs `novelties.html` uses minus the TBLASTN summary and novelties tables. Sequences
+are never embedded (there's no BLASTP-at-NCBI link); instead the detail panel links out
+to InterPro (Pfam), UniProt/AlphaFold (SwissProt), FungiDB (model-organism genes), or a
+generic NCBI Protein search as a fallback for a core gene with no other hit — worth a
+manual spot-check.
+
+Regenerate standalone the same way as `novelties.html`:
+
+```bash
+bin/make_core_report.py \
+    --matrix results/pezio4_asco/presence_matrix.function.tsv \
+    --config configs/pezio4_asco.csv \
+    --cluster_tsv results/pezio4_asco/clusters/clusters_cluster.tsv \
+    --output results/pezio4_asco/core.html
+```
+
+## Losses report (losses.html)
+
+The pipeline also writes `results/<project>/losses.html` — genes present in the outgroup
+but absent from the entire ingroup: candidate lineage-specific gene losses, the kind of
+signal worth chasing for a missing pathway. It answers a question `novelties.html` cannot:
+that report only ever runs searches with ingroup proteomes as the query, so it has no way
+to ask "is this outgroup gene present in the ingroup?" `losses.html` is built from a
+second, symmetric search direction (`LOSS_SEARCH` in `workflows/loss_search.nf`) that
+queries with the outgroup instead — roughly doubling total pairwise search volume, so
+expect a run with losses enabled to take about as long as the novelty search itself.
+
+Rows are prioritized, not just listed: a locus lost from the whole ingroup but conserved
+across most of the outgroup is a much stronger loss call than one seen in a single
+outgroup species (could be that species' own gain, an assembly gap, or a paralog quirk).
+`loss_tblastn_summary.tsv` — TBLASTN of the loss candidates against ingroup *genomic* DNA,
+not just the annotated proteins — flags (but does not remove) rows where a hit suggests
+the "loss" might just be a missed gene model rather than a real one; the default sort
+puts unflagged, broadly-conserved losses first. Sequences are never embedded; the detail
+panel's external links resolve against the *outgroup* protein (e.g. "this looks like S.
+cerevisiae's `ERG3`"), since that's where the gene actually is.
+
+Regenerate standalone:
+
+```bash
+bin/make_losses_report.py \
+    --matrix results/pezio4_asco/loss_presence_matrix.function.tsv \
+    --config configs/pezio4_asco.csv \
+    --tblastn_summary results/pezio4_asco/loss_tblastn_summary.tsv \
+    --cluster_tsv results/pezio4_asco/clusters/loss_clusters_cluster.tsv \
+    --output results/pezio4_asco/losses.html
+```
 
 ## Running on SLURM
 

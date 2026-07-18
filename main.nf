@@ -2,9 +2,13 @@
 nextflow.enable.dsl=2
 
 include { SEARCH   } from './workflows/search'
+include { LOSS_SEARCH } from './workflows/loss_search'
 include { CLUSTER  } from './workflows/cluster'
+include { CLUSTER  as LOSS_CLUSTER  } from './workflows/cluster'
 include { VALIDATE } from './workflows/validate'
+include { VALIDATE as LOSS_VALIDATE } from './workflows/validate'
 include { ANNOTATE } from './workflows/annotate'
+include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
 
@@ -59,16 +63,30 @@ workflow {
                                    .map    { meta, prot, dna -> [ meta, prot ] }
     outgroup_dna_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'OUT' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
+    ingroup_dna_ch    = samples_ch.filter { meta, prot, dna -> meta.group == 'IN' && dna }
+                                   .map    { meta, prot, dna -> [ meta, dna ] }
 
     SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
 
-    CLUSTER(SEARCH.out.candidates, ingroup_prot_ch, file(params.config))
+    CLUSTER(SEARCH.out.candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
 
-    VALIDATE(CLUSTER.out.representatives, outgroup_dna_ch, CLUSTER.out.cluster_tsv)
+    VALIDATE(CLUSTER.out.representatives, outgroup_dna_ch, CLUSTER.out.cluster_tsv, 'tblastn_summary.tsv')
 
-    ANNOTATE(CLUSTER.out.candidates_fa, SEARCH.out.matrix, pfam_abs, sprot_abs, morgs_abs)
+    ANNOTATE(CLUSTER.out.candidates_fa, SEARCH.out.matrix, pfam_abs, sprot_abs, morgs_abs, '')
 
     SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, CLUSTER.out.cluster_tsv, file(params.config))
+
+    // Mirror of SEARCH/CLUSTER/VALIDATE/ANNOTATE with ingroup/outgroup swapped —
+    // candidate lineage-specific gene losses (present in the outgroup, absent
+    // from the ingroup). See workflows/loss_search.nf for why this needs its
+    // own search direction.
+    LOSS_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
+
+    LOSS_CLUSTER(LOSS_SEARCH.out.candidates, outgroup_prot_ch, file(params.config), 'loss_candidates.fa', 'loss_clusters')
+
+    LOSS_VALIDATE(LOSS_CLUSTER.out.representatives, ingroup_dna_ch, LOSS_CLUSTER.out.cluster_tsv, 'loss_tblastn_summary.tsv')
+
+    LOSS_ANNOTATE(LOSS_CLUSTER.out.candidates_fa, LOSS_SEARCH.out.matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
 
     REPORT(
         ANNOTATE.out.annotated_matrix,
@@ -76,6 +94,9 @@ workflow {
         SUMMARIZE.out.novelties,
         CLUSTER.out.candidates_fa,
         CLUSTER.out.cluster_tsv,
+        LOSS_ANNOTATE.out.annotated_matrix,
+        LOSS_VALIDATE.out.summary,
+        LOSS_CLUSTER.out.cluster_tsv,
         file(params.config)
     )
 }

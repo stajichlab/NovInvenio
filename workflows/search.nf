@@ -61,7 +61,11 @@ workflow SEARCH {
     BUILD_PRESENCE_MATRIX(
         PARSE_HITS.out.map { meta_pair, tsv -> tsv }.collect(),
         PARSE_SELF_HITS.out.tsv.map { meta, tsv -> tsv }.collect(),
-        config_csv
+        config_csv,
+        'IN',
+        params.ingroup_min_frac,
+        'presence_matrix.tsv',
+        'candidates.txt'
     )
 
     emit:
