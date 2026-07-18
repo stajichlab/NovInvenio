@@ -4,7 +4,7 @@ Regenerate view/index.html: a landing page linking to each sub-project's
 HTML pages.
 
 Scans immediate subdirectories of this script's directory for *.html files
-and lists them as links (report.html first, then any others alphabetically),
+and lists them as links (novelties.html first, then any others alphabetically),
 grouped by sub-project directory. Re-run this any time a new sub-project
 report is added or an existing one is regenerated.
 
@@ -17,7 +17,7 @@ import datetime
 import html
 from pathlib import Path
 
-REPORT_NAME = "report.html"
+REPORT_NAME = "novelties.html"
 
 PAGE_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -94,7 +94,7 @@ def find_project_dirs(root: Path) -> list[Path]:
 
 def find_html_pages(project_dir: Path) -> list[Path]:
     pages = sorted(project_dir.glob("*.html"))
-    # report.html leads the list; the rest follow alphabetically.
+    # novelties.html leads the list; the rest follow alphabetically.
     return sorted(pages, key=lambda p: (p.name != REPORT_NAME, p.name))
 
 
