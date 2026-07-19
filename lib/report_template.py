@@ -276,7 +276,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     border-bottom: 1px solid var(--axis);
   }
   table.data td.num { font-variant-numeric: tabular-nums; }
-  table.data td.wrap-cell { white-space: normal; max-width: 320px; }
+  table.data td.wrap-cell { white-space: normal; max-width: 320px; overflow-wrap: anywhere; }
   table.data tbody tr:hover { background: var(--hover-wash); }
   .hidden { display: none !important; }
   .sr-only {
