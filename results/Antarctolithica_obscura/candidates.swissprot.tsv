@@ -1,0 +1,834 @@
+AC1KRZ_000006	sp|Q4WN99|DPH2_ASPFU	sp|Q4WN99|DPH2_ASPFU 2-(3-amino-3-carboxypropyl)histidine synthase subunit 2 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=dph2 PE=3 SV=1	2.03e-75	249
+AC1KRZ_000019	sp|Q9C0V1|AMT1_SCHPO	sp|Q9C0V1|AMT1_SCHPO Ammonium transporter 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=amt1 PE=3 SV=1	2.88e-110	357
+AC1KRZ_000023	sp|O94242|SYDM_SCHPO	sp|O94242|SYDM_SCHPO Aspartate--tRNA ligase, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=msd1 PE=3 SV=1	1.28e-132	405
+AC1KRZ_000027	sp|P48527|SYYM_YEAST	sp|P48527|SYYM_YEAST Tyrosine--tRNA ligase, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MSY1 PE=1 SV=1	1.96e-99	308
+AC1KRZ_000035	sp|Q9USL3|SYIM_SCHPO	sp|Q9USL3|SYIM_SCHPO Isoleucine--tRNA ligase, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ism1 PE=3 SV=1	2.25e-243	713
+AC1KRZ_000046	sp|B0XUR7|PPZA_ASPFC	sp|B0XUR7|PPZA_ASPFC Serine/threonine-protein phosphatase ppzA OS=Aspergillus fumigatus (strain CBS 144.89 / FGSC A1163 / CEA10) OX=451804 GN=ppzA PE=1 SV=1	3.02e-208	590
+AC1KRZ_000052	sp|O60161|UTP4_SCHPO	sp|O60161|UTP4_SCHPO U3 small nucleolar RNA-associated protein 4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp4 PE=3 SV=1	2.46e-146	447
+AC1KRZ_000060	sp|P47042|IKS1_YEAST	sp|P47042|IKS1_YEAST Probable serine/threonine-protein kinase IKS1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=IKS1 PE=1 SV=1	2.76e-51	189
+AC1KRZ_000070	sp|P32368|SAC1_YEAST	sp|P32368|SAC1_YEAST Phosphatidylinositol-3-phosphatase SAC1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SAC1 PE=1 SV=1	5.24e-157	466
+AC1KRZ_000074	sp|P28812|Y3568_PSEAE	sp|P28812|Y3568_PSEAE Uncharacterized protein PA3568 OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=PA3568 PE=3 SV=2	6.10e-169	499
+AC1KRZ_000078	sp|O60508|PRP17_HUMAN	sp|O60508|PRP17_HUMAN Pre-mRNA-processing factor 17 OS=Homo sapiens OX=9606 GN=CDC40 PE=1 SV=1	1.24e-122	374
+AC1KRZ_000080	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	6.77e-169	496
+AC1KRZ_000087	sp|Q9USQ1|CTF18_SCHPO	sp|Q9USQ1|CTF18_SCHPO Chromosome transmission fidelity protein 18 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ctf18 PE=1 SV=1	1.68e-65	235
+AC1KRZ_000108	sp|Q9USP9|YHP4_SCHPO	sp|Q9USP9|YHP4_SCHPO Uncharacterized RNA-binding protein C902.04 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC902.04 PE=1 SV=1	1.32e-31	133
+AC1KRZ_000114	sp|Q5A3L9|ZCF30_CANAL	sp|Q5A3L9|ZCF30_CANAL Zinc cluster transcription factor ZCF30 OS=Candida albicans (strain SC5314 / ATCC MYA-2876) OX=237561 GN=ZCF30 PE=2 SV=1	3.00e-37	152
+AC1KRZ_000120	sp|O74933|UAP1_CANAX	sp|O74933|UAP1_CANAX UDP-N-acetylglucosamine pyrophosphorylase OS=Candida albicans OX=5476 GN=UAP1 PE=1 SV=1	7.49e-143	423
+AC1KRZ_000132	sp|P47048|YJE9_YEAST	sp|P47048|YJE9_YEAST Uncharacterized protein YJL049W OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YJL049W PE=1 SV=1	4.73e-15	82.4
+AC1KRZ_000188	sp|Q9HGI7|ERF3_CANMA	sp|Q9HGI7|ERF3_CANMA Eukaryotic peptide chain release factor GTP-binding subunit OS=Candida maltosa OX=5479 GN=SUP35 PE=3 SV=2	1.19e-229	652
+AC1KRZ_000193	sp|Q2KHZ2|HBS1L_BOVIN	sp|Q2KHZ2|HBS1L_BOVIN HBS1-like protein OS=Bos taurus OX=9913 GN=HBS1L PE=2 SV=1	3.56e-136	422
+AC1KRZ_000205	sp|Q9HFS7|UBP4_KLULA	sp|Q9HFS7|UBP4_KLULA Ubiquitin carboxyl-terminal hydrolase 4 OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=DOA4 PE=3 SV=1	1.22e-34	145
+AC1KRZ_000220	sp|Q1DZE0|ATG15_COCIM	sp|Q1DZE0|ATG15_COCIM Putative lipase ATG15 OS=Coccidioides immitis (strain RS) OX=246410 GN=ATG15 PE=3 SV=2	1.56e-131	397
+AC1KRZ_000222	sp|O13934|ATG15_SCHPO	sp|O13934|ATG15_SCHPO Putative lipase atg15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=atg15 PE=3 SV=1	3.56e-139	409
+AC1KRZ_000223	sp|O74396|VPS91_SCHPO	sp|O74396|VPS91_SCHPO Vacuolar protein sorting-associated protein vps901 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vps901 PE=1 SV=4	1.21e-13	77.0
+AC1KRZ_000249	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	1.22e-127	389
+AC1KRZ_000250	sp|Q6L732|KANJ_STRKN	sp|Q6L732|KANJ_STRKN Kanamycin B dioxygenase OS=Streptomyces kanamyceticus OX=1967 GN=kanJ PE=1 SV=1	9.04e-26	106
+AC1KRZ_001636	sp|Q9UNA4|POLI_HUMAN	sp|Q9UNA4|POLI_HUMAN DNA polymerase iota OS=Homo sapiens OX=9606 GN=POLI PE=1 SV=3	4.80e-40	157
+AC1KRZ_001664	sp|P49374|HGT1_KLULA	sp|P49374|HGT1_KLULA High-affinity glucose transporter OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=HGT1 PE=3 SV=1	2.09e-19	95.9
+AC1KRZ_001672	sp|O94437|YFI3_SCHPO	sp|O94437|YFI3_SCHPO Abhydrolase domain-containing protein C22H12.03 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC22H12.03 PE=3 SV=1	1.10e-35	135
+AC1KRZ_001673	sp|Q4R0J7|ARD1_UROFA	sp|Q4R0J7|ARD1_UROFA D-arabinitol dehydrogenase 1 OS=Uromyces fabae OX=55588 GN=ARD1 PE=1 SV=1	3.21e-150	429
+AC1KRZ_001676	sp|O14132|PIT1_SCHPO	sp|O14132|PIT1_SCHPO Sporulation protein kinase pit1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pit1 PE=1 SV=1	2.95e-79	259
+AC1KRZ_001688	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	1.35e-92	297
+AC1KRZ_001713	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	3.10e-62	217
+AC1KRZ_001716	sp|I2C092|MANBB_THETO	sp|I2C092|MANBB_THETO Beta-mannosidase B OS=Thermothelomyces thermophilus OX=78579 GN=man9 PE=1 SV=1	3.65e-209	618
+AC1KRZ_001724	sp|Q09752|VBA1_SCHPO	sp|Q09752|VBA1_SCHPO Vacuolar amino acid uptake transporter fnx1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fnx1 PE=2 SV=2	7.44e-105	327
+AC1KRZ_001730	sp|P32795|YME1_YEAST	sp|P32795|YME1_YEAST Mitochondrial inner membrane i-AAA protease supercomplex subunit YME1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YME1 PE=1 SV=1	2.13e-215	626
+AC1KRZ_001732	sp|B8M9K8|TROPE_TALSN	sp|B8M9K8|TROPE_TALSN Short-chain dehydrogenase/reductase tropE OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=tropE PE=3 SV=1	1.33e-76	238
+AC1KRZ_001734	sp|Q09855|POF11_SCHPO	sp|Q09855|POF11_SCHPO F-box/WD repeat-containing protein pof11 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pof11 PE=1 SV=2	9.67e-26	113
+AC1KRZ_001741	sp|Q9UTJ8|RAD50_SCHPO	sp|Q9UTJ8|RAD50_SCHPO DNA repair protein rad50 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rad50 PE=1 SV=3	1.03e-200	625
+AC1KRZ_001774	sp|P14904|AMPL_YEAST	sp|P14904|AMPL_YEAST Vacuolar aminopeptidase 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=APE1 PE=1 SV=2	1.63e-102	318
+AC1KRZ_001799	sp|Q59ZX3|RBE1_CANAL	sp|Q59ZX3|RBE1_CANAL Repressed by EFG1 protein 1 OS=Candida albicans (strain SC5314 / ATCC MYA-2876) OX=237561 GN=RBE1 PE=1 SV=1	2.01e-15	80.1
+AC1KRZ_001801	sp|P47033|PRY3_YEAST	sp|P47033|PRY3_YEAST Cell wall protein PRY3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PRY3 PE=1 SV=1	1.02e-25	114
+AC1KRZ_001823	sp|F2Z461|HERC6_MOUSE	sp|F2Z461|HERC6_MOUSE E3 ISG15--protein ligase Herc6 OS=Mus musculus OX=10090 GN=Herc6 PE=2 SV=1	1.86e-07	57.8
+AC1KRZ_001831	sp|Q9P371|SST2_SCHPO	sp|Q9P371|SST2_SCHPO AMSH-like protease sst2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sst2 PE=1 SV=1	4.62e-74	241
+AC1KRZ_001854	sp|O94365|UTP15_SCHPO	sp|O94365|UTP15_SCHPO U3 small nucleolar RNA-associated protein 15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp15 PE=3 SV=1	1.68e-105	326
+AC1KRZ_001871	sp|O14088|YER5_SCHPO	sp|O14088|YER5_SCHPO Uncharacterized oxidoreductase C2F3.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2F3.05c PE=3 SV=1	5.23e-65	207
+AC1KRZ_001872	sp|I2C092|MANBB_THETO	sp|I2C092|MANBB_THETO Beta-mannosidase B OS=Thermothelomyces thermophilus OX=78579 GN=man9 PE=1 SV=1	3.08e-229	669
+AC1KRZ_001890	sp|P61159|FDHA_METJA	sp|P61159|FDHA_METJA F420-dependent formate dehydrogenase subunit alpha OS=Methanocaldococcus jannaschii (strain ATCC 43067 / DSM 2661 / JAL-1 / JCM 10045 / NBRC 100440) OX=243232 GN=fdhA PE=3 SV=2	3.48e-57	206
+AC1KRZ_001911	sp|O42939|UBA2_SCHPO	sp|O42939|UBA2_SCHPO Ubiquitin-activating enzyme E1-like OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=uba2 PE=1 SV=1	1.10e-132	402
+AC1KRZ_001923	sp|G0RYR3|MRE11_CHATD	sp|G0RYR3|MRE11_CHATD Double-strand break repair protein MRE11 OS=Chaetomium thermophilum (strain DSM 1495 / CBS 144.50 / IMI 039719) OX=759272 GN=MRE11 PE=1 SV=1	3.07e-190	559
+AC1KRZ_001947	sp|Q10234|RT05_SCHPO	sp|Q10234|RT05_SCHPO Small ribosomal subunit protein uS5m OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mrp5 PE=1 SV=1	6.10e-47	163
+AC1KRZ_001954	sp|O94289|LUB1_SCHPO	sp|O94289|LUB1_SCHPO Ubiquitin homeostasis protein lub1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=lub1 PE=1 SV=2	1.33e-70	247
+AC1KRZ_001962	sp|O14019|HAL4_SCHPO	sp|O14019|HAL4_SCHPO Serine/threonine-protein kinase hal4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hal4 PE=1 SV=1	1.14e-48	182
+AC1KRZ_001994	sp|Q13367|AP3B2_HUMAN	sp|Q13367|AP3B2_HUMAN AP-3 complex subunit beta-2 OS=Homo sapiens OX=9606 GN=AP3B2 PE=1 SV=2	1.42e-129	414
+AC1KRZ_001997	sp|A0R2W9|MCA_MYCS2	sp|A0R2W9|MCA_MYCS2 Mycothiol S-conjugate amidase OS=Mycolicibacterium smegmatis (strain ATCC 700084 / mc(2)155) OX=246196 GN=mca PE=1 SV=1	5.42e-125	361
+AC1KRZ_001998	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	2.77e-100	318
+AC1KRZ_002008	sp|P40009|YND1_YEAST	sp|P40009|YND1_YEAST Golgi apyrase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YND1 PE=1 SV=1	8.52e-116	360
+AC1KRZ_002014	sp|O14134|ELF1_SCHPO	sp|O14134|ELF1_SCHPO mRNA export factor elf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=elf1 PE=1 SV=1	1.10e-301	867
+AC1KRZ_002015	sp|T2KLZ3|PLH1_FORAG	sp|T2KLZ3|PLH1_FORAG Unsaturated glucuronyl hydrolase OS=Formosa agariphila (strain DSM 15362 / KCTC 12365 / LMG 23005 / KMM 3901 / M-2Alg 35-1) OX=1347342 GN=BN863_21900 PE=1 SV=1	2.91e-61	206
+AC1KRZ_002021	sp|Q9US36|KLF1_SCHPO	sp|Q9US36|KLF1_SCHPO Zinc finger protein klf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=klf1 PE=2 SV=1	8.40e-41	163
+AC1KRZ_002022	sp|O34371|YTET_BACSU	sp|O34371|YTET_BACSU Putative oxidoreductase YteT OS=Bacillus subtilis (strain 168) OX=224308 GN=yteT PE=2 SV=1	6.21e-70	231
+AC1KRZ_002030	sp|B0K2C2|BOLMP_THEPX	sp|B0K2C2|BOLMP_THEPX 1,2-beta-oligomannan phosphorylase OS=Thermoanaerobacter sp. (strain X514) OX=399726 GN=Teth514_1788 PE=1 SV=1	3.30e-38	142
+AC1KRZ_002035	sp|P50531|RAD17_SCHPO	sp|P50531|RAD17_SCHPO Checkpoint protein rad17 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rad17 PE=1 SV=1	1.85e-37	149
+AC1KRZ_002084	sp|O35643|AP1B1_MOUSE	sp|O35643|AP1B1_MOUSE AP-1 complex subunit beta-1 OS=Mus musculus OX=10090 GN=Ap1b1 PE=1 SV=2	1.54e-197	583
+AC1KRZ_002088	sp|F4JCQ3|DG783_ARATH	sp|F4JCQ3|DG783_ARATH Putative DNA glycosylase At3g47830 OS=Arabidopsis thaliana OX=3702 GN=At3g47830 PE=3 SV=1	7.83e-49	168
+AC1KRZ_002100	sp|Q09196|MLR4_SCHPO	sp|Q09196|MLR4_SCHPO Myosin regulatory light chain cdc4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cdc4 PE=1 SV=1	7.78e-59	181
+AC1KRZ_002106	sp|O74852|YQ92_SCHPO	sp|O74852|YQ92_SCHPO Uncharacterized MFS-type transporter C18.02 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC18.02 PE=3 SV=1	1.43e-54	192
+AC1KRZ_002126	sp|O94285|RPC8_SCHPO	sp|O94285|RPC8_SCHPO DNA-directed RNA polymerase III subunit rpc8 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rpc25 PE=1 SV=1	3.01e-51	166
+AC1KRZ_002128	sp|Q8CFJ9|WDR24_MOUSE	sp|Q8CFJ9|WDR24_MOUSE GATOR2 complex protein WDR24 OS=Mus musculus OX=10090 GN=Wdr24 PE=1 SV=1	4.99e-59	219
+AC1KRZ_002130	sp|O94726|MNL1_SCHPO	sp|O94726|MNL1_SCHPO ER degradation-enhancing alpha-mannosidase-like protein 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mnl1 PE=3 SV=2	2.41e-143	441
+AC1KRZ_002167	sp|I1S050|YCK1_GIBZE	sp|I1S050|YCK1_GIBZE Serine/threonine protein kinase YCK1 OS=Gibberella zeae (strain ATCC MYA-4620 / CBS 123657 / FGSC 9075 / NRRL 31084 / PH-1) OX=229533 GN=YCK1 PE=3 SV=1	6.82e-141	416
+AC1KRZ_002170	sp|O14325|YB7A_SCHPO	sp|O14325|YB7A_SCHPO Uncharacterized AAA domain-containing protein C16E9.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC16E9.10c PE=1 SV=1	2.37e-295	831
+AC1KRZ_002174	sp|B8MYS7|MF127_ASPFN	sp|B8MYS7|MF127_ASPFN MFS glucose transporter mfs1 OS=Aspergillus flavus (strain ATCC 200026 / FGSC A1120 / IAM 13836 / NRRL 3357 / JCM 12722 / SRRC 167) OX=332952 GN=mfs1 PE=2 SV=1	6.85e-107	342
+AC1KRZ_002188	sp|O14351|YB45_SCHPO	sp|O14351|YB45_SCHPO Uncharacterized oxidoreductase C30D10.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC30D10.05c PE=3 SV=1	2.97e-39	142
+AC1KRZ_002211	sp|M2XHE6|AVFA_DOTSN	sp|M2XHE6|AVFA_DOTSN Averufin oxidase A OS=Dothistroma septosporum (strain NZE10 / CBS 128990) OX=675120 GN=avfA PE=2 SV=1	4.24e-94	281
+AC1KRZ_002214	sp|P15685|MAL61_YEASX	sp|P15685|MAL61_YEASX Maltose permease MAL61 OS=Saccharomyces cerevisiae OX=4932 GN=MAL61 PE=3 SV=1	1.32e-135	409
+AC1KRZ_002221	sp|Q8T5Z7|ABCA1_DICDI	sp|Q8T5Z7|ABCA1_DICDI ABC transporter A family member 1 OS=Dictyostelium discoideum OX=44689 GN=abcA1 PE=2 SV=1	2.58e-52	200
+AC1KRZ_002252	sp|G1X8P8|SPAZ_ARTOA	sp|G1X8P8|SPAZ_ARTOA Cuticle-degrading serine protease OS=Arthrobotrys oligospora (strain ATCC 24927 / CBS 115.81 / DSM 1491) OX=756982 PE=1 SV=1	4.47e-53	191
+AC1KRZ_002254	sp|Q08271|GAS4_YEAST	sp|Q08271|GAS4_YEAST 1,3-beta-glucanosyltransferase GAS4 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=GAS4 PE=1 SV=1	1.29e-106	328
+AC1KRZ_002255	sp|Q0P436|TM14C_DANRE	sp|Q0P436|TM14C_DANRE Transmembrane protein 14C OS=Danio rerio OX=7955 GN=tmem14c PE=3 SV=1	2.95e-13	63.5
+AC1KRZ_002260	sp|B2VZQ8|MTNA_PYRTR	sp|B2VZQ8|MTNA_PYRTR Methylthioribose-1-phosphate isomerase OS=Pyrenophora tritici-repentis (strain Pt-1C-BFP) OX=426418 GN=mri1 PE=3 SV=1	8.85e-88	288
+AC1KRZ_002262	sp|Q5RBD4|DHX35_PONAB	sp|Q5RBD4|DHX35_PONAB Probable ATP-dependent RNA helicase DHX35 OS=Pongo abelii OX=9601 GN=DHX35 PE=2 SV=1	9.88e-200	581
+AC1KRZ_002285	sp|P11182|ODB2_HUMAN	sp|P11182|ODB2_HUMAN Lipoamide acyltransferase component of branched-chain alpha-keto acid dehydrogenase complex, mitochondrial OS=Homo sapiens OX=9606 GN=DBT PE=1 SV=4	1.27e-104	321
+AC1KRZ_002288	sp|Q6CHS6|DPB4_YARLI	sp|Q6CHS6|DPB4_YARLI DNA polymerase epsilon subunit D OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=DPB4 PE=3 SV=1	6.78e-08	53.5
+AC1KRZ_002317	sp|O13747|EPT1_SCHPO	sp|O13747|EPT1_SCHPO RING finger protein ETP1 homolog OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC16E8.13 PE=3 SV=1	1.84e-113	350
+AC1KRZ_002335	sp|Q10325|MST2_SCHPO	sp|Q10325|MST2_SCHPO Histone acetyltransferase mst2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mst2 PE=1 SV=1	7.25e-101	316
+AC1KRZ_002336	sp|B2CQK0|VOSA_AJECA	sp|B2CQK0|VOSA_AJECA Spore development regulator RYP2 OS=Ajellomyces capsulatus OX=5037 GN=RYP2 PE=1 SV=1	1.69e-48	170
+AC1KRZ_002371	sp|Q8R016|BLMH_MOUSE	sp|Q8R016|BLMH_MOUSE Bleomycin hydrolase OS=Mus musculus OX=10090 GN=Blmh PE=1 SV=1	1.37e-117	354
+AC1KRZ_002379	sp|C8VSE7|NPR3_EMENI	sp|C8VSE7|NPR3_EMENI Nitrogen permease regulator 3 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=npr3 PE=3 SV=1	1.30e-81	275
+AC1KRZ_002397	sp|Q8H936|CSN5_ORYSJ	sp|Q8H936|CSN5_ORYSJ COP9 signalosome complex subunit 5 OS=Oryza sativa subsp. japonica OX=39947 GN=CSN5 PE=1 SV=1	1.18e-136	395
+AC1KRZ_002401	sp|O42894|RRP46_SCHPO	sp|O42894|RRP46_SCHPO Exosome complex component rrp46 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rrp46 PE=3 SV=1	1.42e-20	89.4
+AC1KRZ_002404	sp|O43896|KIF1C_HUMAN	sp|O43896|KIF1C_HUMAN Kinesin-like protein KIF1C OS=Homo sapiens OX=9606 GN=KIF1C PE=1 SV=3	2.72e-108	351
+AC1KRZ_002413	sp|P39839|YUXL_BACSU	sp|P39839|YUXL_BACSU Uncharacterized peptidase YuxL OS=Bacillus subtilis (strain 168) OX=224308 GN=yuxL PE=3 SV=3	9.94e-33	137
+AC1KRZ_002414	sp|P39839|YUXL_BACSU	sp|P39839|YUXL_BACSU Uncharacterized peptidase YuxL OS=Bacillus subtilis (strain 168) OX=224308 GN=yuxL PE=3 SV=3	7.02e-38	152
+AC1KRZ_002418	sp|O93884|DAS_CANBO	sp|O93884|DAS_CANBO Dihydroxyacetone synthase OS=Candida boidinii OX=5477 GN=DAS1 PE=1 SV=3	1.30e-194	571
+AC1KRZ_002423	sp|O95239|KIF4A_HUMAN	sp|O95239|KIF4A_HUMAN Chromosome-associated kinesin KIF4A OS=Homo sapiens OX=9606 GN=KIF4A PE=1 SV=3	4.49e-62	233
+AC1KRZ_002427	sp|A7ETB3|MDV1_SCLS1	sp|A7ETB3|MDV1_SCLS1 Mitochondrial division protein 1 OS=Sclerotinia sclerotiorum (strain ATCC 18683 / 1980 / Ss-1) OX=665079 GN=mdv1 PE=3 SV=1	1.87e-124	382
+AC1KRZ_002472	sp|Q12627|DLD1_KLULA	sp|Q12627|DLD1_KLULA D-lactate dehydrogenase [cytochrome], mitochondrial OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=DLD1 PE=3 SV=2	3.26e-138	414
+AC1KRZ_002474	sp|A2QK68|KTND_ASPNC	sp|A2QK68|KTND_ASPNC FAD-binding monooxygenase ktnD OS=Aspergillus niger (strain ATCC MYA-4892 / CBS 513.88 / FGSC A1513) OX=425011 GN=ktnD PE=3 SV=1	1.15e-67	232
+AC1KRZ_002492	sp|A0A120HYZ1|CLA4_CLACD	sp|A0A120HYZ1|CLA4_CLACD Lysine--tRNA ligase cla4 OS=Cladosporium cladosporioides OX=29917 GN=cla4 PE=2 SV=1	1.51e-104	327
+AC1KRZ_002509	sp|Q5LMQ0|RL1_RUEPO	sp|Q5LMQ0|RL1_RUEPO Large ribosomal subunit protein uL1 OS=Ruegeria pomeroyi (strain ATCC 700808 / DSM 15171 / DSS-3) OX=246200 GN=rplA PE=3 SV=1	8.83e-33	121
+AC1KRZ_002523	sp|O13773|UCP7_SCHPO	sp|O13773|UCP7_SCHPO UBA domain-containing protein 7 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ucp7 PE=4 SV=1	1.66e-62	225
+AC1KRZ_002528	sp|P51979|HFM1_YEAST	sp|P51979|HFM1_YEAST ATP-dependent DNA helicase MER3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=HFM1 PE=1 SV=3	1.59e-191	607
+AC1KRZ_002535	sp|Q0U9W5|MCR1_PHANO	sp|Q0U9W5|MCR1_PHANO NADH-cytochrome b5 reductase 2 OS=Phaeosphaeria nodorum (strain SN15 / ATCC MYA-4574 / FGSC 10173) OX=321614 GN=MCR1 PE=3 SV=1	6.99e-121	353
+AC1KRZ_002547	sp|O13969|SYTM_SCHPO	sp|O13969|SYTM_SCHPO Probable threonine--tRNA ligase, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC24C9.09 PE=3 SV=2	2.85e-140	415
+AC1KRZ_002549	sp|Q9URX1|YLX5_SCHPO	sp|Q9URX1|YLX5_SCHPO UNC93-like protein C922.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC922.05c PE=3 SV=1	1.39e-137	422
+AC1KRZ_002562	sp|O13878|UTP17_SCHPO	sp|O13878|UTP17_SCHPO U3 small nucleolar RNA-associated protein 17 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp17 PE=3 SV=3	2.48e-43	174
+AC1KRZ_002603	sp|Q9P775|YBEG_SCHPO	sp|Q9P775|YBEG_SCHPO Uncharacterized WD repeat-containing protein C17D11.16 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1711.16 PE=1 SV=1	2.13e-117	357
+AC1KRZ_002609	sp|O13921|MSH1_SCHPO	sp|O13921|MSH1_SCHPO MutS protein homolog 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=msh1 PE=3 SV=2	1.44e-221	655
+AC1KRZ_002613	sp|Q869Z0|Y5025_DICDI	sp|Q869Z0|Y5025_DICDI Putative protein disulfide-isomerase DDB_G0275025 OS=Dictyostelium discoideum OX=44689 GN=DDB_G0275025 PE=1 SV=1	1.86e-41	154
+AC1KRZ_002621	sp|Q4I7F9|PRP28_GIBZE	sp|Q4I7F9|PRP28_GIBZE Pre-mRNA-splicing ATP-dependent RNA helicase PRP28 OS=Gibberella zeae (strain ATCC MYA-4620 / CBS 123657 / FGSC 9075 / NRRL 31084 / PH-1) OX=229533 GN=PRP28 PE=3 SV=1	7.90e-204	589
+AC1KRZ_002656	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	6.20e-71	241
+AC1KRZ_002658	sp|Q8CEE7|RDH13_MOUSE	sp|Q8CEE7|RDH13_MOUSE Retinol dehydrogenase 13 OS=Mus musculus OX=10090 GN=Rdh13 PE=1 SV=1	5.17e-22	97.8
+AC1KRZ_002667	sp|P9WEZ6|ORYC_ASPOR	sp|P9WEZ6|ORYC_ASPOR MFS-type transporter oryC OS=Aspergillus oryzae (strain ATCC 42149 / RIB 40) OX=510516 GN=oryC PE=3 SV=1	4.12e-53	190
+AC1KRZ_002674	sp|P27614|CBPS_YEAST	sp|P27614|CBPS_YEAST Carboxypeptidase S OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=CPS1 PE=1 SV=2	9.26e-124	379
+AC1KRZ_002676	sp|P37967|PNBA_BACSU	sp|P37967|PNBA_BACSU Para-nitrobenzyl esterase OS=Bacillus subtilis (strain 168) OX=224308 GN=pnbA PE=1 SV=2	5.00e-46	171
+AC1KRZ_002713	sp|Q10169|DSK2_SCHPO	sp|Q10169|DSK2_SCHPO Deubiquitination-protection protein dph1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=dph1 PE=4 SV=1	3.66e-46	164
+AC1KRZ_000268	sp|O60058|AFG2_SCHPO	sp|O60058|AFG2_SCHPO ATPase family gene 2 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=afg2 PE=3 SV=1	1.29e-152	459
+AC1KRZ_000277	sp|O13719|LAF1_SCHPO	sp|O13719|LAF1_SCHPO SWIRM domain-containing protein laf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=laf1 PE=1 SV=1	1.31e-38	144
+AC1KRZ_000278	sp|O13718|VTC2_SCHPO	sp|O13718|VTC2_SCHPO Vacuolar transporter chaperone complex subunit 2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vtc2 PE=1 SV=1	2.26e-133	412
+AC1KRZ_000297	sp|O94570|AATR2_SCHPO	sp|O94570|AATR2_SCHPO Aromatic amino acid aminotransferase C1773.13 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1773.13 PE=3 SV=1	2.42e-67	225
+AC1KRZ_000303	sp|P32895|KPR1_YEAST	sp|P32895|KPR1_YEAST Ribose-phosphate pyrophosphokinase 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PRS1 PE=1 SV=1	1.09e-124	370
+AC1KRZ_000311	sp|P51688|SPHM_HUMAN	sp|P51688|SPHM_HUMAN N-sulphoglucosamine sulphohydrolase OS=Homo sapiens OX=9606 GN=SGSH PE=1 SV=1	5.38e-101	314
+AC1KRZ_000321	sp|Q9P6J7|YHD3_SCHPO	sp|Q9P6J7|YHD3_SCHPO Uncharacterized MFS-type transporter C1683.03c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1683.03c PE=3 SV=1	2.40e-64	220
+AC1KRZ_000323	sp|O34371|YTET_BACSU	sp|O34371|YTET_BACSU Putative oxidoreductase YteT OS=Bacillus subtilis (strain 168) OX=224308 GN=yteT PE=2 SV=1	7.12e-75	243
+AC1KRZ_000324	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	2.73e-128	390
+AC1KRZ_000325	sp|Q5U3U0|PHYD1_DANRE	sp|Q5U3U0|PHYD1_DANRE Phytanoyl-CoA dioxygenase domain-containing protein 1 OS=Danio rerio OX=7955 GN=phyhd1 PE=2 SV=1	1.31e-13	73.9
+AC1KRZ_000328	sp|P31434|XYLS_ECOLI	sp|P31434|XYLS_ECOLI Alpha-xylosidase OS=Escherichia coli (strain K12) OX=83333 GN=yicI PE=1 SV=2	2.23e-118	379
+AC1KRZ_000342	sp|Q5B8L0|PRTT_EMENI	sp|Q5B8L0|PRTT_EMENI Transcriptional activator of proteases prtT OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=prtT PE=3 SV=1	4.64e-79	265
+AC1KRZ_000345	sp|K0DZ95|ECDC_ASPP1	sp|K0DZ95|ECDC_ASPP1 Major facilitator-type transporter ecdC OS=Aspergillus pachycristata (strain ATCC 58397 / KCTC 6058 / NRRL 11440 / A42355) OX=590939 GN=ecdC PE=3 SV=1	2.98e-50	181
+AC1KRZ_000346	sp|P38205|NCL1_YEAST	sp|P38205|NCL1_YEAST Multisite-specific tRNA:(cytosine-C(5))-methyltransferase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NCL1 PE=1 SV=1	1.58e-126	392
+AC1KRZ_000352	sp|Q9Y815|RSV2_SCHPO	sp|Q9Y815|RSV2_SCHPO Zinc finger protein rsv2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rsv2 PE=4 SV=1	2.35e-17	88.2
+AC1KRZ_000365	sp|Q9UT32|RL1DB_SCHPO	sp|Q9UT32|RL1DB_SCHPO Putative ribosome biogenesis protein C8F11.04 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC8F11.04 PE=1 SV=1	3.96e-52	176
+AC1KRZ_000387	sp|Q865S1|AP3D1_BOVIN	sp|Q865S1|AP3D1_BOVIN AP-3 complex subunit delta-1 OS=Bos taurus OX=9913 GN=AP3D1 PE=1 SV=2	4.30e-128	412
+AC1KRZ_000393	sp|Q1MTQ1|TEA2_SCHPO	sp|Q1MTQ1|TEA2_SCHPO Kinesin-like protein tea2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=tea2 PE=1 SV=1	6.06e-79	263
+AC1KRZ_000403	sp|P87234|GYP3_SCHPO	sp|P87234|GYP3_SCHPO GTPase-activating protein gyp3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=gyp3 PE=1 SV=1	4.12e-113	350
+AC1KRZ_000435	sp|Q12226|AYT1_YEAST	sp|Q12226|AYT1_YEAST Trichothecene 3-O-acetyltransferase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AYT1 PE=1 SV=1	3.87e-15	81.3
+AC1KRZ_000436	sp|Q12226|AYT1_YEAST	sp|Q12226|AYT1_YEAST Trichothecene 3-O-acetyltransferase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AYT1 PE=1 SV=1	6.58e-08	58.5
+AC1KRZ_000447	sp|O14000|SYMM_SCHPO	sp|O14000|SYMM_SCHPO Probable methionine--tRNA ligase, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC27E2.06c PE=3 SV=1	3.68e-118	370
+AC1KRZ_000453	sp|Q9UTL9|IRC20_SCHPO	sp|Q9UTL9|IRC20_SCHPO ATP-dependent DNA repair protein/ubiquitin-protein ligase E3 irc20 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=irc20 PE=3 SV=1	1.26e-40	162
+AC1KRZ_000463	sp|P34101|FHKC_DICDI	sp|P34101|FHKC_DICDI Probable serine/threonine-protein kinase fhkC OS=Dictyostelium discoideum OX=44689 GN=fhkC PE=3 SV=2	6.33e-84	273
+AC1KRZ_002751	sp|Q70LL3|CARO_FUSFU	sp|Q70LL3|CARO_FUSFU Opsin-like protein carO OS=Fusarium fujikuroi OX=5127 GN=carO PE=2 SV=1	2.36e-86	271
+AC1KRZ_002754	sp|F5HN69|CPAT_ASPOZ	sp|F5HN69|CPAT_ASPOZ MFS transporter cpaT OS=Aspergillus oryzae OX=5062 GN=cpaT PE=3 SV=1	5.08e-128	386
+AC1KRZ_002757	sp|Q9UTL9|IRC20_SCHPO	sp|Q9UTL9|IRC20_SCHPO ATP-dependent DNA repair protein/ubiquitin-protein ligase E3 irc20 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=irc20 PE=3 SV=1	1.74e-20	102
+AC1KRZ_002785	sp|Q10159|MYH1_SCHPO	sp|Q10159|MYH1_SCHPO Adenine DNA glycosylase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=myh1 PE=1 SV=1	4.08e-72	236
+AC1KRZ_002788	sp|Q9P7C0|YKU5_SCHPO	sp|Q9P7C0|YKU5_SCHPO Uncharacterized WD repeat-containing protein C2E1P5.05 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2E1P5.05 PE=4 SV=1	2.87e-115	352
+AC1KRZ_002799	sp|Q0UXJ7|EIF3M_PHANO	sp|Q0UXJ7|EIF3M_PHANO Eukaryotic translation initiation factor 3 subunit M OS=Phaeosphaeria nodorum (strain SN15 / ATCC MYA-4574 / FGSC 10173) OX=321614 GN=SNOG_03517 PE=3 SV=2	4.59e-77	248
+AC1KRZ_002820	sp|Q9UUG5|MLR1_SCHPO	sp|Q9UUG5|MLR1_SCHPO Myosin regulatory light chain 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rlc1 PE=1 SV=1	2.19e-40	137
+AC1KRZ_002822	sp|O15457|MSH4_HUMAN	sp|O15457|MSH4_HUMAN MutS protein homolog 4 OS=Homo sapiens OX=9606 GN=MSH4 PE=1 SV=2	2.03e-119	377
+AC1KRZ_002840	sp|O75001|MCM7_SCHPO	sp|O75001|MCM7_SCHPO DNA replication licensing factor mcm7 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mcm7 PE=1 SV=1	1.19e-281	791
+AC1KRZ_002841	sp|G1X7C7|PEX1_ARTOA	sp|G1X7C7|PEX1_ARTOA Peroxisomal ATPase PEX1 OS=Arthrobotrys oligospora (strain ATCC 24927 / CBS 115.81 / DSM 1491) OX=756982 GN=PEX1 PE=3 SV=1	2.68e-212	642
+AC1KRZ_002844	sp|Q1K9C4|YFK7_SCHPO	sp|Q1K9C4|YFK7_SCHPO Probable E3 ubiquitin protein ligase C167.07c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC167.07c PE=2 SV=1	1.05e-132	410
+AC1KRZ_002858	sp|P27476|NSR1_YEAST	sp|P27476|NSR1_YEAST Nuclear localization sequence-binding protein OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NSR1 PE=1 SV=1	2.45e-61	212
+AC1KRZ_002872	sp|Q6PFE3|RA54B_MOUSE	sp|Q6PFE3|RA54B_MOUSE DNA repair and recombination protein RAD54B OS=Mus musculus OX=10090 GN=Rad54b PE=2 SV=1	6.65e-138	432
+AC1KRZ_002888	sp|Q9Y7M1|PXP1_SCHPO	sp|Q9Y7M1|PXP1_SCHPO 2-hydroxyacyl-CoA lyase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hac1 PE=3 SV=1	3.26e-188	543
+AC1KRZ_002891	sp|P36966|PEX6_YARLI	sp|P36966|PEX6_YARLI Peroxisomal ATPase PEX6 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=PEX6 PE=3 SV=2	5.44e-184	564
+AC1KRZ_002913	sp|Q92RP0|ILVD1_RHIME	sp|Q92RP0|ILVD1_RHIME Putative dehydratase IlvD1 OS=Rhizobium meliloti (strain 1021) OX=266834 GN=ilvD1 PE=3 SV=1	2.19e-151	450
+AC1KRZ_002930	sp|O94432|YHKF_SCHPO	sp|O94432|YHKF_SCHPO Uncharacterized RNA-binding protein C660.15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC660.15 PE=4 SV=1	1.66e-92	293
+AC1KRZ_002953	sp|Q0ILZ4|RH9_ORYSJ	sp|Q0ILZ4|RH9_ORYSJ DEAD-box ATP-dependent RNA helicase 9 OS=Oryza sativa subsp. japonica OX=39947 GN=Os12g0611200 PE=2 SV=1	1.04e-07	57.8
+AC1KRZ_002956	sp|A0A7U2QXW1|HSCA_ASPFN	sp|A0A7U2QXW1|HSCA_ASPFN Transcription factor hscA OS=Aspergillus flavus (strain ATCC 200026 / FGSC A1120 / IAM 13836 / NRRL 3357 / JCM 12722 / SRRC 167) OX=332952 GN=hscA PE=2 SV=1	2.34e-07	56.6
+AC1KRZ_002967	sp|Q8R4Y4|STAB1_MOUSE	sp|Q8R4Y4|STAB1_MOUSE Stabilin-1 OS=Mus musculus OX=10090 GN=Stab1 PE=1 SV=1	6.21e-07	56.2
+AC1KRZ_002997	sp|Q09850|ENG2_SCHPO	sp|Q09850|ENG2_SCHPO Ascus wall glucan endo-1,3-beta-D-glucosidase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=eng2 PE=1 SV=1	1.68e-102	335
+AC1KRZ_003004	sp|P93736|SYVM1_ARATH	sp|P93736|SYVM1_ARATH Valine--tRNA ligase, mitochondrial 1 OS=Arabidopsis thaliana OX=3702 GN=TWN2 PE=1 SV=2	1.49e-199	599
+AC1KRZ_003007	sp|Q03319|PRH1_SCHPO	sp|Q03319|PRH1_SCHPO Probable ATP-dependent RNA helicase prh1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=prh1 PE=3 SV=2	1.52e-214	649
+AC1KRZ_003008	sp|Q4WHA3|ARP4_ASPFU	sp|Q4WHA3|ARP4_ASPFU Actin-related protein 4 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=arp4 PE=3 SV=1	1.87e-110	336
+AC1KRZ_003012	sp|A1C7P9|XLNR_ASPCL	sp|A1C7P9|XLNR_ASPCL Xylanolytic transcriptional activator xlnR OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=xlnR PE=3 SV=2	1.04e-97	332
+AC1KRZ_003020	sp|O74529|YJ48_SCHPO	sp|O74529|YJ48_SCHPO Uncharacterized methyltransferase C70.08c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC70.08c PE=3 SV=1	5.58e-56	183
+AC1KRZ_003028	sp|Q8TG13|CSK2A_NEUCR	sp|Q8TG13|CSK2A_NEUCR Casein kinase II subunit alpha OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=cka PE=2 SV=1	1.47e-179	502
+AC1KRZ_003032	sp|O13755|OSM1_SCHPO	sp|O13755|OSM1_SCHPO Fumarate reductase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=osm1 PE=3 SV=1	2.07e-159	470
+AC1KRZ_003034	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	5.05e-173	501
+AC1KRZ_003035	sp|A0A0J9WVC0|TF1C2_FUSO4	sp|A0A0J9WVC0|TF1C2_FUSO4 Zn(2)-C6 fungal-type transcription factor FTF1c OS=Fusarium oxysporum f. sp. lycopersici (strain 4287 / CBS 123668 / FGSC 9935 / NRRL 34936) OX=426428 GN=FTF1c PE=2 SV=1	2.87e-26	117
+AC1KRZ_003040	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	1.52e-218	619
+AC1KRZ_003050	sp|Q8K268|ABCF3_MOUSE	sp|Q8K268|ABCF3_MOUSE ATP-binding cassette sub-family F member 3 OS=Mus musculus OX=10090 GN=Abcf3 PE=1 SV=1	5.90e-51	192
+AC1KRZ_003056	sp|O74966|RUXG_SCHPO	sp|O74966|RUXG_SCHPO Small nuclear ribonucleoprotein G OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=smg1 PE=1 SV=1	2.24e-23	87.4
+AC1KRZ_003089	sp|A0A1L9WUM2|ANEH_ASPA1	sp|A0A1L9WUM2|ANEH_ASPA1 Proline iminopeptidase aneH OS=Aspergillus aculeatus (strain ATCC 16872 / CBS 172.66 / WB 5094) OX=690307 GN=aneH PE=3 SV=1	4.58e-96	299
+AC1KRZ_003090	sp|A0A2H0ZJA8|PTRA_CANAR	sp|A0A2H0ZJA8|PTRA_CANAR Peptide transporter PTR_A OS=Candidozyma auris OX=498019 GN=PTR_A PE=3 SV=1	6.02e-176	514
+AC1KRZ_003093	sp|P83309|SDPA_DELAC	sp|P83309|SDPA_DELAC (S)-phenoxypropionate/alpha-ketoglutarate-dioxygenase OS=Delftia acidovorans OX=80866 GN=sdpA PE=1 SV=2	1.23e-22	99.0
+AC1KRZ_003095	sp|Q8GXR2|PLT6_ARATH	sp|Q8GXR2|PLT6_ARATH Probable polyol transporter 6 OS=Arabidopsis thaliana OX=3702 GN=PLT6 PE=2 SV=2	1.03e-52	192
+AC1KRZ_003113	sp|P34054|INDA1_HYPAT	sp|P34054|INDA1_HYPAT Amino-acid permease inda1 OS=Hypocrea atroviridis OX=63577 GN=inda1 PE=2 SV=1	4.56e-51	187
+AC1KRZ_003128	sp|Q5BHE2|ATM_EMENI	sp|Q5BHE2|ATM_EMENI Serine/threonine-protein kinase tel1 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=tel1 PE=3 SV=1	6.24e-125	407
+AC1KRZ_003134	sp|Q13620|CUL4B_HUMAN	sp|Q13620|CUL4B_HUMAN Cullin-4B OS=Homo sapiens OX=9606 GN=CUL4B PE=1 SV=4	2.15e-178	548
+AC1KRZ_003142	sp|Q9URT4|AMS2_SCHPO	sp|Q9URT4|AMS2_SCHPO CENP-A multicopy suppressor protein 2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ams2 PE=1 SV=2	6.50e-09	63.2
+AC1KRZ_003154	sp|O43027|RGA6_SCHPO	sp|O43027|RGA6_SCHPO Probable Rho-GTPase-activating protein 6 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rga6 PE=1 SV=1	8.72e-20	97.4
+AC1KRZ_003169	sp|O74945|RIA1_SCHPO	sp|O74945|RIA1_SCHPO Ribosome assembly protein 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ria1 PE=3 SV=1	9.11e-280	808
+AC1KRZ_003170	sp|G0SGC7|MGM1_CHATD	sp|G0SGC7|MGM1_CHATD Dynamin-like GTPase MGM1, mitochondrial OS=Chaetomium thermophilum (strain DSM 1495 / CBS 144.50 / IMI 039719) OX=759272 GN=MGM1 PE=1 SV=1	1.03e-231	680
+AC1KRZ_003173	sp|Q9XIW0|CIPK7_ARATH	sp|Q9XIW0|CIPK7_ARATH CBL-interacting serine/threonine-protein kinase 7 OS=Arabidopsis thaliana OX=3702 GN=CIPK7 PE=1 SV=1	7.00e-20	95.5
+AC1KRZ_003183	sp|Q6NRG5|NDOR1_XENLA	sp|Q6NRG5|NDOR1_XENLA NADPH-dependent diflavin oxidoreductase 1 OS=Xenopus laevis OX=8355 GN=ndor1 PE=2 SV=1	8.60e-123	380
+AC1KRZ_003204	sp|D4AMT2|GTAA_ARTBC	sp|D4AMT2|GTAA_ARTBC Probable glutaminase ARB_05535/05536 OS=Arthroderma benhamiae (strain ATCC MYA-4681 / CBS 112371) OX=663331 GN=ARB_05535/05536 PE=1 SV=2	3.93e-126	397
+AC1KRZ_003214	sp|O14123|NAH2_SCHPO	sp|O14123|NAH2_SCHPO Probable Na(+)/H(+) antiporter sod22 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sod22 PE=1 SV=2	6.41e-96	310
+AC1KRZ_003220	sp|P36172|VBA5_YEAST	sp|P36172|VBA5_YEAST Vacuolar basic amino acid transporter 5 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=VBA5 PE=3 SV=1	2.05e-71	241
+AC1KRZ_003226	sp|Q8GAV9|CPNA_COMS9	sp|Q8GAV9|CPNA_COMS9 Cyclopentanol dehydrogenase OS=Comamonas sp. (strain NCIMB 9872) OX=213664 GN=cpnA PE=1 SV=1	6.64e-33	123
+AC1KRZ_003246	sp|Q09195|ERG24_SCHPO	sp|Q09195|ERG24_SCHPO Delta(14)-sterol reductase erg24 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=erg24 PE=2 SV=1	1.30e-110	340
+AC1KRZ_003278	sp|A6RPB6|MSH3_BOTFB	sp|A6RPB6|MSH3_BOTFB DNA mismatch repair protein msh3 OS=Botryotinia fuckeliana (strain B05.10) OX=332648 GN=msh3 PE=3 SV=3	1.43e-120	387
+AC1KRZ_003284	sp|O59682|SPTC1_SCHPO	sp|O59682|SPTC1_SCHPO Serine palmitoyltransferase 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=lcb1 PE=3 SV=1	1.47e-137	408
+AC1KRZ_003290	sp|O74957|AGO1_SCHPO	sp|O74957|AGO1_SCHPO Protein argonaute OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ago1 PE=1 SV=1	1.09e-141	446
+AC1KRZ_003294	sp|B5WWZ8|FAO1_LOTJA	sp|B5WWZ8|FAO1_LOTJA Long-chain-alcohol oxidase FAO1 OS=Lotus japonicus OX=34305 GN=FAO1 PE=1 SV=1	7.14e-91	302
+AC1KRZ_003301	sp|P40340|ATAD2_YEAST	sp|P40340|ATAD2_YEAST ATPase histone chaperone YTA7 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YTA7 PE=1 SV=2	5.31e-227	697
+AC1KRZ_003306	sp|A2R994|RRF2M_ASPNC	sp|A2R994|RRF2M_ASPNC Ribosome-releasing factor 2, mitochondrial OS=Aspergillus niger (strain ATCC MYA-4892 / CBS 513.88 / FGSC A1513) OX=425011 GN=mef2 PE=3 SV=1	3.16e-175	526
+AC1KRZ_003321	sp|Q9USY2|SART3_SCHPO	sp|Q9USY2|SART3_SCHPO U4/U6 snRNA-associated-splicing factor prp24 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=prp24 PE=3 SV=1	3.55e-120	397
+AC1KRZ_003381	sp|Q63615|VP33A_RAT	sp|Q63615|VP33A_RAT Vacuolar protein sorting-associated protein 33A OS=Rattus norvegicus OX=10116 GN=Vps33a PE=1 SV=1	1.01e-109	345
+AC1KRZ_003386	sp|Q76PD3|DBP6_SCHPO	sp|Q76PD3|DBP6_SCHPO ATP-dependent RNA helicase dbp6 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=dbp6 PE=2 SV=1	2.95e-87	284
+AC1KRZ_003399	sp|P38093|FLBA_EMENI	sp|P38093|FLBA_EMENI Developmental regulator flbA OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=flbA PE=2 SV=1	4.69e-93	313
+AC1KRZ_003404	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	4.68e-118	364
+AC1KRZ_003410	sp|P18956|GGT_ECOLI	sp|P18956|GGT_ECOLI Glutathione hydrolase proenzyme OS=Escherichia coli (strain K12) OX=83333 GN=ggt PE=1 SV=1	9.28e-58	206
+AC1KRZ_003411	sp|Q4U3U6|QAY_NEUAF	sp|Q4U3U6|QAY_NEUAF Quinate permease OS=Neurospora africana OX=5143 GN=qa-y PE=3 SV=1	8.46e-44	171
+AC1KRZ_003414	sp|O60017|DAK_PICAN	sp|O60017|DAK_PICAN Dihydroxyacetone kinase OS=Pichia angusta OX=870730 GN=DAK PE=3 SV=1	2.11e-37	147
+AC1KRZ_003463	sp|Q2UF99|EGT2_ASPOR	sp|Q2UF99|EGT2_ASPOR Hercynylcysteine sulfoxide lyase OS=Aspergillus oryzae (strain ATCC 42149 / RIB 40) OX=510516 GN=egt2 PE=3 SV=1	1.90e-76	248
+AC1KRZ_003467	sp|O94527|IQW1_SCHPO	sp|O94527|IQW1_SCHPO WD repeat protein iqw1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=iqw1 PE=1 SV=1	9.13e-90	302
+AC1KRZ_000465	sp|C9K7C8|AMT16_ALTAL	sp|C9K7C8|AMT16_ALTAL Phospho-2-dehydro-3-deoxyheptonate aldolase AMT16 OS=Alternaria alternata OX=5599 GN=AMT16 PE=2 SV=1	1.84e-155	445
+AC1KRZ_000483	sp|D7PHZ3|VRTB_PENAE	sp|D7PHZ3|VRTB_PENAE Malonamoyl-CoA synthetase vrtB OS=Penicillium aethiopicum OX=36650 GN=vrtB PE=1 SV=1	1.07e-185	561
+AC1KRZ_000527	sp|Q8SS91|FEN1_ENCCU	sp|Q8SS91|FEN1_ENCCU Flap endonuclease 1 OS=Encephalitozoon cuniculi (strain GB-M1) OX=284813 GN=FEN1 PE=3 SV=1	1.34e-10	66.6
+AC1KRZ_000533	sp|Q9UT59|YKJ7_SCHPO	sp|Q9UT59|YKJ7_SCHPO Putative uncharacterized oxidoreductase C513.07 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC513.07 PE=3 SV=1	1.45e-59	197
+AC1KRZ_000542	sp|O94566|MU184_SCHPO	sp|O94566|MU184_SCHPO Meiotically up-regulated gene 184 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mug184 PE=1 SV=2	4.80e-11	69.3
+AC1KRZ_000548	sp|P75791|YBIU_ECOLI	sp|P75791|YBIU_ECOLI Uncharacterized protein YbiU OS=Escherichia coli (strain K12) OX=83333 GN=ybiU PE=1 SV=1	4.92e-40	152
+AC1KRZ_000557	sp|Q09857|USO1_SCHPO	sp|Q09857|USO1_SCHPO Intracellular protein transport protein uso1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=uso1 PE=3 SV=4	7.28e-91	314
+AC1KRZ_000563	sp|A1CL70|NOP58_ASPCL	sp|A1CL70|NOP58_ASPCL Nucleolar protein 58 OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=nop58 PE=3 SV=1	5.64e-162	474
+AC1KRZ_000584	sp|Q70M86|STRN_SORMK	sp|Q70M86|STRN_SORMK Striatin Pro11 OS=Sordaria macrospora (strain ATCC MYA-333 / DSM 997 / K(L3346) / K-hell) OX=771870 GN=pro11 PE=3 SV=1	2.80e-37	149
+AC1KRZ_000587	sp|J9VVE7|HAMP_CRYN9	sp|J9VVE7|HAMP_CRYN9 Putative cell signaling protein HAM1 OS=Cryptococcus neoformans (strain H99 / ATCC 208821 / CBS 10515 / FGSC 9487) OX=235443 GN=HAM1 PE=1 SV=1	7.53e-31	133
+AC1KRZ_000592	sp|P36172|VBA5_YEAST	sp|P36172|VBA5_YEAST Vacuolar basic amino acid transporter 5 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=VBA5 PE=3 SV=1	1.80e-81	270
+AC1KRZ_000650	sp|A0A0E3D8M4|PENN_PENCR	sp|A0A0E3D8M4|PENN_PENCR Monooxygenase PC-14 OS=Penicillium crustosum OX=36656 GN=PC-14 PE=3 SV=1	2.41e-124	380
+AC1KRZ_000651	sp|B0XZV0|SPHH_ASPFC	sp|B0XZV0|SPHH_ASPFC Cytochrome P450 monooxygenase sphH OS=Aspergillus fumigatus (strain CBS 144.89 / FGSC A1163 / CEA10) OX=451804 GN=sphH PE=1 SV=1	5.68e-93	295
+AC1KRZ_000659	sp|O04249|STP7_ARATH	sp|O04249|STP7_ARATH Sugar transport protein 7 OS=Arabidopsis thaliana OX=3702 GN=STP7 PE=1 SV=1	2.64e-42	160
+AC1KRZ_000663	sp|O94445|SUV3_SCHPO	sp|O94445|SUV3_SCHPO ATP-dependent RNA helicase suv3, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=suv3 PE=3 SV=1	2.24e-115	360
+AC1KRZ_000664	sp|A0A1U8QQY7|MSCA_EMENI	sp|A0A1U8QQY7|MSCA_EMENI Mechanosensitive ion channel protein A OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=mscA PE=3 SV=1	8.47e-71	243
+AC1KRZ_003576	sp|A2QY22|CHL1_ASPNC	sp|A2QY22|CHL1_ASPNC ATP-dependent DNA helicase chl1 OS=Aspergillus niger (strain ATCC MYA-4892 / CBS 513.88 / FGSC A1513) OX=425011 GN=chl1 PE=3 SV=1	2.13e-186	556
+AC1KRZ_003604	sp|P51688|SPHM_HUMAN	sp|P51688|SPHM_HUMAN N-sulphoglucosamine sulphohydrolase OS=Homo sapiens OX=9606 GN=SGSH PE=1 SV=1	2.35e-67	224
+AC1KRZ_003612	sp|A6TBU6|RHMA_KLEP7	sp|A6TBU6|RHMA_KLEP7 2-keto-3-deoxy-L-rhamnonate aldolase OS=Klebsiella pneumoniae subsp. pneumoniae (strain ATCC 700721 / MGH 78578) OX=272620 GN=rhmA PE=3 SV=1	7.97e-32	121
+AC1KRZ_003626	sp|P43069|CDC25_CANAL	sp|P43069|CDC25_CANAL Cell division control protein 25 OS=Candida albicans (strain SC5314 / ATCC MYA-2876) OX=237561 GN=CDC25 PE=1 SV=2	6.00e-42	171
+AC1KRZ_003630	sp|P79020|PALA_EMENI	sp|P79020|PALA_EMENI pH-response regulator protein palA/RIM20 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=palA PE=1 SV=3	2.75e-75	269
+AC1KRZ_003636	sp|A0A1B7YCL6|DPCHH_COLHI	sp|A0A1B7YCL6|DPCHH_COLHI Short chain dehydrogenase/reductase dpchH OS=Colletotrichum higginsianum (strain IMI 349063) OX=759273 GN=dpchH PE=1 SV=1	4.14e-37	140
+AC1KRZ_003660	sp|C7YRS6|KEX1_FUSV7	sp|C7YRS6|KEX1_FUSV7 Pheromone-processing carboxypeptidase KEX1 OS=Fusarium vanettenii (strain ATCC MYA-4622 / CBS 123669 / FGSC 9596 / NRRL 45880 / 77-13-4) OX=660122 GN=KEX1 PE=3 SV=1	1.26e-147	449
+AC1KRZ_003661	sp|Q873E8|GSHR_NEUCR	sp|Q873E8|GSHR_NEUCR Glutathione reductase OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=gtr-1 PE=3 SV=1	2.18e-200	566
+AC1KRZ_003666	sp|O94294|SOG2_SCHPO	sp|O94294|SOG2_SCHPO Leucine-rich repeat-containing protein sog2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sog2 PE=1 SV=1	2.14e-36	147
+AC1KRZ_003696	sp|P40984|UBC9_SCHPO	sp|P40984|UBC9_SCHPO SUMO-conjugating enzyme ubc9 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hus5 PE=1 SV=1	7.61e-74	224
+AC1KRZ_003714	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	2.72e-210	598
+AC1KRZ_003740	sp|P54222|BETB1_RHIME	sp|P54222|BETB1_RHIME Betaine aldehyde dehydrogenase 1 OS=Rhizobium meliloti (strain 1021) OX=266834 GN=betB1 PE=3 SV=2	3.65e-70	233
+AC1KRZ_003749	sp|P78750|UTP18_SCHPO	sp|P78750|UTP18_SCHPO Probable U3 small nucleolar RNA-associated protein 18 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC29A3.06 PE=2 SV=3	4.56e-134	403
+AC1KRZ_003789	sp|A7F2S3|SPB4_SCLS1	sp|A7F2S3|SPB4_SCLS1 ATP-dependent rRNA helicase spb4 OS=Sclerotinia sclerotiorum (strain ATCC 18683 / 1980 / Ss-1) OX=665079 GN=spb4 PE=3 SV=1	2.46e-117	363
+AC1KRZ_003792	sp|O74400|YOCE_SCHPO	sp|O74400|YOCE_SCHPO Uncharacterized RNA-binding protein C4F6.14 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC4F6.14 PE=1 SV=1	1.22e-97	315
+AC1KRZ_003804	sp|Q6MG62|MSH5_RAT	sp|Q6MG62|MSH5_RAT MutS protein homolog 5 OS=Rattus norvegicus OX=10116 GN=Msh5 PE=2 SV=1	1.12e-113	368
+AC1KRZ_003809	sp|Q9Y7P3|TGL3_SCHPO	sp|Q9Y7P3|TGL3_SCHPO Triacylglycerol lipase ptl1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ptl1 PE=3 SV=2	1.39e-103	334
+AC1KRZ_003841	sp|Q80XQ2|TBCD5_MOUSE	sp|Q80XQ2|TBCD5_MOUSE TBC1 domain family member 5 OS=Mus musculus OX=10090 GN=Tbc1d5 PE=1 SV=2	7.43e-65	229
+AC1KRZ_003843	sp|B8M4Y9|GET3_TALSN	sp|B8M4Y9|GET3_TALSN ATPase get3 OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=get3 PE=3 SV=1	5.61e-162	473
+AC1KRZ_003871	sp|O94590|SEC1_SCHPO	sp|O94590|SEC1_SCHPO Protein transport protein sec1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sec1 PE=3 SV=1	2.53e-131	406
+AC1KRZ_003877	sp|O74969|GHT2_SCHPO	sp|O74969|GHT2_SCHPO High-affinity glucose transporter ght2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ght2 PE=1 SV=1	8.56e-49	179
+AC1KRZ_003878	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	3.12e-215	611
+AC1KRZ_003888	sp|A2RAF6|LONP2_ASPNC	sp|A2RAF6|LONP2_ASPNC Lon protease homolog 2, peroxisomal OS=Aspergillus niger (strain ATCC MYA-4892 / CBS 513.88 / FGSC A1513) OX=425011 GN=An18g02980 PE=3 SV=1	1.16e-273	785
+AC1KRZ_003891	sp|Q9P7R3|MTR3_SCHPO	sp|Q9P7R3|MTR3_SCHPO Exosome complex component mtr3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mtr3 PE=3 SV=1	4.09e-46	158
+AC1KRZ_003894	sp|Q4WVF4|SYF1_ASPFU	sp|Q4WVF4|SYF1_ASPFU Pre-mRNA-splicing factor syf1 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=syf1 PE=3 SV=1	2.40e-233	676
+AC1KRZ_003906	sp|P09436|SYIC_YEAST	sp|P09436|SYIC_YEAST Isoleucine--tRNA ligase, cytoplasmic OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=ILS1 PE=1 SV=1	1.77e-82	290
+AC1KRZ_003911	sp|Q86G47|GEFQ_DICDI	sp|Q86G47|GEFQ_DICDI Ras guanine nucleotide exchange factor Q OS=Dictyostelium discoideum OX=44689 GN=gefQ PE=2 SV=1	1.78e-14	81.6
+AC1KRZ_003921	sp|Q58FS2|UBC2_TRIHA	sp|Q58FS2|UBC2_TRIHA Ubiquitin-conjugating enzyme E2 2 OS=Trichoderma harzianum OX=5544 GN=UBC2 PE=2 SV=1	1.31e-94	273
+AC1KRZ_003926	sp|P32486|KRE6_YEAST	sp|P32486|KRE6_YEAST Beta-glucan synthesis-associated protein KRE6 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=KRE6 PE=1 SV=2	1.73e-155	462
+AC1KRZ_003927	sp|P32486|KRE6_YEAST	sp|P32486|KRE6_YEAST Beta-glucan synthesis-associated protein KRE6 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=KRE6 PE=1 SV=2	1.18e-116	373
+AC1KRZ_003934	sp|Q4V835|HELLS_XENLA	sp|Q4V835|HELLS_XENLA Lymphoid-specific helicase OS=Xenopus laevis OX=8355 GN=hells PE=1 SV=1	1.18e-172	524
+AC1KRZ_003957	sp|Q6L732|KANJ_STRKN	sp|Q6L732|KANJ_STRKN Kanamycin B dioxygenase OS=Streptomyces kanamyceticus OX=1967 GN=kanJ PE=1 SV=1	7.62e-26	107
+AC1KRZ_003958	sp|W7MAT5|FST1_GIBM7	sp|W7MAT5|FST1_GIBM7 Myo-inositol transporter FST1 OS=Gibberella moniliformis (strain M3125 / FGSC 7600) OX=334819 GN=FST1 PE=1 SV=1	4.69e-45	172
+AC1KRZ_003959	sp|Q6L732|KANJ_STRKN	sp|Q6L732|KANJ_STRKN Kanamycin B dioxygenase OS=Streptomyces kanamyceticus OX=1967 GN=kanJ PE=1 SV=1	4.81e-31	121
+AC1KRZ_003961	sp|Q7EZD7|MST3_ORYSJ	sp|Q7EZD7|MST3_ORYSJ Sugar transport protein MST3 OS=Oryza sativa subsp. japonica OX=39947 GN=MST3 PE=2 SV=1	2.24e-28	122
+AC1KRZ_003970	sp|Q8TFN2|ATG1_PICAN	sp|Q8TFN2|ATG1_PICAN Serine/threonine-protein kinase ATG1 OS=Pichia angusta OX=870730 GN=ATG1 PE=3 SV=1	3.95e-121	382
+AC1KRZ_003972	sp|B4KYX8|PLK4_DROMO	sp|B4KYX8|PLK4_DROMO Serine/threonine-protein kinase PLK4 OS=Drosophila mojavensis OX=7230 GN=SAK PE=3 SV=1	1.39e-36	149
+AC1KRZ_003990	sp|Q9USX1|APE1_SCHPO	sp|Q9USX1|APE1_SCHPO Aminopeptidase 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ape1 PE=3 SV=1	1.49e-200	587
+AC1KRZ_003998	sp|O14081|TPSX_SCHPO	sp|O14081|TPSX_SCHPO Putative alpha,alpha-trehalose-phosphate synthase [UDP-forming] 106 kDa subunit OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2E11.16c PE=1 SV=1	7.64e-193	577
+AC1KRZ_004032	sp|Q6C953|IPI3_YARLI	sp|Q6C953|IPI3_YARLI Pre-rRNA-processing protein IPI3 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=IPI3 PE=3 SV=1	4.01e-52	187
+AC1KRZ_004050	sp|Q9HF51|RHO3_EREGS	sp|Q9HF51|RHO3_EREGS GTP-binding protein RHO3 OS=Eremothecium gossypii (strain ATCC 10895 / CBS 109.51 / FGSC 9923 / NRRL Y-1056) OX=284811 GN=RHO3 PE=3 SV=1	1.70e-82	249
+AC1KRZ_004054	sp|P9WG84|Y1877_MYCTO	sp|P9WG84|Y1877_MYCTO Uncharacterized MFS-type transporter MT1926 OS=Mycobacterium tuberculosis (strain CDC 1551 / Oshkosh) OX=83331 GN=MT1926 PE=3 SV=1	2.00e-41	161
+AC1KRZ_004060	sp|O13780|YEO2_SCHPO	sp|O13780|YEO2_SCHPO Uncharacterized protein C17G6.02c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC17G6.02c PE=4 SV=1	1.18e-08	58.5
+AC1KRZ_004065	sp|R4NN02|PIGB_MONRU	sp|R4NN02|PIGB_MONRU Pigment biosynthesis transcriptional activator pigB OS=Monascus ruber OX=89489 GN=pigB PE=1 SV=1	1.07e-31	134
+AC1KRZ_004066	sp|B8M9K6|TROPK_TALSN	sp|B8M9K6|TROPK_TALSN Tropolone cluster transcription factor tropK OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=tropK PE=3 SV=1	1.66e-25	115
+AC1KRZ_000706	sp|O74478|PGM3_SCHPO	sp|O74478|PGM3_SCHPO Probable phosphoribomutase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC1840.05c PE=1 SV=1	3.97e-139	419
+AC1KRZ_000708	sp|C8V7U7|SDEA_EMENI	sp|C8V7U7|SDEA_EMENI Delta 8-(E)-sphingolipid desaturase OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=sdeA PE=3 SV=1	2.18e-170	493
+AC1KRZ_000720	sp|O05218|YWRD_BACSU	sp|O05218|YWRD_BACSU Glutathione hydrolase-like YwrD proenzyme OS=Bacillus subtilis (strain 168) OX=224308 GN=ywrD PE=1 SV=1	7.39e-88	285
+AC1KRZ_000740	sp|P14682|UBC3_YEAST	sp|P14682|UBC3_YEAST Ubiquitin-conjugating enzyme E2-34 kDa OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=CDC34 PE=1 SV=1	1.18e-56	185
+AC1KRZ_000784	sp|O94241|ARP6_SCHPO	sp|O94241|ARP6_SCHPO Actin-like protein arp6 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=arp6 PE=3 SV=1	1.28e-103	315
+AC1KRZ_000814	sp|O60064|YBB2_SCHPO	sp|O60064|YBB2_SCHPO Probable mannose-1-phosphate guanyltransferase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC13G1.02 PE=3 SV=1	1.10e-126	375
+AC1KRZ_000822	sp|P83309|SDPA_DELAC	sp|P83309|SDPA_DELAC (S)-phenoxypropionate/alpha-ketoglutarate-dioxygenase OS=Delftia acidovorans OX=80866 GN=sdpA PE=1 SV=2	3.23e-22	97.8
+AC1KRZ_000826	sp|O59829|YCU9_SCHPO	sp|O59829|YCU9_SCHPO Probable nitrilase C965.09 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC965.09 PE=3 SV=1	2.42e-14	74.7
+AC1KRZ_000831	sp|B0XZV0|SPHH_ASPFC	sp|B0XZV0|SPHH_ASPFC Cytochrome P450 monooxygenase sphH OS=Aspergillus fumigatus (strain CBS 144.89 / FGSC A1163 / CEA10) OX=451804 GN=sphH PE=1 SV=1	6.64e-93	295
+AC1KRZ_000834	sp|O08759|UBE3A_MOUSE	sp|O08759|UBE3A_MOUSE Ubiquitin-protein ligase E3A OS=Mus musculus OX=10090 GN=Ube3a PE=1 SV=2	1.06e-68	246
+AC1KRZ_000838	sp|P21839|ODBB_BOVIN	sp|P21839|ODBB_BOVIN 2-oxoisovalerate dehydrogenase subunit beta, mitochondrial OS=Bos taurus OX=9913 GN=BCKDHB PE=1 SV=2	2.51e-141	410
+AC1KRZ_000846	sp|B8MKR3|CYB2_TALSN	sp|B8MKR3|CYB2_TALSN L-lactate dehydrogenase (cytochrome) OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=TSTA_043820 PE=1 SV=1	4.25e-148	434
+AC1KRZ_000848	sp|A9BQY2|RHMD_DELAS	sp|A9BQY2|RHMD_DELAS L-rhamnonate dehydratase OS=Delftia acidovorans (strain DSM 14801 / SPH-1) OX=398578 GN=rhmD PE=3 SV=2	6.59e-132	387
+AC1KRZ_000849	sp|D4AUH6|HEX1_ARTBC	sp|D4AUH6|HEX1_ARTBC Beta-hexosaminidase ARB_07893 OS=Arthroderma benhamiae (strain ATCC MYA-4681 / CBS 112371) OX=663331 GN=ARB_07893 PE=1 SV=1	1.85e-104	326
+AC1KRZ_004102	sp|A7EYW0|DBP3_SCLS1	sp|A7EYW0|DBP3_SCLS1 ATP-dependent RNA helicase dbp3 OS=Sclerotinia sclerotiorum (strain ATCC 18683 / 1980 / Ss-1) OX=665079 GN=dbp3 PE=3 SV=2	4.99e-173	503
+AC1KRZ_004118	sp|P32899|IMP3_YEAST	sp|P32899|IMP3_YEAST U3 small nucleolar ribonucleoprotein protein IMP3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=IMP3 PE=1 SV=1	3.00e-88	259
+AC1KRZ_004133	sp|P38323|CLPX_YEAST	sp|P38323|CLPX_YEAST ATP-dependent clpX-like chaperone, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MCX1 PE=1 SV=1	7.90e-108	333
+AC1KRZ_004135	sp|O13986|GID5_SCHPO	sp|O13986|GID5_SCHPO GID complex subunit 5 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=gid5 PE=3 SV=3	3.46e-29	127
+AC1KRZ_004136	sp|Q6CFT7|ATPB_YARLI	sp|Q6CFT7|ATPB_YARLI ATP synthase subunit beta, mitochondrial OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=ATP2 PE=1 SV=2	7.40e-281	775
+AC1KRZ_004141	sp|P53326|YG5L_YEAST	sp|P53326|YG5L_YEAST Uncharacterized protein YGR266W OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YGR266W PE=1 SV=1	1.90e-37	154
+AC1KRZ_004151	sp|Q4P9T3|CCR4_MYCMD	sp|Q4P9T3|CCR4_MYCMD CCR4-Not complex 3'-5'-exoribonuclease subunit Ccr4 OS=Mycosarcoma maydis OX=5270 GN=CCR4 PE=3 SV=1	5.77e-157	466
+AC1KRZ_004161	sp|Q8L6Z7|EXO1_ARATH	sp|Q8L6Z7|EXO1_ARATH Exonuclease 1 OS=Arabidopsis thaliana OX=3702 GN=EXO1 PE=2 SV=2	2.71e-89	293
+AC1KRZ_004174	sp|Q0UYV9|CMR1_PHANO	sp|Q0UYV9|CMR1_PHANO DNA damage-binding protein CMR1 OS=Phaeosphaeria nodorum (strain SN15 / ATCC MYA-4574 / FGSC 10173) OX=321614 GN=SNOG_03055 PE=3 SV=1	3.70e-124	375
+AC1KRZ_004191	sp|Q9USS7|YNB3_SCHPO	sp|Q9USS7|YNB3_SCHPO Uncharacterized protein C4.03c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC4.03c PE=2 SV=1	1.33e-215	636
+AC1KRZ_004236	sp|P40010|NUG1_YEAST	sp|P40010|NUG1_YEAST Nuclear GTP-binding protein NUG1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NUG1 PE=1 SV=1	1.97e-104	324
+AC1KRZ_004249	sp|O14295|PLR1_SCHPO	sp|O14295|PLR1_SCHPO Pyridoxal reductase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=plr1 PE=1 SV=1	5.67e-68	219
+AC1KRZ_004268	sp|A1C7P9|XLNR_ASPCL	sp|A1C7P9|XLNR_ASPCL Xylanolytic transcriptional activator xlnR OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=xlnR PE=3 SV=2	7.91e-80	275
+AC1KRZ_004270	sp|O59762|GNR1_SCHPO	sp|O59762|GNR1_SCHPO Guanine nucleotide-binding protein negative regulator 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=gnr1 PE=1 SV=1	3.76e-26	110
+AC1KRZ_004271	sp|Q8VBW6|ULA1_MOUSE	sp|Q8VBW6|ULA1_MOUSE NEDD8-activating enzyme E1 regulatory subunit OS=Mus musculus OX=10090 GN=Nae1 PE=1 SV=1	2.82e-149	441
+AC1KRZ_004288	sp|B5ZA76|PGDAE_HELPG	sp|B5ZA76|PGDAE_HELPG Peptidoglycan deacetylase OS=Helicobacter pylori (strain G27) OX=563041 GN=pgdA PE=1 SV=1	3.00e-93	281
+AC1KRZ_004324	sp|P87142|YDMC_SCHPO	sp|P87142|YDMC_SCHPO Heat shock protein 70 homolog C57A7.12 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC57A7.12 PE=1 SV=3	3.74e-112	358
+AC1KRZ_004341	sp|A0A3S5HYN5|PVHE_TALVA	sp|A0A3S5HYN5|PVHE_TALVA Cytochrome P450 monooxygenase pvhE OS=Talaromyces variabilis OX=28576 GN=pvhE PE=1 SV=1	1.62e-88	284
+AC1KRZ_004370	sp|Q0CJ61|ATB_ASPTN	sp|Q0CJ61|ATB_ASPTN Efflux pump atB OS=Aspergillus terreus (strain NIH 2624 / FGSC A1156) OX=341663 GN=atB PE=3 SV=1	2.37e-121	367
+AC1KRZ_004379	sp|O42904|PRP31_SCHPO	sp|O42904|PRP31_SCHPO Pre-mRNA-processing factor 31 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=prp31 PE=3 SV=1	1.73e-99	311
+AC1KRZ_004381	sp|A1CQB4|EIF3H_ASPCL	sp|A1CQB4|EIF3H_ASPCL Eukaryotic translation initiation factor 3 subunit H OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=ACLA_025520 PE=3 SV=1	3.00e-91	279
+AC1KRZ_004388	sp|Q8BYK4|RDH12_MOUSE	sp|Q8BYK4|RDH12_MOUSE Retinol dehydrogenase 12 OS=Mus musculus OX=10090 GN=Rdh12 PE=2 SV=1	3.85e-37	138
+AC1KRZ_004422	sp|Q870J1|STE11_PNECA	sp|Q870J1|STE11_PNECA HMG-box protein STE11 OS=Pneumocystis carinii OX=4754 PE=1 SV=1	8.48e-18	87.8
+AC1KRZ_004484	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	7.18e-104	327
+AC1KRZ_004492	sp|Q9FM04|GDL88_ARATH	sp|Q9FM04|GDL88_ARATH GDSL esterase/lipase At5g62930 OS=Arabidopsis thaliana OX=3702 GN=At5g62930 PE=2 SV=3	5.53e-35	128
+AC1KRZ_004499	sp|O14233|RNA14_SCHPO	sp|O14233|RNA14_SCHPO mRNA 3'-end-processing protein rna14 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rna14 PE=3 SV=1	2.93e-156	476
+AC1KRZ_004515	sp|O94467|OYEC_SCHPO	sp|O94467|OYEC_SCHPO Putative NADPH dehydrogenase C23G7.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC23G7.10c PE=3 SV=1	1.43e-119	376
+AC1KRZ_004524	sp|Q02592|HMT1_SCHPO	sp|Q02592|HMT1_SCHPO Heavy metal tolerance protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hmt1 PE=2 SV=3	3.75e-205	615
+AC1KRZ_004534	sp|O43024|DEF1_SCHPO	sp|O43024|DEF1_SCHPO RNA polymerase II degradation factor 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=def1 PE=1 SV=1	1.20e-07	58.2
+AC1KRZ_000856	sp|P41390|PUR1_SCHPO	sp|P41390|PUR1_SCHPO Amidophosphoribosyltransferase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ade4 PE=1 SV=1	2.63e-219	619
+AC1KRZ_000874	sp|O43032|SRPR_SCHPO	sp|O43032|SRPR_SCHPO Signal recognition particle receptor subunit alpha homolog OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=srp101 PE=3 SV=1	8.38e-110	343
+AC1KRZ_000880	sp|Q9HDY4|YK16_SCHPO	sp|Q9HDY4|YK16_SCHPO Putative ATP-dependent RNA helicase PB1A10.06c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAPB1A10.06c PE=3 SV=1	5.12e-144	457
+AC1KRZ_000891	sp|Q1MTR1|IRC3_SCHPO	sp|Q1MTR1|IRC3_SCHPO Putative mitochondrial ATP-dependent helicase irc3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=irc3 PE=3 SV=2	7.38e-123	380
+AC1KRZ_000925	sp|C4QX80|PSD1_KOMPG	sp|C4QX80|PSD1_KOMPG Phosphatidylserine decarboxylase proenzyme 1, mitochondrial OS=Komagataella phaffii (strain GS115 / ATCC 20864) OX=644223 GN=PSD1 PE=3 SV=1	2.60e-122	372
+AC1KRZ_000933	sp|Q10061|LHS1_SCHPO	sp|Q10061|LHS1_SCHPO Heat shock protein 70 homolog lhs1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC1F5.06 PE=3 SV=1	4.68e-104	345
+AC1KRZ_000943	sp|Q99NG0|ARIP4_MOUSE	sp|Q99NG0|ARIP4_MOUSE Helicase ARIP4 OS=Mus musculus OX=10090 GN=Rad54l2 PE=1 SV=2	4.82e-76	278
+AC1KRZ_000977	sp|Q1E9T9|DBP7_COCIM	sp|Q1E9T9|DBP7_COCIM ATP-dependent RNA helicase DBP7 OS=Coccidioides immitis (strain RS) OX=246410 GN=DBP7 PE=3 SV=1	6.10e-165	494
+AC1KRZ_000991	sp|Q06593|OPT2_YEAST	sp|Q06593|OPT2_YEAST Oligopeptide transporter 2 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=OPT2 PE=1 SV=1	5.16e-159	481
+AC1KRZ_000997	sp|Q2KI07|ARL8B_BOVIN	sp|Q2KI07|ARL8B_BOVIN ADP-ribosylation factor-like protein 8B OS=Bos taurus OX=9913 GN=ARL8B PE=2 SV=1	1.91e-62	194
+AC1KRZ_000998	sp|P40986|CDC1_YEAST	sp|P40986|CDC1_YEAST Cell division control protein 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=CDC1 PE=1 SV=2	2.35e-64	216
+AC1KRZ_001032	sp|P21734|UBC1_YEAST	sp|P21734|UBC1_YEAST Ubiquitin-conjugating enzyme E2 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=UBC1 PE=1 SV=1	2.11e-79	240
+AC1KRZ_001036	sp|Q3ZC01|CNOT7_BOVIN	sp|Q3ZC01|CNOT7_BOVIN CCR4-NOT transcription complex subunit 7 OS=Bos taurus OX=9913 GN=CNOT7 PE=2 SV=1	7.55e-95	306
+AC1KRZ_004551	sp|Q9S7J8|HMA7_ARATH	sp|Q9S7J8|HMA7_ARATH Copper-transporting ATPase RAN1 OS=Arabidopsis thaliana OX=3702 GN=RAN1 PE=1 SV=1	4.89e-107	360
+AC1KRZ_004597	sp|O14088|YER5_SCHPO	sp|O14088|YER5_SCHPO Uncharacterized oxidoreductase C2F3.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2F3.05c PE=3 SV=1	8.40e-63	202
+AC1KRZ_004603	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	1.59e-89	290
+AC1KRZ_004605	sp|A8G7R4|DGOD_SERP5	sp|A8G7R4|DGOD_SERP5 D-galactonate dehydratase OS=Serratia proteamaculans (strain 568) OX=399741 GN=dgoD PE=3 SV=1	8.93e-113	337
+AC1KRZ_004607	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	5.86e-216	613
+AC1KRZ_004644	sp|Q56WD3|UN931_ARATH	sp|Q56WD3|UN931_ARATH UNC93-like protein 1 OS=Arabidopsis thaliana OX=3702 GN=At1g18000 PE=2 SV=2	1.19e-43	162
+AC1KRZ_004650	sp|A3KG59|P20D2_MOUSE	sp|A3KG59|P20D2_MOUSE Xaa-Arg dipeptidase OS=Mus musculus OX=10090 GN=Pm20d2 PE=1 SV=1	8.32e-84	265
+AC1KRZ_004660	sp|P46441|N2B_HAEIR	sp|P46441|N2B_HAEIR Putative ATPase N2B OS=Haematobia irritans OX=7368 PE=2 SV=1	1.50e-50	183
+AC1KRZ_004667	sp|O77775|NCF2_BOVIN	sp|O77775|NCF2_BOVIN Neutrophil cytosol factor 2 OS=Bos taurus OX=9913 GN=NCF2 PE=2 SV=1	1.10e-24	110
+AC1KRZ_004704	sp|Q06593|OPT2_YEAST	sp|Q06593|OPT2_YEAST Oligopeptide transporter 2 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=OPT2 PE=1 SV=1	1.35e-97	314
+AC1KRZ_004735	sp|Q9USG8|MU190_SCHPO	sp|Q9USG8|MU190_SCHPO Meiotically up-regulated gene 190 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mug190 PE=1 SV=1	6.01e-157	511
+AC1KRZ_004742	sp|P97536|CAND1_RAT	sp|P97536|CAND1_RAT Cullin-associated NEDD8-dissociated protein 1 OS=Rattus norvegicus OX=10116 GN=Cand1 PE=1 SV=1	1.09e-143	468
+AC1KRZ_004743	sp|A1C7P9|XLNR_ASPCL	sp|A1C7P9|XLNR_ASPCL Xylanolytic transcriptional activator xlnR OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=xlnR PE=3 SV=2	1.16e-102	334
+AC1KRZ_004744	sp|W6Q4S4|ORF11_PENRF	sp|W6Q4S4|ORF11_PENRF Cytochrome P450 monooxygenase ORF11 OS=Penicillium roqueforti (strain FM164) OX=1365484 GN=ORF11 PE=3 SV=1	3.04e-57	200
+AC1KRZ_004758	sp|A5DBI5|DBP5_PICGU	sp|A5DBI5|DBP5_PICGU ATP-dependent RNA helicase DBP5 OS=Meyerozyma guilliermondii (strain ATCC 6260 / CBS 566 / DSM 6381 / JCM 1539 / NBRC 10279 / NRRL Y-324) OX=294746 GN=DBP5 PE=3 SV=1	1.98e-06	53.9
+AC1KRZ_004762	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	5.16e-103	325
+AC1KRZ_004766	sp|D4D9R6|NOP9_TRIVH	sp|D4D9R6|NOP9_TRIVH Nucleolar protein 9 OS=Trichophyton verrucosum (strain HKI 0517) OX=663202 GN=NOP9 PE=3 SV=1	1.55e-44	171
+AC1KRZ_004782	sp|P46198|IF2M_BOVIN	sp|P46198|IF2M_BOVIN Translation initiation factor IF-2, mitochondrial OS=Bos taurus OX=9913 GN=MTIF2 PE=1 SV=1	1.34e-138	422
+AC1KRZ_004783	sp|B8N417|MNS1B_ASPFN	sp|B8N417|MNS1B_ASPFN Probable mannosyl-oligosaccharide alpha-1,2-mannosidase 1B OS=Aspergillus flavus (strain ATCC 200026 / FGSC A1120 / IAM 13836 / NRRL 3357 / JCM 12722 / SRRC 167) OX=332952 GN=mns1B PE=3 SV=2	7.08e-27	119
+AC1KRZ_004794	sp|Q6E434|TRF1_SCHPO	sp|Q6E434|TRF1_SCHPO Telomeric DNA-binding factor trf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=trf1 PE=1 SV=1	1.76e-06	54.3
+AC1KRZ_001066	sp|Q00659|SCONB_EMENI	sp|Q00659|SCONB_EMENI Probable E3 ubiquitin ligase complex SCF subunit sconB OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=sconB PE=3 SV=2	2.31e-12	73.6
+AC1KRZ_001068	sp|P78921|TCPQ_SCHPO	sp|P78921|TCPQ_SCHPO Probable T-complex protein 1 subunit theta OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cct8 PE=2 SV=3	4.04e-227	640
+AC1KRZ_001072	sp|Q5AZA6|DBP9_EMENI	sp|Q5AZA6|DBP9_EMENI ATP-dependent RNA helicase dbp9 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=dbp9 PE=3 SV=1	2.16e-162	479
+AC1KRZ_001079	sp|Q4WPP6|MDR2_ASPFU	sp|Q4WPP6|MDR2_ASPFU ABC multidrug transporter mdr2 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=mdr2 PE=2 SV=1	2.02e-104	352
+AC1KRZ_001080	sp|P51790|CLCN3_HUMAN	sp|P51790|CLCN3_HUMAN H(+)/Cl(-) exchange transporter 3 OS=Homo sapiens OX=9606 GN=CLCN3 PE=1 SV=2	2.25e-187	557
+AC1KRZ_001081	sp|Q9D404|OXSM_MOUSE	sp|Q9D404|OXSM_MOUSE 3-oxoacyl-[acyl-carrier-protein] synthase, mitochondrial OS=Mus musculus OX=10090 GN=Oxsm PE=1 SV=1	1.15e-117	364
+AC1KRZ_001086	sp|O13817|SEC7C_SCHPO	sp|O13817|SEC7C_SCHPO Protein transport protein sec73 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sec73 PE=3 SV=2	6.57e-56	208
+AC1KRZ_001130	sp|P54549|YQJL_BACSU	sp|P54549|YQJL_BACSU Uncharacterized protein YqjL OS=Bacillus subtilis (strain 168) OX=224308 GN=yqjL PE=4 SV=1	7.76e-09	58.9
+AC1KRZ_001137	sp|P83779|PDC1_CANAL	sp|P83779|PDC1_CANAL Pyruvate decarboxylase OS=Candida albicans (strain SC5314 / ATCC MYA-2876) OX=237561 GN=PDC11 PE=1 SV=2	4.59e-126	385
+AC1KRZ_001150	sp|Q6C725|AMN1_YARLI	sp|Q6C725|AMN1_YARLI Antagonist of mitotic exit network protein 1 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=AMN1 PE=3 SV=1	3.00e-101	320
+AC1KRZ_001153	sp|O60097|SPT8_SCHPO	sp|O60097|SPT8_SCHPO SAGA complex subunit Spt8 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=spt8 PE=1 SV=1	4.93e-104	323
+AC1KRZ_001163	sp|Q54KE6|MCCA_DICDI	sp|Q54KE6|MCCA_DICDI Methylcrotonoyl-CoA carboxylase subunit alpha, mitochondrial OS=Dictyostelium discoideum OX=44689 GN=mccA PE=3 SV=1	1.78e-184	542
+AC1KRZ_001166	sp|Q9Y7U5|RGF3_SCHPO	sp|Q9Y7U5|RGF3_SCHPO Rho1 guanine nucleotide exchange factor 3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rgf3 PE=1 SV=1	3.67e-94	335
+AC1KRZ_004827	sp|A1CNV1|DML1_ASPCL	sp|A1CNV1|DML1_ASPCL Protein dml1 OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=dml1 PE=3 SV=1	7.53e-99	308
+AC1KRZ_004838	sp|O43062|YGT9_SCHPO	sp|O43062|YGT9_SCHPO Uncharacterized protein C4C3.09 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC4C3.09 PE=4 SV=1	7.90e-28	116
+AC1KRZ_004899	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	8.71e-71	240
+AC1KRZ_004903	sp|Q6L732|KANJ_STRKN	sp|Q6L732|KANJ_STRKN Kanamycin B dioxygenase OS=Streptomyces kanamyceticus OX=1967 GN=kanJ PE=1 SV=1	1.45e-26	108
+AC1KRZ_004905	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	4.47e-101	318
+AC1KRZ_004935	sp|P57093|PAHX_RAT	sp|P57093|PAHX_RAT Phytanoyl-CoA dioxygenase, peroxisomal OS=Rattus norvegicus OX=10116 GN=Phyh PE=1 SV=2	2.77e-17	87.0
+AC1KRZ_004936	sp|P80873|GS39_BACSU	sp|P80873|GS39_BACSU General stress protein 39 OS=Bacillus subtilis (strain 168) OX=224308 GN=ydaD PE=1 SV=3	6.43e-69	219
+AC1KRZ_004950	sp|O36016|PTPA1_SCHPO	sp|O36016|PTPA1_SCHPO Serine/threonine-protein phosphatase 2A activator 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rrd1 PE=3 SV=1	1.15e-70	239
+AC1KRZ_001224	sp|B9WYE6|VRDA_ASPPA	sp|B9WYE6|VRDA_ASPPA Versiconal hemiacetal acetate reductase OS=Aspergillus parasiticus OX=5067 GN=vrdA PE=1 SV=1	3.78e-82	261
+AC1KRZ_001234	sp|O94528|CAF5_SCHPO	sp|O94528|CAF5_SCHPO Caffeine resistance protein 5 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=caf5 PE=3 SV=1	6.52e-114	351
+AC1KRZ_001245	sp|Q09860|SYC_SCHPO	sp|Q09860|SYC_SCHPO Probable cysteine--tRNA ligase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC29E6.06c PE=3 SV=1	4.06e-233	672
+AC1KRZ_001256	sp|Q8GXR2|PLT6_ARATH	sp|Q8GXR2|PLT6_ARATH Probable polyol transporter 6 OS=Arabidopsis thaliana OX=3702 GN=PLT6 PE=2 SV=2	1.79e-48	180
+AC1KRZ_001261	sp|Q50HM6|GH109_STRNV	sp|Q50HM6|GH109_STRNV Glycosyl hydrolase family 109 protein OS=Streptomyces niveus OX=193462 PE=3 SV=1	2.69e-18	90.1
+AC1KRZ_001262	sp|Q0KBC7|LTND_CUPNH	sp|Q0KBC7|LTND_CUPNH L-threonate dehydrogenase OS=Cupriavidus necator (strain ATCC 17699 / DSM 428 / KCTC 22496 / NCIMB 10442 / H16 / Stanier 337) OX=381666 GN=ltnD PE=1 SV=1	1.80e-67	219
+AC1KRZ_001263	sp|Q5IZM4|CP51_MYCVP	sp|Q5IZM4|CP51_MYCVP Sterol 14alpha-demethylase OS=Mycolicibacterium vanbaalenii (strain DSM 7251 / JCM 13017 / BCRC 16820 / KCTC 9966 / NRRL B-24157 / PYR-1) OX=350058 GN=cyp51 PE=3 SV=1	2.38e-23	105
+AC1KRZ_001264	sp|A0A1B1ZGB5|NPS10_HETAN	sp|A0A1B1ZGB5|NPS10_HETAN Adenylate-forming reductase Nps10 OS=Heterobasidion annosum OX=13563 GN=nps10 PE=1 SV=1	2.18e-97	335
+AC1KRZ_001265	sp|P40467|ASG1_YEAST	sp|P40467|ASG1_YEAST Activator of stress genes 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=ASG1 PE=1 SV=1	9.21e-29	125
+AC1KRZ_001267	sp|O60177|ULS12_SCHPO	sp|O60177|ULS12_SCHPO ATP-dependent chromatin remodeler/E3 ubiquitin-protein ligase rrp2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rrp2 PE=1 SV=1	3.49e-168	526
+AC1KRZ_001281	sp|B6ZJZ9|PNC1_SOYBN	sp|B6ZJZ9|PNC1_SOYBN Peroxisomal adenine nucleotide carrier 1 OS=Glycine max OX=3847 GN=PNC1 PE=2 SV=1	1.20e-21	98.2
+AC1KRZ_001308	sp|O13298|PHD1_SCHPO	sp|O13298|PHD1_SCHPO Histone deacetylase phd1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=phd1 PE=1 SV=1	6.77e-167	501
+AC1KRZ_001316	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	2.63e-127	388
+AC1KRZ_001321	sp|P73177|RN2H_SYNY3	sp|P73177|RN2H_SYNY3 Uncharacterized ribonuclease sll1290 OS=Synechocystis sp. (strain ATCC 27184 / PCC 6803 / Kazusa) OX=1111708 GN=sll1290 PE=3 SV=1	7.20e-36	149
+AC1KRZ_001322	sp|Q10445|RHP41_SCHPO	sp|Q10445|RHP41_SCHPO DNA repair protein rhp41 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rhp41 PE=3 SV=1	1.06e-72	250
+AC1KRZ_001351	sp|O13955|VAM6_SCHPO	sp|O13955|VAM6_SCHPO Vacuolar morphogenesis protein 6 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vam6 PE=3 SV=1	9.39e-86	297
+AC1KRZ_001354	sp|O13956|TSR1_SCHPO	sp|O13956|TSR1_SCHPO Ribosome biogenesis protein tsr1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=tsr1 PE=3 SV=1	1.22e-173	535
+AC1KRZ_001369	sp|Q503W7|ATD1B_DANRE	sp|Q503W7|ATD1B_DANRE Outer mitochondrial transmembrane helix translocase OS=Danio rerio OX=7955 GN=atad1b PE=2 SV=2	2.13e-46	173
+AC1KRZ_004981	sp|P32386|YBT1_YEAST	sp|P32386|YBT1_YEAST ATP-dependent bile acid permease OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YBT1 PE=1 SV=2	5.44e-112	379
+AC1KRZ_004982	sp|G4N2B5|ABC7_PYRO7	sp|G4N2B5|ABC7_PYRO7 ABC transporter 7 OS=Pyricularia oryzae (strain 70-15 / ATCC MYA-4617 / FGSC 8958) OX=242507 GN=ABC7 PE=3 SV=1	3.19e-123	402
+AC1KRZ_005003	sp|Q10494|YDG7_SCHPO	sp|Q10494|YDG7_SCHPO Uncharacterized oxidoreductase C26F1.07 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC26F1.07 PE=3 SV=1	6.75e-107	317
+AC1KRZ_005011	sp|Q9RGS8|PHLN_BURPS	sp|Q9RGS8|PHLN_BURPS Non-hemolytic phospholipase C OS=Burkholderia pseudomallei (strain K96243) OX=272560 GN=plcN PE=1 SV=2	9.45e-79	270
+AC1KRZ_005012	sp|J9VY90|LAC1_CRYN9	sp|J9VY90|LAC1_CRYN9 Laccase-1 OS=Cryptococcus neoformans (strain H99 / ATCC 208821 / CBS 10515 / FGSC 9487) OX=235443 GN=LAC1 PE=1 SV=1	6.91e-77	268
+AC1KRZ_005016	sp|P38360|ATU1_YEAST	sp|P38360|ATU1_YEAST P-type cation-transporting ATPase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PCA1 PE=1 SV=2	1.53e-171	540
+AC1KRZ_005023	sp|Q10449|MU157_SCHPO	sp|Q10449|MU157_SCHPO Meiotically up-regulated gene 157 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mug157 PE=1 SV=1	7.92e-136	402
+AC1KRZ_005025	sp|P46151|MTHR1_YEAST	sp|P46151|MTHR1_YEAST Methylenetetrahydrofolate reductase 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MET12 PE=1 SV=2	3.48e-194	565
+AC1KRZ_005035	sp|C8V213|MDJ1_EMENI	sp|C8V213|MDJ1_EMENI DnaJ homolog 1, mitochondrial OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=AN10778 PE=3 SV=1	1.48e-119	370
+AC1KRZ_005043	sp|Q7Z9J4|H2B_AJECA	sp|Q7Z9J4|H2B_AJECA Histone H2B OS=Ajellomyces capsulatus OX=5037 GN=HTB1 PE=3 SV=3	5.74e-65	197
+AC1KRZ_001375	sp|O74862|UTP23_SCHPO	sp|O74862|UTP23_SCHPO rRNA-processing protein utp23 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp23 PE=3 SV=1	2.12e-35	129
+AC1KRZ_001386	sp|I2C092|MANBB_THETO	sp|I2C092|MANBB_THETO Beta-mannosidase B OS=Thermothelomyces thermophilus OX=78579 GN=man9 PE=1 SV=1	3.17e-167	496
+AC1KRZ_001413	sp|Q96RG2|PASK_HUMAN	sp|Q96RG2|PASK_HUMAN PAS domain-containing serine/threonine-protein kinase OS=Homo sapiens OX=9606 GN=PASK PE=1 SV=3	1.11e-42	163
+AC1KRZ_001449	sp|Q8QZR1|ATTY_MOUSE	sp|Q8QZR1|ATTY_MOUSE Tyrosine aminotransferase OS=Mus musculus OX=10090 GN=Tat PE=1 SV=1	8.16e-104	319
+AC1KRZ_001456	sp|Q9P6I1|UBC16_SCHPO	sp|Q9P6I1|UBC16_SCHPO Ubiquitin-conjugating enzyme E2 16 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ubc16 PE=3 SV=2	5.98e-49	157
+AC1KRZ_001474	sp|P21373|UTR1_YEAST	sp|P21373|UTR1_YEAST NAD(+) kinase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=UTR1 PE=1 SV=2	1.35e-94	310
+AC1KRZ_001476	sp|O94362|YHOF_SCHPO	sp|O94362|YHOF_SCHPO Uncharacterized GTP-binding protein C428.15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC428.15 PE=3 SV=1	1.54e-139	407
+AC1KRZ_001488	sp|P25375|PRTD_YEAST	sp|P25375|PRTD_YEAST Saccharolysin OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PRD1 PE=1 SV=1	1.58e-178	527
+AC1KRZ_001497	sp|A3GH91|DBP5_PICST	sp|A3GH91|DBP5_PICST ATP-dependent RNA helicase DBP5 OS=Scheffersomyces stipitis (strain ATCC 58785 / CBS 6054 / NBRC 10063 / NRRL Y-11545) OX=322104 GN=DBP5 PE=3 SV=2	5.18e-191	545
+AC1KRZ_001502	sp|O74842|FFT2_SCHPO	sp|O74842|FFT2_SCHPO Chromatin remodeling protein fft2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fft2 PE=1 SV=1	3.23e-228	692
+AC1KRZ_005058	sp|B3PDB1|MAND_CELJU	sp|B3PDB1|MAND_CELJU D-galactonate dehydratase family member RspA OS=Cellvibrio japonicus (strain Ueda107) OX=498211 GN=rspA PE=1 SV=1	6.55e-196	551
+AC1KRZ_005085	sp|Q9P6M8|PABPX_SCHPO	sp|Q9P6M8|PABPX_SCHPO mRNA export factor crp79 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=crp79 PE=2 SV=2	1.40e-18	94.4
+AC1KRZ_005088	sp|P32839|BCS1_YEAST	sp|P32839|BCS1_YEAST Mitochondrial chaperone BCS1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=BCS1 PE=1 SV=2	5.73e-167	480
+AC1KRZ_005093	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	1.93e-124	380
+AC1KRZ_001514	sp|O74360|RGA4_SCHPO	sp|O74360|RGA4_SCHPO Probable Rho-type GTPase-activating protein 4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rga4 PE=1 SV=2	1.03e-14	81.6
+AC1KRZ_001515	sp|Q00614|CACP_CANTR	sp|Q00614|CACP_CANTR Carnitine O-acetyltransferase, mitochondrial OS=Candida tropicalis OX=5482 GN=CAT2 PE=3 SV=1	1.86e-146	459
+AC1KRZ_001530	sp|Q7RXR3|CENPA_NEUCR	sp|Q7RXR3|CENPA_NEUCR Histone H3-like centromeric protein hH3v OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=hH3v PE=3 SV=1	1.03e-51	164
+AC1KRZ_001535	sp|Q05867|YL283_YEAST	sp|Q05867|YL283_YEAST Uncharacterized protein YLR283W, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YLR283W PE=1 SV=1	4.85e-12	68.6
+AC1KRZ_001543	sp|O13657|YBCC_SCHPO	sp|O13657|YBCC_SCHPO Putative metal ion transporter C27B12.12c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pi066 PE=1 SV=1	6.92e-136	418
+AC1KRZ_001556	sp|A0A2H0ZJA8|PTRA_CANAR	sp|A0A2H0ZJA8|PTRA_CANAR Peptide transporter PTR_A OS=Candidozyma auris OX=498019 GN=PTR_A PE=3 SV=1	2.08e-201	578
+AC1KRZ_001560	sp|P40464|FLX1_YEAST	sp|P40464|FLX1_YEAST Mitochondrial FAD carrier protein FLX1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=FLX1 PE=3 SV=1	1.86e-61	199
+AC1KRZ_001569	sp|A0A397HK53|ANKF_ASPTH	sp|A0A397HK53|ANKF_ASPTH O-methyltransferase ankF OS=Aspergillus thermomutatus OX=41047 GN=ankF PE=1 SV=1	4.81e-48	161
+AC1KRZ_001623	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	7.41e-99	314
+AC1KRZ_001625	sp|Q9P6J7|YHD3_SCHPO	sp|Q9P6J7|YHD3_SCHPO Uncharacterized MFS-type transporter C1683.03c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1683.03c PE=3 SV=1	3.20e-59	206
+AC1KRY_000010	sp|P18695|TBG_EMENI	sp|P18695|TBG_EMENI Tubulin gamma chain OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=mipA PE=2 SV=3	2.18e-224	653
+AC1KRY_000015	sp|Q9LEY9|NHP2_ARATH	sp|Q9LEY9|NHP2_ARATH H/ACA ribonucleoprotein complex subunit 2-like protein OS=Arabidopsis thaliana OX=3702 GN=At5g08180 PE=1 SV=1	2.36e-39	134
+AC1KRY_000018	sp|Q9P6I1|UBC16_SCHPO	sp|Q9P6I1|UBC16_SCHPO Ubiquitin-conjugating enzyme E2 16 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ubc16 PE=3 SV=2	5.98e-49	157
+AC1KRY_000023	sp|P32381|ARP2_YEAST	sp|P32381|ARP2_YEAST Actin-related protein 2 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=ARP2 PE=1 SV=1	9.73e-215	596
+AC1KRY_000026	sp|P17735|ATTY_HUMAN	sp|P17735|ATTY_HUMAN Tyrosine aminotransferase OS=Homo sapiens OX=9606 GN=TAT PE=1 SV=1	2.30e-103	318
+AC1KRY_000036	sp|Q2TXG1|ORYN_ASPOR	sp|Q2TXG1|ORYN_ASPOR MFS-type transporter oryN OS=Aspergillus oryzae (strain ATCC 42149 / RIB 40) OX=510516 GN=oryN PE=3 SV=1	3.15e-84	271
+AC1KRY_000100	sp|O74862|UTP23_SCHPO	sp|O74862|UTP23_SCHPO rRNA-processing protein utp23 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp23 PE=3 SV=1	5.92e-35	127
+AC1KRY_000102	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	1.10e-72	256
+AC1KRY_000134	sp|Q4I7F9|PRP28_GIBZE	sp|Q4I7F9|PRP28_GIBZE Pre-mRNA-splicing ATP-dependent RNA helicase PRP28 OS=Gibberella zeae (strain ATCC MYA-4620 / CBS 123657 / FGSC 9075 / NRRL 31084 / PH-1) OX=229533 GN=PRP28 PE=3 SV=1	9.80e-205	592
+AC1KRY_000143	sp|Q869Z0|Y5025_DICDI	sp|Q869Z0|Y5025_DICDI Putative protein disulfide-isomerase DDB_G0275025 OS=Dictyostelium discoideum OX=44689 GN=DDB_G0275025 PE=1 SV=1	1.86e-41	154
+AC1KRY_000147	sp|O13921|MSH1_SCHPO	sp|O13921|MSH1_SCHPO MutS protein homolog 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=msh1 PE=3 SV=2	1.75e-195	582
+AC1KRY_000153	sp|Q9P775|YBEG_SCHPO	sp|Q9P775|YBEG_SCHPO Uncharacterized WD repeat-containing protein C17D11.16 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1711.16 PE=1 SV=1	7.62e-120	363
+AC1KRY_000218	sp|P38360|ATU1_YEAST	sp|P38360|ATU1_YEAST P-type cation-transporting ATPase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PCA1 PE=1 SV=2	8.67e-170	535
+AC1KRY_001326	sp|P49374|HGT1_KLULA	sp|P49374|HGT1_KLULA High-affinity glucose transporter OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=HGT1 PE=3 SV=1	9.34e-62	220
+AC1KRY_001331	sp|O14325|YB7A_SCHPO	sp|O14325|YB7A_SCHPO Uncharacterized AAA domain-containing protein C16E9.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC16E9.10c PE=1 SV=1	9.59e-295	829
+AC1KRY_001354	sp|O59718|NEM1_SCHPO	sp|O59718|NEM1_SCHPO Nuclear envelope morphology protein 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=nem1 PE=3 SV=1	2.62e-41	162
+AC1KRY_001374	sp|O94365|UTP15_SCHPO	sp|O94365|UTP15_SCHPO U3 small nucleolar RNA-associated protein 15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp15 PE=3 SV=1	1.19e-105	326
+AC1KRY_001391	sp|O14088|YER5_SCHPO	sp|O14088|YER5_SCHPO Uncharacterized oxidoreductase C2F3.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2F3.05c PE=3 SV=1	5.23e-65	207
+AC1KRY_001392	sp|I2C092|MANBB_THETO	sp|I2C092|MANBB_THETO Beta-mannosidase B OS=Thermothelomyces thermophilus OX=78579 GN=man9 PE=1 SV=1	4.35e-229	669
+AC1KRY_001401	sp|S0DZN4|BIK6_GIBF5	sp|S0DZN4|BIK6_GIBF5 Efflux pump bik6 OS=Gibberella fujikuroi (strain CBS 195.34 / IMI 58289 / NRRL A-6831) OX=1279085 GN=bik6 PE=2 SV=1	2.19e-145	429
+AC1KRY_004943	sp|Q89PT3|NITR2_BRADU	sp|Q89PT3|NITR2_BRADU Nitrilase blr3397 OS=Bradyrhizobium diazoefficiens (strain JCM 10833 / BCRC 13528 / IAM 13628 / NBRC 14792 / USDA 110) OX=224911 GN=blr3397 PE=1 SV=1	1.48e-68	218
+AC1KRY_004969	sp|P27476|NSR1_YEAST	sp|P27476|NSR1_YEAST Nuclear localization sequence-binding protein OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NSR1 PE=1 SV=1	2.45e-61	212
+AC1KRY_004989	sp|Q3UJK4|GTPB2_MOUSE	sp|Q3UJK4|GTPB2_MOUSE GTP-binding protein 2 OS=Mus musculus OX=10090 GN=Gtpbp2 PE=1 SV=1	8.43e-42	160
+AC1KRY_004990	sp|A1C7P9|XLNR_ASPCL	sp|A1C7P9|XLNR_ASPCL Xylanolytic transcriptional activator xlnR OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=xlnR PE=3 SV=2	1.94e-107	343
+AC1KRY_004994	sp|Q4WHA3|ARP4_ASPFU	sp|Q4WHA3|ARP4_ASPFU Actin-related protein 4 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=arp4 PE=3 SV=1	3.74e-110	335
+AC1KRY_004999	sp|P80873|GS39_BACSU	sp|P80873|GS39_BACSU General stress protein 39 OS=Bacillus subtilis (strain 168) OX=224308 GN=ydaD PE=1 SV=3	1.18e-68	218
+AC1KRY_005000	sp|P57093|PAHX_RAT	sp|P57093|PAHX_RAT Phytanoyl-CoA dioxygenase, peroxisomal OS=Rattus norvegicus OX=10116 GN=Phyh PE=1 SV=2	3.04e-17	87.0
+AC1KRY_005001	sp|Q9UT61|MAN1_SCHPO	sp|Q9UT61|MAN1_SCHPO Alpha-mannosidase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ams1 PE=1 SV=1	1.20e-179	545
+AC1KRY_005005	sp|Q9USX1|APE1_SCHPO	sp|Q9USX1|APE1_SCHPO Aminopeptidase 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ape1 PE=3 SV=1	7.45e-201	588
+AC1KRY_005006	sp|P37898|AAP1_YEAST	sp|P37898|AAP1_YEAST Alanine/arginine aminopeptidase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AAP1 PE=1 SV=2	1.38e-54	192
+AC1KRY_005009	sp|P32454|APE2_YEAST	sp|P32454|APE2_YEAST Aminopeptidase 2, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=APE2 PE=1 SV=4	2.24e-186	555
+AC1KRY_001408	sp|P83779|PDC1_CANAL	sp|P83779|PDC1_CANAL Pyruvate decarboxylase OS=Candida albicans (strain SC5314 / ATCC MYA-2876) OX=237561 GN=PDC11 PE=1 SV=2	2.30e-126	386
+AC1KRY_001415	sp|P54549|YQJL_BACSU	sp|P54549|YQJL_BACSU Uncharacterized protein YqjL OS=Bacillus subtilis (strain 168) OX=224308 GN=yqjL PE=4 SV=1	7.76e-09	58.9
+AC1KRY_001459	sp|O13817|SEC7C_SCHPO	sp|O13817|SEC7C_SCHPO Protein transport protein sec73 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sec73 PE=3 SV=2	3.18e-63	231
+AC1KRY_001463	sp|P51790|CLCN3_HUMAN	sp|P51790|CLCN3_HUMAN H(+)/Cl(-) exchange transporter 3 OS=Homo sapiens OX=9606 GN=CLCN3 PE=1 SV=2	1.60e-187	558
+AC1KRY_001464	sp|Q4WPP6|MDR2_ASPFU	sp|Q4WPP6|MDR2_ASPFU ABC multidrug transporter mdr2 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=mdr2 PE=2 SV=1	2.62e-182	564
+AC1KRY_001472	sp|Q5AZA6|DBP9_EMENI	sp|Q5AZA6|DBP9_EMENI ATP-dependent RNA helicase dbp9 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=dbp9 PE=3 SV=1	1.23e-164	485
+AC1KRY_001476	sp|P78921|TCPQ_SCHPO	sp|P78921|TCPQ_SCHPO Probable T-complex protein 1 subunit theta OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cct8 PE=2 SV=3	2.85e-227	641
+AC1KRY_001478	sp|Q00659|SCONB_EMENI	sp|Q00659|SCONB_EMENI Probable E3 ubiquitin ligase complex SCF subunit sconB OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=sconB PE=3 SV=2	2.39e-12	73.6
+AC1KRY_005055	sp|C9K7C8|AMT16_ALTAL	sp|C9K7C8|AMT16_ALTAL Phospho-2-dehydro-3-deoxyheptonate aldolase AMT16 OS=Alternaria alternata OX=5599 GN=AMT16 PE=2 SV=1	8.60e-154	441
+AC1KRY_005063	sp|O94467|OYEC_SCHPO	sp|O94467|OYEC_SCHPO Putative NADPH dehydrogenase C23G7.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC23G7.10c PE=3 SV=1	1.43e-119	376
+AC1KRY_001500	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	2.53e-217	617
+AC1KRY_001502	sp|A8G7R4|DGOD_SERP5	sp|A8G7R4|DGOD_SERP5 D-galactonate dehydratase OS=Serratia proteamaculans (strain 568) OX=399741 GN=dgoD PE=3 SV=1	1.26e-112	337
+AC1KRY_001504	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	1.04e-81	269
+AC1KRY_001509	sp|O14088|YER5_SCHPO	sp|O14088|YER5_SCHPO Uncharacterized oxidoreductase C2F3.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2F3.05c PE=3 SV=1	1.19e-62	201
+AC1KRY_001545	sp|Q5K8R6|CXT1_CRYD1	sp|Q5K8R6|CXT1_CRYD1 Beta-1,2-xylosyltransferase 1 OS=Cryptococcus deneoformans (strain JEC21 / ATCC MYA-565) OX=214684 GN=CXT1 PE=1 SV=1	1.11e-43	169
+AC1KRY_001557	sp|P78750|UTP18_SCHPO	sp|P78750|UTP18_SCHPO Probable U3 small nucleolar RNA-associated protein 18 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC29A3.06 PE=2 SV=3	1.61e-134	404
+AC1KRY_001566	sp|P54222|BETB1_RHIME	sp|P54222|BETB1_RHIME Betaine aldehyde dehydrogenase 1 OS=Rhizobium meliloti (strain 1021) OX=266834 GN=betB1 PE=3 SV=2	3.65e-70	233
+AC1KRY_005072	sp|O42894|RRP46_SCHPO	sp|O42894|RRP46_SCHPO Exosome complex component rrp46 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rrp46 PE=3 SV=1	1.42e-20	89.4
+AC1KRY_005077	sp|P36614|PPE1_SCHPO	sp|P36614|PPE1_SCHPO Serine/threonine-protein phosphatase ppe1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ppe1 PE=1 SV=1	2.85e-179	499
+AC1KRY_005079	sp|Q6E434|TRF1_SCHPO	sp|Q6E434|TRF1_SCHPO Telomeric DNA-binding factor trf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=trf1 PE=1 SV=1	1.57e-83	271
+AC1KRY_001627	sp|O60064|YBB2_SCHPO	sp|O60064|YBB2_SCHPO Probable mannose-1-phosphate guanyltransferase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC13G1.02 PE=3 SV=1	1.10e-126	375
+AC1KRY_001635	sp|P83309|SDPA_DELAC	sp|P83309|SDPA_DELAC (S)-phenoxypropionate/alpha-ketoglutarate-dioxygenase OS=Delftia acidovorans OX=80866 GN=sdpA PE=1 SV=2	2.34e-22	98.2
+AC1KRY_001641	sp|O59829|YCU9_SCHPO	sp|O59829|YCU9_SCHPO Probable nitrilase C965.09 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC965.09 PE=3 SV=1	2.17e-13	72.0
+AC1KRY_001646	sp|B0XZV0|SPHH_ASPFC	sp|B0XZV0|SPHH_ASPFC Cytochrome P450 monooxygenase sphH OS=Aspergillus fumigatus (strain CBS 144.89 / FGSC A1163 / CEA10) OX=451804 GN=sphH PE=1 SV=1	6.64e-93	295
+AC1KRY_001648	sp|O08759|UBE3A_MOUSE	sp|O08759|UBE3A_MOUSE Ubiquitin-protein ligase E3A OS=Mus musculus OX=10090 GN=Ube3a PE=1 SV=2	5.14e-68	244
+AC1KRY_001651	sp|P21839|ODBB_BOVIN	sp|P21839|ODBB_BOVIN 2-oxoisovalerate dehydrogenase subunit beta, mitochondrial OS=Bos taurus OX=9913 GN=BCKDHB PE=1 SV=2	5.67e-136	411
+AC1KRY_001659	sp|B8MKR3|CYB2_TALSN	sp|B8MKR3|CYB2_TALSN L-lactate dehydrogenase (cytochrome) OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=TSTA_043820 PE=1 SV=1	3.00e-148	435
+AC1KRY_001662	sp|D4AUH6|HEX1_ARTBC	sp|D4AUH6|HEX1_ARTBC Beta-hexosaminidase ARB_07893 OS=Arthroderma benhamiae (strain ATCC MYA-4681 / CBS 112371) OX=663331 GN=ARB_07893 PE=1 SV=1	3.50e-111	343
+AC1KRY_001666	sp|Q9SS86|LHTL4_ARATH	sp|Q9SS86|LHTL4_ARATH Lysine histidine transporter-like 4 OS=Arabidopsis thaliana OX=3702 GN=At3g01760 PE=3 SV=2	1.34e-06	54.7
+AC1KRY_001675	sp|O34371|YTET_BACSU	sp|O34371|YTET_BACSU Putative oxidoreductase YteT OS=Bacillus subtilis (strain 168) OX=224308 GN=yteT PE=2 SV=1	6.21e-70	231
+AC1KRY_001676	sp|Q9US36|KLF1_SCHPO	sp|Q9US36|KLF1_SCHPO Zinc finger protein klf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=klf1 PE=2 SV=1	5.05e-41	164
+AC1KRY_001682	sp|O14134|ELF1_SCHPO	sp|O14134|ELF1_SCHPO mRNA export factor elf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=elf1 PE=1 SV=1	5.49e-302	868
+AC1KRY_001691	sp|P40009|YND1_YEAST	sp|P40009|YND1_YEAST Golgi apyrase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YND1 PE=1 SV=1	2.62e-114	356
+AC1KRY_001700	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	9.96e-101	319
+AC1KRY_001701	sp|A0R2W9|MCA_MYCS2	sp|A0R2W9|MCA_MYCS2 Mycothiol S-conjugate amidase OS=Mycolicibacterium smegmatis (strain ATCC 700084 / mc(2)155) OX=246196 GN=mca PE=1 SV=1	7.69e-125	360
+AC1KRY_001704	sp|Q13367|AP3B2_HUMAN	sp|Q13367|AP3B2_HUMAN AP-3 complex subunit beta-2 OS=Homo sapiens OX=9606 GN=AP3B2 PE=1 SV=2	1.15e-126	406
+AC1KRY_001735	sp|O14019|HAL4_SCHPO	sp|O14019|HAL4_SCHPO Serine/threonine-protein kinase hal4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hal4 PE=1 SV=1	6.90e-47	177
+AC1KRY_001750	sp|Q10234|RT05_SCHPO	sp|Q10234|RT05_SCHPO Small ribosomal subunit protein uS5m OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mrp5 PE=1 SV=1	1.20e-46	162
+AC1KRY_001765	sp|Q9HGP1|YNK4_SCHPO	sp|Q9HGP1|YNK4_SCHPO Uncharacterized protein C29B5.04c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC29B5.04c PE=4 SV=1	9.94e-40	159
+AC1KRY_001789	sp|O60106|YOXA_SCHPO	sp|O60106|YOXA_SCHPO LON peptidase N-terminal domain and RING finger protein C14F5.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC14F5.10c PE=4 SV=1	1.06e-41	158
+AC1KRY_001796	sp|O74396|VPS91_SCHPO	sp|O74396|VPS91_SCHPO Vacuolar protein sorting-associated protein vps901 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vps901 PE=1 SV=4	1.27e-14	80.1
+AC1KRY_001797	sp|O13934|ATG15_SCHPO	sp|O13934|ATG15_SCHPO Putative lipase atg15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=atg15 PE=3 SV=1	3.56e-139	409
+AC1KRY_001799	sp|Q1DZE0|ATG15_COCIM	sp|Q1DZE0|ATG15_COCIM Putative lipase ATG15 OS=Coccidioides immitis (strain RS) OX=246410 GN=ATG15 PE=3 SV=2	1.56e-131	397
+AC1KRY_001811	sp|Q9HFS7|UBP4_KLULA	sp|Q9HFS7|UBP4_KLULA Ubiquitin carboxyl-terminal hydrolase 4 OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=DOA4 PE=3 SV=1	1.62e-34	144
+AC1KRY_001823	sp|Q2KHZ2|HBS1L_BOVIN	sp|Q2KHZ2|HBS1L_BOVIN HBS1-like protein OS=Bos taurus OX=9913 GN=HBS1L PE=2 SV=1	2.15e-134	417
+AC1KRY_001829	sp|Q9HGI7|ERF3_CANMA	sp|Q9HGI7|ERF3_CANMA Eukaryotic peptide chain release factor GTP-binding subunit OS=Candida maltosa OX=5479 GN=SUP35 PE=3 SV=2	1.19e-229	652
+AC1KRY_001910	sp|Q1E9T9|DBP7_COCIM	sp|Q1E9T9|DBP7_COCIM ATP-dependent RNA helicase DBP7 OS=Coccidioides immitis (strain RS) OX=246410 GN=DBP7 PE=3 SV=1	1.22e-164	494
+AC1KRY_001931	sp|Q2KI07|ARL8B_BOVIN	sp|Q2KI07|ARL8B_BOVIN ADP-ribosylation factor-like protein 8B OS=Bos taurus OX=9913 GN=ARL8B PE=2 SV=1	1.91e-62	194
+AC1KRY_001932	sp|P40986|CDC1_YEAST	sp|P40986|CDC1_YEAST Cell division control protein 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=CDC1 PE=1 SV=2	6.06e-65	218
+AC1KRY_001963	sp|F4JCQ3|DG783_ARATH	sp|F4JCQ3|DG783_ARATH Putative DNA glycosylase At3g47830 OS=Arabidopsis thaliana OX=3702 GN=At3g47830 PE=3 SV=1	7.83e-49	168
+AC1KRY_001968	sp|O35643|AP1B1_MOUSE	sp|O35643|AP1B1_MOUSE AP-1 complex subunit beta-1 OS=Mus musculus OX=10090 GN=Ap1b1 PE=1 SV=2	6.13e-197	581
+AC1KRY_001981	sp|Q8WZK0|US107_SCHPO	sp|Q8WZK0|US107_SCHPO U1 snRNP-associated protein usp107 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=usp107 PE=1 SV=1	4.99e-38	152
+AC1KRY_002018	sp|P50531|RAD17_SCHPO	sp|P50531|RAD17_SCHPO Checkpoint protein rad17 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rad17 PE=1 SV=1	9.96e-38	150
+AC1KRY_002022	sp|B0K2C2|BOLMP_THEPX	sp|B0K2C2|BOLMP_THEPX 1,2-beta-oligomannan phosphorylase OS=Thermoanaerobacter sp. (strain X514) OX=399726 GN=Teth514_1788 PE=1 SV=1	1.51e-38	142
+AC1KRY_002050	sp|P27614|CBPS_YEAST	sp|P27614|CBPS_YEAST Carboxypeptidase S OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=CPS1 PE=1 SV=2	9.26e-124	379
+AC1KRY_002052	sp|P37967|PNBA_BACSU	sp|P37967|PNBA_BACSU Para-nitrobenzyl esterase OS=Bacillus subtilis (strain 168) OX=224308 GN=pnbA PE=1 SV=2	5.00e-46	171
+AC1KRY_002087	sp|Q10169|DSK2_SCHPO	sp|Q10169|DSK2_SCHPO Deubiquitination-protection protein dph1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=dph1 PE=4 SV=1	3.66e-46	164
+AC1KRY_002130	sp|Q6C725|AMN1_YARLI	sp|Q6C725|AMN1_YARLI Antagonist of mitotic exit network protein 1 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=AMN1 PE=3 SV=1	4.22e-101	320
+AC1KRY_002133	sp|O60097|SPT8_SCHPO	sp|O60097|SPT8_SCHPO SAGA complex subunit Spt8 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=spt8 PE=1 SV=1	3.61e-104	323
+AC1KRY_002142	sp|Q54KE6|MCCA_DICDI	sp|Q54KE6|MCCA_DICDI Methylcrotonoyl-CoA carboxylase subunit alpha, mitochondrial OS=Dictyostelium discoideum OX=44689 GN=mccA PE=3 SV=1	1.43e-183	540
+AC1KRY_002145	sp|Q9Y7U5|RGF3_SCHPO	sp|Q9Y7U5|RGF3_SCHPO Rho1 guanine nucleotide exchange factor 3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rgf3 PE=1 SV=1	1.67e-93	333
+AC1KRY_000231	sp|O94445|SUV3_SCHPO	sp|O94445|SUV3_SCHPO ATP-dependent RNA helicase suv3, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=suv3 PE=3 SV=1	2.24e-115	360
+AC1KRY_000234	sp|O04249|STP7_ARATH	sp|O04249|STP7_ARATH Sugar transport protein 7 OS=Arabidopsis thaliana OX=3702 GN=STP7 PE=1 SV=1	1.00e-42	161
+AC1KRY_000242	sp|B0XZV0|SPHH_ASPFC	sp|B0XZV0|SPHH_ASPFC Cytochrome P450 monooxygenase sphH OS=Aspergillus fumigatus (strain CBS 144.89 / FGSC A1163 / CEA10) OX=451804 GN=sphH PE=1 SV=1	5.68e-93	295
+AC1KRY_000243	sp|A0A0E3D8M4|PENN_PENCR	sp|A0A0E3D8M4|PENN_PENCR Monooxygenase PC-14 OS=Penicillium crustosum OX=36656 GN=PC-14 PE=3 SV=1	3.33e-119	369
+AC1KRY_000271	sp|P53863|JJJ1_YEAST	sp|P53863|JJJ1_YEAST J protein JJJ1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=JJJ1 PE=1 SV=1	1.84e-71	241
+AC1KRY_000302	sp|P36172|VBA5_YEAST	sp|P36172|VBA5_YEAST Vacuolar basic amino acid transporter 5 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=VBA5 PE=3 SV=1	3.33e-82	271
+AC1KRY_000307	sp|J9VVE7|HAMP_CRYN9	sp|J9VVE7|HAMP_CRYN9 Putative cell signaling protein HAM1 OS=Cryptococcus neoformans (strain H99 / ATCC 208821 / CBS 10515 / FGSC 9487) OX=235443 GN=HAM1 PE=1 SV=1	7.53e-31	133
+AC1KRY_000310	sp|Q70M86|STRN_SORMK	sp|Q70M86|STRN_SORMK Striatin Pro11 OS=Sordaria macrospora (strain ATCC MYA-333 / DSM 997 / K(L3346) / K-hell) OX=771870 GN=pro11 PE=3 SV=1	3.77e-37	149
+AC1KRY_000329	sp|A1CL70|NOP58_ASPCL	sp|A1CL70|NOP58_ASPCL Nucleolar protein 58 OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=nop58 PE=3 SV=1	5.64e-162	474
+AC1KRY_000345	sp|P75791|YBIU_ECOLI	sp|P75791|YBIU_ECOLI Uncharacterized protein YbiU OS=Escherichia coli (strain K12) OX=83333 GN=ybiU PE=1 SV=1	3.36e-38	147
+AC1KRY_000348	sp|A0A8J9S3B0|PHOF1_DIALO	sp|A0A8J9S3B0|PHOF1_DIALO Short-chain dehydrogenase/reductase PhomF OS=Diaporthe leptostromiformis OX=291059 GN=phomF PE=1 SV=1	1.39e-42	149
+AC1KRY_000353	sp|O14213|EPR1_SCHPO	sp|O14213|EPR1_SCHPO ER-phagy receptor 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=epr1 PE=1 SV=1	8.60e-11	67.8
+AC1KRY_000362	sp|Q9UT59|YKJ7_SCHPO	sp|Q9UT59|YKJ7_SCHPO Putative uncharacterized oxidoreductase C513.07 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC513.07 PE=3 SV=1	1.45e-59	197
+AC1KRY_000368	sp|Q8SS91|FEN1_ENCCU	sp|Q8SS91|FEN1_ENCCU Flap endonuclease 1 OS=Encephalitozoon cuniculi (strain GB-M1) OX=284813 GN=FEN1 PE=3 SV=1	1.34e-10	66.6
+AC1KRY_000413	sp|D7PHZ3|VRTB_PENAE	sp|D7PHZ3|VRTB_PENAE Malonamoyl-CoA synthetase vrtB OS=Penicillium aethiopicum OX=36650 GN=vrtB PE=1 SV=1	4.10e-184	557
+AC1KRY_000414	sp|O74545|YCV6_SCHPO	sp|O74545|YCV6_SCHPO Putative hydrolase C777.06c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC777.06c PE=4 SV=1	1.80e-66	228
+AC1KRY_002212	sp|Q9USP9|YHP4_SCHPO	sp|Q9USP9|YHP4_SCHPO Uncharacterized RNA-binding protein C902.04 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC902.04 PE=1 SV=1	1.77e-31	132
+AC1KRY_002218	sp|Q5B8L0|PRTT_EMENI	sp|Q5B8L0|PRTT_EMENI Transcriptional activator of proteases prtT OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=prtT PE=3 SV=1	8.67e-36	147
+AC1KRY_002224	sp|O74933|UAP1_CANAX	sp|O74933|UAP1_CANAX UDP-N-acetylglucosamine pyrophosphorylase OS=Candida albicans OX=5476 GN=UAP1 PE=1 SV=1	7.49e-143	423
+AC1KRY_002236	sp|P47048|YJE9_YEAST	sp|P47048|YJE9_YEAST Uncharacterized protein YJL049W OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YJL049W PE=1 SV=1	4.96e-15	81.6
+AC1KRY_002249	sp|P38702|LEU5_YEAST	sp|P38702|LEU5_YEAST Mitochondrial coenzyme A transporter LEU5 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=LEU5 PE=1 SV=1	2.18e-68	233
+AC1KRY_002276	sp|O59712|PHOLT_SCHPO	sp|O59712|PHOLT_SCHPO Inorganic phosphate transporter plt1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=plt1 PE=3 SV=1	1.19e-95	325
+AC1KRY_002277	sp|O60058|AFG2_SCHPO	sp|O60058|AFG2_SCHPO ATPase family gene 2 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=afg2 PE=3 SV=1	4.66e-214	622
+AC1KRY_002286	sp|O13719|LAF1_SCHPO	sp|O13719|LAF1_SCHPO SWIRM domain-containing protein laf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=laf1 PE=1 SV=1	8.69e-39	144
+AC1KRY_002287	sp|O13718|VTC2_SCHPO	sp|O13718|VTC2_SCHPO Vacuolar transporter chaperone complex subunit 2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vtc2 PE=1 SV=1	2.89e-134	414
+AC1KRY_002306	sp|O94570|AATR2_SCHPO	sp|O94570|AATR2_SCHPO Aromatic amino acid aminotransferase C1773.13 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1773.13 PE=3 SV=1	2.42e-67	225
+AC1KRY_002312	sp|P32895|KPR1_YEAST	sp|P32895|KPR1_YEAST Ribose-phosphate pyrophosphokinase 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PRS1 PE=1 SV=1	1.54e-124	370
+AC1KRY_002320	sp|P51688|SPHM_HUMAN	sp|P51688|SPHM_HUMAN N-sulphoglucosamine sulphohydrolase OS=Homo sapiens OX=9606 GN=SGSH PE=1 SV=1	8.63e-101	313
+AC1KRY_002327	sp|A6RPB6|MSH3_BOTFB	sp|A6RPB6|MSH3_BOTFB DNA mismatch repair protein msh3 OS=Botryotinia fuckeliana (strain B05.10) OX=332648 GN=msh3 PE=3 SV=3	5.51e-126	400
+AC1KRY_002346	sp|Q1K9C4|YFK7_SCHPO	sp|Q1K9C4|YFK7_SCHPO Probable E3 ubiquitin protein ligase C167.07c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC167.07c PE=2 SV=1	3.06e-133	412
+AC1KRY_002349	sp|G1X7C7|PEX1_ARTOA	sp|G1X7C7|PEX1_ARTOA Peroxisomal ATPase PEX1 OS=Arthrobotrys oligospora (strain ATCC 24927 / CBS 115.81 / DSM 1491) OX=756982 GN=PEX1 PE=3 SV=1	2.11e-198	603
+AC1KRY_002350	sp|O75001|MCM7_SCHPO	sp|O75001|MCM7_SCHPO DNA replication licensing factor mcm7 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mcm7 PE=1 SV=1	2.39e-281	790
+AC1KRY_002367	sp|O15457|MSH4_HUMAN	sp|O15457|MSH4_HUMAN MutS protein homolog 4 OS=Homo sapiens OX=9606 GN=MSH4 PE=1 SV=2	3.33e-153	473
+AC1KRY_002369	sp|Q9UUG5|MLR1_SCHPO	sp|Q9UUG5|MLR1_SCHPO Myosin regulatory light chain 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rlc1 PE=1 SV=1	2.19e-40	137
+AC1KRY_002390	sp|Q0UXJ7|EIF3M_PHANO	sp|Q0UXJ7|EIF3M_PHANO Eukaryotic translation initiation factor 3 subunit M OS=Phaeosphaeria nodorum (strain SN15 / ATCC MYA-4574 / FGSC 10173) OX=321614 GN=SNOG_03517 PE=3 SV=2	4.59e-77	248
+AC1KRY_002401	sp|Q9P7C0|YKU5_SCHPO	sp|Q9P7C0|YKU5_SCHPO Uncharacterized WD repeat-containing protein C2E1P5.05 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2E1P5.05 PE=4 SV=1	5.11e-116	354
+AC1KRY_002404	sp|Q10159|MYH1_SCHPO	sp|Q10159|MYH1_SCHPO Adenine DNA glycosylase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=myh1 PE=1 SV=1	1.60e-71	235
+AC1KRY_002411	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	2.81e-121	372
+AC1KRY_002435	sp|Q9USS7|YNB3_SCHPO	sp|Q9USS7|YNB3_SCHPO Uncharacterized protein C4.03c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC4.03c PE=2 SV=1	4.73e-216	637
+AC1KRY_002452	sp|Q0UYV9|CMR1_PHANO	sp|Q0UYV9|CMR1_PHANO DNA damage-binding protein CMR1 OS=Phaeosphaeria nodorum (strain SN15 / ATCC MYA-4574 / FGSC 10173) OX=321614 GN=SNOG_03055 PE=3 SV=1	9.28e-125	376
+AC1KRY_002460	sp|P39955|SAP1_YEAST	sp|P39955|SAP1_YEAST Protein SAP1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SAP1 PE=1 SV=1	1.42e-133	418
+AC1KRY_002465	sp|Q8L6Z7|EXO1_ARATH	sp|Q8L6Z7|EXO1_ARATH Exonuclease 1 OS=Arabidopsis thaliana OX=3702 GN=EXO1 PE=2 SV=2	2.71e-89	293
+AC1KRY_002476	sp|Q4P9T3|CCR4_MYCMD	sp|Q4P9T3|CCR4_MYCMD CCR4-Not complex 3'-5'-exoribonuclease subunit Ccr4 OS=Mycosarcoma maydis OX=5270 GN=CCR4 PE=3 SV=1	4.61e-156	464
+AC1KRY_002482	sp|Q92609|TBCD5_HUMAN	sp|Q92609|TBCD5_HUMAN TBC1 domain family member 5 OS=Homo sapiens OX=9606 GN=TBC1D5 PE=1 SV=1	4.14e-65	229
+AC1KRY_002536	sp|B8NL22|KOJT_ASPFN	sp|B8NL22|KOJT_ASPFN MFS-type transporter kojT OS=Aspergillus flavus (strain ATCC 200026 / FGSC A1120 / IAM 13836 / NRRL 3357 / JCM 12722 / SRRC 167) OX=332952 GN=kojT PE=1 SV=1	1.27e-139	417
+AC1KRY_002537	sp|W6Q4S4|ORF11_PENRF	sp|W6Q4S4|ORF11_PENRF Cytochrome P450 monooxygenase ORF11 OS=Penicillium roqueforti (strain FM164) OX=1365484 GN=ORF11 PE=3 SV=1	8.04e-52	184
+AC1KRY_002538	sp|A1C7P9|XLNR_ASPCL	sp|A1C7P9|XLNR_ASPCL Xylanolytic transcriptional activator xlnR OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=xlnR PE=3 SV=2	1.26e-96	315
+AC1KRY_002582	sp|Q9FF61|SM3L1_ARATH	sp|Q9FF61|SM3L1_ARATH Putative SWI/SNF-related matrix-associated actin-dependent regulator of chromatin subfamily A member 3-like 1 OS=Arabidopsis thaliana OX=3702 GN=At5g05130 PE=2 SV=1	9.30e-128	408
+AC1KRY_002589	sp|Q10325|MST2_SCHPO	sp|Q10325|MST2_SCHPO Histone acetyltransferase mst2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mst2 PE=1 SV=1	7.25e-101	316
+AC1KRY_002590	sp|B2CQK0|VOSA_AJECA	sp|B2CQK0|VOSA_AJECA Spore development regulator RYP2 OS=Ajellomyces capsulatus OX=5037 GN=RYP2 PE=1 SV=1	1.69e-48	170
+AC1KRY_002616	sp|Q9P6M8|PABPX_SCHPO	sp|Q9P6M8|PABPX_SCHPO mRNA export factor crp79 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=crp79 PE=2 SV=2	4.15e-18	92.8
+AC1KRY_002619	sp|P47033|PRY3_YEAST	sp|P47033|PRY3_YEAST Cell wall protein PRY3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PRY3 PE=1 SV=1	1.02e-25	114
+AC1KRY_002640	sp|F2Z461|HERC6_MOUSE	sp|F2Z461|HERC6_MOUSE E3 ISG15--protein ligase Herc6 OS=Mus musculus OX=10090 GN=Herc6 PE=2 SV=1	2.44e-07	57.4
+AC1KRY_002647	sp|Q9P371|SST2_SCHPO	sp|Q9P371|SST2_SCHPO AMSH-like protease sst2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sst2 PE=1 SV=1	8.37e-75	243
+AC1KRY_002661	sp|F9XMX6|FER4_ZYMTI	sp|F9XMX6|FER4_ZYMTI Enoyl-CoA isomerase/hydratase MYCGRDRAFT_76805 OS=Zymoseptoria tritici (strain CBS 115943 / IPO323) OX=336722 GN=MYCGRDRAFT_76805 PE=3 SV=1	5.55e-58	206
+AC1KRY_002668	sp|O14233|RNA14_SCHPO	sp|O14233|RNA14_SCHPO mRNA 3'-end-processing protein rna14 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rna14 PE=3 SV=1	1.81e-156	476
+AC1KRY_002674	sp|Q9FM04|GDL88_ARATH	sp|Q9FM04|GDL88_ARATH GDSL esterase/lipase At5g62930 OS=Arabidopsis thaliana OX=3702 GN=At5g62930 PE=2 SV=3	1.41e-35	130
+AC1KRY_002681	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	9.81e-107	334
+AC1KRY_002723	sp|A0A1B7YCL6|DPCHH_COLHI	sp|A0A1B7YCL6|DPCHH_COLHI Short chain dehydrogenase/reductase dpchH OS=Colletotrichum higginsianum (strain IMI 349063) OX=759273 GN=dpchH PE=1 SV=1	1.07e-37	141
+AC1KRY_002729	sp|A1CQB4|EIF3H_ASPCL	sp|A1CQB4|EIF3H_ASPCL Eukaryotic translation initiation factor 3 subunit H OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=ACLA_025520 PE=3 SV=1	3.00e-91	279
+AC1KRY_002731	sp|O42904|PRP31_SCHPO	sp|O42904|PRP31_SCHPO Pre-mRNA-processing factor 31 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=prp31 PE=3 SV=1	8.69e-100	312
+AC1KRY_002740	sp|Q0CJ61|ATB_ASPTN	sp|Q0CJ61|ATB_ASPTN Efflux pump atB OS=Aspergillus terreus (strain NIH 2624 / FGSC A1156) OX=341663 GN=atB PE=3 SV=1	2.37e-121	367
+AC1KRY_002791	sp|P32839|BCS1_YEAST	sp|P32839|BCS1_YEAST Mitochondrial chaperone BCS1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=BCS1 PE=1 SV=2	5.73e-167	480
+AC1KRY_002796	sp|Q9UNA4|POLI_HUMAN	sp|Q9UNA4|POLI_HUMAN DNA polymerase iota OS=Homo sapiens OX=9606 GN=POLI PE=1 SV=3	4.80e-40	157
+AC1KRY_002838	sp|O14132|PIT1_SCHPO	sp|O14132|PIT1_SCHPO Sporulation protein kinase pit1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pit1 PE=1 SV=1	2.95e-79	259
+AC1KRY_002861	sp|Q9USY2|SART3_SCHPO	sp|Q9USY2|SART3_SCHPO U4/U6 snRNA-associated-splicing factor prp24 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=prp24 PE=3 SV=1	3.55e-120	397
+AC1KRY_002871	sp|A2R994|RRF2M_ASPNC	sp|A2R994|RRF2M_ASPNC Ribosome-releasing factor 2, mitochondrial OS=Aspergillus niger (strain ATCC MYA-4892 / CBS 513.88 / FGSC A1513) OX=425011 GN=mef2 PE=3 SV=1	6.17e-177	530
+AC1KRY_002875	sp|P40340|ATAD2_YEAST	sp|P40340|ATAD2_YEAST ATPase histone chaperone YTA7 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YTA7 PE=1 SV=2	3.80e-225	692
+AC1KRY_002879	sp|B5WWZ8|FAO1_LOTJA	sp|B5WWZ8|FAO1_LOTJA Long-chain-alcohol oxidase FAO1 OS=Lotus japonicus OX=34305 GN=FAO1 PE=1 SV=1	2.71e-90	300
+AC1KRY_002883	sp|O74957|AGO1_SCHPO	sp|O74957|AGO1_SCHPO Protein argonaute OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ago1 PE=1 SV=1	1.09e-141	446
+AC1KRY_002889	sp|O59682|SPTC1_SCHPO	sp|O59682|SPTC1_SCHPO Serine palmitoyltransferase 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=lcb1 PE=3 SV=1	5.17e-138	441
+AC1KRY_000443	sp|P41390|PUR1_SCHPO	sp|P41390|PUR1_SCHPO Amidophosphoribosyltransferase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ade4 PE=1 SV=1	1.13e-220	622
+AC1KRY_000459	sp|O43032|SRPR_SCHPO	sp|O43032|SRPR_SCHPO Signal recognition particle receptor subunit alpha homolog OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=srp101 PE=3 SV=1	8.38e-110	343
+AC1KRY_000467	sp|Q9HDY4|YK16_SCHPO	sp|Q9HDY4|YK16_SCHPO Putative ATP-dependent RNA helicase PB1A10.06c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAPB1A10.06c PE=3 SV=1	5.41e-143	455
+AC1KRY_000478	sp|Q1MTR1|IRC3_SCHPO	sp|Q1MTR1|IRC3_SCHPO Putative mitochondrial ATP-dependent helicase irc3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=irc3 PE=3 SV=2	5.24e-123	380
+AC1KRY_000512	sp|C4QX80|PSD1_KOMPG	sp|C4QX80|PSD1_KOMPG Phosphatidylserine decarboxylase proenzyme 1, mitochondrial OS=Komagataella phaffii (strain GS115 / ATCC 20864) OX=644223 GN=PSD1 PE=3 SV=1	2.60e-122	372
+AC1KRY_000521	sp|Q10061|LHS1_SCHPO	sp|Q10061|LHS1_SCHPO Heat shock protein 70 homolog lhs1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC1F5.06 PE=3 SV=1	3.36e-104	346
+AC1KRY_000529	sp|O13728|AIN1_SCHPO	sp|O13728|AIN1_SCHPO Alpha-actinin-like protein 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ain1 PE=1 SV=1	3.81e-154	460
+AC1KRY_000533	sp|Q99NG0|ARIP4_MOUSE	sp|Q99NG0|ARIP4_MOUSE Helicase ARIP4 OS=Mus musculus OX=10090 GN=Rad54l2 PE=1 SV=2	4.95e-75	275
+AC1KRY_000558	sp|P14682|UBC3_YEAST	sp|P14682|UBC3_YEAST Ubiquitin-conjugating enzyme E2-34 kDa OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=CDC34 PE=1 SV=1	3.40e-57	186
+AC1KRY_000572	sp|Q9UUB6|UBLH2_SCHPO	sp|Q9UUB6|UBLH2_SCHPO Ubiquitin carboxyl-terminal hydrolase 2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=uch2 PE=1 SV=1	2.17e-68	224
+AC1KRY_000577	sp|O05218|YWRD_BACSU	sp|O05218|YWRD_BACSU Glutathione hydrolase-like YwrD proenzyme OS=Bacillus subtilis (strain 168) OX=224308 GN=ywrD PE=1 SV=1	7.39e-88	285
+AC1KRY_000589	sp|C8V7U7|SDEA_EMENI	sp|C8V7U7|SDEA_EMENI Delta 8-(E)-sphingolipid desaturase OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=sdeA PE=3 SV=1	3.09e-170	492
+AC1KRY_000591	sp|O74478|PGM3_SCHPO	sp|O74478|PGM3_SCHPO Probable phosphoribomutase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC1840.05c PE=1 SV=1	3.14e-141	424
+AC1KRY_002919	sp|Q9Y7P3|TGL3_SCHPO	sp|Q9Y7P3|TGL3_SCHPO Triacylglycerol lipase ptl1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ptl1 PE=3 SV=2	2.07e-103	334
+AC1KRY_002924	sp|Q6MG62|MSH5_RAT	sp|Q6MG62|MSH5_RAT MutS protein homolog 5 OS=Rattus norvegicus OX=10116 GN=Msh5 PE=2 SV=1	1.17e-121	389
+AC1KRY_002928	sp|Q4WSZ0|KDSR_ASPFU	sp|Q4WSZ0|KDSR_ASPFU 3-ketodihydrosphingosine reductase ksrA OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=ksrA PE=1 SV=2	8.38e-59	202
+AC1KRY_002936	sp|O74400|YOCE_SCHPO	sp|O74400|YOCE_SCHPO Uncharacterized RNA-binding protein C4F6.14 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC4F6.14 PE=1 SV=1	7.87e-99	318
+AC1KRY_002939	sp|A7F2S3|SPB4_SCLS1	sp|A7F2S3|SPB4_SCLS1 ATP-dependent rRNA helicase spb4 OS=Sclerotinia sclerotiorum (strain ATCC 18683 / 1980 / Ss-1) OX=665079 GN=spb4 PE=3 SV=1	8.79e-118	364
+AC1KRY_002989	sp|A7ETB3|MDV1_SCLS1	sp|A7ETB3|MDV1_SCLS1 Mitochondrial division protein 1 OS=Sclerotinia sclerotiorum (strain ATCC 18683 / 1980 / Ss-1) OX=665079 GN=mdv1 PE=3 SV=1	3.40e-119	368
+AC1KRY_002993	sp|O95239|KIF4A_HUMAN	sp|O95239|KIF4A_HUMAN Chromosome-associated kinesin KIF4A OS=Homo sapiens OX=9606 GN=KIF4A PE=1 SV=3	4.63e-61	229
+AC1KRY_002997	sp|O93884|DAS_CANBO	sp|O93884|DAS_CANBO Dihydroxyacetone synthase OS=Candida boidinii OX=5477 GN=DAS1 PE=1 SV=3	2.17e-171	511
+AC1KRY_003001	sp|P13798|ACPH_HUMAN	sp|P13798|ACPH_HUMAN Acylamino-acid-releasing enzyme OS=Homo sapiens OX=9606 GN=APEH PE=1 SV=4	1.08e-21	102
+AC1KRY_003002	sp|O13855|RQT4_SCHPO	sp|O13855|RQT4_SCHPO RQC trigger complex subunit RQT4 homolog OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC1A6.01c PE=1 SV=3	1.59e-36	140
+AC1KRY_003004	sp|O13710|SMC5_SCHPO	sp|O13710|SMC5_SCHPO Structural maintenance of chromosomes protein 5 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=smc5 PE=1 SV=3	3.24e-103	354
+AC1KRY_003038	sp|D4AZ24|ENG1_ARTBC	sp|D4AZ24|ENG1_ARTBC Glucan endo-1,3-beta-D-glucosidase ARB_01444 OS=Arthroderma benhamiae (strain ATCC MYA-4681 / CBS 112371) OX=663331 GN=ARB_01444 PE=1 SV=1	2.47e-74	262
+AC1KRY_003046	sp|P93736|SYVM1_ARATH	sp|P93736|SYVM1_ARATH Valine--tRNA ligase, mitochondrial 1 OS=Arabidopsis thaliana OX=3702 GN=TWN2 PE=1 SV=2	5.32e-200	600
+AC1KRY_003049	sp|Q03319|PRH1_SCHPO	sp|Q03319|PRH1_SCHPO Probable ATP-dependent RNA helicase prh1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=prh1 PE=3 SV=2	1.59e-224	649
+AC1KRY_003050	sp|Q9H0K1|SIK2_HUMAN	sp|Q9H0K1|SIK2_HUMAN Serine/threonine-protein kinase SIK2 OS=Homo sapiens OX=9606 GN=SIK2 PE=1 SV=1	9.88e-21	99.8
+AC1KRY_003053	sp|G0SGC7|MGM1_CHATD	sp|G0SGC7|MGM1_CHATD Dynamin-like GTPase MGM1, mitochondrial OS=Chaetomium thermophilum (strain DSM 1495 / CBS 144.50 / IMI 039719) OX=759272 GN=MGM1 PE=1 SV=1	8.13e-229	673
+AC1KRY_003054	sp|O74945|RIA1_SCHPO	sp|O74945|RIA1_SCHPO Ribosome assembly protein 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ria1 PE=3 SV=1	1.56e-267	776
+AC1KRY_003063	sp|O43028|VAC8_SCHPO	sp|O43028|VAC8_SCHPO Vacuolar protein 8 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vac8 PE=1 SV=4	3.54e-59	216
+AC1KRY_003069	sp|O43027|RGA6_SCHPO	sp|O43027|RGA6_SCHPO Probable Rho-GTPase-activating protein 6 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rga6 PE=1 SV=1	8.72e-20	97.4
+AC1KRY_003073	sp|Q9Y385|UB2J1_HUMAN	sp|Q9Y385|UB2J1_HUMAN Ubiquitin-conjugating enzyme E2 J1 OS=Homo sapiens OX=9606 GN=UBE2J1 PE=1 SV=2	1.05e-48	166
+AC1KRY_003080	sp|P23955|MPPA_NEUCR	sp|P23955|MPPA_NEUCR Mitochondrial-processing peptidase subunit alpha OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=mpp PE=1 SV=2	4.87e-168	497
+AC1KRY_003099	sp|Q5BHE2|ATM_EMENI	sp|Q5BHE2|ATM_EMENI Serine/threonine-protein kinase tel1 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=tel1 PE=3 SV=1	6.24e-125	407
+AC1KRY_003106	sp|Q4WVF4|SYF1_ASPFU	sp|Q4WVF4|SYF1_ASPFU Pre-mRNA-splicing factor syf1 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=syf1 PE=3 SV=1	2.19e-231	671
+AC1KRY_003107	sp|A0A089FNE5|PRLL_FUNXX	sp|A0A089FNE5|PRLL_FUNXX MFS transporter prlL OS=Fungal sp. (strain NRRL 50135) OX=1547289 GN=prlL PE=3 SV=1	1.79e-54	192
+AC1KRY_003109	sp|Q9P7R3|MTR3_SCHPO	sp|Q9P7R3|MTR3_SCHPO Exosome complex component mtr3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mtr3 PE=3 SV=1	5.77e-46	157
+AC1KRY_003112	sp|A2RAF6|LONP2_ASPNC	sp|A2RAF6|LONP2_ASPNC Lon protease homolog 2, peroxisomal OS=Aspergillus niger (strain ATCC MYA-4892 / CBS 513.88 / FGSC A1513) OX=425011 GN=An18g02980 PE=3 SV=1	1.65e-273	785
+AC1KRY_003122	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	1.91e-216	614
+AC1KRY_003123	sp|Q8TFG1|GHT7_SCHPO	sp|Q8TFG1|GHT7_SCHPO Probable high-affinity hexose transporter ght7 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ght7 PE=3 SV=1	1.23e-34	138
+AC1KRY_003130	sp|O94590|SEC1_SCHPO	sp|O94590|SEC1_SCHPO Protein transport protein sec1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sec1 PE=3 SV=1	2.03e-130	404
+AC1KRY_003147	sp|P54861|DNM1_YEAST	sp|P54861|DNM1_YEAST Dynamin-related protein DNM1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=DNM1 PE=1 SV=1	2.45e-220	638
+AC1KRY_003157	sp|B8M4Y9|GET3_TALSN	sp|B8M4Y9|GET3_TALSN ATPase get3 OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=get3 PE=3 SV=1	5.61e-162	473
+AC1KRY_003166	sp|P46198|IF2M_BOVIN	sp|P46198|IF2M_BOVIN Translation initiation factor IF-2, mitochondrial OS=Bos taurus OX=9913 GN=MTIF2 PE=1 SV=1	1.34e-138	422
+AC1KRY_003209	sp|Q503W7|ATD1B_DANRE	sp|Q503W7|ATD1B_DANRE Outer mitochondrial transmembrane helix translocase OS=Danio rerio OX=7955 GN=atad1b PE=2 SV=2	8.40e-47	174
+AC1KRY_003227	sp|O13956|TSR1_SCHPO	sp|O13956|TSR1_SCHPO Ribosome biogenesis protein tsr1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=tsr1 PE=3 SV=1	1.05e-186	555
+AC1KRY_003230	sp|O13955|VAM6_SCHPO	sp|O13955|VAM6_SCHPO Vacuolar morphogenesis protein 6 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vam6 PE=3 SV=1	2.49e-93	318
+AC1KRY_003279	sp|Q6C953|IPI3_YARLI	sp|Q6C953|IPI3_YARLI Pre-rRNA-processing protein IPI3 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=IPI3 PE=3 SV=1	7.66e-53	189
+AC1KRY_003291	sp|A0A1L9UQW4|BFOC_ASPBC	sp|A0A1L9UQW4|BFOC_ASPBC Efflux pump bfoC OS=Aspergillus brasiliensis (strain CBS 101740 / IMI 381727 / IBT 21946) OX=767769 GN=bfoC PE=3 SV=1	2.35e-60	206
+AC1KRY_003301	sp|P9WG84|Y1877_MYCTO	sp|P9WG84|Y1877_MYCTO Uncharacterized MFS-type transporter MT1926 OS=Mycobacterium tuberculosis (strain CDC 1551 / Oshkosh) OX=83331 GN=MT1926 PE=3 SV=1	1.27e-40	159
+AC1KRY_003311	sp|A4XF23|MAND_NOVAD	sp|A4XF23|MAND_NOVAD D-mannonate dehydratase OS=Novosphingobium aromaticivorans (strain ATCC 700278 / DSM 12444 / CCUG 56034 / CIP 105152 / NBRC 16084 / F199) OX=279238 GN=manD PE=1 SV=1	4.52e-196	550
+AC1KRY_003315	sp|Q8GXR2|PLT6_ARATH	sp|Q8GXR2|PLT6_ARATH Probable polyol transporter 6 OS=Arabidopsis thaliana OX=3702 GN=PLT6 PE=2 SV=2	1.42e-51	189
+AC1KRY_003319	sp|A0A0A2IBP6|CNSO_PENEN	sp|A0A0A2IBP6|CNSO_PENEN MFS-type transporter cnsO OS=Penicillium expansum OX=27334 GN=cnsO PE=2 SV=1	1.27e-59	208
+AC1KRY_003321	sp|A0A2H0ZJA8|PTRA_CANAR	sp|A0A2H0ZJA8|PTRA_CANAR Peptide transporter PTR_A OS=Candidozyma auris OX=498019 GN=PTR_A PE=3 SV=1	2.12e-176	515
+AC1KRY_003322	sp|A0A1L9WUM2|ANEH_ASPA1	sp|A0A1L9WUM2|ANEH_ASPA1 Proline iminopeptidase aneH OS=Aspergillus aculeatus (strain ATCC 16872 / CBS 172.66 / WB 5094) OX=690307 GN=aneH PE=3 SV=1	2.30e-96	300
+AC1KRY_003375	sp|A1D8E4|CHL1_NEOFI	sp|A1D8E4|CHL1_NEOFI ATP-dependent DNA helicase chl1 OS=Neosartorya fischeri (strain ATCC 1020 / DSM 3700 / CBS 544.65 / FGSC A1164 / JCM 1740 / NRRL 181 / WB 181) OX=331117 GN=chl1 PE=3 SV=1	5.74e-186	555
+AC1KRY_000612	sp|P41389|MCM5_SCHPO	sp|P41389|MCM5_SCHPO DNA replication licensing factor mcm5 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mcm5 PE=1 SV=3	4.36e-312	871
+AC1KRY_000634	sp|O74927|MTHR2_SCHPO	sp|O74927|MTHR2_SCHPO Methylenetetrahydrofolate reductase 2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=met11 PE=2 SV=2	5.41e-179	523
+AC1KRY_000636	sp|Q10449|MU157_SCHPO	sp|Q10449|MU157_SCHPO Meiotically up-regulated gene 157 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mug157 PE=1 SV=1	7.92e-136	402
+AC1KRY_000640	sp|O14306|YE8A_SCHPO	sp|O14306|YE8A_SCHPO Probable inositol polyphosphate 5-phosphatase C9G1.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC9G1.10c PE=1 SV=2	6.77e-88	297
+AC1KRY_000646	sp|O13878|UTP17_SCHPO	sp|O13878|UTP17_SCHPO U3 small nucleolar RNA-associated protein 17 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp17 PE=3 SV=3	1.06e-43	175
+AC1KRY_000659	sp|Q9URX1|YLX5_SCHPO	sp|Q9URX1|YLX5_SCHPO UNC93-like protein C922.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC922.05c PE=3 SV=1	4.26e-136	418
+AC1KRY_000661	sp|O13969|SYTM_SCHPO	sp|O13969|SYTM_SCHPO Probable threonine--tRNA ligase, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC24C9.09 PE=3 SV=2	1.62e-139	413
+AC1KRY_000664	sp|Q9I3H5|BVMO_PSEAE	sp|Q9I3H5|BVMO_PSEAE Baeyer-Villiger monooxygenase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=PA1538 PE=1 SV=1	1.00e-67	228
+AC1KRY_000667	sp|Q5XLY0|ANR_GINBI	sp|Q5XLY0|ANR_GINBI Putative anthocyanidin reductase OS=Ginkgo biloba OX=3311 PE=2 SV=1	2.25e-26	109
+AC1KRY_000673	sp|Q0U9W5|MCR1_PHANO	sp|Q0U9W5|MCR1_PHANO NADH-cytochrome b5 reductase 2 OS=Phaeosphaeria nodorum (strain SN15 / ATCC MYA-4574 / FGSC 10173) OX=321614 GN=MCR1 PE=3 SV=1	3.48e-121	354
+AC1KRY_000681	sp|P51979|HFM1_YEAST	sp|P51979|HFM1_YEAST ATP-dependent DNA helicase MER3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=HFM1 PE=1 SV=3	8.08e-194	613
+AC1KRY_000686	sp|O13773|UCP7_SCHPO	sp|O13773|UCP7_SCHPO UBA domain-containing protein 7 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ucp7 PE=4 SV=1	1.66e-62	225
+AC1KRY_000717	sp|P38997|LYS1_YARLI	sp|P38997|LYS1_YARLI Saccharopine dehydrogenase [NAD(+), L-lysine-forming] OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=LYS5 PE=3 SV=1	7.15e-128	374
+AC1KRY_000718	sp|P38997|LYS1_YARLI	sp|P38997|LYS1_YARLI Saccharopine dehydrogenase [NAD(+), L-lysine-forming] OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=LYS5 PE=3 SV=1	3.25e-147	423
+AC1KRY_000721	sp|A0A120HYZ1|CLA4_CLACD	sp|A0A120HYZ1|CLA4_CLACD Lysine--tRNA ligase cla4 OS=Cladosporium cladosporioides OX=29917 GN=cla4 PE=2 SV=1	1.18e-103	325
+AC1KRY_000742	sp|Q12627|DLD1_KLULA	sp|Q12627|DLD1_KLULA D-lactate dehydrogenase [cytochrome], mitochondrial OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=DLD1 PE=3 SV=2	9.20e-138	412
+AC1KRY_000749	sp|N1PA11|MAL11_YEASC	sp|N1PA11|MAL11_YEASC General alpha-glucoside permease OS=Saccharomyces cerevisiae (strain CEN.PK113-7D) OX=889517 GN=MAL11 PE=3 SV=1	3.00e-109	342
+AC1KRY_000756	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	1.61e-52	190
+AC1KRY_003407	sp|P40010|NUG1_YEAST	sp|P40010|NUG1_YEAST Nuclear GTP-binding protein NUG1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NUG1 PE=1 SV=1	1.55e-103	322
+AC1KRY_003467	sp|P32899|IMP3_YEAST	sp|P32899|IMP3_YEAST U3 small nucleolar ribonucleoprotein protein IMP3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=IMP3 PE=1 SV=1	3.00e-88	259
+AC1KRY_003481	sp|P38323|CLPX_YEAST	sp|P38323|CLPX_YEAST ATP-dependent clpX-like chaperone, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MCX1 PE=1 SV=1	5.60e-108	334
+AC1KRY_003483	sp|O13986|GID5_SCHPO	sp|O13986|GID5_SCHPO GID complex subunit 5 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=gid5 PE=3 SV=3	3.46e-29	127
+AC1KRY_003484	sp|Q6CFT7|ATPB_YARLI	sp|Q6CFT7|ATPB_YARLI ATP synthase subunit beta, mitochondrial OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=ATP2 PE=1 SV=2	3.67e-281	775
+AC1KRY_003489	sp|P53326|YG5L_YEAST	sp|P53326|YG5L_YEAST Uncharacterized protein YGR266W OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YGR266W PE=1 SV=1	1.87e-39	160
+AC1KRY_003499	sp|P14904|AMPL_YEAST	sp|P14904|AMPL_YEAST Vacuolar aminopeptidase 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=APE1 PE=1 SV=2	1.63e-102	318
+AC1KRY_003514	sp|O13620|MRD1_SCHPO	sp|O13620|MRD1_SCHPO Multiple RNA-binding domain-containing protein 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mrd1 PE=3 SV=1	5.27e-135	434
+AC1KRY_003525	sp|B0XZD3|LP11A_ASPFC	sp|B0XZD3|LP11A_ASPFC AA11 family lytic polysaccharide monooxygenase A OS=Aspergillus fumigatus (strain CBS 144.89 / FGSC A1163 / CEA10) OX=451804 GN=AA11A PE=1 SV=1	9.36e-43	150
+AC1KRY_003534	sp|Q9UTJ8|RAD50_SCHPO	sp|Q9UTJ8|RAD50_SCHPO DNA repair protein rad50 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rad50 PE=1 SV=3	2.02e-200	624
+AC1KRY_003541	sp|Q09855|POF11_SCHPO	sp|Q09855|POF11_SCHPO F-box/WD repeat-containing protein pof11 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pof11 PE=1 SV=2	9.67e-26	113
+AC1KRY_003543	sp|B8M9K8|TROPE_TALSN	sp|B8M9K8|TROPE_TALSN Short-chain dehydrogenase/reductase tropE OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=tropE PE=3 SV=1	8.73e-76	234
+AC1KRY_003547	sp|D4AUH6|HEX1_ARTBC	sp|D4AUH6|HEX1_ARTBC Beta-hexosaminidase ARB_07893 OS=Arthroderma benhamiae (strain ATCC MYA-4681 / CBS 112371) OX=663331 GN=ARB_07893 PE=1 SV=1	5.14e-145	437
+AC1KRY_003553	sp|Q02592|HMT1_SCHPO	sp|Q02592|HMT1_SCHPO Heavy metal tolerance protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hmt1 PE=2 SV=3	1.58e-205	615
+AC1KRY_003594	sp|Q9NRZ9|HELLS_HUMAN	sp|Q9NRZ9|HELLS_HUMAN Lymphoid-specific helicase OS=Homo sapiens OX=9606 GN=HELLS PE=1 SV=1	2.91e-173	526
+AC1KRY_003603	sp|P32486|KRE6_YEAST	sp|P32486|KRE6_YEAST Beta-glucan synthesis-associated protein KRE6 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=KRE6 PE=1 SV=2	8.92e-136	427
+AC1KRY_003604	sp|P32486|KRE6_YEAST	sp|P32486|KRE6_YEAST Beta-glucan synthesis-associated protein KRE6 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=KRE6 PE=1 SV=2	5.57e-156	469
+AC1KRY_003608	sp|Q58FS2|UBC2_TRIHA	sp|Q58FS2|UBC2_TRIHA Ubiquitin-conjugating enzyme E2 2 OS=Trichoderma harzianum OX=5544 GN=UBC2 PE=2 SV=1	1.31e-94	273
+AC1KRY_003618	sp|Q86G47|GEFQ_DICDI	sp|Q86G47|GEFQ_DICDI Ras guanine nucleotide exchange factor Q OS=Dictyostelium discoideum OX=44689 GN=gefQ PE=2 SV=1	6.98e-14	79.7
+AC1KRY_003623	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	2.49e-92	296
+AC1KRY_003642	sp|Q9M1I1|FB304_ARATH	sp|Q9M1I1|FB304_ARATH F-box protein At3g54460 OS=Arabidopsis thaliana OX=3702 GN=At3g54460 PE=2 SV=1	2.33e-17	90.9
+AC1KRY_003649	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	3.82e-62	217
+AC1KRY_003652	sp|I2C092|MANBB_THETO	sp|I2C092|MANBB_THETO Beta-mannosidase B OS=Thermothelomyces thermophilus OX=78579 GN=man9 PE=1 SV=1	5.15e-209	617
+AC1KRY_003660	sp|Q09752|VBA1_SCHPO	sp|Q09752|VBA1_SCHPO Vacuolar amino acid uptake transporter fnx1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fnx1 PE=2 SV=2	4.27e-98	308
+AC1KRY_003666	sp|P32795|YME1_YEAST	sp|P32795|YME1_YEAST Mitochondrial inner membrane i-AAA protease supercomplex subunit YME1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YME1 PE=1 SV=1	2.13e-215	626
+AC1KRY_003670	sp|Q63615|VP33A_RAT	sp|Q63615|VP33A_RAT Vacuolar protein sorting-associated protein 33A OS=Rattus norvegicus OX=10116 GN=Vps33a PE=1 SV=1	1.38e-107	340
+AC1KRY_003701	sp|Q6DDF4|VPS36_XENLA	sp|Q6DDF4|VPS36_XENLA Vacuolar protein-sorting-associated protein 36 OS=Xenopus laevis OX=8355 GN=vps36 PE=2 SV=1	1.25e-45	166
+AC1KRY_003724	sp|Q09146|HBA1_SCHPO	sp|Q09146|HBA1_SCHPO Brefeldin A resistance protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hba1 PE=1 SV=1	2.24e-16	83.6
+AC1KRY_003739	sp|Q9S7J8|HMA7_ARATH	sp|Q9S7J8|HMA7_ARATH Copper-transporting ATPase RAN1 OS=Arabidopsis thaliana OX=3702 GN=RAN1 PE=1 SV=1	2.49e-106	358
+AC1KRY_003750	sp|Q6E434|TRF1_SCHPO	sp|Q6E434|TRF1_SCHPO Telomeric DNA-binding factor trf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=trf1 PE=1 SV=1	1.76e-06	54.3
+AC1KRY_003763	sp|A0A080WMA9|DHAS_TRIRC	sp|A0A080WMA9|DHAS_TRIRC Aspartate-semialdehyde dehydrogenase OS=Trichophyton rubrum (strain ATCC MYA-4607 / CBS 118892) OX=559305 GN=TERG_03598 PE=1 SV=1	3.61e-130	379
+AC1KRY_003766	sp|Q5AV06|ATNL_EMENI	sp|Q5AV06|ATNL_EMENI Probable thioesterase atnL OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=atnL PE=2 SV=1	1.26e-35	130
+AC1KRY_003788	sp|Q9P793|CHD1C_SCHPO	sp|Q9P793|CHD1C_SCHPO ATP-dependent chromatin remodeler mit1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mit1 PE=1 SV=1	1.40e-188	607
+AC1KRY_000768	sp|O14081|TPSX_SCHPO	sp|O14081|TPSX_SCHPO Putative alpha,alpha-trehalose-phosphate synthase [UDP-forming] 106 kDa subunit OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2E11.16c PE=1 SV=1	1.93e-193	578
+AC1KRY_000780	sp|P34101|FHKC_DICDI	sp|P34101|FHKC_DICDI Probable serine/threonine-protein kinase fhkC OS=Dictyostelium discoideum OX=44689 GN=fhkC PE=3 SV=2	2.46e-83	272
+AC1KRY_000781	sp|O74970|PRP39_SCHPO	sp|O74970|PRP39_SCHPO Pre-mRNA-processing factor 39 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=prp39 PE=3 SV=1	3.42e-188	577
+AC1KRY_000796	sp|Q9C2H9|SYMM_NEUCR	sp|Q9C2H9|SYMM_NEUCR Probable methionine--tRNA ligase, mitochondrial OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=93G11.130 PE=3 SV=1	3.05e-159	469
+AC1KRY_000809	sp|Q12226|AYT1_YEAST	sp|Q12226|AYT1_YEAST Trichothecene 3-O-acetyltransferase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AYT1 PE=1 SV=1	2.12e-14	80.5
+AC1KRY_000843	sp|Q9P3U8|YJ95_SCHPO	sp|Q9P3U8|YJ95_SCHPO Uncharacterized RING finger protein C548.05c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC548.05c PE=4 SV=1	7.45e-22	99.4
+AC1KRY_000851	sp|Q9SJU0|KN7M_ARATH	sp|Q9SJU0|KN7M_ARATH Kinesin-like protein KIN-7M, chloroplastic OS=Arabidopsis thaliana OX=3702 GN=KIN7M PE=2 SV=2	5.11e-78	272
+AC1KRY_000856	sp|Q865S1|AP3D1_BOVIN	sp|Q865S1|AP3D1_BOVIN AP-3 complex subunit delta-1 OS=Bos taurus OX=9913 GN=AP3D1 PE=1 SV=2	4.30e-128	412
+AC1KRY_000857	sp|Q06287|NEP1_YEAST	sp|Q06287|NEP1_YEAST Ribosomal RNA small subunit methyltransferase NEP1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=EMG1 PE=1 SV=1	3.38e-123	353
+AC1KRY_000872	sp|O74225|HSP88_NEUCR	sp|O74225|HSP88_NEUCR Heat shock protein hsp88 OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=hsp88 PE=1 SV=1	4.95e-279	787
+AC1KRY_000877	sp|Q9UT32|RL1DB_SCHPO	sp|Q9UT32|RL1DB_SCHPO Putative ribosome biogenesis protein C8F11.04 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC8F11.04 PE=1 SV=1	3.96e-52	176
+AC1KRY_000889	sp|Q9Y815|RSV2_SCHPO	sp|Q9Y815|RSV2_SCHPO Zinc finger protein rsv2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rsv2 PE=4 SV=1	2.35e-17	88.2
+AC1KRY_000895	sp|P38205|NCL1_YEAST	sp|P38205|NCL1_YEAST Multisite-specific tRNA:(cytosine-C(5))-methyltransferase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NCL1 PE=1 SV=1	7.95e-127	393
+AC1KRY_003822	sp|P87142|YDMC_SCHPO	sp|P87142|YDMC_SCHPO Heat shock protein 70 homolog C57A7.12 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC57A7.12 PE=1 SV=3	4.50e-125	382
+AC1KRY_003848	sp|O94362|YHOF_SCHPO	sp|O94362|YHOF_SCHPO Uncharacterized GTP-binding protein C428.15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC428.15 PE=3 SV=1	8.50e-139	405
+AC1KRY_003860	sp|P25375|PRTD_YEAST	sp|P25375|PRTD_YEAST Saccharolysin OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PRD1 PE=1 SV=1	1.12e-178	527
+AC1KRY_003870	sp|A3GH91|DBP5_PICST	sp|A3GH91|DBP5_PICST ATP-dependent RNA helicase DBP5 OS=Scheffersomyces stipitis (strain ATCC 58785 / CBS 6054 / NBRC 10063 / NRRL Y-11545) OX=322104 GN=DBP5 PE=3 SV=2	5.18e-191	545
+AC1KRY_003875	sp|O74842|FFT2_SCHPO	sp|O74842|FFT2_SCHPO Chromatin remodeling protein fft2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fft2 PE=1 SV=1	2.51e-198	612
+AC1KRY_003904	sp|Q2UF99|EGT2_ASPOR	sp|Q2UF99|EGT2_ASPOR Hercynylcysteine sulfoxide lyase OS=Aspergillus oryzae (strain ATCC 42149 / RIB 40) OX=510516 GN=egt2 PE=3 SV=1	1.90e-76	248
+AC1KRY_003909	sp|O94527|IQW1_SCHPO	sp|O94527|IQW1_SCHPO WD repeat protein iqw1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=iqw1 PE=1 SV=1	9.17e-89	300
+AC1KRY_003920	sp|A3KG59|P20D2_MOUSE	sp|A3KG59|P20D2_MOUSE Xaa-Arg dipeptidase OS=Mus musculus OX=10090 GN=Pm20d2 PE=1 SV=1	1.66e-83	264
+AC1KRY_003955	sp|Q9Y7M1|PXP1_SCHPO	sp|Q9Y7M1|PXP1_SCHPO 2-hydroxyacyl-CoA lyase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hac1 PE=3 SV=1	3.26e-188	543
+AC1KRY_003958	sp|P36966|PEX6_YARLI	sp|P36966|PEX6_YARLI Peroxisomal ATPase PEX6 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=PEX6 PE=3 SV=2	1.39e-184	565
+AC1KRY_004030	sp|Q9UTL9|IRC20_SCHPO	sp|Q9UTL9|IRC20_SCHPO ATP-dependent DNA repair protein/ubiquitin-protein ligase E3 irc20 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=irc20 PE=3 SV=1	5.89e-21	103
+AC1KRY_004033	sp|F5HN69|CPAT_ASPOZ	sp|F5HN69|CPAT_ASPOZ MFS transporter cpaT OS=Aspergillus oryzae OX=5062 GN=cpaT PE=3 SV=1	9.88e-131	392
+AC1KRY_004036	sp|Q70LL3|CARO_FUSFU	sp|Q70LL3|CARO_FUSFU Opsin-like protein carO OS=Fusarium fujikuroi OX=5127 GN=carO PE=2 SV=1	1.67e-86	271
+AC1KRY_004060	sp|G1X8P8|SPAZ_ARTOA	sp|G1X8P8|SPAZ_ARTOA Cuticle-degrading serine protease OS=Arthrobotrys oligospora (strain ATCC 24927 / CBS 115.81 / DSM 1491) OX=756982 PE=1 SV=1	4.47e-53	191
+AC1KRY_004062	sp|Q08271|GAS4_YEAST	sp|Q08271|GAS4_YEAST 1,3-beta-glucanosyltransferase GAS4 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=GAS4 PE=1 SV=1	6.48e-107	329
+AC1KRY_004068	sp|O42653|YF9E_SCHPO	sp|O42653|YF9E_SCHPO ABC1 family protein C10F6.14c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC10F6.14c PE=3 SV=1	1.80e-128	389
+AC1KRY_004072	sp|Q8EUC4|RL24_MALP2	sp|Q8EUC4|RL24_MALP2 Large ribosomal subunit protein uL24 OS=Malacoplasma penetrans (strain HF-2) OX=272633 GN=rplX PE=3 SV=1	8.78e-06	47.4
+AC1KRY_004073	sp|Q5RBD4|DHX35_PONAB	sp|Q5RBD4|DHX35_PONAB Probable ATP-dependent RNA helicase DHX35 OS=Pongo abelii OX=9601 GN=DHX35 PE=2 SV=1	1.74e-200	583
+AC1KRY_004094	sp|O60017|DAK_PICAN	sp|O60017|DAK_PICAN Dihydroxyacetone kinase OS=Pichia angusta OX=870730 GN=DAK PE=3 SV=1	2.72e-39	153
+AC1KRY_004095	sp|Q6D8V5|LERI_PECAS	sp|Q6D8V5|LERI_PECAS L-erythrulose-1-phosphate isomerase OS=Pectobacterium atrosepticum (strain SCRI 1043 / ATCC BAA-672) OX=218491 GN=lerI PE=1 SV=1	2.29e-62	199
+AC1KRY_004097	sp|Q9UTM9|FAP2_SCHPO	sp|Q9UTM9|FAP2_SCHPO L-saccharopine oxidase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fap2 PE=1 SV=1	1.12e-64	227
+AC1KRY_004100	sp|P36267|GGT_PSEUA	sp|P36267|GGT_PSEUA Glutathione hydrolase proenzyme OS=Pseudomonas sp. (strain A14) OX=69010 GN=ggt PE=1 SV=1	1.62e-57	205
+AC1KRY_004110	sp|P36631|STE11_SCHPO	sp|P36631|STE11_SCHPO Transcription factor ste11 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ste11 PE=1 SV=2	1.70e-19	92.8
+AC1KRY_004128	sp|Q6CHS6|DPB4_YARLI	sp|Q6CHS6|DPB4_YARLI DNA polymerase epsilon subunit D OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=DPB4 PE=3 SV=1	6.78e-08	53.5
+AC1KRY_000899	sp|Q9P6J7|YHD3_SCHPO	sp|Q9P6J7|YHD3_SCHPO Uncharacterized MFS-type transporter C1683.03c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1683.03c PE=3 SV=1	3.36e-64	220
+AC1KRY_000902	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	1.85e-91	294
+AC1KRY_000965	sp|P40464|FLX1_YEAST	sp|P40464|FLX1_YEAST Mitochondrial FAD carrier protein FLX1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=FLX1 PE=3 SV=1	1.86e-61	199
+AC1KRY_000969	sp|A0A2H0ZJA8|PTRA_CANAR	sp|A0A2H0ZJA8|PTRA_CANAR Peptide transporter PTR_A OS=Candidozyma auris OX=498019 GN=PTR_A PE=3 SV=1	1.28e-202	581
+AC1KRY_000982	sp|O13657|YBCC_SCHPO	sp|O13657|YBCC_SCHPO Putative metal ion transporter C27B12.12c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pi066 PE=1 SV=1	2.72e-135	416
+AC1KRY_000990	sp|Q05867|YL283_YEAST	sp|Q05867|YL283_YEAST Uncharacterized protein YLR283W, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YLR283W PE=1 SV=1	7.57e-12	68.6
+AC1KRY_000995	sp|Q7RXR3|CENPA_NEUCR	sp|Q7RXR3|CENPA_NEUCR Histone H3-like centromeric protein hH3v OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=hH3v PE=3 SV=1	1.03e-51	164
+AC1KRY_001007	sp|Q00614|CACP_CANTR	sp|Q00614|CACP_CANTR Carnitine O-acetyltransferase, mitochondrial OS=Candida tropicalis OX=5482 GN=CAT2 PE=3 SV=1	1.03e-150	459
+AC1KRY_004175	sp|O42939|UBA2_SCHPO	sp|O42939|UBA2_SCHPO Ubiquitin-activating enzyme E1-like OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=uba2 PE=1 SV=1	3.92e-133	404
+AC1KRY_004208	sp|P79020|PALA_EMENI	sp|P79020|PALA_EMENI pH-response regulator protein palA/RIM20 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=palA PE=1 SV=3	5.12e-75	269
+AC1KRY_004212	sp|P43069|CDC25_CANAL	sp|P43069|CDC25_CANAL Cell division control protein 25 OS=Candida albicans (strain SC5314 / ATCC MYA-2876) OX=237561 GN=CDC25 PE=1 SV=2	6.00e-42	171
+AC1KRY_004238	sp|Q9USG8|MU190_SCHPO	sp|Q9USG8|MU190_SCHPO Meiotically up-regulated gene 190 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mug190 PE=1 SV=1	7.18e-159	502
+AC1KRY_004262	sp|Q9LUW6|RH9_ARATH	sp|Q9LUW6|RH9_ARATH DEAD-box ATP-dependent RNA helicase 9, mitochondrial OS=Arabidopsis thaliana OX=3702 GN=RH9 PE=1 SV=1	3.22e-08	59.7
+AC1KRY_004268	sp|Q8H936|CSN5_ORYSJ	sp|Q8H936|CSN5_ORYSJ COP9 signalosome complex subunit 5 OS=Oryza sativa subsp. japonica OX=39947 GN=CSN5 PE=1 SV=1	1.18e-136	395
+AC1KRY_004284	sp|C8VSE7|NPR3_EMENI	sp|C8VSE7|NPR3_EMENI Nitrogen permease regulator 3 OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=npr3 PE=3 SV=1	1.30e-81	275
+AC1KRY_004291	sp|Q8R016|BLMH_MOUSE	sp|Q8R016|BLMH_MOUSE Bleomycin hydrolase OS=Mus musculus OX=10090 GN=Blmh PE=1 SV=1	1.72e-118	356
+AC1KRY_004311	sp|O94285|RPC8_SCHPO	sp|O94285|RPC8_SCHPO DNA-directed RNA polymerase III subunit rpc8 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rpc25 PE=1 SV=1	3.01e-51	166
+AC1KRY_004313	sp|Q8CFJ9|WDR24_MOUSE	sp|Q8CFJ9|WDR24_MOUSE GATOR2 complex protein WDR24 OS=Mus musculus OX=10090 GN=Wdr24 PE=1 SV=1	3.16e-58	216
+AC1KRY_004323	sp|D4AXV8|MFS1_ARTBC	sp|D4AXV8|MFS1_ARTBC MFS-type efflux pump MFS1 OS=Arthroderma benhamiae (strain ATCC MYA-4681 / CBS 112371) OX=663331 GN=MFS1 PE=3 SV=2	3.35e-120	367
+AC1KRY_004359	sp|Q16W24|PLK4_AEDAE	sp|Q16W24|PLK4_AEDAE Serine/threonine-protein kinase PLK4 OS=Aedes aegypti OX=7159 GN=SAK PE=3 SV=1	2.14e-38	155
+AC1KRY_004361	sp|Q8TFN2|ATG1_PICAN	sp|Q8TFN2|ATG1_PICAN Serine/threonine-protein kinase ATG1 OS=Pichia angusta OX=870730 GN=ATG1 PE=3 SV=1	7.22e-122	384
+AC1KRY_004367	sp|Q0CTV2|ABFA_ASPTN	sp|Q0CTV2|ABFA_ASPTN Probable alpha-L-arabinofuranosidase A OS=Aspergillus terreus (strain NIH 2624 / FGSC A1156) OX=341663 GN=abfA PE=3 SV=1	3.25e-113	359
+AC1KRY_004370	sp|Q7EZD7|MST3_ORYSJ	sp|Q7EZD7|MST3_ORYSJ Sugar transport protein MST3 OS=Oryza sativa subsp. japonica OX=39947 GN=MST3 PE=2 SV=1	1.35e-27	119
+AC1KRY_004372	sp|Q6L732|KANJ_STRKN	sp|Q6L732|KANJ_STRKN Kanamycin B dioxygenase OS=Streptomyces kanamyceticus OX=1967 GN=kanJ PE=1 SV=1	1.27e-31	122
+AC1KRY_004373	sp|W7MAT5|FST1_GIBM7	sp|W7MAT5|FST1_GIBM7 Myo-inositol transporter FST1 OS=Gibberella moniliformis (strain M3125 / FGSC 7600) OX=334819 GN=FST1 PE=1 SV=1	5.60e-44	172
+AC1KRY_004385	sp|Q9Y7X8|ARP5_SCHPO	sp|Q9Y7X8|ARP5_SCHPO Actin-like protein arp5 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=arp5 PE=1 SV=1	1.24e-184	556
+AC1KRY_001021	sp|O94528|CAF5_SCHPO	sp|O94528|CAF5_SCHPO Caffeine resistance protein 5 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=caf5 PE=3 SV=1	1.30e-113	350
+AC1KRY_001032	sp|Q09860|SYC_SCHPO	sp|Q09860|SYC_SCHPO Probable cysteine--tRNA ligase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC29E6.06c PE=3 SV=1	4.06e-233	672
+AC1KRY_001044	sp|Q8GXR2|PLT6_ARATH	sp|Q8GXR2|PLT6_ARATH Probable polyol transporter 6 OS=Arabidopsis thaliana OX=3702 GN=PLT6 PE=2 SV=2	5.14e-48	178
+AC1KRY_001050	sp|Q50HM6|GH109_STRNV	sp|Q50HM6|GH109_STRNV Glycosyl hydrolase family 109 protein OS=Streptomyces niveus OX=193462 PE=3 SV=1	2.69e-18	90.1
+AC1KRY_001053	sp|A0A1B1ZGB5|NPS10_HETAN	sp|A0A1B1ZGB5|NPS10_HETAN Adenylate-forming reductase Nps10 OS=Heterobasidion annosum OX=13563 GN=nps10 PE=1 SV=1	2.68e-94	333
+AC1KRY_001054	sp|P40467|ASG1_YEAST	sp|P40467|ASG1_YEAST Activator of stress genes 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=ASG1 PE=1 SV=1	1.07e-29	129
+AC1KRY_001057	sp|O60177|ULS12_SCHPO	sp|O60177|ULS12_SCHPO ATP-dependent chromatin remodeler/E3 ubiquitin-protein ligase rrp2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rrp2 PE=1 SV=1	4.89e-168	526
+AC1KRY_001095	sp|O13298|PHD1_SCHPO	sp|O13298|PHD1_SCHPO Histone deacetylase phd1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=phd1 PE=1 SV=1	1.15e-175	501
+AC1KRY_001103	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	2.63e-127	388
+AC1KRY_004400	sp|A0A0H2VBH0|YHES_ECOL6	sp|A0A0H2VBH0|YHES_ECOL6 Probable ATP-binding protein YheS OS=Escherichia coli O6:H1 (strain CFT073 / ATCC 700928 / UPEC) OX=199310 GN=yheS PE=1 SV=1	1.47e-53	198
+AC1KRY_004406	sp|Q9P6I9|YHDD_SCHPO	sp|Q9P6I9|YHDD_SCHPO Uncharacterized transcriptional regulatory protein C1683.13c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1683.13c PE=1 SV=1	8.54e-21	100
+AC1KRY_004410	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	2.16e-218	619
+AC1KRY_004412	sp|Q5BDV3|ABFC_EMENI	sp|Q5BDV3|ABFC_EMENI Alpha-L-arabinofuranosidase C OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=abfC PE=2 SV=1	4.18e-168	486
+AC1KRY_004413	sp|A0A0J9WVC0|TF1C2_FUSO4	sp|A0A0J9WVC0|TF1C2_FUSO4 Zn(2)-C6 fungal-type transcription factor FTF1c OS=Fusarium oxysporum f. sp. lycopersici (strain 4287 / CBS 123668 / FGSC 9935 / NRRL 34936) OX=426428 GN=FTF1c PE=2 SV=1	1.22e-26	119
+AC1KRY_004414	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	2.66e-151	445
+AC1KRY_004416	sp|O13755|OSM1_SCHPO	sp|O13755|OSM1_SCHPO Fumarate reductase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=osm1 PE=3 SV=1	2.07e-159	470
+AC1KRY_004419	sp|Q8TG13|CSK2A_NEUCR	sp|Q8TG13|CSK2A_NEUCR Casein kinase II subunit alpha OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=cka PE=2 SV=1	2.14e-191	533
+AC1KRY_004421	sp|D4AMT2|GTAA_ARTBC	sp|D4AMT2|GTAA_ARTBC Probable glutaminase ARB_05535/05536 OS=Arthroderma benhamiae (strain ATCC MYA-4681 / CBS 112371) OX=663331 GN=ARB_05535/05536 PE=1 SV=2	5.12e-127	399
+AC1KRY_004431	sp|O14123|NAH2_SCHPO	sp|O14123|NAH2_SCHPO Probable Na(+)/H(+) antiporter sod22 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sod22 PE=1 SV=2	1.22e-96	311
+AC1KRY_004437	sp|P36172|VBA5_YEAST	sp|P36172|VBA5_YEAST Vacuolar basic amino acid transporter 5 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=VBA5 PE=3 SV=1	3.88e-71	241
+AC1KRY_004445	sp|Q8GAV9|CPNA_COMS9	sp|Q8GAV9|CPNA_COMS9 Cyclopentanol dehydrogenase OS=Comamonas sp. (strain NCIMB 9872) OX=213664 GN=cpnA PE=1 SV=1	9.32e-33	123
+AC1KRY_004466	sp|Q09195|ERG24_SCHPO	sp|Q09195|ERG24_SCHPO Delta(14)-sterol reductase erg24 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=erg24 PE=2 SV=1	1.71e-111	345
+AC1KRY_004478	sp|Q09752|VBA1_SCHPO	sp|Q09752|VBA1_SCHPO Vacuolar amino acid uptake transporter fnx1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fnx1 PE=2 SV=2	7.64e-74	248
+AC1KRY_004483	sp|Q09196|MLR4_SCHPO	sp|Q09196|MLR4_SCHPO Myosin regulatory light chain cdc4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cdc4 PE=1 SV=1	7.78e-59	181
+AC1KRY_004503	sp|P15685|MAL61_YEASX	sp|P15685|MAL61_YEASX Maltose permease MAL61 OS=Saccharomyces cerevisiae OX=4932 GN=MAL61 PE=3 SV=1	1.32e-135	409
+AC1KRY_004529	sp|Q6CCH0|NDOR1_YARLI	sp|Q6CCH0|NDOR1_YARLI NADPH-dependent diflavin oxidoreductase 1 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=TAH18 PE=3 SV=1	1.24e-155	464
+AC1KRY_004547	sp|A1CNV1|DML1_ASPCL	sp|A1CNV1|DML1_ASPCL Protein dml1 OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=dml1 PE=3 SV=1	1.32e-96	302
+AC1KRY_004556	sp|Q59ZX3|RBE1_CANAL	sp|Q59ZX3|RBE1_CANAL Repressed by EFG1 protein 1 OS=Candida albicans (strain SC5314 / ATCC MYA-2876) OX=237561 GN=RBE1 PE=1 SV=1	1.20e-15	80.5
+AC1KRY_004585	sp|C8V213|MDJ1_EMENI	sp|C8V213|MDJ1_EMENI DnaJ homolog 1, mitochondrial OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=AN10778 PE=3 SV=1	5.82e-119	369
+AC1KRY_004601	sp|P51691|ARS_PSEAE	sp|P51691|ARS_PSEAE Arylsulfatase OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=atsA PE=1 SV=3	1.11e-209	597
+AC1KRY_001113	sp|Q4WN99|DPH2_ASPFU	sp|Q4WN99|DPH2_ASPFU 2-(3-amino-3-carboxypropyl)histidine synthase subunit 2 OS=Aspergillus fumigatus (strain ATCC MYA-4609 / CBS 101355 / FGSC A1100 / Af293) OX=330879 GN=dph2 PE=3 SV=1	2.85e-75	249
+AC1KRY_001131	sp|O94242|SYDM_SCHPO	sp|O94242|SYDM_SCHPO Aspartate--tRNA ligase, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=msd1 PE=3 SV=1	7.72e-131	400
+AC1KRY_001135	sp|P48527|SYYM_YEAST	sp|P48527|SYYM_YEAST Tyrosine--tRNA ligase, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MSY1 PE=1 SV=1	5.24e-104	320
+AC1KRY_001145	sp|B8HMX3|SYI_CYAP4	sp|B8HMX3|SYI_CYAP4 Isoleucine--tRNA ligase OS=Cyanothece sp. (strain PCC 7425 / ATCC 29141) OX=395961 GN=ileS PE=3 SV=1	1.14e-241	708
+AC1KRY_001153	sp|O59726|FNX2_SCHPO	sp|O59726|FNX2_SCHPO Vacuolar membrane amino acid uptake transporter fnx2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fnx2 PE=3 SV=1	2.50e-103	325
+AC1KRY_001157	sp|B0XUR7|PPZA_ASPFC	sp|B0XUR7|PPZA_ASPFC Serine/threonine-protein phosphatase ppzA OS=Aspergillus fumigatus (strain CBS 144.89 / FGSC A1163 / CEA10) OX=451804 GN=ppzA PE=1 SV=1	3.02e-208	590
+AC1KRY_001164	sp|O60161|UTP4_SCHPO	sp|O60161|UTP4_SCHPO U3 small nucleolar RNA-associated protein 4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=utp4 PE=3 SV=1	2.72e-145	444
+AC1KRY_001172	sp|P47042|IKS1_YEAST	sp|P47042|IKS1_YEAST Probable serine/threonine-protein kinase IKS1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=IKS1 PE=1 SV=1	4.76e-51	189
+AC1KRY_001182	sp|P32368|SAC1_YEAST	sp|P32368|SAC1_YEAST Phosphatidylinositol-3-phosphatase SAC1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SAC1 PE=1 SV=1	1.05e-156	466
+AC1KRY_001186	sp|P28812|Y3568_PSEAE	sp|P28812|Y3568_PSEAE Uncharacterized protein PA3568 OS=Pseudomonas aeruginosa (strain ATCC 15692 / DSM 22644 / CIP 104116 / JCM 14847 / LMG 12228 / 1C / PRS 101 / PAO1) OX=208964 GN=PA3568 PE=3 SV=2	5.51e-167	494
+AC1KRY_001189	sp|O60508|PRP17_HUMAN	sp|O60508|PRP17_HUMAN Pre-mRNA-processing factor 17 OS=Homo sapiens OX=9606 GN=CDC40 PE=1 SV=1	1.45e-124	379
+AC1KRY_001198	sp|Q9USQ1|CTF18_SCHPO	sp|Q9USQ1|CTF18_SCHPO Chromosome transmission fidelity protein 18 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=ctf18 PE=1 SV=1	1.68e-65	235
+AC1KRY_001201	sp|O94343|YHMA_SCHPO	sp|O94343|YHMA_SCHPO Uncharacterized MFS-type transporter C1271.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC1271.10c PE=1 SV=1	5.02e-44	167
+AC1KRY_004625	sp|Q9URZ4|CAT1_SCHPO	sp|Q9URZ4|CAT1_SCHPO Cationic amino acid transporter 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cat1 PE=1 SV=3	3.69e-44	167
+AC1KRY_004633	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	1.42e-40	156
+AC1KRY_004663	sp|Q76PD3|DBP6_SCHPO	sp|Q76PD3|DBP6_SCHPO ATP-dependent RNA helicase dbp6 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=dbp6 PE=2 SV=1	6.21e-86	281
+AC1KRY_004682	sp|O94294|SOG2_SCHPO	sp|O94294|SOG2_SCHPO Leucine-rich repeat-containing protein sog2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sog2 PE=1 SV=1	2.14e-36	147
+AC1KRY_004686	sp|Q873E8|GSHR_NEUCR	sp|Q873E8|GSHR_NEUCR Glutathione reductase OS=Neurospora crassa (strain ATCC 24698 / 74-OR23-1A / CBS 708.71 / DSM 1257 / FGSC 987) OX=367110 GN=gtr-1 PE=3 SV=1	1.01e-184	563
+AC1KRY_004703	sp|Q4I073|GPI14_GIBZE	sp|Q4I073|GPI14_GIBZE GPI mannosyltransferase 1 OS=Gibberella zeae (strain ATCC MYA-4620 / CBS 123657 / FGSC 9075 / NRRL 31084 / PH-1) OX=229533 GN=GPI14 PE=3 SV=1	2.09e-32	134
+AC1KRY_004707	sp|Q5B8L0|PRTT_EMENI	sp|Q5B8L0|PRTT_EMENI Transcriptional activator of proteases prtT OS=Emericella nidulans (strain FGSC A4 / ATCC 38163 / CBS 112.46 / NRRL 194 / M139) OX=227321 GN=prtT PE=3 SV=1	1.06e-83	286
+AC1KRY_004711	sp|J9VY90|LAC1_CRYN9	sp|J9VY90|LAC1_CRYN9 Laccase-1 OS=Cryptococcus neoformans (strain H99 / ATCC 208821 / CBS 10515 / FGSC 9487) OX=235443 GN=LAC1 PE=1 SV=1	4.26e-88	289
+AC1KRY_004712	sp|Q9RGS8|PHLN_BURPS	sp|Q9RGS8|PHLN_BURPS Non-hemolytic phospholipase C OS=Burkholderia pseudomallei (strain K96243) OX=272560 GN=plcN PE=1 SV=2	9.45e-79	270
+AC1KRY_004724	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	9.02e-101	318
+AC1KRY_004751	sp|Q8CEE7|RDH13_MOUSE	sp|Q8CEE7|RDH13_MOUSE Retinol dehydrogenase 13 OS=Mus musculus OX=10090 GN=Rdh13 PE=1 SV=1	1.35e-21	96.7
+AC1KRY_004752	sp|P40976|LYS2_SCHPO	sp|P40976|LYS2_SCHPO L-2-aminoadipate reductase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=lys1 PE=1 SV=3	3.65e-241	711
+AC1KRY_004753	sp|P07921|LACP_KLULA	sp|P07921|LACP_KLULA Lactose permease OS=Kluyveromyces lactis (strain ATCC 8585 / CBS 2359 / DSM 70799 / NBRC 1267 / NRRL Y-1140 / WM37) OX=284590 GN=LAC12 PE=3 SV=1	6.32e-103	324
+AC1KRY_004762	sp|P9WEZ6|ORYC_ASPOR	sp|P9WEZ6|ORYC_ASPOR MFS-type transporter oryC OS=Aspergillus oryzae (strain ATCC 42149 / RIB 40) OX=510516 GN=oryC PE=3 SV=1	5.71e-52	187
+AC1KRY_004772	sp|Q3V384|AFG1L_MOUSE	sp|Q3V384|AFG1L_MOUSE AFG1-like ATPase OS=Mus musculus OX=10090 GN=Afg1l PE=1 SV=1	2.05e-49	181
+AC1KRY_004779	sp|O77775|NCF2_BOVIN	sp|O77775|NCF2_BOVIN Neutrophil cytosol factor 2 OS=Bos taurus OX=9913 GN=NCF2 PE=2 SV=1	4.48e-25	111
+AC1KRY_001213	sp|R4NN02|PIGB_MONRU	sp|R4NN02|PIGB_MONRU Pigment biosynthesis transcriptional activator pigB OS=Monascus ruber OX=89489 GN=pigB PE=1 SV=1	1.19e-26	118
+AC1KRY_001214	sp|B8M9K6|TROPK_TALSN	sp|B8M9K6|TROPK_TALSN Tropolone cluster transcription factor tropK OS=Talaromyces stipitatus (strain ATCC 10500 / CBS 375.48 / QM 6759 / NRRL 1006) OX=441959 GN=tropK PE=3 SV=1	5.25e-25	113
+AC1KRY_001254	sp|B5ZA76|PGDAE_HELPG	sp|B5ZA76|PGDAE_HELPG Peptidoglycan deacetylase OS=Helicobacter pylori (strain G27) OX=563041 GN=pgdA PE=1 SV=1	3.00e-93	281
+AC1KRY_001272	sp|Q8VBW6|ULA1_MOUSE	sp|Q8VBW6|ULA1_MOUSE NEDD8-activating enzyme E1 regulatory subunit OS=Mus musculus OX=10090 GN=Nae1 PE=1 SV=1	4.97e-150	443
+AC1KRY_001273	sp|O59762|GNR1_SCHPO	sp|O59762|GNR1_SCHPO Guanine nucleotide-binding protein negative regulator 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=gnr1 PE=1 SV=1	3.76e-26	110
+AC1KRY_001275	sp|A1C7P9|XLNR_ASPCL	sp|A1C7P9|XLNR_ASPCL Xylanolytic transcriptional activator xlnR OS=Aspergillus clavatus (strain ATCC 1007 / CBS 513.65 / DSM 816 / NCTC 3887 / NRRL 1 / QM 1276 / 107) OX=344612 GN=xlnR PE=3 SV=2	1.57e-80	277
+AC1KRY_001294	sp|O14295|PLR1_SCHPO	sp|O14295|PLR1_SCHPO Pyridoxal reductase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=plr1 PE=1 SV=1	8.01e-68	218
+AC1KRY_004792	sp|O94432|YHKF_SCHPO	sp|O94432|YHKF_SCHPO Uncharacterized RNA-binding protein C660.15 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC660.15 PE=4 SV=1	1.50e-93	295
+AC1KRY_004808	sp|A4UHT7|SALR_PAPBR	sp|A4UHT7|SALR_PAPBR Salutaridine reductase OS=Papaver bracteatum OX=215227 GN=SALR PE=1 SV=1	1.54e-09	59.3
+AC1KRY_004824	sp|Q7Z9J4|H2B_AJECA	sp|Q7Z9J4|H2B_AJECA Histone H2B OS=Ajellomyces capsulatus OX=5037 GN=HTB1 PE=3 SV=3	5.74e-65	197
+AC1KRY_004828	sp|P31434|XYLS_ECOLI	sp|P31434|XYLS_ECOLI Alpha-xylosidase OS=Escherichia coli (strain K12) OX=83333 GN=yicI PE=1 SV=2	7.76e-114	377
+AC1KRY_004831	sp|Q5U3U0|PHYD1_DANRE	sp|Q5U3U0|PHYD1_DANRE Phytanoyl-CoA dioxygenase domain-containing protein 1 OS=Danio rerio OX=7955 GN=phyhd1 PE=2 SV=1	1.28e-13	73.9
+AC1KRY_004832	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	7.68e-128	389
+AC1KRY_004833	sp|O34371|YTET_BACSU	sp|O34371|YTET_BACSU Putative oxidoreductase YteT OS=Bacillus subtilis (strain 168) OX=224308 GN=yteT PE=2 SV=1	5.06e-75	244
+AC1KRY_004835	sp|Q82PP4|RHA78_STRAW	sp|Q82PP4|RHA78_STRAW Alpha-L-rhamnosidase OS=Streptomyces avermitilis (strain ATCC 31267 / DSM 46492 / JCM 5070 / NBRC 14893 / NCIMB 12804 / NRRL 8165 / MA-4680) OX=227882 GN=SAV_828 PE=1 SV=1	1.70e-163	521
+AC1KRY_004840	sp|A7EYW0|DBP3_SCLS1	sp|A7EYW0|DBP3_SCLS1 ATP-dependent RNA helicase dbp3 OS=Sclerotinia sclerotiorum (strain ATCC 18683 / 1980 / Ss-1) OX=665079 GN=dbp3 PE=3 SV=2	2.29e-171	499
+AC1KRY_004856	sp|Q6PFE3|RA54B_MOUSE	sp|Q6PFE3|RA54B_MOUSE DNA repair and recombination protein RAD54B OS=Mus musculus OX=10090 GN=Rad54b PE=2 SV=1	1.34e-174	530
+AC1KRY_004866	sp|P61159|FDHA_METJA	sp|P61159|FDHA_METJA F420-dependent formate dehydrogenase subunit alpha OS=Methanocaldococcus jannaschii (strain ATCC 43067 / DSM 2661 / JAL-1 / JCM 10045 / NBRC 100440) OX=243232 GN=fdhA PE=3 SV=2	1.75e-56	204
+AC1KRY_004876	sp|P21734|UBC1_YEAST	sp|P21734|UBC1_YEAST Ubiquitin-conjugating enzyme E2 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=UBC1 PE=1 SV=1	2.11e-79	240
+AC1KRY_004880	sp|Q3ZC01|CNOT7_BOVIN	sp|Q3ZC01|CNOT7_BOVIN CCR4-NOT transcription complex subunit 7 OS=Bos taurus OX=9913 GN=CNOT7 PE=2 SV=1	2.81e-95	308
+AC1KRY_004886	sp|O74529|YJ48_SCHPO	sp|O74529|YJ48_SCHPO Uncharacterized methyltransferase C70.08c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPCC70.08c PE=3 SV=1	5.58e-56	183
+AC1KRY_004894	sp|P39839|YUXL_BACSU	sp|P39839|YUXL_BACSU Uncharacterized peptidase YuxL OS=Bacillus subtilis (strain 168) OX=224308 GN=yuxL PE=3 SV=3	2.33e-31	134
+AC1KRY_004904	sp|O43896|KIF1C_HUMAN	sp|O43896|KIF1C_HUMAN Kinesin-like protein KIF1C OS=Homo sapiens OX=9606 GN=KIF1C PE=1 SV=3	1.02e-107	350
+AC1KRY_004914	sp|P38156|MAL31_YEAST	sp|P38156|MAL31_YEAST Maltose permease MAL31 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MAL31 PE=1 SV=1	2.71e-126	385
