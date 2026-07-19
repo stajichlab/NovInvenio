@@ -11,6 +11,4 @@ OUT,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidio
 OUT,Cryptococcus neoformans,H99,Cryptococcus_neoformans_H99.pep.fa,Cryptococcus_neoformans_H99.scaffolds.fa,CneoH99,Basidiomycota
 OUT,Coprinus cinerea,okyama 7-130,Coprinus_cinerea.pep.fa,Coprinus_cinerea.scaffolds.fa,Ccin,Basidiomycota
 OUT,Mucor circinelloides,1006PhL,Mucor_circinelloides.pep.fa,Mucor_circinelloides.scaffolds.fa,Mcir,Mucoromycotina
-OUT,Schizosaccharomyces pombe,972h,Schizosaccharomyces_pombe_972h.pep.fa,Schizosaccharomyces_pombe_972h-.scaffolds.fa,Spom,Taphrinomycotina
-OUT,Saccharomyces cerevisiae,S288c,Saccharomyces_cerevisiae_S288C.pep.fa,Saccharomyces_cerevisiae_S288c.scaffolds.fa,Scer,Saccharomycotina
 OUT,Arthrobotrys megalospora,TWF281,Arthrobotrys_megalospora_TWF281.proteins.fa,Arthrobotrys_megalospora_TWF281.scaffolds.fa,Amega,Pezizomycotina
