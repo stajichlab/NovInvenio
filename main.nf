@@ -2,6 +2,7 @@
 nextflow.enable.dsl=2
 
 include { SEARCH   } from './workflows/search'
+include { PROFILE_SEARCH } from './workflows/profile_search'
 include { LOSS_SEARCH } from './workflows/loss_search'
 include { CLUSTER  } from './workflows/cluster'
 include { CLUSTER  as LOSS_CLUSTER  } from './workflows/cluster'
@@ -31,6 +32,7 @@ workflow {
     if (!file(params.config).exists())   error "ERROR: --config file not found: ${params.config}"
     if (!file(params.data_dir).isDirectory()) error "ERROR: --data_dir is not a directory: ${params.data_dir}"
     if (params.run_tool !in ['phmmer', 'diamond', 'blast']) error "ERROR: --run_tool must be phmmer, diamond, or blast (got: ${params.run_tool})"
+    if (params.cluster_tool !in ['pairwise', 'mmseqs']) error "ERROR: --cluster_tool must be pairwise or mmseqs (got: ${params.cluster_tool})"
 
     // Resolve DB paths to absolute at launch time and pass them as val inputs —
     // params mutations do not reliably propagate into process script closures.
@@ -66,13 +68,26 @@ workflow {
     ingroup_dna_ch    = samples_ch.filter { meta, prot, dna -> meta.group == 'IN' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
 
-    SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
+    // Novelty-direction presence matrix + candidates. --cluster_tool selects the producer:
+    //   pairwise (default) — the O(N^2) phmmer/diamond/blast SEARCH workflow.
+    //   mmseqs             — the scalable family-profile pathway (ADR-0002). Both emit the
+    //                        same matrix/candidates contract, so everything below is shared.
+    if (params.cluster_tool == 'mmseqs') {
+        PROFILE_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
+        novelty_matrix     = PROFILE_SEARCH.out.matrix
+        novelty_candidates = PROFILE_SEARCH.out.candidates
+    }
+    else {
+        SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
+        novelty_matrix     = SEARCH.out.matrix
+        novelty_candidates = SEARCH.out.candidates
+    }
 
-    CLUSTER(SEARCH.out.candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
+    CLUSTER(novelty_candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
 
     VALIDATE(CLUSTER.out.representatives, outgroup_dna_ch, CLUSTER.out.cluster_tsv, 'tblastn_summary.tsv')
 
-    ANNOTATE(CLUSTER.out.candidates_fa, SEARCH.out.matrix, pfam_abs, sprot_abs, morgs_abs, '')
+    ANNOTATE(CLUSTER.out.candidates_fa, novelty_matrix, pfam_abs, sprot_abs, morgs_abs, '')
 
     SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, CLUSTER.out.cluster_tsv, file(params.config))
 
