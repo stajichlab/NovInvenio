@@ -1,0 +1,34 @@
+# TODO Registry
+
+All future work items, ideas, and planned improvements for this project are tracked here. Each item has a dedicated `.md` file in this directory with full details.
+
+## Status Key
+
+| Status | Meaning |
+|--------|---------|
+| `open` | Not yet started |
+| `in-progress` | Actively being worked on |
+| `blocked` | Waiting on something external |
+| `complete` | Done (kept for reference) |
+| `wont-do` | Decided against (kept for rationale) |
+
+## Priority Key
+
+| Priority | Meaning |
+|----------|---------|
+| `critical` | Must be done — blocks progress or correctness |
+| `high` | Important and should be done soon |
+| `medium` | Valuable but not urgent |
+| `low` | Nice to have |
+| `idea` | Speculative — worth capturing but no commitment |
+
+## Registry
+
+| Item | Priority | Status | Category | Date | Author | File |
+|------|----------|--------|----------|------|--------|------|
+| Phase 1 — PROFILE_SEARCH pathway (mmseqs+HMM) | high | in-progress | feature | 2026-07-20 | Jason Stajich | [profile-search-pathway.md](profile-search-pathway.md) |
+| Phase 2 — Cross-method support column | medium | open | feature | 2026-07-20 | Jason Stajich | [cross-method-support-column.md](cross-method-support-column.md) |
+| Phase 3 — Gene-contraction analysis | medium | open | analysis | 2026-07-20 | Jason Stajich | [gene-contraction-analysis.md](gene-contraction-analysis.md) |
+| Phase 4 — OrthoFinder pathway + phylostrata | low | open | feature | 2026-07-20 | Jason Stajich | [orthofinder-pathway-phylostrata.md](orthofinder-pathway-phylostrata.md) |
+
+<!-- Add new entries above this line -->

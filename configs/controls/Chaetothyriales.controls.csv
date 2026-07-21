@@ -1,0 +1,5 @@
+control_id,class,expected_call,anchor_type,anchor,proteome_short,gene_name,expected_origin,source,notes
+EXAMPLE_POS01,positive,novel,protein_id,<protein_id_in_that_proteome>,Anthramo,,Chaetothyriales,<citation_or_prior_run>,clade-restricted hypothetical protein — replace with a real anchor
+EXAMPLE_POS02,positive,novel,fasta,seqs/EXAMPLE_POS02.faa,,,Chaetothyriales,<prior_pairwise_run>,anchor by sequence (survives re-annotation); drop the .faa in configs/controls/seqs/
+EXAMPLE_NEG01,negative,core,busco,<buscoid>at34395,,,pan-fungal,fungi_odb12,single-copy ortholog — must never be called novel
+EXAMPLE_NEG02,negative,core,protein_id,<protein_id_in_that_proteome>,Anthramo,rpb2,pan-eukaryote,housekeeping,broadly conserved subunit
