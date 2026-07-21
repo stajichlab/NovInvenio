@@ -5,7 +5,7 @@
 | **Date** | 2026-07-20 |
 | **Author** | Jason Stajich |
 | **Priority** | high |
-| **Status** | open |
+| **Status** | in-progress — issue #3, draft PR #4 |
 | **Category** | feature |
 | **Related analyses** | novelty / loss (family-based) |
 | **Related data** | configs/pezizo5.csv (dev), configs/Chaetothyriales.csv (scale) |

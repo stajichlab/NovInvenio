@@ -26,7 +26,7 @@ All future work items, ideas, and planned improvements for this project are trac
 
 | Item | Priority | Status | Category | Date | Author | File |
 |------|----------|--------|----------|------|--------|------|
-| Phase 1 — PROFILE_SEARCH pathway (mmseqs+HMM) | high | open | feature | 2026-07-20 | Jason Stajich | [profile-search-pathway.md](profile-search-pathway.md) |
+| Phase 1 — PROFILE_SEARCH pathway (mmseqs+HMM) | high | in-progress | feature | 2026-07-20 | Jason Stajich | [profile-search-pathway.md](profile-search-pathway.md) |
 | Phase 2 — Cross-method support column | medium | open | feature | 2026-07-20 | Jason Stajich | [cross-method-support-column.md](cross-method-support-column.md) |
 | Phase 3 — Gene-contraction analysis | medium | open | analysis | 2026-07-20 | Jason Stajich | [gene-contraction-analysis.md](gene-contraction-analysis.md) |
 | Phase 4 — OrthoFinder pathway + phylostrata | low | open | feature | 2026-07-20 | Jason Stajich | [orthofinder-pathway-phylostrata.md](orthofinder-pathway-phylostrata.md) |
