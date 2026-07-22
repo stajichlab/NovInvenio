@@ -75,7 +75,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     color: var(--text-primary);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .wrap { max-width: 1560px; margin: 0 auto; padding: 24px 20px 64px; }
+  .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
 
   header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
   header.top .titles { flex: 1; min-width: 0; }
@@ -276,7 +276,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     border-bottom: 1px solid var(--axis);
   }
   table.data td.num { font-variant-numeric: tabular-nums; }
-  table.data td.wrap-cell { white-space: normal; max-width: 320px; overflow-wrap: anywhere; }
+  /* Text columns (annotation, Pfam, gene family, model-org name): grow with the viewport,
+     floored readable so many 0/1 columns can't crush them, ceiling so one can't dominate. */
+  table.data td.wrap-cell, table.data th.wrap-cell {
+    white-space: normal; overflow-wrap: anywhere;
+    min-width: 200px; max-width: clamp(260px, 26vw, 640px);
+  }
+  /* Dense per-proteome presence & TBLASTN 0/1 columns: packed tight (both th and td, so the
+     column actually narrows) to leave width for the text columns. */
+  table.data td.cell, table.data th.cell { padding: 6px 5px; text-align: center; }
   table.data tbody tr:hover { background: var(--hover-wash); }
   .hidden { display: none !important; }
   .sr-only {
@@ -1010,14 +1018,14 @@ HTML_TEMPLATE = r"""<!doctype html>
     TBL_COLS.push({
       label: p.short + (p.group === "IN" ? " (in)" : " (out)"),
       get: function (r) { return ROWS[r][F.pres].charCodeAt(i) === 49 ? "1" : "0"; },
-      cls: "num"
+      cls: "cell"
     });
   });
   TB_GENOMES.forEach(function (g, i) {
     TBL_COLS.push({
       label: g + " (tblastn)",
       get: function (r) { return ROWS[r][F.tb].charCodeAt(i) === 49 ? "1" : "0"; },
-      cls: "num"
+      cls: "cell"
     });
   });
 
@@ -1031,7 +1039,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     thead.textContent = "";
     var tr = document.createElement("tr");
     TBL_COLS.forEach(function (c) {
-      var th = el("th", null, c.label);
+      // Apply the column class to the header too, so per-column width rules (compact
+      // `cell`, responsive `wrap-cell`) size the whole column, header included.
+      var th = el("th", c.cls || null, c.label);
       th.scope = "col";
       tr.appendChild(th);
     });
