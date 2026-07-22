@@ -3,6 +3,7 @@ nextflow.enable.dsl=2
 
 include { SEARCH   } from './workflows/search'
 include { PROFILE_SEARCH } from './workflows/profile_search'
+include { PROFILE_CANDIDATE_CLUSTERS } from './modules/profile_candidate_clusters'
 include { LOSS_SEARCH } from './workflows/loss_search'
 include { CLUSTER  } from './workflows/cluster'
 include { CLUSTER  as LOSS_CLUSTER  } from './workflows/cluster'
@@ -76,20 +77,36 @@ workflow {
         PROFILE_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
         novelty_matrix     = PROFILE_SEARCH.out.matrix
         novelty_candidates = PROFILE_SEARCH.out.candidates
+
+        // Family-as-cluster (ADR-0002 Q7): reuse the profile pathway's gene families
+        // (restricted to candidate-containing ones) instead of re-clustering candidates.
+        PROFILE_CANDIDATE_CLUSTERS(
+            novelty_candidates,
+            PROFILE_SEARCH.out.family_cluster_tsv,
+            PROFILE_SEARCH.out.family_reps,
+            PROFILE_SEARCH.out.ingroup_concat,
+            'candidates.fa'
+        )
+        cand_fa          = PROFILE_CANDIDATE_CLUSTERS.out.candidates_fa
+        cand_reps        = PROFILE_CANDIDATE_CLUSTERS.out.representatives
+        cand_cluster_tsv = PROFILE_CANDIDATE_CLUSTERS.out.cluster_tsv
     }
     else {
         SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
         novelty_matrix     = SEARCH.out.matrix
         novelty_candidates = SEARCH.out.candidates
+
+        CLUSTER(novelty_candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
+        cand_fa          = CLUSTER.out.candidates_fa
+        cand_reps        = CLUSTER.out.representatives
+        cand_cluster_tsv = CLUSTER.out.cluster_tsv
     }
 
-    CLUSTER(novelty_candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
+    VALIDATE(cand_reps, outgroup_dna_ch, cand_cluster_tsv, 'tblastn_summary.tsv')
 
-    VALIDATE(CLUSTER.out.representatives, outgroup_dna_ch, CLUSTER.out.cluster_tsv, 'tblastn_summary.tsv')
+    ANNOTATE(cand_fa, novelty_matrix, pfam_abs, sprot_abs, morgs_abs, '')
 
-    ANNOTATE(CLUSTER.out.candidates_fa, novelty_matrix, pfam_abs, sprot_abs, morgs_abs, '')
-
-    SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, CLUSTER.out.cluster_tsv, file(params.config))
+    SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, cand_cluster_tsv, file(params.config))
 
     // Mirror of SEARCH/CLUSTER/VALIDATE/ANNOTATE with ingroup/outgroup swapped —
     // candidate lineage-specific gene losses (present in the outgroup, absent
@@ -107,8 +124,8 @@ workflow {
         ANNOTATE.out.annotated_matrix,
         VALIDATE.out.summary,
         SUMMARIZE.out.novelties,
-        CLUSTER.out.candidates_fa,
-        CLUSTER.out.cluster_tsv,
+        cand_fa,
+        cand_cluster_tsv,
         LOSS_ANNOTATE.out.annotated_matrix,
         LOSS_VALIDATE.out.summary,
         LOSS_CLUSTER.out.cluster_tsv,
