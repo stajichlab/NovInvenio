@@ -11,13 +11,14 @@ process PROFILE_CANDIDATE_CLUSTERS {
     path(candidates_txt)
     path(family_cluster_tsv)   // families_cluster.tsv (rep<TAB>member)
     path(family_reps_fa)       // families_rep_seq.fasta
-    path(ingroup_fa)           // concatenated ingroup proteomes
-    val(candidates_fa_name)    // 'candidates.fa' (matches the pairwise pathway)
+    path(seed_fa)              // concatenated seed-group proteomes (ingroup / outgroup)
+    val(candidates_fa_name)    // 'candidates.fa' | 'loss_candidates.fa'
+    val(out_prefix)            // '' (novelty) | 'loss_' — distinct reps/cluster filenames
 
     output:
-    path("${candidates_fa_name}"),          emit: candidates_fa
-    path("candidate_family_reps.fasta"),    emit: representatives
-    path("candidate_families_cluster.tsv"), emit: cluster_tsv
+    path("${candidates_fa_name}"),                       emit: candidates_fa
+    path("${out_prefix}candidate_family_reps.fasta"),    emit: representatives
+    path("${out_prefix}candidate_families_cluster.tsv"), emit: cluster_tsv
 
     script:
     """
@@ -25,9 +26,9 @@ process PROFILE_CANDIDATE_CLUSTERS {
         --candidates ${candidates_txt} \
         --family-cluster-tsv ${family_cluster_tsv} \
         --family-reps ${family_reps_fa} \
-        --ingroup-fasta ${ingroup_fa} \
-        --out-cluster-tsv candidate_families_cluster.tsv \
-        --out-representatives candidate_family_reps.fasta \
+        --seed-fasta ${seed_fa} \
+        --out-cluster-tsv ${out_prefix}candidate_families_cluster.tsv \
+        --out-representatives ${out_prefix}candidate_family_reps.fasta \
         --out-candidates-fa ${candidates_fa_name}
     """
 }

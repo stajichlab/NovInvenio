@@ -170,9 +170,22 @@ view/                              # sibling of results/ — one shareable folde
      - No TBLASTN hit in any outgroup genome (unless `--skip_tblastn_filter` is passed — hits still reported in `tblastn_outgroup_hits` column).
    - Currently wired with `--skip_tblastn_filter` in `workflows/summarize.nf`.
 
-7. **LOSS_SEARCH → LOSS_CLUSTER → LOSS_VALIDATE → LOSS_ANNOTATE** — a mirror of steps
-   2–5 with the ingroup/outgroup roles swapped, run from `main.nf` right after the
-   ingroup-direction stages:
+7. **Loss direction — candidate lineage-specific gene losses** (present in the outgroup,
+   absent from the ingroup), run from `main.nf` right after the ingroup-direction stages.
+   Like the novelty direction, `--cluster_tool` selects the producer:
+   - **`pairwise`**: `LOSS_SEARCH → LOSS_CLUSTER → LOSS_VALIDATE → LOSS_ANNOTATE` (described
+     below) — a mirror of steps 2–5 with ingroup/outgroup roles swapped.
+   - **`mmseqs`**: the outgroup-seeded family-profile mirror (`PROFILE_LOSS_SEARCH`, an alias
+     of `PROFILE_SEARCH` seeded from the outgroup with `--query-group OUT`, `out_prefix
+     'loss_'`), then `LOSS_PROFILE_CANDIDATE_CLUSTERS` (family-as-cluster) feeding
+     `LOSS_VALIDATE`/`LOSS_ANNOTATE`. Its family intermediates publish to `loss_families/`,
+     `loss_family_hmmsearch/` so they don't collide with the novelty direction's. Emits the
+     same `loss_presence_matrix.tsv` / `loss_candidates.txt` contract as the pairwise path.
+   Both paths keep families/candidates present in ≥ `outgroup_min_frac` of the outgroup and
+   ≤ `loss_ingroup_max_frac` of the ingroup, TBLASTN-validate against ingroup genomes, and
+   render `losses.html`.
+
+   The pairwise path in detail:
    - `workflows/loss_search.nf`'s `LOSS_SEARCH` runs outgroup proteomes as the *query*
      (`workflows/search.nf` only ever queries with the ingroup — see that file's module
      docstring for why this needs its own search direction rather than reusing SEARCH's
@@ -264,7 +277,13 @@ reports and a `report.html` landing page (run summary + links).
 | `--data_dir` | (required) | Directory containing all FASTA files; also searched in `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs |
 | `--project` | CSV basename | Results subdirectory under `--outdir` |
 | `--outdir` | `results` | Root output directory |
-| `--run_tool` | `phmmer` | `phmmer`, `diamond`, or `blast` |
+| `--cluster_tool` | `pairwise` | Presence-matrix producer: `pairwise` (O(N²) SEARCH) or `mmseqs` (family-profile pathway, ADR-0002). Applies to both novelty and loss directions |
+| `--run_tool` | `phmmer` | `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog calibration) |
+| `--family_min_seq_id` | `0.3` | mmseqs family-clustering identity (`--cluster_tool mmseqs`) |
+| `--family_cov` | `0.8` | mmseqs family-clustering coverage (`--cluster_tool mmseqs`) |
+| `--hmm_presence_evalue` | `1e-3` | Family-HMM presence E-value ceiling (`--cluster_tool mmseqs`) |
+| `--hmm_presence_cov` | `0.5` | Family-HMM min profile coverage for presence (`--cluster_tool mmseqs`) |
+| `--family_chunk_size` | `200` | Families per parallel `BUILD_CHUNK` task (`--cluster_tool mmseqs`) |
 | `--evalue` | `1e-5` | Fallback e-value for proteins with no detectable paralog; also TBLASTN significance cutoff |
 | `--parse_evalue` | `0.01` | Loose noise ceiling passed to `parse_hits.py`; final filtering uses paralog cutoffs |
 | `--ingroup_min_frac` | `0.75` | Fraction of ingroup proteomes that must contain a hit |
@@ -337,6 +356,17 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 ### Switching search tools
 
 Pass `--run_tool phmmer|diamond|blast`. Results are keyed by tool name in the cache filenames (`*.phmmer.tblout.gz`, `*.diamond.tsv.gz`, `*.blast.tsv.gz`) so cached results from one tool are not reused when switching.
+
+### Switching the presence-matrix producer (`--cluster_tool`)
+
+`--cluster_tool pairwise` (default) runs the O(N²) `SEARCH`/`LOSS_SEARCH` workflows;
+`--cluster_tool mmseqs` runs the scalable family-profile pathway (`PROFILE_SEARCH` /
+`PROFILE_LOSS_SEARCH`, ADR-0002) — cluster the seed group into gene families, build family
+HMMs (famsa + hmmbuild, parallelised across `BUILD_CHUNK` tasks), scan every proteome. Both
+emit the same `presence_matrix.tsv`/`candidates.txt` (and `loss_` equivalents) contract, so
+CLUSTER/VALIDATE/ANNOTATE/REPORT are unchanged. `--run_tool` is still used under `mmseqs`
+for the self-search paralog calibration. See `README.md` "Two analysis approaches" for the
+user-facing comparison and copy-paste launch examples.
 
 ---
 

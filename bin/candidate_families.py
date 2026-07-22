@@ -13,7 +13,7 @@ the same three artifacts the CLUSTER workflow does:
                       TBLASTN member-expansion + REPORT family grouping.
   * representatives : the family reps of candidate-containing families (a subset of
                       families_rep_seq.fasta) — TBLASTN probes.
-  * candidates_fa   : the candidate protein sequences (from the ingroup FASTA) — ANNOTATE
+  * candidates_fa   : the candidate protein sequences (from the seed-group FASTA) — ANNOTATE
                       input.
 
 A "candidate family" is any family whose representative or any member appears in
@@ -82,8 +82,9 @@ def main():
                     help='families_cluster.tsv (rep<TAB>member) from MMSEQS_FAMILY_CLUSTER')
     ap.add_argument('--family-reps', required=True, dest='family_reps',
                     help='families_rep_seq.fasta (one rep sequence per family)')
-    ap.add_argument('--ingroup-fasta', required=True, dest='ingroup_fasta',
-                    help='concatenated ingroup proteome FASTA (candidate sequences)')
+    ap.add_argument('--seed-fasta', required=True, dest='seed_fasta',
+                    help='concatenated seed-group proteome FASTA (candidate sequences); the '
+                         'ingroup for novelty, the outgroup for the loss mirror')
     ap.add_argument('--out-cluster-tsv', required=True, dest='out_cluster_tsv')
     ap.add_argument('--out-representatives', required=True, dest='out_representatives')
     ap.add_argument('--out-candidates-fa', required=True, dest='out_candidates_fa')
@@ -101,15 +102,15 @@ def main():
     write_fasta([rep_records[r] for r in sorted(reps) if r in rep_records],
                 args.out_representatives)
 
-    # candidates_fa: the candidate protein sequences (from the ingroup proteomes).
-    ingroup_records = read_fasta(args.ingroup_fasta)
-    cand_records = [ingroup_records[c] for c in sorted(candidate_ids) if c in ingroup_records]
+    # candidates_fa: the candidate protein sequences (from the seed-group proteomes).
+    seed_records = read_fasta(args.seed_fasta)
+    cand_records = [seed_records[c] for c in sorted(candidate_ids) if c in seed_records]
     write_fasta(cand_records, args.out_candidates_fa)
 
     missing = len(candidate_ids) - len(cand_records)
     print(f'candidate families: {len(reps)} reps over {len(candidate_ids)} candidates; '
           f'{len(cand_records)} sequences written'
-          + (f' ({missing} candidate ids not found in ingroup FASTA)' if missing else ''),
+          + (f' ({missing} candidate ids not found in seed FASTA)' if missing else ''),
           file=sys.stderr)
 
 

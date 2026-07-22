@@ -1,6 +1,7 @@
-// BUILD_FAMILY_PROFILES — turn ingroup gene families into a concatenated HMM database
+// BUILD_FAMILY_PROFILES — turn seed-group gene families into a concatenated HMM database
 // (ADR-0002 Q4/Q6), as a scatter-gather so the per-family famsa+hmmbuild work parallelises
-// across the cluster instead of grinding serially in one task (issue #14).
+// across the cluster instead of grinding serially in one task (issue #14). The seed group
+// is the ingroup for novelty, the outgroup for the loss mirror (out_prefix disambiguates).
 //
 //   EXTRACT_FAMILY_SEQS  (once)  → per-family FASTAs + families.tsv
 //        │ flatten + collate(params.family_chunk_size)
@@ -13,15 +14,16 @@
 // extract_family_seqs.py. Each BUILD_CHUNK is short enough to fit the 2h `short` queue and
 // carries the famsa AVX2 node constraint (see nextflow.config `.*BUILD_CHUNK`).
 
-// Split the ingroup families into per-family FASTAs (one process, cheap).
+// Split the seed-group families into per-family FASTAs (one process, cheap).
 process EXTRACT_FAMILY_SEQS {
     label 'low_cpu'
     tag "extract_families"
-    publishDir { "${params.outdir}/${Helpers.projectName(params)}/families" }, mode: 'copy', pattern: 'families.tsv'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}families" }, mode: 'copy', pattern: 'families.tsv'
 
     input:
     path(cluster_tsv)
-    path(ingroup_fa)
+    path(seed_fa)      // concatenated seed-group proteomes (ingroup for novelty, outgroup for loss)
+    val(out_prefix)    // '' (novelty) | 'loss_' — families/ vs loss_families/
 
     output:
     path("fam_*.faa"),    emit: family_fastas, optional: true
@@ -35,7 +37,7 @@ process EXTRACT_FAMILY_SEQS {
     fi
     extract_family_seqs.py \
         --cluster-tsv !{cluster_tsv} \
-        --fasta !{ingroup_fa} \
+        --fasta !{seed_fa} \
         --min-members !{params.family_min_members} \
         --outdir .
     '''
@@ -71,10 +73,11 @@ process BUILD_CHUNK {
 process MERGE_PROFILES {
     label 'low_cpu'
     tag "merge_profiles"
-    publishDir { "${params.outdir}/${Helpers.projectName(params)}/families" }, mode: 'copy'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}families" }, mode: 'copy'
 
     input:
     path(partial_hmms)
+    val(out_prefix)    // '' (novelty) | 'loss_' — families/ vs loss_families/
 
     output:
     path("family_profiles.hmm"), emit: profiles
@@ -95,10 +98,11 @@ process MERGE_PROFILES {
 workflow BUILD_FAMILY_PROFILES {
     take:
     cluster_tsv
-    ingroup_fa
+    seed_fa       // concatenated seed-group proteomes (ingroup for novelty, outgroup for loss)
+    out_prefix    // '' (novelty) | 'loss_' — threaded to the publishing sub-processes
 
     main:
-    EXTRACT_FAMILY_SEQS(cluster_tsv, ingroup_fa)
+    EXTRACT_FAMILY_SEQS(cluster_tsv, seed_fa, out_prefix)
 
     // family_fastas emits every fam_*.faa (one list, or a lone file for a single family);
     // flatten to one item per family, then buffer into fixed-size chunks — each chunk is
@@ -113,7 +117,7 @@ workflow BUILD_FAMILY_PROFILES {
 
     // ifEmpty([]) so MERGE_PROFILES still emits an (empty) family_profiles.hmm when there
     // were no families to profile — FAMILY_HMMSEARCH depends on the file existing.
-    MERGE_PROFILES(BUILD_CHUNK.out.partial_hmm.collect().ifEmpty([]))
+    MERGE_PROFILES(BUILD_CHUNK.out.partial_hmm.collect().ifEmpty([]), out_prefix)
 
     emit:
     profiles = MERGE_PROFILES.out.profiles

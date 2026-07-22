@@ -55,7 +55,7 @@ def _run(tmp_path):
         '--candidates', str(tmp_path / 'candidates.txt'),
         '--family-cluster-tsv', str(tmp_path / 'family_cluster.tsv'),
         '--family-reps', str(tmp_path / 'family_reps.fasta'),
-        '--ingroup-fasta', str(tmp_path / 'ingroup.fasta'),
+        '--seed-fasta', str(tmp_path / 'ingroup.fasta'),
         '--out-cluster-tsv', str(tmp_path / 'out_cluster.tsv'),
         '--out-representatives', str(tmp_path / 'out_reps.fasta'),
         '--out-candidates-fa', str(tmp_path / 'out_candidates.fa'),

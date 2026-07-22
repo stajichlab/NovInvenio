@@ -12,10 +12,14 @@ process PROFILE_PRESENCE_MATRIX {
     path(families_tsv)
     path(protein_map)
     path(config_csv)
+    val(query_group)      // 'IN' (novelty) | 'OUT' (loss)
+    val(query_min_frac)   // presence threshold within the query group
+    val(other_max_frac)   // max fraction of the other group a candidate may survive in
+    val(out_prefix)       // '' (novelty) | 'loss_' — distinct output filenames per direction
 
     output:
-    path("presence_matrix.tsv"), emit: matrix
-    path("candidates.txt"),      emit: candidates
+    path("${out_prefix}presence_matrix.tsv"), emit: matrix
+    path("${out_prefix}candidates.txt"),      emit: candidates
 
     script:
     """
@@ -27,10 +31,10 @@ process PROFILE_PRESENCE_MATRIX {
         --config ${config_csv} \
         --evalue ${params.hmm_presence_evalue} \
         --min-coverage ${params.hmm_presence_cov} \
-        --ingroup-min-frac ${params.ingroup_min_frac} \
-        --query-group IN \
-        --other-max-frac 0.0 \
-        --output-matrix presence_matrix.tsv \
-        --output-candidates candidates.txt
+        --ingroup-min-frac ${query_min_frac} \
+        --query-group ${query_group} \
+        --other-max-frac ${other_max_frac} \
+        --output-matrix ${out_prefix}presence_matrix.tsv \
+        --output-candidates ${out_prefix}candidates.txt
     """
 }
