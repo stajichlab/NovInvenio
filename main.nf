@@ -3,7 +3,9 @@ nextflow.enable.dsl=2
 
 include { SEARCH   } from './workflows/search'
 include { PROFILE_SEARCH } from './workflows/profile_search'
+include { PROFILE_SEARCH as PROFILE_LOSS_SEARCH } from './workflows/profile_search'
 include { PROFILE_CANDIDATE_CLUSTERS } from './modules/profile_candidate_clusters'
+include { PROFILE_CANDIDATE_CLUSTERS as LOSS_PROFILE_CANDIDATE_CLUSTERS } from './modules/profile_candidate_clusters'
 include { LOSS_SEARCH } from './workflows/loss_search'
 include { CLUSTER  } from './workflows/cluster'
 include { CLUSTER  as LOSS_CLUSTER  } from './workflows/cluster'
@@ -74,7 +76,10 @@ workflow {
     //   mmseqs             — the scalable family-profile pathway (ADR-0002). Both emit the
     //                        same matrix/candidates contract, so everything below is shared.
     if (params.cluster_tool == 'mmseqs') {
-        PROFILE_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
+        // Novelty direction: seed families from the ingroup (query-group IN), absent from
+        // every outgroup proteome (other_max_frac 0.0).
+        PROFILE_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config),
+                       'IN', params.ingroup_min_frac, 0.0, '')
         novelty_matrix     = PROFILE_SEARCH.out.matrix
         novelty_candidates = PROFILE_SEARCH.out.candidates
 
@@ -84,8 +89,9 @@ workflow {
             novelty_candidates,
             PROFILE_SEARCH.out.family_cluster_tsv,
             PROFILE_SEARCH.out.family_reps,
-            PROFILE_SEARCH.out.ingroup_concat,
-            'candidates.fa'
+            PROFILE_SEARCH.out.seed_concat,
+            'candidates.fa',
+            ''
         )
         cand_fa          = PROFILE_CANDIDATE_CLUSTERS.out.candidates_fa
         cand_reps        = PROFILE_CANDIDATE_CLUSTERS.out.representatives
@@ -108,17 +114,43 @@ workflow {
 
     SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, cand_cluster_tsv, file(params.config))
 
-    // Mirror of SEARCH/CLUSTER/VALIDATE/ANNOTATE with ingroup/outgroup swapped —
-    // candidate lineage-specific gene losses (present in the outgroup, absent
-    // from the ingroup). See workflows/loss_search.nf for why this needs its
-    // own search direction.
-    LOSS_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
+    // Loss direction — candidate lineage-specific gene losses (present in the outgroup,
+    // absent from the ingroup). --cluster_tool selects the producer, mirroring the novelty
+    // direction: pairwise LOSS_SEARCH, or the outgroup-seeded family-profile mirror
+    // (ADR-0002 / issue #12). Both emit the same loss matrix/candidates contract.
+    if (params.cluster_tool == 'mmseqs') {
+        // Seed families from the OUTGROUP (query-group OUT): conserved in >= outgroup_min_frac
+        // of the outgroup and present in <= loss_ingroup_max_frac of the ingroup.
+        PROFILE_LOSS_SEARCH(outgroup_prot_ch, ingroup_prot_ch, file(params.config),
+                            'OUT', params.outgroup_min_frac, params.loss_ingroup_max_frac, 'loss_')
+        loss_matrix = PROFILE_LOSS_SEARCH.out.matrix
 
-    LOSS_CLUSTER(LOSS_SEARCH.out.candidates, outgroup_prot_ch, file(params.config), 'loss_candidates.fa', 'loss_clusters')
+        LOSS_PROFILE_CANDIDATE_CLUSTERS(
+            PROFILE_LOSS_SEARCH.out.candidates,
+            PROFILE_LOSS_SEARCH.out.family_cluster_tsv,
+            PROFILE_LOSS_SEARCH.out.family_reps,
+            PROFILE_LOSS_SEARCH.out.seed_concat,
+            'loss_candidates.fa',
+            'loss_'
+        )
+        loss_cand_fa          = LOSS_PROFILE_CANDIDATE_CLUSTERS.out.candidates_fa
+        loss_cand_reps        = LOSS_PROFILE_CANDIDATE_CLUSTERS.out.representatives
+        loss_cand_cluster_tsv = LOSS_PROFILE_CANDIDATE_CLUSTERS.out.cluster_tsv
+    }
+    else {
+        // See workflows/loss_search.nf for why this needs its own search direction.
+        LOSS_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
+        loss_matrix = LOSS_SEARCH.out.matrix
 
-    LOSS_VALIDATE(LOSS_CLUSTER.out.representatives, ingroup_dna_ch, LOSS_CLUSTER.out.cluster_tsv, 'loss_tblastn_summary.tsv')
+        LOSS_CLUSTER(LOSS_SEARCH.out.candidates, outgroup_prot_ch, file(params.config), 'loss_candidates.fa', 'loss_clusters')
+        loss_cand_fa          = LOSS_CLUSTER.out.candidates_fa
+        loss_cand_reps        = LOSS_CLUSTER.out.representatives
+        loss_cand_cluster_tsv = LOSS_CLUSTER.out.cluster_tsv
+    }
 
-    LOSS_ANNOTATE(LOSS_CLUSTER.out.candidates_fa, LOSS_SEARCH.out.matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
+    LOSS_VALIDATE(loss_cand_reps, ingroup_dna_ch, loss_cand_cluster_tsv, 'loss_tblastn_summary.tsv')
+
+    LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
 
     REPORT(
         ANNOTATE.out.annotated_matrix,
@@ -128,7 +160,7 @@ workflow {
         cand_cluster_tsv,
         LOSS_ANNOTATE.out.annotated_matrix,
         LOSS_VALIDATE.out.summary,
-        LOSS_CLUSTER.out.cluster_tsv,
+        loss_cand_cluster_tsv,
         file(params.config)
     )
 }

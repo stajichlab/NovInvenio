@@ -34,6 +34,71 @@ Config CSV
                       with a report.html landing page describing the run
 ```
 
+The `SEARCH → CLUSTER` step (how the presence/absence matrix is built) has **two
+interchangeable implementations** selected with `--cluster_tool` — see the next section.
+Everything downstream is identical either way.
+
+## Two analysis approaches: pairwise vs family-profile clustering
+
+The presence/absence matrix is the heart of the pipeline, and there are two ways to build
+it. Pick one with `--cluster_tool`. Both emit the *same* matrix/candidates contract, so
+validation, annotation, and the reports are byte-for-byte the same pipeline downstream.
+
+### `--cluster_tool pairwise` (default) — exact, best for small clades
+
+Searches every ingroup proteome against every other proteome (phmmer/diamond/blast),
+calibrating each gene against a self-vs-self paralog search. Exact and well-calibrated,
+but the job count grows as `|ingroup| × (N−1)` — great up to a few dozen proteomes, slow
+beyond.
+
+```bash
+nextflow run main.nf \
+    --config configs/pezizo4_asco.csv \
+    --data_dir data \
+    --run_tool diamond \                 # phmmer | diamond | blast
+    --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
+    --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
+    --modelorgs_config configs/modelorgs.yaml
+```
+
+### `--cluster_tool mmseqs` — family profiles, scales to hundreds of proteomes
+
+Clusters the seed group into gene families once (mmseqs), turns each family into a profile
+HMM (famsa + hmmbuild), then scans every proteome with the family-HMM database. Presence is
+read from family membership plus a uniform HMM hit rule, collapsing the redundancy — roughly
+`N` hmmsearch jobs instead of `N²`. Both directions use it: the novelty direction seeds
+families from the ingroup, the loss direction from the outgroup.
+
+```bash
+nextflow run main.nf \
+    --config configs/pezizo5.csv \
+    --data_dir data \
+    --cluster_tool mmseqs \              # ← the only change from the pairwise run
+    --run_tool phmmer \                  # still used for the self-search paralog calibration
+    --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
+    --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
+    --modelorgs_config configs/modelorgs.yaml
+```
+
+Family-definition knobs (sensible defaults ship; sweep them for a new clade with
+`bin/run_param_sweep.sh`): `--family_min_seq_id` (0.3), `--family_cov` (0.8),
+`--hmm_presence_evalue` (1e-3), `--hmm_presence_cov` (0.5), and `--family_chunk_size`
+(200 — how many families each parallel profile-build task handles).
+
+### Which should I use?
+
+| | `pairwise` (default) | `mmseqs` |
+|---|---|---|
+| **Best for** | small, well-defined clades | order-scale configs (many proteomes) |
+| **Cost** | `|ingroup| × (N−1)` searches | ~`N` hmmsearch jobs |
+| **Presence call** | per-gene paralog-calibrated | family profile HMM |
+| **Scales to ~200 proteomes** | slow | yes |
+
+They produce the same matrix contract, so you can run both and compare — `novelties.html`
+carries a cross-method `support` column that flags candidates found by both methods (higher
+confidence) vs one (threshold-sensitive). Add `-profile slurm` to either to run on the
+cluster ([below](#running-on-slurm)).
+
 ## Quick start
 
 ### Run it now (built-in test data)
@@ -100,7 +165,13 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 |---|---|---|
 | `--config` | *(required)* | Analysis config CSV (see format below) |
 | `--data_dir` | *(required)* | Directory containing FASTA files listed in the CSV |
-| `--run_tool` | `phmmer` | Search tool: `phmmer`, `diamond`, or `blast` |
+| `--cluster_tool` | `pairwise` | Presence-matrix producer: `pairwise` (exact N² search) or `mmseqs` (scalable family-profile). See [Two analysis approaches](#two-analysis-approaches-pairwise-vs-family-profile-clustering) |
+| `--run_tool` | `phmmer` | Search tool: `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog calibration) |
+| `--family_min_seq_id` | `0.3` | mmseqs family-clustering identity threshold (`mmseqs` pathway) |
+| `--family_cov` | `0.8` | mmseqs family-clustering coverage (`mmseqs` pathway) |
+| `--hmm_presence_evalue` | `1e-3` | Family-HMM full-sequence E-value ceiling for presence (`mmseqs` pathway) |
+| `--hmm_presence_cov` | `0.5` | Family-HMM minimum profile coverage for presence (`mmseqs` pathway) |
+| `--family_chunk_size` | `200` | Families per parallel profile-build task (`mmseqs` pathway) |
 | `--evalue` | `1e-5` | Fallback e-value for proteins with no detectable within-proteome paralog |
 | `--parse_evalue` | `0.01` | Noise ceiling applied when parsing raw pairwise hits; the authoritative per-gene cutoff comes from the self-vs-self paralog search |
 | `--ingroup_min_frac` | `0.75` | Min fraction of ingroup proteomes that must contain a hit |
@@ -364,10 +435,11 @@ across the outgroups but (nearly) absent from the ingroup**: candidate lineage-s
 gene losses, the kind of signal worth chasing for a missing pathway. It answers a question
 `novelties.html` cannot: that report only ever runs searches with ingroup proteomes as the
 query, so it has no way to ask "is this outgroup gene present in the ingroup?" `losses.html`
-is built from a second, symmetric search direction (`LOSS_SEARCH` in
-`workflows/loss_search.nf`) that queries with the outgroup instead — roughly doubling total
-pairwise search volume, so expect a run with losses enabled to take about as long as the
-novelty search itself.
+is built from a second, symmetric search direction that queries with the outgroup instead —
+the same `--cluster_tool` choice applies: `pairwise` runs `LOSS_SEARCH`
+(`workflows/loss_search.nf`), roughly doubling total pairwise search volume; `mmseqs` seeds
+gene families from the **outgroup** and mirrors the family-profile pathway (its outputs land
+under `loss_families/`, `loss_presence_matrix.tsv`, etc.).
 
 **Which rows appear.** A protein is a loss candidate when it is present in ≥
 `--outgroup_min_frac` of the outgroup (conserved there) **and** in ≤

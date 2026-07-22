@@ -11,11 +11,12 @@
 process FAMILY_HMMSEARCH {
     label 'hmmsearch'
     tag "${meta.id}"
-    publishDir { "${params.outdir}/${Helpers.projectName(params)}/family_hmmsearch" }, mode: 'copy'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}family_hmmsearch" }, mode: 'copy'
 
     input:
     tuple val(meta), path(proteome_fa)
     path(profiles_hmm)
+    val(out_prefix)    // '' (novelty) | 'loss_' — family_hmmsearch/ vs loss_family_hmmsearch/
 
     output:
     tuple val(meta), path("${meta.id}.family.domtblout"), emit: domtblout
