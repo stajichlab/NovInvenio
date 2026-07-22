@@ -78,7 +78,7 @@ BASE_PAGE_CSS = r"""
     color: var(--text-primary);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .wrap { max-width: 1320px; margin: 0 auto; padding: 24px 20px 64px; }
+  .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
   header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
   header.top .titles { flex: 1; min-width: 0; }
   h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
@@ -126,7 +126,12 @@ BASE_PAGE_CSS = r"""
     border-bottom: 1px solid var(--axis);
   }
   table.data td.num { font-variant-numeric: tabular-nums; }
-  table.data td.wrap-cell { white-space: normal; max-width: 320px; overflow-wrap: anywhere; }
+  /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
+  table.data td.wrap-cell, table.data th.wrap-cell {
+    white-space: normal; overflow-wrap: anywhere;
+    min-width: 200px; max-width: clamp(260px, 26vw, 640px);
+  }
+  table.data td.cell, table.data th.cell { padding: 6px 5px; text-align: center; }
   table.data tbody tr:hover { background: var(--hover-wash); }
   table.data tbody tr.sel { background: var(--wash); }
   .empty { padding: 40px 8px; color: var(--text-secondary); font-size: 13px; }

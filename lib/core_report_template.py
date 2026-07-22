@@ -206,7 +206,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
     thead.textContent = "";
     var tr = document.createElement("tr");
     TBL_COLS.forEach(function (c) {
-      var th = el("th", null, c.label);
+      var th = el("th", c.cls || null, c.label);
       th.scope = "col";
       tr.appendChild(th);
     });
