@@ -53,6 +53,15 @@ def main():
     ap.add_argument('--sequences', choices=['novelties', 'all', 'none'], default='novelties',
                     help='Which proteins carry an embedded sequence. Sequences dominate the '
                          'file size, so "all" is opt-in (default: novelties)')
+    ap.add_argument('--method', default='pairwise',
+                    help='Search pathway that produced --matrix, labelling this run in the '
+                         'cross-method support column (default: pairwise)')
+    ap.add_argument('--support_matrix',
+                    help="The *other* pathway's presence_matrix.tsv. When given, each row's "
+                         'support column records which method(s) call it novel — the '
+                         'cross-method concordance check (ADR-0002 Phase 2)')
+    ap.add_argument('--support_method', default=None,
+                    help='Label for --support_matrix\'s pathway (default: mmseqs)')
     ap.add_argument('--output', required=True, help='Output HTML file')
     args = ap.parse_args()
 
@@ -79,6 +88,9 @@ def main():
         ingroup_min_frac=args.ingroup_min_frac,
         project=project,
         sequences=args.sequences,
+        method=args.method,
+        support_matrix=args.support_matrix,
+        support_method=args.support_method,
     )
 
     # separators: drop the whitespace json.dumps adds after every delimiter —

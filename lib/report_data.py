@@ -31,6 +31,9 @@ ROW_FIELDS = [
     'nov',       # 1 if this protein is a novelty candidate for its source proteome
     'fam',       # index into payload['families'], or -1 if not part of a multi-member cluster
     'seq',       # protein sequence ('' when not loaded)
+    'support',   # which search method(s) called this protein novel — e.g. 'pairwise',
+                 # 'mmseqs', or 'pairwise+mmseqs' (cross-method concordance). '' if no
+                 # method calls it. Single-method runs carry just the one method name.
 ]
 
 # Trailing transcript/protein suffixes that separate a FungiDB gene ID from the
@@ -133,6 +136,25 @@ def derive_novelties(rows, ingroup_ids, outgroup_ids, ingroup_min_frac) -> set[s
     return novel
 
 
+def read_support_novelties(
+    support_matrix_path, config_samples, ingroup_min_frac
+) -> set[str]:
+    """Novelty protein_ids called by a *second* pathway's presence matrix.
+
+    Cross-method concordance (ADR-0002 Phase 2): the other pathway's run
+    (pairwise vs mmseqs) emits the same matrix contract, so its novelty set is
+    recomputed with derive_novelties() — the same TBLASTN-skipped predicate the
+    primary side uses when no novelties.<SHORT>.tsv is supplied — and compared
+    per protein_id.  Returns an empty set when the path is missing.
+    """
+    if not support_matrix_path or not Path(support_matrix_path).exists():
+        return set()
+    header, rows = read_matrix(support_matrix_path)
+    ingroup_ids = [s.short for s in config_samples if s.group == 'IN' and s.short in header]
+    outgroup_ids = [s.short for s in config_samples if s.group == 'OUT' and s.short in header]
+    return derive_novelties(rows, ingroup_ids, outgroup_ids, ingroup_min_frac)
+
+
 def build_payload(
     matrix_path,
     config_samples,
@@ -143,6 +165,9 @@ def build_payload(
     ingroup_min_frac=0.75,
     project='NovInvenio',
     sequences='novelties',
+    method='pairwise',
+    support_matrix=None,
+    support_method=None,
 ) -> dict:
     """Build the embedded report payload.
 
@@ -155,6 +180,15 @@ def build_payload(
     otherwise shows up as unrelated rows with no way to tell they're the same
     locus.  Clusters with a single member carry no family (fam == -1); there
     is nothing to collapse.
+
+    method / support_matrix / support_method: cross-method concordance
+    (ADR-0002 Phase 2).  `method` labels the pathway that produced matrix_path
+    ('pairwise' or 'mmseqs').  When `support_matrix` (the *other* pathway's
+    presence matrix) is given, each row's `support` field records which
+    method(s) call that protein novel — 'pairwise', 'mmseqs' or
+    'pairwise+mmseqs'.  Multi-method rows are high-confidence; disagreements
+    flag threshold/boundary sensitivity.  Single-method runs leave `support` as
+    just `method` for novelty rows.
     """
     header, rows = read_matrix(matrix_path)
 
@@ -183,6 +217,12 @@ def build_payload(
     novelty_ids, novelty_seqs = read_novelties(novelty_paths or [])
     if not novelty_paths:
         novelty_ids = derive_novelties(rows, ingroup_ids, outgroup_ids, ingroup_min_frac)
+
+    # Cross-method concordance: which method(s) call each protein novel.
+    support_method = support_method or 'mmseqs'
+    support_novelty_ids = read_support_novelties(support_matrix, config_samples,
+                                                 ingroup_min_frac)
+    methods = [method] + ([support_method] if support_matrix else [])
 
     seq_lookup = dict(novelty_seqs)
     if sequences != 'none' and candidates_fa:
@@ -219,6 +259,12 @@ def build_payload(
 
         fam_i = fam_index.index_of(pid, src)
 
+        # support = the methods that call this protein novel, primary method first.
+        row_methods = ([method] if is_nov else [])
+        if support_matrix and pid in support_novelty_ids:
+            row_methods.append(support_method)
+        support = '+'.join(row_methods)
+
         out_rows.append([
             pid,
             shorts.index(src) if src in shorts else -1,
@@ -234,12 +280,15 @@ def build_payload(
             is_nov,
             fam_i,
             seq,
+            support,
         ])
 
     return {
         'project': project,
         'ingroup_min_frac': ingroup_min_frac,
         'fields': ROW_FIELDS,
+        'methods': methods,
+        'support_method': support_method if support_matrix else None,
         'proteomes': [
             {
                 'short': s.short,
