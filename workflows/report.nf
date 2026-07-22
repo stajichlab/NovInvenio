@@ -28,6 +28,10 @@ workflow REPORT {
     MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv)
     MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv)
 
+    // Publication-quality PDF summary (static figures) alongside the interactive HTML.
+    MAKE_PDF_REPORT(annotated_matrix, tblastn_summary, cluster_tsv,
+                    loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv)
+
     // Final step: gather the three reports under view/<project>/ with a report.html
     // landing page describing the run (ingroup/outgroup, tool, thresholds).
     COLLATE_REPORTS(
@@ -41,7 +45,44 @@ workflow REPORT {
     report        = MAKE_REPORT.out.report
     core_report   = MAKE_CORE_REPORT.out.report
     losses_report = MAKE_LOSSES_REPORT.out.report
+    pdf_report    = MAKE_PDF_REPORT.out.pdf
     index_report  = COLLATE_REPORTS.out.index
+}
+
+process MAKE_PDF_REPORT {
+    label 'low_cpu'
+    publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
+
+    when:
+    params.pdf_report != false
+    input:
+    path(annotated_matrix)
+    path(tblastn_summary)
+    path(cluster_tsv)
+    path(loss_annotated_matrix)
+    path(loss_tblastn_summary)
+    path(loss_cluster_tsv)
+    path(config_csv)
+
+    output:
+    path("summary.pdf"), emit: pdf
+
+    script:
+    """
+    make_pdf_report.py \
+        --matrix ${annotated_matrix} \
+        --config ${config_csv} \
+        --tblastn_summary ${tblastn_summary} \
+        --cluster_tsv ${cluster_tsv} \
+        --project ${Helpers.projectName(params)} \
+        --ingroup_min_frac ${params.ingroup_min_frac} \
+        --loss_matrix ${loss_annotated_matrix} \
+        --loss_tblastn_summary ${loss_tblastn_summary} \
+        --loss_cluster_tsv ${loss_cluster_tsv} \
+        --outgroup_min_frac ${params.outgroup_min_frac} \
+        --loss_ingroup_max_frac ${params.loss_ingroup_max_frac} \
+        --output summary.pdf
+    """
 }
 
 process MAKE_REPORT {
