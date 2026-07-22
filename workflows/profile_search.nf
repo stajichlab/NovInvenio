@@ -71,6 +71,12 @@ workflow PROFILE_SEARCH {
     )
 
     emit:
-    matrix     = PROFILE_PRESENCE_MATRIX.out.matrix
-    candidates = PROFILE_PRESENCE_MATRIX.out.candidates
+    matrix          = PROFILE_PRESENCE_MATRIX.out.matrix
+    candidates      = PROFILE_PRESENCE_MATRIX.out.candidates
+    // Family clustering + reps + the concatenated ingroup, for the family-as-cluster
+    // path (ADR-0002 Q7): main.nf feeds these to PROFILE_CANDIDATE_CLUSTERS instead of
+    // re-clustering the candidates.
+    family_cluster_tsv = MMSEQS_FAMILY_CLUSTER.out.cluster_tsv
+    family_reps        = MMSEQS_FAMILY_CLUSTER.out.representatives
+    ingroup_concat     = ingroup_concat
 }
