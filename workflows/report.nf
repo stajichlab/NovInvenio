@@ -53,6 +53,8 @@ process MAKE_PDF_REPORT {
     label 'low_cpu'
     publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
 
+    when:
+    params.pdf_report != false
     input:
     path(annotated_matrix)
     path(tblastn_summary)
