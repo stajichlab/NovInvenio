@@ -94,6 +94,15 @@ GGWT
 MPPQQ
 """
 
+# A second pathway's (mmseqs) presence matrix for the cross-method support column.
+# n1 stays a novelty (concordant with the pairwise MATRIX); n2 gains an outgroup
+# hit (Spom) so mmseqs does NOT call it novel → pairwise-only support.
+SUPPORT_MATRIX = """\
+protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer
+n1\tNcra\t1\t1\t0\t0
+n2\tAfum\t1\t1\t1\t0
+"""
+
 
 @pytest.fixture
 def run_dir(tmp_path):
@@ -205,6 +214,43 @@ def test_payload_prefers_novelty_tables_over_derivation(run_dir, samples):
     assert rows['n1'][F['nov']] == 0
     # Sequence comes from the novelties table, not candidates.fa.
     assert rows['shared'][F['seq']] == 'MMMM'
+
+
+def test_support_single_method_labels_novelties_with_the_one_method(run_dir, samples):
+    payload = payload_for(run_dir, samples)
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = rows_by_id(payload)
+    assert payload['methods'] == ['pairwise']
+    assert payload['support_method'] is None
+    # Novelty rows carry the sole method; non-novelties carry no support.
+    assert rows['n1'][F['support']] == 'pairwise'
+    assert rows['n2'][F['support']] == 'pairwise'
+    assert rows['shared'][F['support']] == ''
+    assert rows['lonely'][F['support']] == ''
+
+
+def test_support_cross_method_concordance(run_dir, samples):
+    (run_dir / 'support.tsv').write_text(SUPPORT_MATRIX)
+    payload = payload_for(run_dir, samples,
+                          support_matrix=run_dir / 'support.tsv',
+                          support_method='mmseqs')
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = rows_by_id(payload)
+    assert payload['methods'] == ['pairwise', 'mmseqs']
+    assert payload['support_method'] == 'mmseqs'
+    # n1 is novel in both pathways → concordant; n2 only in pairwise (mmseqs sees
+    # an outgroup hit) → method-specific.
+    assert rows['n1'][F['support']] == 'pairwise+mmseqs'
+    assert rows['n2'][F['support']] == 'pairwise'
+    assert rows['shared'][F['support']] == ''
+
+
+def test_support_custom_primary_method_label(run_dir, samples):
+    payload = payload_for(run_dir, samples, method='mmseqs')
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = rows_by_id(payload)
+    assert payload['methods'] == ['mmseqs']
+    assert rows['n1'][F['support']] == 'mmseqs'
 
 
 def test_sequences_novelties_only_by_default(run_dir, samples):

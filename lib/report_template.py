@@ -339,6 +339,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     <label class="check"><input type="checkbox" id="f-nov" checked> Novelty candidates only</label>
     <label class="check"><input type="checkbox" id="f-pfam"> Has Pfam</label>
     <label class="check"><input type="checkbox" id="f-notb"> No TBLASTN hit</label>
+    <label class="check hidden" id="f-concordant-wrap"><input type="checkbox" id="f-concordant"> Concordant (both methods)</label>
     <select id="f-sort" aria-label="Sort by">
       <option value="ingroup">Sort: ingroup breadth</option>
       <option value="id">Sort: protein ID</option>
@@ -491,6 +492,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     novOnly: true,
     pfamOnly: false,
     noTb: false,
+    concordantOnly: false,
     sort: "ingroup",
     view: "heatmap",
     selected: -1,
@@ -559,6 +561,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       if (state.fsrc && row[F.fsrc] !== fsrcIdx) continue;
       if (state.pfamOnly && !hasPfam[i]) continue;
       if (state.noTb && tbN[i] > 0) continue;
+      // Concordant = called novel by both search methods (support has a "+").
+      if (state.concordantOnly && String(row[F.support] || "").indexOf("+") === -1) continue;
       if (terms.length) {
         var hay = HAY[i], ok = true;
         for (var t = 0; t < terms.length; t++) {
@@ -848,6 +852,17 @@ HTML_TEMPLATE = r"""<!doctype html>
         Math.round(DATA.ingroup_min_frac * 100) + "% of the ingroup and absent from every outgroup proteome."));
     }
 
+    // Cross-method support (only when a second method's matrix was supplied).
+    if (DATA.methods && DATA.methods.length > 1) {
+      var sup = String(row[F.support] || "");
+      var supText = sup
+        ? (sup.indexOf("+") >= 0
+            ? "Called novel by both methods (" + sup.replace(/\+/g, ", ") + ") — concordant, high confidence."
+            : "Called novel only by " + sup + " — method-specific, check threshold sensitivity.")
+        : "Not called novel by any method.";
+      detailEl.appendChild(field("Cross-method support", supText));
+    }
+
     if (row[F.fam] >= 0) {
       var fam = FAMILIES[row[F.fam]];
       var famBox = el("div");
@@ -974,6 +989,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
     { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
     { label: "Novelty", get: function (r) { return ROWS[r][F.nov] ? "yes" : "no"; } },
+    { label: "Support", get: function (r) { return ROWS[r][F.support] || ""; } },
     {
       label: "Gene family", cls: "wrap-cell",
       get: function (r) {
@@ -1190,10 +1206,12 @@ HTML_TEMPLATE = r"""<!doctype html>
   document.getElementById("f-nov").addEventListener("change", function (e) { state.novOnly = e.target.checked; refresh(true); });
   document.getElementById("f-pfam").addEventListener("change", function (e) { state.pfamOnly = e.target.checked; refresh(true); });
   document.getElementById("f-notb").addEventListener("change", function (e) { state.noTb = e.target.checked; refresh(true); });
+  document.getElementById("f-concordant").addEventListener("change", function (e) { state.concordantOnly = e.target.checked; refresh(true); });
   document.getElementById("f-sort").addEventListener("change", function (e) { state.sort = e.target.value; refresh(true); });
   document.getElementById("f-reset").addEventListener("click", function () {
     state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
-    state.novOnly = true; state.pfamOnly = false; state.noTb = false; state.sort = "ingroup";
+    state.novOnly = true; state.pfamOnly = false; state.noTb = false;
+    state.concordantOnly = false; state.sort = "ingroup";
     document.getElementById("f-search").value = "";
     document.getElementById("f-src").value = "";
     document.getElementById("f-fsrc").value = "";
@@ -1201,9 +1219,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("f-nov").checked = true;
     document.getElementById("f-pfam").checked = false;
     document.getElementById("f-notb").checked = false;
+    document.getElementById("f-concordant").checked = false;
     document.getElementById("f-sort").value = "ingroup";
     refresh(true);
   });
+
+  // The concordant filter only makes sense with a second method's matrix.
+  if (DATA.methods && DATA.methods.length > 1) {
+    document.getElementById("f-concordant-wrap").classList.remove("hidden");
+  }
 
   function setView(v) {
     state.view = v;
