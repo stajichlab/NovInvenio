@@ -53,8 +53,10 @@ process MAKE_PDF_REPORT {
     label 'low_cpu'
     publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
 
+    // Gate: skip the PDF step when --pdf_report false (e.g. no matplotlib available).
     when:
     params.pdf_report != false
+
     input:
     path(annotated_matrix)
     path(tblastn_summary)

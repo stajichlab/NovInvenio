@@ -182,6 +182,7 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd` database; skips if unset |
 | `--modelorgs_config` | `null` | YAML listing model organisms for gene name lookup (see `configs/modelorgs.yaml`) |
 | `--report_sequences` | `novelties` | Which proteins carry a sequence in `novelties.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
+| `--pdf_report` | `true` | Write `view/<project>/summary.pdf` (matplotlib figures). Set `false` to skip the step (gated via the process `when:` directive) |
 | `--project` | *(auto)* | Output subdirectory name; defaults to config CSV basename |
 | `--outdir` | `results` | Root output directory |
 | `--hmm_mpi` | `false` | Run hmmsearch in MPI mode (requires MPI-enabled HMMER) |

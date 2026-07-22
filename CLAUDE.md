@@ -295,6 +295,7 @@ reports and a `report.html` landing page (run summary + links).
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd`; skips SwissProt annotation if unset |
 | `--modelorgs_config` | `null` | Absolute path to model organisms YAML; skips gene-name lookup if unset |
 | `--report_sequences` | `novelties` | Which proteins carry a sequence in `novelties.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
+| `--pdf_report` | `true` | Write `view/<project>/summary.pdf` (matplotlib figures). Set `false` to skip the step (gated via the process `when:` directive) |
 | `--hmm_mpi` | `false` | Run hmmsearch with MPI (`mpirun -np <hmm_mpi_tasks> hmmsearch --mpi`) |
 | `--hmm_mpi_tasks` | `null` | MPI task count; defaults to `max_cpus` when `hmm_mpi=true` |
 | `--max_cpus` | `32` | Cluster-wide CPU cap |
