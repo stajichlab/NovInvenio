@@ -1,0 +1,54 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
+IN,Anthracina ramosa,CGMCC 3.16372,Anthracina_ramosa_CGMCC_3.16372.proteins.fa,Anthracina_ramosa_CGMCC_3.16372.scaffolds.fa,Anthramo,Chaetothyriales
+IN,Capronia coronata,CBS 617.96,Capronia_coronata_CBS_617.96.proteins.fa,Capronia_coronata_CBS_617.96.scaffolds.fa,Caprcoro,Chaetothyriales
+IN,Chaetothyriales sp. CBS 134916,CBS 134916,Chaetothyriales_sp._CBS_134916_CBS_134916.proteins.fa,Chaetothyriales_sp._CBS_134916_CBS_134916.scaffolds.fa,Chaesp3,Chaetothyriales
+IN,Cladophialophora bantiana,BMU 10859,Cladophialophora_bantiana_BMU_10859.proteins.fa,Cladophialophora_bantiana_BMU_10859.scaffolds.fa,Cladbant,Chaetothyriales
+IN,Cladophialophora endolichena,BF3,Cladophialophora_endolichena_BF3.proteins.fa,Cladophialophora_endolichena_BF3.scaffolds.fa,Cladendo,Chaetothyriales
+IN,Cladophialophora minutissima,CBS 121758,Cladophialophora_minutissima_CBS_121758.proteins.fa,Cladophialophora_minutissima_CBS_121758.scaffolds.fa,Cladminu,Chaetothyriales
+IN,Cyphellophora europaea,CBS 101466,Cyphellophora_europaea_CBS_101466.proteins.fa,Cyphellophora_europaea_CBS_101466.scaffolds.fa,Cypheur2,Chaetothyriales
+IN,Epibryon turfosorum,CBS 126587,Epibryon_turfosorum_CBS_126587.proteins.fa,Epibryon_turfosorum_CBS_126587.scaffolds.fa,Epibturf,Chaetothyriales
+IN,Exophiala calicioides,JCM 6030,Exophiala_calicioides_JCM_6030.proteins.fa,Exophiala_calicioides_JCM_6030.scaffolds.fa,Exopcali,Chaetothyriales
+IN,Exophiala mesophila,CCFEE 6314,Exophiala_mesophila_CCFEE_6314.proteins.fa,Exophiala_mesophila_CCFEE_6314.scaffolds.fa,Exopmes3,Chaetothyriales
+IN,Exophiala phaeomuriformis,CBS 132758,Exophiala_phaeomuriformis_CBS_132758.proteins.fa,Exophiala_phaeomuriformis_CBS_132758.scaffolds.fa,Exopphae,Chaetothyriales
+IN,Exophiala spinifera,JCM 15939,Exophiala_spinifera_JCM_15939.proteins.fa,Exophiala_spinifera_JCM_15939.scaffolds.fa,Exopsp11,Chaetothyriales
+IN,Exophiala sp. CCFEE 6388,CCFEE 6388,Exophiala_sp._CCFEE_6388_CCFEE_6388.proteins.fa,Exophiala_sp._CCFEE_6388_CCFEE_6388.scaffolds.fa,Exopsp5,Chaetothyriales
+IN,Exophiala viscosa,JF 03-4F,Exophiala_viscosa_JF_03-4F.proteins.fa,Exophiala_viscosa_JF_03-4F.scaffolds.fa,Exopvis2,Chaetothyriales
+IN,Fonsecaea erecta,CBS 125763,Fonsecaea_erecta_CBS_125763.proteins.fa,Fonsecaea_erecta_CBS_125763.scaffolds.fa,Fonserec,Chaetothyriales
+IN,Fonsecaea nubica,CBS 269.64,Fonsecaea_nubica_CBS_269.64.proteins.fa,Fonsecaea_nubica_CBS_269.64.scaffolds.fa,Fonsnubi,Chaetothyriales
+IN,Herpotrichiellaceae sp.,CTeuk-1624,Herpotrichiellaceae_sp._CTeuk-1624.proteins.fa,Herpotrichiellaceae_sp._CTeuk-1624.scaffolds.fa,Herpsp,Chaetothyriales
+IN,Knufia fluminis,FJI-L2-BK-P2,Knufia_fluminis_FJI-L2-BK-P2.proteins.fa,Knufia_fluminis_FJI-L2-BK-P2.scaffolds.fa,Knufflum,Chaetothyriales
+IN,Neophaeococcomyces aloes,FJII-L3-CM-P2,Neophaeococcomyces_aloes_FJII-L3-CM-P2.proteins.fa,Neophaeococcomyces_aloes_FJII-L3-CM-P2.scaffolds.fa,Neopaloe,Chaetothyriales
+IN,Rhinocladiella mackenziei,IHM 22877,Rhinocladiella_mackenziei_IHM_22877.proteins.fa,Rhinocladiella_mackenziei_IHM_22877.scaffolds.fa,Rhinmac2,Chaetothyriales
+IN,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidioides_immitis_WA_211.scaffolds.fa,Cimm,Pezizomycotina
+OUT,Amauroascus verrucosus,UAMH 3576,Amauroascus_verrucosus_UAMH_3576.proteins.fa,Amauroascus_verrucosus_UAMH_3576.scaffolds.fa,Amauverr,Onygenales
+OUT,Arthroderma sp. MBC 290,MBC 290,Arthroderma_sp._MBC_290_MBC_290.proteins.fa,Arthroderma_sp._MBC_290_MBC_290.scaffolds.fa,Arthsp,Onygenales
+OUT,Arthroderma sp. PD_2,PD_2,Arthroderma_sp._PD_2_PD_2.proteins.fa,Arthroderma_sp._PD_2_PD_2.scaffolds.fa,Arthsp5,Onygenales
+OUT,Ascosphaera aggregata,USDA-ARS PIBMSR Wild2,Ascosphaera_aggregata_USDA-ARS_PIBMSR_Wild2.proteins.fa,Ascosphaera_aggregata_USDA-ARS_PIBMSR_Wild2.scaffolds.fa,Ascoaggr,Onygenales
+OUT,Ascosphaera pollenicola,ATCC 62712,Ascosphaera_pollenicola_ATCC_62712.proteins.fa,Ascosphaera_pollenicola_ATCC_62712.scaffolds.fa,Ascopoll,Onygenales
+OUT,Aspergillus aflatoxiformans,LH_A394,Aspergillus_aflatoxiformans_LH_A394.proteins.fa,Aspergillus_aflatoxiformans_LH_A394.scaffolds.fa,Aspeafla,Eurotiales
+OUT,Aspergillus austwickii,LH_A515,Aspergillus_austwickii_LH_A515.proteins.fa,Aspergillus_austwickii_LH_A515.scaffolds.fa,Aspeaust,Eurotiales
+OUT,Aspergillus bombycis,NRRL26010,Aspergillus_bombycis_NRRL26010.proteins.fa,Aspergillus_bombycis_NRRL26010.scaffolds.fa,Aspebom2,Eurotiales
+OUT,Aspergillus bridgeri,NRRL 13000,Aspergillus_bridgeri_NRRL_13000.proteins.fa,Aspergillus_bridgeri_NRRL_13000.scaffolds.fa,Aspebrid,Eurotiales
+OUT,Aspergillus carbonarius,ITEM 5010,Aspergillus_carbonarius_ITEM_5010.proteins.fa,Aspergillus_carbonarius_ITEM_5010.scaffolds.fa,Aspecarb,Eurotiales
+OUT,Aspergillus clavatus,NRRL 1,Aspergillus_clavatus_NRRL_1.proteins.fa,Aspergillus_clavatus_NRRL_1.scaffolds.fa,Aspecla2,Eurotiales
+OUT,Aspergillus costaricensis,CBS 115574,Aspergillus_costaricensis_CBS_115574.proteins.fa,Aspergillus_costaricensis_CBS_115574.scaffolds.fa,Aspecost,Eurotiales
+OUT,Aspergillus croceus,JS3-P1,Aspergillus_croceus_JS3-P1.proteins.fa,Aspergillus_croceus_JS3-P1.scaffolds.fa,Aspecroc,Eurotiales
+OUT,Aspergillus desertorum,CBS 653.73,Aspergillus_desertorum_CBS_653.73.proteins.fa,Aspergillus_desertorum_CBS_653.73.scaffolds.fa,Aspedese,Eurotiales
+OUT,Aspergillus elegans,IMI 345568,Aspergillus_elegans_IMI_345568.proteins.fa,Aspergillus_elegans_IMI_345568.scaffolds.fa,Aspeeleg,Eurotiales
+OUT,Aspergillus felis,CNM-CM7691,Aspergillus_felis_CNM-CM7691.proteins.fa,Aspergillus_felis_CNM-CM7691.scaffolds.fa,Aspefel2,Eurotiales
+OUT,Aspergillus filifer,CBS 114510,Aspergillus_filifer_CBS_114510.proteins.fa,Aspergillus_filifer_CBS_114510.scaffolds.fa,Aspefili,Eurotiales
+OUT,Aspergillus flavus,07-S-3-1-8,Aspergillus_flavus_07-S-3-1-8.proteins.fa,Aspergillus_flavus_07-S-3-1-8.scaffolds.fa,Aspefl17,Eurotiales
+OUT,Aspergillus fumigatus,F-1-4L-1,Aspergillus_fumigatus_F-1-4L-1.proteins.fa,Aspergillus_fumigatus_F-1-4L-1.scaffolds.fa,Aspefu73,Eurotiales
+OUT,Aspergillus haitiensis,NRRL 4568,Aspergillus_haitiensis_NRRL_4568.proteins.fa,Aspergillus_haitiensis_NRRL_4568.scaffolds.fa,Aspehait,Eurotiales
+OUT,Blastomyces emzantsi,MRL_BACN2,Blastomyces_emzantsi_MRL_BACN2.proteins.fa,Blastomyces_emzantsi_MRL_BACN2.scaffolds.fa,Blasemza,Onygenales
+OUT,Blastomyces percursus,MRL_BP1777,Blastomyces_percursus_MRL_BP1777.proteins.fa,Blastomyces_percursus_MRL_BP1777.scaffolds.fa,Blasper2,Onygenales
+OUT,Coccidioides immitis,,Coccidioides_immitis.proteins.fa,Coccidioides_immitis.scaffolds.fa,Coccimmi,Onygenales
+OUT,Emergomyces orientalis,5z489,Emergomyces_orientalis_5z489.proteins.fa,Emergomyces_orientalis_5z489.scaffolds.fa,Emerorie,Onygenales
+OUT,Emmonsiellopsis sp. PD_5,PD_5,Emmonsiellopsis_sp._PD_5_PD_5.proteins.fa,Emmonsiellopsis_sp._PD_5_PD_5.scaffolds.fa,Emmosp2,Onygenales
+OUT,Epidermophyton floccosum,E1d,Epidermophyton_floccosum_E1d.proteins.fa,Epidermophyton_floccosum_E1d.scaffolds.fa,Epidfloc,Onygenales
+OUT,Histoplasma ohiense,G217B-UCSF2,Histoplasma_ohiense_G217B-UCSF2.proteins.fa,Histoplasma_ohiense_G217B-UCSF2.scaffolds.fa,Histohie,Onygenales
+OUT,Microsporum canis,CBS 566.80,Microsporum_canis_CBS_566.80.proteins.fa,Microsporum_canis_CBS_566.80.scaffolds.fa,Micrcan3,Onygenales
+OUT,Nannizziopsis barbatae,USC001,Nannizziopsis_barbatae_USC001.proteins.fa,Nannizziopsis_barbatae_USC001.scaffolds.fa,Nannbarb,Onygenales
+OUT,Onygenales sp. PD_40,PD_40,Onygenales_sp._PD_40_PD_40.proteins.fa,Onygenales_sp._PD_40_PD_40.scaffolds.fa,Onygsp3,Onygenales
+OUT,Paracoccidioides restrepoana,Pb-DRQ,Paracoccidioides_restrepoana_Pb-DRQ.proteins.fa,Paracoccidioides_restrepoana_Pb-DRQ.scaffolds.fa,Pararest,Onygenales
+OUT,Phaeomoniella chlamydospora,UCRPC4,Phaeomoniella_chlamydospora_UCRPC4.proteins.fa,Phaeomoniella_chlamydospora_UCRPC4.scaffolds.fa,Phaechla,Phaeomoniellales
