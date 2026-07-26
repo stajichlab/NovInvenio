@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chaeto_subset — NovInvenio candidate losses</title>
+<style>
+
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --wash: rgba(42, 120, 214, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --wash: rgba(57, 135, 229, 0.16);
+      --hover-wash: rgba(255, 255, 255, 0.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --wash: rgba(57, 135, 229, 0.16);
+    --hover-wash: rgba(255, 255, 255, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
+  header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+  header.top .titles { flex: 1; min-width: 0; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  button, select, input[type="search"] {
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover-wash); }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--series-1);
+    outline-offset: 2px;
+  }
+  .btn-ghost { background: transparent; }
+  section.card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card-title { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .card-note { margin: 0 0 16px; color: var(--text-secondary); font-size: 12px; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 28px; }
+  .tile-label { color: var(--text-secondary); font-size: 12px; }
+  .tile-value { font-size: 20px; font-weight: 600; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .filters input[type="search"] { min-width: 260px; }
+  .spacer { flex: 1; }
+  .count { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .explorer { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+  @media (max-width: 1180px) { .explorer { grid-template-columns: 1fr; } }
+  .tbl-scroll { overflow: auto; height: 560px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.data th, table.data td {
+    text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap;
+  }
+  table.data th {
+    position: sticky; top: 0; background: var(--surface-1); font-weight: 600; z-index: 1;
+    border-bottom: 1px solid var(--axis);
+  }
+  table.data td.num { font-variant-numeric: tabular-nums; }
+  /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
+  table.data td.wrap-cell, table.data th.wrap-cell {
+    white-space: normal; overflow-wrap: anywhere;
+    min-width: 200px; max-width: clamp(260px, 26vw, 640px);
+  }
+  table.data td.cell, table.data th.cell { padding: 6px 5px; text-align: center; }
+  table.data tbody tr:hover { background: var(--hover-wash); }
+  table.data tbody tr.sel { background: var(--wash); }
+  .empty { padding: 40px 8px; color: var(--text-secondary); font-size: 13px; }
+  .detail { position: sticky; top: 16px; }
+  .detail h3 { margin: 0 0 2px; font-size: 15px; font-weight: 600; word-break: break-all; }
+  .detail .species { color: var(--text-secondary); font-size: 12px; font-style: italic; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px; }
+  .field-value { font-size: 13px; word-break: break-word; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    display: inline-block; padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 11px; text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .chip:hover { border-color: var(--series-1); }
+  .links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .links a, .links button {
+    font-size: 12px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px;
+    text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .links a:hover, .links button:hover { border-color: var(--series-1); }
+  .placeholder { color: var(--text-secondary); font-size: 13px; }
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .badge.warn { color: #a15c00; border-color: #a15c00; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .badge.warn { color: #e0a030; border-color: #e0a030; }
+  }
+  :root[data-theme="dark"] .badge.warn { color: #e0a030; border-color: #e0a030; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="titles">
+      <h1 id="title"></h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <button id="theme-toggle" class="btn-ghost" type="button" aria-label="Toggle colour theme">Theme</button>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">Run summary</h2>
+    <p class="card-note" id="summary-note"></p>
+    <div class="tiles">
+      <div>
+        <div class="tile-label">Loss candidates</div>
+        <div class="tile-value" id="t-total"></div>
+      </div>
+      <div>
+        <div class="tile-label">Outgroup species</div>
+        <div class="tile-value" id="t-out"></div>
+      </div>
+      <div>
+        <div class="tile-label">Gene families</div>
+        <div class="tile-value" id="t-fam"></div>
+      </div>
+      <div>
+        <div class="tile-label">Flagged by ingroup TBLASTN</div>
+        <div class="tile-value" id="t-flagged"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="filters" role="group" aria-label="Filter loss candidates">
+    <input type="search" id="f-search" placeholder="Search ID, gene, product, Pfam…" aria-label="Search proteins">
+    <select id="f-src" aria-label="Source outgroup proteome"></select>
+    <select id="f-fsrc" aria-label="Annotation source"></select>
+    <select id="f-family" aria-label="Gene family"></select>
+    <label class="check" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+      <input type="checkbox" id="f-notb"> No ingroup TBLASTN hit
+    </label>
+    <select id="f-sort" aria-label="Sort by">
+      <option value="priority">Sort: priority (clean loss, broad in outgroup, no TBLASTN hit first)</option>
+      <option value="breadth">Sort: outgroup family breadth</option>
+      <option value="frac">Sort: outgroup presence fraction</option>
+      <option value="id">Sort: protein ID</option>
+      <option value="src">Sort: source proteome</option>
+    </select>
+    <button id="f-reset" type="button">Reset</button>
+    <div class="spacer"></div>
+    <span class="count" id="count"></span>
+    <button id="dl-tsv" type="button">Download TSV</button>
+  </div>
+
+  <div class="explorer">
+    <section class="card" style="padding:14px">
+      <div class="tbl-scroll" id="tbl-scroll">
+        <table class="data">
+          <caption class="sr-only">Candidate gene losses matching the current filters</caption>
+          <thead id="tbl-head"></thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+      <p class="empty hidden" id="tbl-empty">No proteins match the current filters.</p>
+    </section>
+
+    <aside class="card detail" id="detail" aria-live="polite">
+      <p class="placeholder">Select a protein in the table to see its annotation and database links.</p>
+    </aside>
+  </div>
+</div>
+
+<script type="application/json" id="payload">{"project":"Chaeto_subset","outgroup_min_frac":0.75,"loss_ingroup_max_frac":0.0,"n_ingroup":21,"n_outgroup":32,"fields":["id","src","frac","out_breadth","in_retained","gene","prod","fsrc","sprot","pfam_n","pfam_a","tb_hit","tb_genomes","fam"],"proteomes":[{"short":"Anthramo","species":"Anthracina ramosa","strain":"CGMCC 3.16372","group":"IN","taxon":"Chaetothyriales"},{"short":"Caprcoro","species":"Capronia coronata","strain":"CBS 617.96","group":"IN","taxon":"Chaetothyriales"},{"short":"Chaesp3","species":"Chaetothyriales sp. CBS 134916","strain":"CBS 134916","group":"IN","taxon":"Chaetothyriales"},{"short":"Cladbant","species":"Cladophialophora bantiana","strain":"BMU 10859","group":"IN","taxon":"Chaetothyriales"},{"short":"Cladendo","species":"Cladophialophora endolichena","strain":"BF3","group":"IN","taxon":"Chaetothyriales"},{"short":"Cladminu","species":"Cladophialophora minutissima","strain":"CBS 121758","group":"IN","taxon":"Chaetothyriales"},{"short":"Cypheur2","species":"Cyphellophora europaea","strain":"CBS 101466","group":"IN","taxon":"Chaetothyriales"},{"short":"Epibturf","species":"Epibryon turfosorum","strain":"CBS 126587","group":"IN","taxon":"Chaetothyriales"},{"short":"Exopcali","species":"Exophiala calicioides","strain":"JCM 6030","group":"IN","taxon":"Chaetothyriales"},{"short":"Exopmes3","species":"Exophiala mesophila","strain":"CCFEE 6314","group":"IN","taxon":"Chaetothyriales"},{"short":"Exopphae","species":"Exophiala phaeomuriformis","strain":"CBS 132758","group":"IN","taxon":"Chaetothyriales"},{"short":"Exopsp11","species":"Exophiala spinifera","strain":"JCM 15939","group":"IN","taxon":"Chaetothyriales"},{"short":"Exopsp5","species":"Exophiala sp. CCFEE 6388","strain":"CCFEE 6388","group":"IN","taxon":"Chaetothyriales"},{"short":"Exopvis2","species":"Exophiala viscosa","strain":"JF 03-4F","group":"IN","taxon":"Chaetothyriales"},{"short":"Fonserec","species":"Fonsecaea erecta","strain":"CBS 125763","group":"IN","taxon":"Chaetothyriales"},{"short":"Fonsnubi","species":"Fonsecaea nubica","strain":"CBS 269.64","group":"IN","taxon":"Chaetothyriales"},{"short":"Herpsp","species":"Herpotrichiellaceae sp.","strain":"CTeuk-1624","group":"IN","taxon":"Chaetothyriales"},{"short":"Knufflum","species":"Knufia fluminis","strain":"FJI-L2-BK-P2","group":"IN","taxon":"Chaetothyriales"},{"short":"Neopaloe","species":"Neophaeococcomyces aloes","strain":"FJII-L3-CM-P2","group":"IN","taxon":"Chaetothyriales"},{"short":"Rhinmac2","species":"Rhinocladiella mackenziei","strain":"IHM 22877","group":"IN","taxon":"Chaetothyriales"},{"short":"Cimm","species":"Coccidioides immitis","strain":"WA_211","group":"IN","taxon":"Pezizomycotina"},{"short":"Amauverr","species":"Amauroascus verrucosus","strain":"UAMH 3576","group":"OUT","taxon":"Onygenales"},{"short":"Arthsp","species":"Arthroderma sp. MBC 290","strain":"MBC 290","group":"OUT","taxon":"Onygenales"},{"short":"Arthsp5","species":"Arthroderma sp. PD_2","strain":"PD_2","group":"OUT","taxon":"Onygenales"},{"short":"Ascoaggr","species":"Ascosphaera aggregata","strain":"USDA-ARS PIBMSR Wild2","group":"OUT","taxon":"Onygenales"},{"short":"Ascopoll","species":"Ascosphaera pollenicola","strain":"ATCC 62712","group":"OUT","taxon":"Onygenales"},{"short":"Aspeafla","species":"Aspergillus aflatoxiformans","strain":"LH_A394","group":"OUT","taxon":"Eurotiales"},{"short":"Aspeaust","species":"Aspergillus austwickii","strain":"LH_A515","group":"OUT","taxon":"Eurotiales"},{"short":"Aspebom2","species":"Aspergillus bombycis","strain":"NRRL26010","group":"OUT","taxon":"Eurotiales"},{"short":"Aspebrid","species":"Aspergillus bridgeri","strain":"NRRL 13000","group":"OUT","taxon":"Eurotiales"},{"short":"Aspecarb","species":"Aspergillus carbonarius","strain":"ITEM 5010","group":"OUT","taxon":"Eurotiales"},{"short":"Aspecla2","species":"Aspergillus clavatus","strain":"NRRL 1","group":"OUT","taxon":"Eurotiales"},{"short":"Aspecost","species":"Aspergillus costaricensis","strain":"CBS 115574","group":"OUT","taxon":"Eurotiales"},{"short":"Aspecroc","species":"Aspergillus croceus","strain":"JS3-P1","group":"OUT","taxon":"Eurotiales"},{"short":"Aspedese","species":"Aspergillus desertorum","strain":"CBS 653.73","group":"OUT","taxon":"Eurotiales"},{"short":"Aspeeleg","species":"Aspergillus elegans","strain":"IMI 345568","group":"OUT","taxon":"Eurotiales"},{"short":"Aspefel2","species":"Aspergillus felis","strain":"CNM-CM7691","group":"OUT","taxon":"Eurotiales"},{"short":"Aspefili","species":"Aspergillus filifer","strain":"CBS 114510","group":"OUT","taxon":"Eurotiales"},{"short":"Aspefl17","species":"Aspergillus flavus","strain":"07-S-3-1-8","group":"OUT","taxon":"Eurotiales"},{"short":"Aspefu73","species":"Aspergillus fumigatus","strain":"F-1-4L-1","group":"OUT","taxon":"Eurotiales"},{"short":"Aspehait","species":"Aspergillus haitiensis","strain":"NRRL 4568","group":"OUT","taxon":"Eurotiales"},{"short":"Blasemza","species":"Blastomyces emzantsi","strain":"MRL_BACN2","group":"OUT","taxon":"Onygenales"},{"short":"Blasper2","species":"Blastomyces percursus","strain":"MRL_BP1777","group":"OUT","taxon":"Onygenales"},{"short":"Coccimmi","species":"Coccidioides immitis","strain":"","group":"OUT","taxon":"Onygenales"},{"short":"Emerorie","species":"Emergomyces orientalis","strain":"5z489","group":"OUT","taxon":"Onygenales"},{"short":"Emmosp2","species":"Emmonsiellopsis sp. PD_5","strain":"PD_5","group":"OUT","taxon":"Onygenales"},{"short":"Epidfloc","species":"Epidermophyton floccosum","strain":"E1d","group":"OUT","taxon":"Onygenales"},{"short":"Histohie","species":"Histoplasma ohiense","strain":"G217B-UCSF2","group":"OUT","taxon":"Onygenales"},{"short":"Micrcan3","species":"Microsporum canis","strain":"CBS 566.80","group":"OUT","taxon":"Onygenales"},{"short":"Nannbarb","species":"Nannizziopsis barbatae","strain":"USC001","group":"OUT","taxon":"Onygenales"},{"short":"Onygsp3","species":"Onygenales sp. PD_40","strain":"PD_40","group":"OUT","taxon":"Onygenales"},{"short":"Pararest","species":"Paracoccidioides restrepoana","strain":"Pb-DRQ","group":"OUT","taxon":"Onygenales"},{"short":"Phaechla","species":"Phaeomoniella chlamydospora","strain":"UCRPC4","group":"OUT","taxon":"Phaeomoniellales"}],"tblastn_genomes":["Caprcoro","Anthramo","Chaesp3","Cladbant","Cladendo","Cladminu","Cypheur2","Epibturf","Exopmes3","Exopcali","Exopsp11","Exopphae","Exopsp5","Exopvis2","Fonserec","Fonsnubi","Herpsp","Knufflum","Neopaloe","Rhinmac2","Cimm"],"fsources":["Pfam"],"families":[{"rep":"F2991BF8_001082-T1","size":2,"species":["Blasper2","Histohie"]},{"rep":"F2991BF8_005159-T1","size":11,"species":["Amauverr","Aspebom2","Aspecla2","Aspefu73","Aspehait","Blasemza","Blasper2","Coccimmi","Emmosp2","Pararest"]},{"rep":"F3651BEA_001057-T1","size":8,"species":["Aspeafla","Aspeaust","Aspebom2","Aspecla2","Aspecost","Aspefel2","Aspefl17","Aspefu73"]},{"rep":"F442B00A_000168-T1","size":4,"species":["Arthsp5","Emmosp2","Micrcan3","Onygsp3"]},{"rep":"F442B00A_000233-T1","size":28,"species":["Arthsp","Arthsp5","Aspeafla","Aspeaust","Aspebom2","Aspebrid","Aspecarb","Aspecla2","Aspecost","Aspecroc","Aspedese","Aspeeleg","Aspefel2","Aspefili","Aspefl17","Blasemza","Blasper2","Coccimmi","Emerorie","Emmosp2","Epidfloc","Micrcan3","Onygsp3","Pararest","Phaechla"]},{"rep":"F5111BC2_001030-T1","size":2,"species":["Ascoaggr","Ascopoll"]},{"rep":"F6210D2D_007731-T1","size":2,"species":["Blasper2","Histohie"]},{"rep":"F88ACAFF_006886-T1","size":12,"species":["Aspeafla","Aspeaust","Aspebom2","Aspecost","Aspecroc","Aspedese","Aspeeleg","Aspefel2","Aspefili","Aspefl17","Aspefu73","Aspehait"]},{"rep":"F974ED92_001429-T1","size":14,"species":["Aspeafla","Aspeaust","Aspebom2","Aspebrid","Aspecla2","Aspecost","Aspecroc","Aspedese","Aspeeleg","Aspefel2","Aspefili","Aspefl17","Aspefu73","Aspehait"]},{"rep":"F974ED92_008834-T1","size":2,"species":["Aspedese","Aspehait"]},{"rep":"FA655CEF_006539-T1","size":3,"species":["Aspecarb","Aspecroc","Emmosp2"]},{"rep":"FB111ADF_000254-T1","size":4,"species":["Amauverr","Aspedese","Aspefili","Aspehait"]},{"rep":"FB111ADF_001432-T1","size":28,"species":["Amauverr","Arthsp","Arthsp5","Aspeafla","Aspeaust","Aspebom2","Aspebrid","Aspecla2","Aspecroc","Aspeeleg","Aspefel2","Aspefili","Aspefl17","Aspefu73","Aspehait","Blasemza","Coccimmi","Emerorie","Emmosp2","Epidfloc","Histohie","Micrcan3","Onygsp3","Pararest"]},{"rep":"FB111ADF_002598-T1","size":8,"species":["Aspebom2","Aspebrid","Aspecarb","Aspecost","Aspedese","Aspefili","Aspefl17","Aspehait"]},{"rep":"FB1B122A_004689-T1","size":2,"species":["Aspebrid","Aspeeleg"]},{"rep":"FB3C3343_000076-T1","size":5,"species":["Aspecroc","Aspefu73","Emerorie","Emmosp2","Epidfloc"]},{"rep":"FB3C3343_002028-T1","size":4,"species":["Arthsp","Arthsp5","Epidfloc","Micrcan3"]},{"rep":"FBBBEA8C_004623-T1","size":41,"species":["Arthsp","Aspeafla","Aspeaust","Aspebom2","Aspecarb","Aspecroc","Aspedese","Aspeeleg","Aspefel2","Aspefili","Aspefl17","Aspefu73","Aspehait","Blasemza","Blasper2","Coccimmi","Emmosp2","Onygsp3"]},{"rep":"FCA67B39_005048-T1","size":2,"species":["Aspebrid","Aspecarb"]},{"rep":"FD7AAC3E_001757-T1","size":4,"species":["Arthsp","Blasemza","Emerorie","Emmosp2"]},{"rep":"FF848B96_001264-T1","size":19,"species":["Aspeafla","Aspeaust","Aspebom2","Aspebrid","Aspecarb","Aspecla2","Aspecost","Aspecroc","Aspeeleg","Aspefili","Aspefu73","Aspehait","Blasemza","Blasper2","Emerorie","Emmosp2","Histohie","Onygsp3","Pararest"]}],"rows":[["FB111ADF_000254-T1",37,0.75,24,0,"","Chitin_bind_1,DUF5003,DUF7731,Glyco_hydro_18,LysM,LysM11_N",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,DUF5003,DUF7731,Glyco_hydro_18,LysM,LysM11_N","PF00187.25,PF16394.12,PF24865.2,PF00704.35,PF01476.27,PF30529.1",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",11],["F974ED92_000156-T1",34,0.75,24,0,"","Chitin_bind_1,DBD_HTH,Glyco_hydro_18,LysM,LysM11_N,LysM_RLK",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,DBD_HTH,Glyco_hydro_18,LysM,LysM11_N,LysM_RLK","PF00187.25,PF18430.8,PF00704.35,PF01476.27,PF30529.1,PF23577.2",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",11],["FF848B96_008684-T1",40,0.75,24,0,"","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N","PF00187.25,PF00704.35,PF01476.27,PF30529.1",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",11],["F900CCC1_004167-T1",21,0.75,24,0,"","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N",0,"Probable chitinase LysM11 OS=Penicillium expansum OX=27334 GN=LysM11 PE=3 SV=1","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N","PF00187.25,PF00704.35,PF01476.27,PF30529.1",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",11],["F974ED92_008834-T1",34,0.75,24,0,"","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N",0,"Probable chitinase LysM18 OS=Penicillium expansum OX=27334 GN=LysM18 PE=3 SV=1","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N","PF00187.25,PF00704.35,PF01476.27,PF30529.1",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",9],["FF848B96_002263-T1",40,0.75,24,0,"","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N",0,"Probable chitinase LysM18 OS=Penicillium expansum OX=27334 GN=LysM18 PE=3 SV=1","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N","PF00187.25,PF00704.35,PF01476.27,PF30529.1",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",9],["FB111ADF_001432-T1",37,0.7812,25,0,"","Big_9,DUF2031,DUF4139,DUF4140,DUF4407,ENTR1,Golgin_A5,LEKR1,Nucleoporin_FG,REST_helical",0,"","Big_9,DUF2031,DUF4139,DUF4140,DUF4407,ENTR1,Golgin_A5,LEKR1,Nucleoporin_FG,REST_helical","PF17963.8,PF09592.16,PF13598.13,PF13600.12,PF14362.12,PF29363.1,PF09787.15,PF30842.1,PF13634.12,PF20878.3",0,"",12],["FF848B96_001042-T1",40,0.7812,25,0,"","AcrB_N,CCDC47,CR_prot_dom_plant,Ctr,DUF4139,DUF4140,EMC3_TMCO1,GAP45,HpsJ,Nucleoporin_FG,OmpH,Phage_T7_kinase,Piezo_TM1-24,Piezo_TM25-28,POP1_C,TRM10_TRM10A,Utp14,Vfa1",0,"","AcrB_N,CCDC47,CR_prot_dom_plant,Ctr,DUF4139,DUF4140,EMC3_TMCO1,GAP45,HpsJ,Nucleoporin_FG,OmpH,Phage_T7_kinase,Piezo_TM1-24,Piezo_TM25-28,POP1_C,TRM10_TRM10A,Utp14,Vfa1","PF30848.1,PF07946.20,PF22812.1,PF04145.21,PF13598.13,PF13600.12,PF01956.22,PF29346.1,PF28006.1,PF13634.12,PF03938.20,PF27024.1,PF24871.2,PF15917.12,PF22770.3,PF27710.1,PF04615.19,PF08432.16",0,"",12],["FB1B122A_007016-T1",35,0.7812,25,0,"","AAA_23,ALMT,Astro_capsid_p,BSP_II,CCD97-like_C,Cwf_Cwc_15,Cytomega_UL84,DONSON,DUF4139,DUF4140,DUF4667,DUF4746,GAGA_bind,MEKK4_N,NOA36,Nucleoporin_FG,Phage_T7_kinase,Piezo_TM1-24,Presenilin,Rrn6_K-rich,Sigma70_ner,SpoIIP,Sporozoite_P67,V_ATPase_I,WD40_2",0,"","AAA_23,ALMT,Astro_capsid_p,BSP_II,CCD97-like_C,Cwf_Cwc_15,Cytomega_UL84,DONSON,DUF4139,DUF4140,DUF4667,DUF4746,GAGA_bind,MEKK4_N,NOA36,Nucleoporin_FG,Phage_T7_kinase,Piezo_TM1-24,Presenilin,Rrn6_K-rich,Sigma70_ner,SpoIIP,Sporozoite_P67,V_ATPase_I,WD40_2","PF13476.13,PF11744.15,PF12226.15,PF05432.17,PF09747.15,PF04889.18,PF06284.17,PF27662.1,PF13598.13,PF13600.12,PF15700.11,PF15928.11,PF06217.18,PF19431.5,PF06524.18,PF13634.12,PF27024.1,PF24871.2,PF01080.23,PF20639.3,PF04546.20,PF07454.19,PF05642.17,PF01496.25,PF19056.7",0,"",12],["FEF511F4_005313-T1",28,0.7812,25,0,"","DUF4139,DUF4140,GBP_C,Mdt30,P22_portal,Peptidase_S49_N,Piezo_TM25-28,RR_TM4-6,TASL",0,"","DUF4139,DUF4140,GBP_C,Mdt30,P22_portal,Peptidase_S49_N,Piezo_TM25-28,RR_TM4-6,TASL","PF13598.13,PF13600.12,PF02841.21,PF29509.1,PF16510.13,PF08496.16,PF15917.12,PF06459.18,PF15133.12",0,"",12],["FEF511F4_011611-T1",28,0.7812,25,0,"","AlgP_helical,APG6_N,CIA30,DUF3619,DUF4139,DUF4140,Nucleoporin_FG,Radial_spoke_3",0,"","AlgP_helical,APG6_N,CIA30,DUF3619,DUF4139,DUF4140,Nucleoporin_FG,Radial_spoke_3","PF27285.1,PF17675.7,PF08547.19,PF12279.14,PF13598.13,PF13600.12,PF13634.12,PF06098.17",0,"",12],["F88ACAFF_002062-T1",26,0.7812,25,0,"","DUF4139,DUF4140,Map3k7cl,Nucleoporin_FG",0,"","DUF4139,DUF4140,Map3k7cl,Nucleoporin_FG","PF13598.13,PF13600.12,PF27575.1,PF13634.12",0,"",12],["F3C79A11_009696-T1",27,0.7812,25,0,"","DUF4139,DUF4140,Map3k7cl,Nucleoporin_FG",0,"","DUF4139,DUF4140,Map3k7cl,Nucleoporin_FG","PF13598.13,PF13600.12,PF27575.1,PF13634.12",0,"",12],["FAEEFDE6_011372-T1",38,0.7812,25,0,"","DUF4139,DUF4140,Map3k7cl,Nucleoporin_FG",0,"","DUF4139,DUF4140,Map3k7cl,Nucleoporin_FG","PF13598.13,PF13600.12,PF27575.1,PF13634.12",0,"",12],["F3651BEA_003745-T1",36,0.7812,25,0,"","AAA_11,APG6_N,DUF3105,DUF4139,DUF4140,Exonuc_VII_L,FapA,LMBR1,Nucleoporin_FG,OrfB_IS605,Piezo_TM25-28,V_ATPase_I",0,"","AAA_11,APG6_N,DUF3105,DUF4139,DUF4140,Exonuc_VII_L,FapA,LMBR1,Nucleoporin_FG,OrfB_IS605,Piezo_TM25-28,V_ATPase_I","PF13086.13,PF17675.7,PF11303.14,PF13598.13,PF13600.12,PF02601.21,PF03961.20,PF04791.22,PF13634.12,PF01385.26,PF15917.12,PF01496.25",0,"",12],["F2985E37_003902-T1",31,0.7812,25,0,"","DUF3287,DUF4139,DUF4140,Exonuc_VII_L,NEAP,Nucleoporin_FG,Piezo_TM25-28,PROH4_C,ZNF428",0,"","DUF3287,DUF4139,DUF4140,Exonuc_VII_L,NEAP,Nucleoporin_FG,Piezo_TM25-28,PROH4_C,ZNF428","PF11690.14,PF13598.13,PF13600.12,PF02601.21,PF28496.1,PF13634.12,PF15917.12,PF28662.1,PF27966.1",0,"",12],["F3C79A11_009802-T1",27,0.7812,25,0,"","DUF4139,DUF4140,GBP_C,MAJIN,Mdt30,Mua,Peptidase_S49_N,Piezo_TM25-28,Raftlin,RR_TM4-6,TFIIA,U1snRNP70_N",0,"","DUF4139,DUF4140,GBP_C,MAJIN,Mdt30,Mua,Peptidase_S49_N,Piezo_TM25-28,Raftlin,RR_TM4-6,TFIIA,U1snRNP70_N","PF13598.13,PF13600.12,PF02841.21,PF15077.12,PF29509.1,PF28016.1,PF08496.16,PF15917.12,PF15250.12,PF06459.18,PF03153.19,PF12220.15",0,"",12],["F88ACAFF_011526-T1",26,0.7812,25,0,"","DUF4139,DUF4140,DUF8005,GBP_C,MAJIN,Peptidase_S49_N,Phage_T7_kinase,Piezo_TM25-28,RAG1_imp_bd,RR_TM4-6,TFIIA,U1snRNP70_N",0,"","DUF4139,DUF4140,DUF8005,GBP_C,MAJIN,Peptidase_S49_N,Phage_T7_kinase,Piezo_TM25-28,RAG1_imp_bd,RR_TM4-6,TFIIA,U1snRNP70_N","PF13598.13,PF13600.12,PF26027.1,PF02841.21,PF15077.12,PF08496.16,PF27024.1,PF15917.12,PF12560.14,PF06459.18,PF03153.19,PF12220.15",0,"",12],["FAEEFDE6_007318-T1",38,0.7812,25,0,"","DUF4139,DUF4140,DUF8005,GBP_C,MAJIN,Peptidase_S49_N,Phage_T7_kinase,Piezo_TM25-28,RAG1_imp_bd,RR_TM4-6,TFIIA,U1snRNP70_N",0,"","DUF4139,DUF4140,DUF8005,GBP_C,MAJIN,Peptidase_S49_N,Phage_T7_kinase,Piezo_TM25-28,RAG1_imp_bd,RR_TM4-6,TFIIA,U1snRNP70_N","PF13598.13,PF13600.12,PF26027.1,PF02841.21,PF15077.12,PF08496.16,PF27024.1,PF15917.12,PF12560.14,PF06459.18,PF03153.19,PF12220.15",0,"",12],["FF047364_005996-T1",39,0.7812,25,0,"","ALC,APG6_N,ASG7,DUF4139,DUF4140,DUF5345,Exonuc_VII_L,Glyco_hydro2_C5,Nucleoporin_FG,Piezo_TM25-28,RR_TM4-6",0,"","ALC,APG6_N,ASG7,DUF4139,DUF4140,DUF5345,Exonuc_VII_L,Glyco_hydro2_C5,Nucleoporin_FG,Piezo_TM25-28,RR_TM4-6","PF17527.9,PF17675.7,PF29950.1,PF13598.13,PF13600.12,PF17280.8,PF02601.21,PF18565.8,PF13634.12,PF15917.12,PF06459.18",0,"",12],["FA655CEF_009507-T1",33,0.7812,25,0,"","DUF4139,DUF4140,DUF4407,LMBR1,Piezo_TM25-28,Protamine-3",0,"","DUF4139,DUF4140,DUF4407,LMBR1,Piezo_TM25-28,Protamine-3","PF13598.13,PF13600.12,PF14362.12,PF04791.22,PF15917.12,PF29089.1",0,"",12],["FCA67B39_002561-T1",29,0.7812,25,0,"","5_nucleotid,DUF4139,DUF4140,HpsJ,Phage_T7_kinase",0,"","5_nucleotid,DUF4139,DUF4140,HpsJ,Phage_T7_kinase","PF05761.21,PF13598.13,PF13600.12,PF28006.1,PF27024.1",0,"",12],["FF57248A_007782-T1",45,0.7812,25,0,"","ARS2,CCDC93_CC,CC_Bre1,CHASE3,DUF4139,DUF4140,DUF4407,DUF5892,Mdt30,MerR-DNA-bind,Nuf2_DHR10-like,Osmo_CC,Par-4_C,Plectin_PPL,STB2_C,T4SS_LegC2C7,TFIIA,TMF_TATA_bd",0,"","ARS2,CCDC93_CC,CC_Bre1,CHASE3,DUF4139,DUF4140,DUF4407,DUF5892,Mdt30,MerR-DNA-bind,Nuf2_DHR10-like,Osmo_CC,Par-4_C,Plectin_PPL,STB2_C,T4SS_LegC2C7,TFIIA,TMF_TATA_bd","PF04959.20,PF09762.15,PF26095.1,PF05227.20,PF13598.13,PF13600.12,PF14362.12,PF19243.5,PF29509.1,PF09278.18,PF18595.7,PF08946.16,PF30854.1,PF26346.1,PF28231.1,PF28175.1,PF03153.19,PF12325.14",0,"",12],["F442B00A_005988-T1",50,0.7812,25,0,"","CCDC53,DUF4139,DUF4140,DUF4407,Exonuc_VII_L,MerR-DNA-bind,Nuf2_DHR10-like,Par-4_C,Plectin_PPL,STB2_C,TFIIA,TMF_TATA_bd,YqgQ-like",0,"","CCDC53,DUF4139,DUF4140,DUF4407,Exonuc_VII_L,MerR-DNA-bind,Nuf2_DHR10-like,Par-4_C,Plectin_PPL,STB2_C,TFIIA,TMF_TATA_bd,YqgQ-like","PF10152.15,PF13598.13,PF13600.12,PF14362.12,PF02601.21,PF09278.18,PF18595.7,PF30854.1,PF26346.1,PF28231.1,PF03153.19,PF12325.14,PF06014.17",0,"",12],["F900CCC1_000576-T1",21,0.7812,25,0,"","DUF2203,DUF2570,DUF4139,DUF4140,DUF4337,Emaravirus_P4,HAP1_N,HAUS1,Nuf2_DHR10-like,PEA2_C,Tissue_fac",0,"","DUF2203,DUF2570,DUF4139,DUF4140,DUF4337,Emaravirus_P4,HAP1_N,HAUS1,Nuf2_DHR10-like,PEA2_C,Tissue_fac","PF09969.15,PF10828.15,PF13598.13,PF13600.12,PF14235.13,PF16505.10,PF04849.19,PF25762.2,PF18595.7,PF29090.1,PF01108.24",0,"",12],["FD7AAC3E_001817-T1",41,0.7812,25,0,"","DUF4139,DUF4140,Mdt30,Slr1339,TFIIA",0,"","DUF4139,DUF4140,Mdt30,Slr1339,TFIIA","PF13598.13,PF13600.12,PF29509.1,PF26643.1,PF03153.19",0,"",12],["F48CAF04_000519-T1",44,0.7812,25,0,"","CENP-H,Coat_F,DUF16,DUF4139,DUF4140,Mis12,PRKG1_interact,SlyX,TFIIA",0,"","CENP-H,Coat_F,DUF16,DUF4139,DUF4140,Mis12,PRKG1_interact,SlyX,TFIIA","PF05837.18,PF07875.19,PF01519.23,PF13598.13,PF13600.12,PF05859.18,PF15898.11,PF04102.18,PF03153.19",0,"",12],["F787FB4C_006305-T1",51,0.7812,25,0,"","CENP-F_leu_zip,DUF4139,DUF4140,PH_35",0,"","CENP-F_leu_zip,DUF4139,DUF4140,PH_35","PF10473.15,PF13598.13,PF13600.12,PF25424.1",0,"",12],["F6210D2D_006419-T1",47,0.7812,25,0,"","CREPT,DUF4139,DUF4140,DUF8221,ENOX1,LEKR1,Lip_prot_lig_C,LMBR1,Mdt30,SgrA_ig-like,SlyX,TFIIA,UCP022260",0,"","CREPT,DUF4139,DUF4140,DUF8221,ENOX1,LEKR1,Lip_prot_lig_C,LMBR1,Mdt30,SgrA_ig-like,SlyX,TFIIA,UCP022260","PF16566.11,PF13598.13,PF13600.12,PF26666.1,PF23267.2,PF30842.1,PF10437.15,PF04791.22,PF29509.1,PF22312.3,PF04102.18,PF03153.19,PF27723.1",0,"",12],["F1B3E81C_000924-T1",23,0.7812,25,0,"","DUF4139,DUF4140,DUF4407,EzrA,FKBP15,HAUS1,MRP-S26,OmpH,Piezo_TM25-28,Relaxase_C,RR_TM4-6,Selenoprotein_S,TMCO5,TRIP4_3rd,V_ATPase_I",0,"","DUF4139,DUF4140,DUF4407,EzrA,FKBP15,HAUS1,MRP-S26,OmpH,Piezo_TM25-28,Relaxase_C,RR_TM4-6,Selenoprotein_S,TMCO5,TRIP4_3rd,V_ATPase_I","PF13598.13,PF13600.12,PF14362.12,PF06160.18,PF23649.2,PF25762.2,PF14943.12,PF03938.20,PF15917.12,PF11083.14,PF06459.18,PF06936.17,PF14992.12,PF23134.3,PF01496.25",0,"",12],["FB3C3343_003628-T1",46,0.7812,25,0,"","DUF4139,DUF4140",0,"","DUF4139,DUF4140","PF13598.13,PF13600.12",0,"",12],["F0C54309_006930-T1",22,0.7812,25,0,"","DUF4139,DUF4140,Lge1,TFIIA",0,"","DUF4139,DUF4140,Lge1,TFIIA","PF13598.13,PF13600.12,PF11488.16,PF03153.19",0,"",12],["F2F705CD_007296-T1",48,0.7812,25,0,"","CR_prot_dom_plant,DUF4139,DUF4140,DUF4927,HmpF,OmpH,Peptidase_C57,PRIMA1,TPR_MLP1_2,Voldacs,V_ATPase_I",0,"","CR_prot_dom_plant,DUF4139,DUF4140,DUF4927,HmpF,OmpH,Peptidase_C57,PRIMA1,TPR_MLP1_2,Voldacs,V_ATPase_I","PF22812.1,PF13598.13,PF13600.12,PF16279.11,PF28019.1,PF03938.20,PF03290.19,PF16101.11,PF07926.18,PF03517.20,PF01496.25",0,"",12],["FBBBEA8C_001906-T1",43,0.7812,25,0,"","DUF4139,DUF4140,MEI1_N,Nucleoporin_FG,Peptidase_U57,Phage_T7_kinase,SUIM_assoc",0,"","DUF4139,DUF4140,MEI1_N,Nucleoporin_FG,Peptidase_U57,Phage_T7_kinase,SUIM_assoc","PF13598.13,PF13600.12,PF28582.1,PF13634.12,PF05582.18,PF27024.1,PF16619.11",0,"",12],["FA655CEF_006539-T1",33,0.75,24,0,"","FxsA,Glyco_hydro_18,LysM11_C,RXLR-C08",0,"Probable chitinase LysM11 OS=Penicillium expansum OX=27334 GN=LysM11 PE=3 SV=1","FxsA,Glyco_hydro_18,LysM11_C,RXLR-C08","PF04186.19,PF00704.35,PF30526.1,PF29635.1",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",10],["FE4477B7_001981-T1",30,0.75,24,0,"","Glyco_hydro_18,LysM11_ab,LysM11_C,Vir1p",0,"Probable chitinase LysM11 OS=Penicillium expansum OX=27334 GN=LysM11 PE=3 SV=1","Glyco_hydro_18,LysM11_ab,LysM11_C,Vir1p","PF00704.35,PF26794.1,PF30526.1,PF22575.2",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",10],["FF57248A_007989-T1",45,0.75,24,0,"","Chitin_bind_1,DUF1269,Glyco_hydro_18,LysM11_ab,LysM11_C",0,"Probable chitinase LysM11 OS=Penicillium expansum OX=27334 GN=LysM11 PE=3 SV=1","Chitin_bind_1,DUF1269,Glyco_hydro_18,LysM11_ab,LysM11_C","PF00187.25,PF06897.18,PF00704.35,PF26794.1,PF30526.1",1,"Anthramo,Caprcoro,Chaesp3,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Neopaloe,Rhinmac2",10],["F974ED92_001429-T1",34,0.75,24,0,"","MINION,MPAB_Lcp_cat",0,"","MINION,MPAB_Lcp_cat","PF21950.3,PF09995.16",0,"",8],["FA655CEF_010804-T1",33,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",8],["F88ACAFF_004229-T1",26,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",8],["FB1B122A_003082-T1",35,0.75,24,0,"","MDMPI_C,MPAB_Lcp_cat",0,"","MDMPI_C,MPAB_Lcp_cat","PF07398.17,PF09995.16",0,"",8],["FEF511F4_009737-T1",28,0.75,24,0,"","MPAB_Lcp_cat,Rap1_C",0,"","MPAB_Lcp_cat,Rap1_C","PF09995.16,PF11626.14",0,"",8],["F3C79A11_010701-T1",27,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",8],["FAEEFDE6_011624-T1",38,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",8],["FCA67B39_003576-T1",29,0.75,24,0,"","MDMPI_C,MPAB_Lcp_cat",0,"","MDMPI_C,MPAB_Lcp_cat","PF07398.17,PF09995.16",0,"",8],["F4B1C99F_000115-T1",32,0.75,24,0,"","MDMPI_C,MPAB_Lcp_cat",0,"","MDMPI_C,MPAB_Lcp_cat","PF07398.17,PF09995.16",0,"",8],["FF047364_001561-T1",39,0.75,24,0,"","MDMPI_C,MPAB_Lcp_cat",0,"","MDMPI_C,MPAB_Lcp_cat","PF07398.17,PF09995.16",0,"",8],["F3651BEA_000904-T1",36,0.75,24,0,"","MDMPI_C,MPAB_Lcp_cat",0,"","MDMPI_C,MPAB_Lcp_cat","PF07398.17,PF09995.16",0,"",8],["F2985E37_003457-T1",31,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",8],["FB111ADF_003110-T1",37,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",8],["FF848B96_001705-T1",40,0.75,24,0,"","LysM3_NFP,MPAB_Lcp_cat",0,"","LysM3_NFP,MPAB_Lcp_cat","PF23462.2,PF09995.16",0,"",8],["FCA67B39_005048-T1",29,0.7812,25,0,"","Chitin_bind_1,LysM,LysM11_N,LysM_MltD,LysM_RLK",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,LysM,LysM11_N,LysM_MltD,LysM_RLK","PF00187.25,PF01476.27,PF30529.1,PF30403.1,PF23577.2",0,"",18],["FE4477B7_008379-T1",30,0.7812,25,0,"","Chitin_bind_1,DUF7495,LysM,LysM11_N,LysM_MltD,LysM_RLK,PorB",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,DUF7495,LysM,LysM11_N,LysM_MltD,LysM_RLK,PorB","PF00187.25,PF24325.2,PF01476.27,PF30529.1,PF30403.1,PF23577.2,PF11565.15",0,"",18],["F2991BF8_005159-T1",42,0.7812,25,0,"","ABC1,Kdo,Pkinase,RIO1",0,"","ABC1,Kdo,Pkinase,RIO1","PF03109.23,PF06293.21,PF00069.32,PF01163.29",1,"Cimm",1],["F2985E37_008396-T1",31,0.7812,25,0,"","ABC1,APH,Pkinase",0,"","ABC1,APH,Pkinase","PF03109.23,PF01636.30,PF00069.32",1,"Cimm",1],["FF57248A_009336-T1",45,0.7812,25,0,"","ABC1",0,"","ABC1","PF03109.23",1,"Cimm",1],["F787FB4C_006273-T1",51,0.7812,25,0,"","ABC1,DUF8648,Pkinase_fungal,RIO1",0,"","ABC1,DUF8648,Pkinase_fungal,RIO1","PF03109.23,PF30582.1,PF17667.8,PF01163.29",1,"Cimm",1],["F2991BF8_008568-T1",42,0.7812,25,0,"","ABC1",0,"","ABC1","PF03109.23",1,"Cimm",1],["FEF511F4_009419-T1",28,0.7812,25,0,"","ABC1,Glyco_hydro_70,Pkinase",0,"","ABC1,Glyco_hydro_70,Pkinase","PF03109.23,PF02324.23,PF00069.32",1,"Cimm",1],["F900CCC1_004319-T1",21,0.7812,25,0,"","",-1,"","","",1,"Cimm",1],["FD7AAC3E_000672-T1",41,0.7812,25,0,"","ABC1,Kdo,Pkinase",0,"","ABC1,Kdo,Pkinase","PF03109.23,PF06293.21,PF00069.32",1,"Cimm",1],["FF047364_001496-T1",39,0.7812,25,0,"","ABC1,YrbL-PhoP_reg",0,"","ABC1,YrbL-PhoP_reg","PF03109.23,PF10707.16",1,"Cimm",1],["FBBBEA8C_002785-T1",43,0.7812,25,0,"","ABC1,Pkinase",0,"","ABC1,Pkinase","PF03109.23,PF00069.32",1,"Cimm",1],["FF848B96_010147-T1",40,0.7812,25,0,"","AfsA,APH,Kdo,Pkinase,Pkinase_fungal,RIO1",0,"","AfsA,APH,Kdo,Pkinase,Pkinase_fungal,RIO1","PF03756.21,PF01636.30,PF06293.21,PF00069.32,PF17667.8,PF01163.29",1,"Cimm",1],["FB3C3343_002028-T1",46,0.7812,25,0,"","FAM133,Ilm1,Lin-8,TFIIA",0,"","FAM133,Ilm1,Lin-8,TFIIA","PF30675.1,PF10311.15,PF03353.21,PF03153.19",1,"Cimm",16],["F0C54309_004543-T1",22,0.7812,25,0,"","CCD,Ilm1",0,"","CCD,Ilm1","PF07860.17,PF10311.15",1,"Cimm",16],["F2F705CD_002670-T1",48,0.7812,25,0,"","DUF2895,FAM133,Ilm1",0,"","DUF2895,FAM133,Ilm1","PF11444.15,PF30675.1,PF10311.15",1,"Cimm",16],["F1B3E81C_005688-T1",23,0.7812,25,0,"","AFF4_CHD,ALGX,FAM133,Ilar_coat,Ilm1,New_glue,PGA28-like_dom,TALPID3",0,"","AFF4_CHD,ALGX,FAM133,Ilar_coat,Ilm1,New_glue,PGA28-like_dom,TALPID3","PF18876.7,PF16822.12,PF30675.1,PF01787.23,PF10311.15,PF21827.2,PF29052.1,PF15324.12",1,"Cimm",16],["FB3C3343_000076-T1",46,0.75,24,0,"","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N,LysM_RLK",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N,LysM_RLK","PF00187.25,PF00704.35,PF01476.27,PF30529.1,PF23577.2",1,"Anthramo,Chaesp3,Cimm,Exopmes3",15],["F48CAF04_004636-T1",44,0.75,24,0,"","Chitin_bind_1,DUF4215,Glyco_hydro_18,LysM,LysM11_N",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,DUF4215,Glyco_hydro_18,LysM,LysM11_N","PF00187.25,PF13948.12,PF00704.35,PF01476.27,PF30529.1",1,"Anthramo,Chaesp3,Cimm,Exopmes3",15],["FF57248A_008244-T1",45,0.75,24,0,"","Chitin_bind_1,DUF2785,Glyco_hydro_18,LysM,LysM11_N,LysM3_LYK4_5",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,DUF2785,Glyco_hydro_18,LysM,LysM11_N,LysM3_LYK4_5","PF00187.25,PF10978.14,PF00704.35,PF01476.27,PF30529.1,PF23473.2",1,"Anthramo,Chaesp3,Cimm,Exopmes3",15],["FF047364_004188-T1",39,0.75,24,0,"","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N,TIM-barrel_EndoS",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N,TIM-barrel_EndoS","PF00187.25,PF00704.35,PF01476.27,PF30529.1,PF23916.2",1,"Anthramo,Chaesp3,Cimm,Exopmes3",15],["FA655CEF_002098-T1",33,0.75,24,0,"","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N",0,"Secreted chitinase LysM12 OS=Penicillium expansum OX=27334 GN=LysM12 PE=3 SV=1","Chitin_bind_1,Glyco_hydro_18,LysM,LysM11_N","PF00187.25,PF00704.35,PF01476.27,PF30529.1",1,"Anthramo,Chaesp3,Cimm,Exopmes3",15],["FF848B96_001264-T1",40,0.8125,26,0,"","IBD2,Lin-8,Mahjong_helical,MIC19_MIC25,Mitofilin,PAT1,Presenilin,SelP_N,TFIIA,Zip",0,"","IBD2,Lin-8,Mahjong_helical,MIC19_MIC25,Mitofilin,PAT1,Presenilin,SelP_N,TFIIA,Zip","PF27834.1,PF03353.21,PF27635.1,PF05300.17,PF09731.15,PF09770.16,PF01080.23,PF04592.21,PF03153.19,PF02535.29",0,"",20],["F4B1C99F_002111-T1",32,0.8125,26,0,"","eIF3_N,SelP_N,TFIIA",0,"","eIF3_N,SelP_N,TFIIA","PF09440.16,PF04592.21,PF03153.19",0,"",20],["FE4477B7_005028-T1",30,0.8125,26,0,"","Ndc1_Nup,SelP_N,TFIIA",0,"","Ndc1_Nup,SelP_N,TFIIA","PF09531.16,PF04592.21,PF03153.19",0,"",20],["FB111ADF_006984-T1",37,0.8125,26,0,"","ALMT,Histone_HNS_N,Nop5_N,SpoIIIAH,TFIIA",0,"","ALMT,Histone_HNS_N,Nop5_N,SpoIIIAH,TFIIA","PF11744.15,PF22470.2,PF21667.3,PF12685.14,PF03153.19",0,"",20],["F3C79A11_010292-T1",27,0.8125,26,0,"","Arminin,DUF16,Mer2,UPF0184",0,"","Arminin,DUF16,Mer2,UPF0184","PF30276.1,PF01519.23,PF09074.16,PF03670.18",0,"",20],["FEF511F4_007426-T1",28,0.8125,26,0,"","DUF16,MIC19_MIC25,Pheromone",0,"","DUF16,MIC19_MIC25,Pheromone","PF01519.23,PF05300.17,PF08015.17",0,"",20],["F88ACAFF_004503-T1",26,0.8125,26,0,"","Arminin,DUF16,Mer2,UPF0184",0,"","Arminin,DUF16,Mer2,UPF0184","PF30276.1,PF01519.23,PF09074.16,PF03670.18",0,"",20],["FB1B122A_000785-T1",35,0.8125,26,0,"","API5,PFF1_TM,TFIIA",0,"","API5,PFF1_TM,TFIIA","PF05918.18,PF22251.2,PF03153.19",0,"",20],["FCA67B39_001322-T1",29,0.8125,26,0,"","Arminin,CCDC106,TFIIA,Zip",0,"","Arminin,CCDC106,TFIIA,Zip","PF30276.1,PF15794.11,PF03153.19,PF02535.29",0,"",20],["FD7AAC3E_006047-T1",41,0.8125,26,0,"","BASL,DUF789,Gti1_Pac2,Maf1,Mdt30,NatA_aux_su,Nop53,Pox_Ag35,SpoIIP,TFIIA,TT_ORF1,UPF0242",0,"","BASL,DUF789,Gti1_Pac2,Maf1,Mdt30,NatA_aux_su,Nop53,Pox_Ag35,SpoIIP,TFIIA,TT_ORF1,UPF0242","PF31003.1,PF05623.18,PF09729.16,PF09174.16,PF29509.1,PF12569.15,PF07767.17,PF03286.21,PF07454.19,PF03153.19,PF02956.21,PF06785.17",0,"",20],["F48CAF04_003951-T1",44,0.8125,26,0,"","Adeno_PIX,DUF3464,DUF3618,DUF6384,DUF6593,DUF6779,IBD2,MVD-like_N,TFIIA",0,"","Adeno_PIX,DUF3464,DUF3618,DUF6384,DUF6593,DUF6779,IBD2,MVD-like_N,TFIIA","PF03955.21,PF11947.14,PF12277.14,PF19911.5,PF20236.4,PF20570.4,PF27834.1,PF22700.3,PF03153.19",0,"",20],["F787FB4C_005110-T1",51,0.8125,26,0,"","DUF6593,TFIIA",0,"","DUF6593,TFIIA","PF20236.4,PF03153.19",0,"",20],["F442B00A_003812-T1",50,0.8125,26,0,"","Ctr,CTU2,DUF1980,DUF3618,DUF4770,DUF702,DUF7500,FAM76,NadN_nucleosid_C,Neur_chan_memb,NST1,Presenilin,SelP_N,SLC12,SWI-SNF_Ssr4_C,TFIIA,Zip",0,"","Ctr,CTU2,DUF1980,DUF3618,DUF4770,DUF702,DUF7500,FAM76,NadN_nucleosid_C,Neur_chan_memb,NST1,Presenilin,SelP_N,SLC12,SWI-SNF_Ssr4_C,TFIIA,Zip","PF04145.21,PF10288.15,PF09323.16,PF12277.14,PF15994.11,PF05142.18,PF24332.2,PF16046.11,PF21953.2,PF02932.22,PF13945.12,PF01080.23,PF04592.21,PF03522.21,PF20497.4,PF03153.19,PF02535.29",0,"",20],["FF57248A_000627-T1",45,0.8125,26,0,"","CEP19,Ctr,DDHD,DUF6080,eIF3h_C,FAM76,MMR1,NadN_nucleosid_C,Neur_chan_memb,Presenilin,SelP_N,SPX,TFIIA,Zip",0,"","CEP19,Ctr,DDHD,DUF6080,eIF3h_C,FAM76,MMR1,NadN_nucleosid_C,Neur_chan_memb,Presenilin,SelP_N,SPX,TFIIA,Zip","PF14933.12,PF04145.21,PF02862.23,PF19558.5,PF19445.5,PF16046.11,PF08505.16,PF21953.2,PF02932.22,PF01080.23,PF04592.21,PF03105.25,PF03153.19,PF02535.29",0,"",20],["F2991BF8_002490-T1",42,0.8125,26,0,"","DUF3618,DUF4770,DUF4820,DUF6593,DUF7555,Eapp_C,EOS1,FAM171A1-2-B_C,FAM176,Ferlin_C,MamC,Mitofilin,MVD-like_N,NatA_aux_su,PAT1,PNISR,Pox_Ag35,SelP_N,TFIIA,VPS13_N",0,"","DUF3618,DUF4770,DUF4820,DUF6593,DUF7555,Eapp_C,EOS1,FAM171A1-2-B_C,FAM176,Ferlin_C,MamC,Mitofilin,MVD-like_N,NatA_aux_su,PAT1,PNISR,Pox_Ag35,SelP_N,TFIIA,VPS13_N","PF12277.14,PF15994.11,PF16091.11,PF20236.4,PF24432.2,PF10238.16,PF12326.14,PF20771.3,PF14851.12,PF16165.11,PF26373.1,PF09731.15,PF22700.3,PF12569.15,PF09770.16,PF15996.11,PF03286.21,PF04592.21,PF03153.19,PF12624.15",0,"",20],["F6210D2D_005634-T1",47,0.8125,26,0,"","Mgr1,Mitofilin",0,"","Mgr1,Mitofilin","PF08602.17,PF09731.15",0,"",20],["FF047364_006286-T1",39,0.8125,26,0,"","MetOD1,MIC19_MIC25,Mitofilin",0,"","MetOD1,MIC19_MIC25,Mitofilin","PF18546.7,PF05300.17,PF09731.15",0,"",20],["F2985E37_001712-T1",31,0.8125,26,0,"","Mlf1IP,SUIM_assoc",0,"","Mlf1IP,SUIM_assoc","PF10248.15,PF16619.11",0,"",20],["FA655CEF_009860-T1",33,0.8125,26,0,"","DivIC,MUCL1,SOG2",0,"","DivIC,MUCL1,SOG2","PF04977.21,PF21823.2,PF10428.15",0,"",20],["FD7AAC3E_001757-T1",41,0.75,24,0,"","F-box,F-box-like",0,"","F-box,F-box-like","PF00646.39,PF12937.13",0,"",19],["FF57248A_003294-T1",45,0.75,24,0,"","F-box",0,"","F-box","PF00646.39",0,"",19],["F48CAF04_003454-T1",44,0.75,24,0,"","F-box,F-box-like",0,"","F-box,F-box-like","PF00646.39,PF12937.13",0,"",19],["F0C54309_000370-T1",22,0.75,24,0,"","Adeno_terminal,Astro_capsid_p,BUD22,CDC45,CENP-B_dimeris,DNA_pol_phi,DUF3381,F-box,F-box-like,F-box_4,FYDLN_acid,LTI65_LTI78_N,MDH,Microp_apicomplexa_4,Myc_N,NOA36,Nop14,Nop53,RNase_H2_suC,RNA_pol_3_Rpc31",0,"","Adeno_terminal,Astro_capsid_p,BUD22,CDC45,CENP-B_dimeris,DNA_pol_phi,DUF3381,F-box,F-box-like,F-box_4,FYDLN_acid,LTI65_LTI78_N,MDH,Microp_apicomplexa_4,Myc_N,NOA36,Nop14,Nop53,RNase_H2_suC,RNA_pol_3_Rpc31","PF02459.21,PF12226.15,PF09073.16,PF02724.20,PF09026.15,PF04931.19,PF11861.14,PF00646.39,PF12937.13,PF15966.11,PF09538.16,PF23403.2,PF02315.23,PF23501.2,PF01056.24,PF06524.18,PF04147.18,PF07767.17,PF08615.17,PF11705.14",0,"",19],["F2991BF8_001082-T1",42,0.75,24,0,"","",-1,"","","",0,"",0],["F6210D2D_006855-T1",47,0.75,24,0,"","",-1,"","","",0,"",0],["FBBBEA8C_004623-T1",43,0.75,24,0,"","DUF8826,Esterase_PHB,MPAB_Lcp_cat",0,"","DUF8826,Esterase_PHB,MPAB_Lcp_cat","PF31160.1,PF10503.15,PF09995.16",0,"",17],["FE4477B7_007360-T1",30,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FF57248A_003499-T1",45,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F442B00A_006936-T1",50,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FBBBEA8C_003308-T1",43,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FAEEFDE6_006752-T1",38,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FEF511F4_001531-T1",28,0.75,24,0,"","Ies1_helical,MPAB_Lcp_cat",0,"","Ies1_helical,MPAB_Lcp_cat","PF27817.1,PF09995.16",0,"",17],["F88ACAFF_003439-T1",26,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F3C79A11_005026-T1",27,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FEF511F4_007073-T1",28,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FB1B122A_001340-T1",35,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F88ACAFF_002825-T1",26,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F3C79A11_006723-T1",27,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FAEEFDE6_003081-T1",38,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FA655CEF_007678-T1",33,0.75,24,0,"","MPAB_Lcp_cat,NQR2_RnfD_RnfE",0,"","MPAB_Lcp_cat,NQR2_RnfD_RnfE","PF09995.16,PF03116.21",0,"",17],["F974ED92_003520-T1",34,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F442B00A_002921-T1",50,0.75,24,0,"","MPAB_Lcp_cat,Phage_tail_terminator_6",0,"","MPAB_Lcp_cat,Phage_tail_terminator_6","PF09995.16,PF12691.14",0,"",17],["FF57248A_003981-T1",45,0.75,24,0,"","MPAB_Lcp_cat,Phage_tail_terminator_6",0,"","MPAB_Lcp_cat,Phage_tail_terminator_6","PF09995.16,PF12691.14",0,"",17],["FD7AAC3E_001657-T1",41,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F2991BF8_007864-T1",42,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FF848B96_011049-T1",40,0.75,24,0,"","MPAB_Lcp_cat,PRRT3",0,"","MPAB_Lcp_cat,PRRT3","PF09995.16,PF25987.1",0,"",17],["FF848B96_002176-T1",40,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F88ACAFF_011347-T1",26,0.75,24,0,"","AF_1327,MPAB_Lcp_cat",0,"","AF_1327,MPAB_Lcp_cat","PF27271.1,PF09995.16",0,"",17],["FF047364_003442-T1",39,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F3651BEA_006978-T1",36,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["F0C54309_000888-T1",22,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FF848B96_011016-T1",40,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FBBBEA8C_006215-T1",43,0.75,24,0,"","MPAB_Lcp_cat,PrimPol_C",0,"","MPAB_Lcp_cat,PrimPol_C","PF09995.16,PF31174.1",0,"",17],["FF848B96_005652-T1",40,0.75,24,0,"","MPAB_Lcp_cat",0,"Uncharacterized protein MT2296 OS=Mycobacterium tuberculosis (strain CDC 1551 / Oshkosh) OX=83331 GN=MT2296 PE=4 SV=1","MPAB_Lcp_cat","PF09995.16",0,"",17],["FB111ADF_001470-T1",37,0.75,24,0,"","DUF6176,MPAB_Lcp_cat",0,"","DUF6176,MPAB_Lcp_cat","PF19673.5,PF09995.16",0,"",17],["FBBBEA8C_001109-T1",43,0.75,24,0,"","Arginosuc_syn_C,MPAB_Lcp_cat",0,"","Arginosuc_syn_C,MPAB_Lcp_cat","PF20979.3,PF09995.16",0,"",17],["F442B00A_006931-T1",50,0.75,24,0,"","MPAB_Lcp_cat,PhnI",0,"","MPAB_Lcp_cat,PhnI","PF09995.16,PF05861.18",0,"",17],["FF57248A_003505-T1",45,0.75,24,0,"","MPAB_Lcp_cat,PhnI",0,"","MPAB_Lcp_cat,PhnI","PF09995.16,PF05861.18",0,"",17],["FB111ADF_009758-T1",37,0.75,24,0,"","Arginosuc_syn_C,DUF7971,MPAB_Lcp_cat,Swc3",0,"","Arginosuc_syn_C,DUF7971,MPAB_Lcp_cat,Swc3","PF20979.3,PF25926.2,PF09995.16,PF24707.2",0,"",17],["F974ED92_007879-T1",34,0.75,24,0,"","DUF7971,MPAB_Lcp_cat,Swc3",0,"","DUF7971,MPAB_Lcp_cat,Swc3","PF25926.2,PF09995.16,PF24707.2",0,"",17],["FF848B96_006262-T1",40,0.75,24,0,"","Arginosuc_syn_C,MPAB_Lcp_cat,Peptidase_S49,Swc3",0,"","Arginosuc_syn_C,MPAB_Lcp_cat,Peptidase_S49,Swc3","PF20979.3,PF09995.16,PF01343.24,PF24707.2",0,"",17],["F88ACAFF_002822-T1",26,0.75,24,0,"","DUF5882,MPAB_Lcp_cat,YmdB",0,"","DUF5882,MPAB_Lcp_cat,YmdB","PF19229.5,PF09995.16,PF13277.12",0,"",17],["FEF511F4_007076-T1",28,0.75,24,0,"","DUF5882,MPAB_Lcp_cat,YmdB",0,"Uncharacterized protein MT2296 OS=Mycobacterium tuberculosis (strain CDC 1551 / Oshkosh) OX=83331 GN=MT2296 PE=4 SV=1","DUF5882,MPAB_Lcp_cat,YmdB","PF19229.5,PF09995.16,PF13277.12",0,"",17],["F3C79A11_006720-T1",27,0.75,24,0,"","DUF5882,DUF7309,MPAB_Lcp_cat,YmdB",0,"","DUF5882,DUF7309,MPAB_Lcp_cat,YmdB","PF19229.5,PF23988.2,PF09995.16,PF13277.12",0,"",17],["FAEEFDE6_003078-T1",38,0.75,24,0,"","DUF5882,DUF7309,MPAB_Lcp_cat,YmdB",0,"","DUF5882,DUF7309,MPAB_Lcp_cat,YmdB","PF19229.5,PF23988.2,PF09995.16,PF13277.12",0,"",17],["F974ED92_004417-T1",34,0.75,24,0,"","MPAB_Lcp_cat",0,"","MPAB_Lcp_cat","PF09995.16",0,"",17],["FB111ADF_002598-T1",37,0.75,24,0,"","",-1,"","","",0,"",13],["FE4477B7_004906-T1",30,0.75,24,0,"","",-1,"","","",0,"",13],["F4B1C99F_002250-T1",32,0.75,24,0,"","",-1,"","","",0,"",13],["FAEEFDE6_007583-T1",38,0.75,24,0,"","DUF3261,Fapy_DNA_glyco_C,PhoQ_Sensor",0,"","DUF3261,Fapy_DNA_glyco_C,PhoQ_Sensor","PF11659.15,PF21025.3,PF08918.17",0,"",13],["FEF511F4_008145-T1",28,0.75,24,0,"","DUF3261",0,"","DUF3261","PF11659.15",0,"",13],["F974ED92_000609-T1",34,0.75,24,0,"","DUF2630",0,"","DUF2630","PF10944.14",0,"",13],["FF848B96_000551-T1",40,0.75,24,0,"","",-1,"","","",0,"",13],["FCA67B39_006314-T1",29,0.75,24,0,"","DUF3261",0,"","DUF3261","PF11659.15",0,"",13],["F6210D2D_007731-T1",47,1.0,32,0,"","PGM_PMM_I",0,"Probable phosphoglucomutase-2 OS=Dictyostelium discoideum OX=44689 GN=pgmB PE=3 SV=1","PGM_PMM_I","PF02878.23",1,"Cimm",6],["F2991BF8_006928-T1",42,1.0,32,0,"","PGM_PMM_I",0,"Probable phosphoglucomutase-2 OS=Dictyostelium discoideum OX=44689 GN=pgmB PE=3 SV=1","PGM_PMM_I","PF02878.23",1,"Cimm",6],["FB1B122A_004689-T1",35,0.8438,27,0,"","PGA2,Xin",0,"","PGA2,Xin","PF07543.18,PF08043.18",0,"",14],["FCA67B39_005458-T1",29,0.8438,27,0,"","",-1,"","","",0,"",14],["F5111BC2_001030-T1",25,0.9062,29,0,"","CDT1_C,HTH_CDT1",0,"","CDT1_C,HTH_CDT1","PF16679.12,PF26121.2",1,"Anthramo,Caprcoro,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Rhinmac2",5],["FD2F0C02_000607-T1",24,0.9062,29,0,"","CDT1_C,DUF1204,HTH_CDT1",0,"","CDT1_C,DUF1204,HTH_CDT1","PF16679.12,PF06721.16,PF26121.2",1,"Anthramo,Caprcoro,Cimm,Cladbant,Cladendo,Cladminu,Cypheur2,Epibturf,Exopcali,Exopmes3,Exopphae,Exopsp11,Exopsp5,Exopvis2,Fonserec,Fonsnubi,Knufflum,Rhinmac2",5],["F88ACAFF_006886-T1",26,0.7812,25,0,"","ANAPC3,EF-hand_14,Sel1,TPR-S,TPR_10,TPR_12,TPR_14,TPR_16,TPR_17,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_CcmH_CycH",0,"","ANAPC3,EF-hand_14,Sel1,TPR-S,TPR_10,TPR_12,TPR_14,TPR_16,TPR_17,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_CcmH_CycH","PF12895.14,PF17959.8,PF08238.19,PF20308.5,PF13374.13,PF13424.13,PF13428.13,PF13432.13,PF13431.13,PF14559.13,PF07719.24,PF07721.21,PF13174.13,PF13176.13,PF23914.2",0,"",7],["FEF511F4_010970-T1",28,0.7812,25,0,"","ANAPC3,TPR-S,TPR_12,TPR_14,TPR_16,TPR_17,TPR_2,TPR_4,TPR_7",0,"","ANAPC3,TPR-S,TPR_12,TPR_14,TPR_16,TPR_17,TPR_2,TPR_4,TPR_7","PF12895.14,PF20308.5,PF13424.13,PF13428.13,PF13432.13,PF13431.13,PF07719.24,PF07721.21,PF13176.13",0,"",7],["F3C79A11_006987-T1",27,0.7812,25,0,"","ANAPC3,EF-hand_14,TPR-S,TPR_10,TPR_12,TPR_14,TPR_16,TPR_17,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_CcmH_CycH",0,"","ANAPC3,EF-hand_14,TPR-S,TPR_10,TPR_12,TPR_14,TPR_16,TPR_17,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_CcmH_CycH","PF12895.14,PF17959.8,PF20308.5,PF13374.13,PF13424.13,PF13428.13,PF13432.13,PF13431.13,PF14559.13,PF07719.24,PF07721.21,PF13174.13,PF13176.13,PF23914.2",0,"",7],["FAEEFDE6_006834-T1",38,0.7812,25,0,"","ANAPC3,EF-hand_14,Sel1,TPR-S,TPR_10,TPR_12,TPR_14,TPR_16,TPR_17,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_CcmH_CycH",0,"","ANAPC3,EF-hand_14,Sel1,TPR-S,TPR_10,TPR_12,TPR_14,TPR_16,TPR_17,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_CcmH_CycH","PF12895.14,PF17959.8,PF08238.19,PF20308.5,PF13374.13,PF13424.13,PF13428.13,PF13432.13,PF13431.13,PF14559.13,PF07719.24,PF07721.21,PF13174.13,PF13176.13,PF23914.2",0,"",7],["F4B1C99F_003909-T1",32,0.7812,25,0,"","Imm49,TPR_14,TPR_4,TPR_7",0,"","Imm49,TPR_14,TPR_4,TPR_7","PF15575.12,PF13428.13,PF07721.21,PF13176.13",0,"",7],["FF848B96_001141-T1",40,0.7812,25,0,"","CSNKA2IP,SR-25,TPR_4",0,"","CSNKA2IP,SR-25,TPR_4","PF27961.1,PF10500.15,PF07721.21",0,"",7],["FB1B122A_007104-T1",35,0.7812,25,0,"","TPR_19",0,"","TPR_19","PF14559.13",0,"",7],["FB111ADF_002536-T1",37,0.7812,25,0,"","ANAPC3,TPR_1,TPR_12,TPR_14,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_8",0,"","ANAPC3,TPR_1,TPR_12,TPR_14,TPR_19,TPR_2,TPR_4,TPR_6,TPR_7,TPR_8","PF12895.14,PF00515.35,PF13424.13,PF13428.13,PF14559.13,PF07719.24,PF07721.21,PF13174.13,PF13176.13,PF13181.13",0,"",7],["FF047364_006055-T1",39,0.7812,25,0,"","ANAPC3",0,"","ANAPC3","PF12895.14",0,"",7],["F3651BEA_001856-T1",36,0.7812,25,0,"","ANAPC3",0,"","ANAPC3","PF12895.14",0,"",7],["FA655CEF_002781-T1",33,0.7812,25,0,"","TPR_19,TPR_4",0,"","TPR_19,TPR_4","PF14559.13,PF07721.21",0,"",7],["F974ED92_001878-T1",34,0.7812,25,0,"","TPR_7",0,"","TPR_7","PF13176.13",0,"",7],["F442B00A_000168-T1",50,0.75,24,0,"","",-1,"","","",0,"",3],["FF57248A_004962-T1",45,0.75,24,0,"","",-1,"","","",0,"",3],["F1B3E81C_000495-T1",23,0.75,24,0,"","Terpene_synth_C",0,"","Terpene_synth_C","PF03936.22",0,"",3],["F2F705CD_000895-T1",48,0.75,24,0,"","Phage_ABA_S,Rz1",0,"","Phage_ABA_S,Rz1","PF18066.7,PF06085.17",0,"",3],["F442B00A_000233-T1",50,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F48CAF04_004032-T1",44,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FF57248A_001566-T1",45,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase 1, mitochondrial OS=Solanum tuberosum OX=4113 GN=PCAS-1 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F787FB4C_001120-T1",51,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FD7AAC3E_003077-T1",41,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F1B3E81C_002157-T1",23,0.8125,26,0,"","PALP,Rhodanese",0,"Cysteine synthase OS=Staphylococcus epidermidis (strain ATCC 35984 / DSM 28319 / BCRC 17069 / CCUG 31568 / BM 3577 / RP62A) OX=176279 GN=cysK PE=3 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F2991BF8_000863-T1",42,0.8125,26,0,"","PALP,Rhodanese",0,"Cysteine synthase OS=Staphylococcus epidermidis (strain ATCC 35984 / DSM 28319 / BCRC 17069 / CCUG 31568 / BM 3577 / RP62A) OX=176279 GN=cysK PE=3 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F974ED92_004620-T1",34,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F0C54309_006007-T1",22,0.8125,26,0,"","PALP,Rhodanese",0,"Cysteine synthase OS=Staphylococcus epidermidis (strain ATCC 35984 / DSM 28319 / BCRC 17069 / CCUG 31568 / BM 3577 / RP62A) OX=176279 GN=cysK PE=3 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FBBBEA8C_006918-T1",43,0.8125,26,0,"","PALP,Rhodanese",0,"Cysteine synthase, chloroplastic/chromoplastic OS=Capsicum annuum OX=4072 PE=2 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F70CCFFC_005720-T1",52,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase 2, mitochondrial OS=Solanum tuberosum OX=4113 GN=PCAS-2 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FB3C3343_001874-T1",46,0.8125,26,0,"","PALP,Rhodanese",0,"Cysteine synthase OS=Staphylococcus epidermidis (strain ATCC 35984 / DSM 28319 / BCRC 17069 / CCUG 31568 / BM 3577 / RP62A) OX=176279 GN=cysK PE=3 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F2F705CD_000349-T1",48,0.8125,26,0,"","PALP,Rhodanese",0,"Cysteine synthase, chloroplastic/chromoplastic OS=Spinacia oleracea OX=3562 GN=CYSK PE=1 SV=2","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FEF511F4_007543-T1",28,0.8125,26,0,"","PALP,Rhodanese",0,"L-3-cyanoalanine synthase 2, mitochondrial OS=Malus domestica OX=3750 GN=CAS2 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F4B1C99F_008272-T1",32,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase 2, mitochondrial OS=Solanum tuberosum OX=4113 GN=PCAS-2 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FB1B122A_008840-T1",35,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FE4477B7_008837-T1",30,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F88ACAFF_010372-T1",26,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F3651BEA_002789-T1",36,0.8125,26,0,"","PALP,Rhodanese",0,"Cysteine synthase B OS=Salmonella typhimurium (strain LT2 / SGSC1412 / ATCC 700720) OX=99287 GN=cysM PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FB111ADF_004091-T1",37,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase 2, mitochondrial OS=Solanum tuberosum OX=4113 GN=PCAS-2 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F3C79A11_008435-T1",27,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase 2, mitochondrial OS=Solanum tuberosum OX=4113 GN=PCAS-2 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FAEEFDE6_007819-T1",38,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FCA67B39_008560-T1",29,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F2985E37_006702-T1",31,0.8125,26,0,"","PALP,Rhodanese",0,"L-3-cyanoalanine synthase 2, mitochondrial OS=Malus domestica OX=3750 GN=CAS2 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FA655CEF_004089-T1",33,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase, mitochondrial OS=Spinacia oleracea OX=3562 GN=CYSC PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["F70CCFFC_007749-T1",52,0.8125,26,0,"","Lipoprotein_Ltp,PALP,Rhodanese",0,"Cysteine synthase OS=Spinacia oleracea OX=3562 PE=1 SV=1","Lipoprotein_Ltp,PALP,Rhodanese","PF07553.17,PF00291.32,PF00581.26",1,"Cimm",4],["FCA67B39_001899-T1",29,0.8125,26,0,"","PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase 1, mitochondrial OS=Solanum tuberosum OX=4113 GN=PCAS-1 PE=1 SV=1","PALP,Rhodanese","PF00291.32,PF00581.26",1,"Cimm",4],["FB1B122A_007890-T1",35,0.8125,26,0,"","DEDD_Tnp_IS110,PALP,Rhodanese",0,"Bifunctional L-3-cyanoalanine synthase/cysteine synthase 2, mitochondrial OS=Solanum tuberosum OX=4113 GN=PCAS-2 PE=1 SV=1","DEDD_Tnp_IS110,PALP,Rhodanese","PF01548.24,PF00291.32,PF00581.26",1,"Cimm",4],["F3651BEA_001057-T1",36,0.8438,27,0,"","ADIP,ANG-1,ApoO,ATG16,ATG17_like,Bacillus_HBL,Baculo_PEP_C,BLOC1_2,CALCOCO1,CCDC170_1st,CCDC18_2nd,CCDC39,CCDC89,CENP-F_leu_zip,CEP135_TSGA10_CC,CEP89,Cubilin_N,DASH_Dam1,Dcst2,DUF16,DUF1664,DUF2730,DUF2935,DUF3557,DUF4407,DUF6987,DUF724,DUF8600,DUF948,Exonuc_VII_L,EzrA,Fib_alpha,FlaC_arch,Fzo_mitofusin,GAS,Golgin_A5,HEF_HK,HmpF,LEKR1,LPP,MeaB,NPV_P10,Occludin_ELL,ODF2_C,PEP-utilisers_N,PfUIS3,Phage_Gp23,Phage_holin_7_1,Rod_CreS,Sec10_N,Seryl_tRNA_N,Snapin_Pallidin,T4SS_LegC2C7,TMEM120A-B,TOP_N,TPR_MLP1_2,Tup_N,YtxH,ZK652",0,"","ADIP,ANG-1,ApoO,ATG16,ATG17_like,Bacillus_HBL,Baculo_PEP_C,BLOC1_2,CALCOCO1,CCDC170_1st,CCDC18_2nd,CCDC39,CCDC89,CENP-F_leu_zip,CEP135_TSGA10_CC,CEP89,Cubilin_N,DASH_Dam1,Dcst2,DUF16,DUF1664,DUF2730,DUF2935,DUF3557,DUF4407,DUF6987,DUF724,DUF8600,DUF948,Exonuc_VII_L,EzrA,Fib_alpha,FlaC_arch,Fzo_mitofusin,GAS,Golgin_A5,HEF_HK,HmpF,LEKR1,LPP,MeaB,NPV_P10,Occludin_ELL,ODF2_C,PEP-utilisers_N,PfUIS3,Phage_Gp23,Phage_holin_7_1,Rod_CreS,Sec10_N,Seryl_tRNA_N,Snapin_Pallidin,T4SS_LegC2C7,TMEM120A-B,TOP_N,TPR_MLP1_2,Tup_N,YtxH,ZK652","PF11559.14,PF25443.2,PF09769.15,PF08614.17,PF04108.18,PF05791.17,PF04513.18,PF10046.15,PF07888.17,PF30671.1,PF30679.1,PF24161.2,PF28422.1,PF10473.15,PF30378.1,PF28159.1,PF31269.1,PF08653.16,PF26039.3,PF01519.23,PF07889.18,PF10805.15,PF11155.14,PF12078.14,PF14362.12,PF22485.2,PF05266.20,PF29886.1,PF06103.17,PF02601.21,PF06160.18,PF08702.16,PF05377.18,PF04799.19,PF13851.12,PF09787.15,PF19191.7,PF28019.1,PF30842.1,PF04728.19,PF03308.23,PF05531.18,PF07303.19,PF27605.1,PF05524.19,PF11567.14,PF10669.14,PF16081.12,PF19220.7,PF20667.4,PF02403.28,PF14712.12,PF28175.1,PF07851.19,PF19310.5,PF07926.18,PF08581.16,PF12732.13,PF29310.1",1,"Cimm",2],["FF047364_008818-T1",39,0.8438,27,0,"","ADIP,ApoO,ATG16,Baculo_PEP_C,BCDHK_Adom3,BLOC1_2,CCDC146_CC_N,CCDC18_2nd,CCDC39,CCDC89,CEP135_TSGA10_CC,COG6_N,Cubilin_N,DASH_Dad3,DASH_Dam1,Dcst2,DUF1664,DUF2730,DUF2935,DUF5595,DUF724,DUF7399,DUF8661,Fib_alpha,FlaC_arch,Fzo_mitofusin,HEF_HK,HmpF,NPV_P10,Occludin_ELL,Phage_Gp23,Seryl_tRNA_N,SlyX,UbiJ_C",0,"","ADIP,ApoO,ATG16,Baculo_PEP_C,BCDHK_Adom3,BLOC1_2,CCDC146_CC_N,CCDC18_2nd,CCDC39,CCDC89,CEP135_TSGA10_CC,COG6_N,Cubilin_N,DASH_Dad3,DASH_Dam1,Dcst2,DUF1664,DUF2730,DUF2935,DUF5595,DUF724,DUF7399,DUF8661,Fib_alpha,FlaC_arch,Fzo_mitofusin,HEF_HK,HmpF,NPV_P10,Occludin_ELL,Phage_Gp23,Seryl_tRNA_N,SlyX,UbiJ_C","PF11559.14,PF09769.15,PF08614.17,PF04513.18,PF10436.15,PF10046.15,PF30882.1,PF30679.1,PF24161.2,PF28422.1,PF30378.1,PF06419.18,PF31269.1,PF08656.16,PF08653.16,PF26039.3,PF07889.18,PF10805.15,PF11155.14,PF18077.7,PF05266.20,PF24132.2,PF30599.1,PF08702.16,PF05377.18,PF04799.19,PF19191.7,PF28019.1,PF05531.18,PF07303.19,PF10669.14,PF02403.28,PF04102.18,PF29219.1",1,"Cimm",2],["F88ACAFF_006130-T1",26,0.8438,27,0,"","5_3_exonuc,ApoO,ATG17_like,betaPIX_CC,BORCS6,CCDC18_2nd,CCDC89,CLIP1,DUF1319,DUF1664,DUF2730,DUF3450,DUF4250,DUF7310,DUF7809,FapA,Filament,FKBP15,FUSC,GAS,Golgin_A5,IFT57,Lebercilin,LIC4_C,Lipoprotein_20,Lipoprotein_7,NOCA1_mid,Pox_A_type_inc,Rx_N,Seryl_tRNA_N,SHE3,T4SS_LegC2C7,TACC_C,TPR_TNPO3_IPO13_4th,Tropomyosin,Utp12,YabA,YjzK,ZapB",0,"","5_3_exonuc,ApoO,ATG17_like,betaPIX_CC,BORCS6,CCDC18_2nd,CCDC89,CLIP1,DUF1319,DUF1664,DUF2730,DUF3450,DUF4250,DUF7310,DUF7809,FapA,Filament,FKBP15,FUSC,GAS,Golgin_A5,IFT57,Lebercilin,LIC4_C,Lipoprotein_20,Lipoprotein_7,NOCA1_mid,Pox_A_type_inc,Rx_N,Seryl_tRNA_N,SHE3,T4SS_LegC2C7,TACC_C,TPR_TNPO3_IPO13_4th,Tropomyosin,Utp12,YabA,YjzK,ZapB","PF01367.26,PF09769.15,PF04108.18,PF16523.11,PF10157.15,PF30679.1,PF28422.1,PF27241.1,PF07028.17,PF07889.18,PF10805.15,PF11932.14,PF14056.12,PF23991.2,PF25100.1,PF03961.20,PF00038.27,PF23649.2,PF04632.19,PF13851.12,PF09787.15,PF10498.15,PF15619.12,PF28633.1,PF13942.12,PF01540.22,PF29075.1,PF04508.18,PF18052.7,PF02403.28,PF17078.11,PF28175.1,PF05010.20,PF24139.2,PF00261.26,PF04003.18,PF06156.19,PF29944.1,PF06005.19",1,"Cimm",2],["FEF511F4_005826-T1",28,0.8438,27,0,"","ApoLp-III,ATG17_like,Baculo_PEP_C,BCDHK_Adom3,BLI1,BLOC1S4,BORCS6,CCDC138_cc,CCDC18_1st,CCDC39,CENP-K,CEP131_C,CLIP1,COG6_N,Denso_VP4,DUF1664,DUF2203,DUF2730,DUF3450,DUF4250,DUF6026,DUF7310,DUF7792,DUF8567,DUF883,EMP24_GP25L,FapA,Filament,FUSC,GAS,GP41,GVIN1,Lebercilin,LIC4_C,NET2A_C,NOCA1_mid,Par-4_C,Rv0250c,Seryl_tRNA_N,SlyX,SPC25_N,T4SS_LegC2C7,TEX51,Tropomyosin,USP8_interact,XhlA,YabA,YEL043W_helical,ZapB",0,"","ApoLp-III,ATG17_like,Baculo_PEP_C,BCDHK_Adom3,BLI1,BLOC1S4,BORCS6,CCDC138_cc,CCDC18_1st,CCDC39,CENP-K,CEP131_C,CLIP1,COG6_N,Denso_VP4,DUF1664,DUF2203,DUF2730,DUF3450,DUF4250,DUF6026,DUF7310,DUF7792,DUF8567,DUF883,EMP24_GP25L,FapA,Filament,FUSC,GAS,GP41,GVIN1,Lebercilin,LIC4_C,NET2A_C,NOCA1_mid,Par-4_C,Rv0250c,Seryl_tRNA_N,SlyX,SPC25_N,T4SS_LegC2C7,TEX51,Tropomyosin,USP8_interact,XhlA,YabA,YEL043W_helical,ZapB","PF07464.17,PF04108.18,PF04513.18,PF10436.15,PF17324.8,PF28963.1,PF10157.15,PF21037.3,PF30677.1,PF24161.2,PF11802.14,PF27695.1,PF27241.1,PF06419.18,PF02336.22,PF07889.18,PF09969.15,PF10805.15,PF11932.14,PF14056.12,PF19491.4,PF23991.2,PF25055.2,PF29562.1,PF05957.19,PF01105.30,PF03961.20,PF00038.27,PF04632.19,PF13851.12,PF00517.23,PF25974.1,PF15619.12,PF28633.1,PF24918.2,PF29075.1,PF30854.1,PF29599.1,PF02403.28,PF04102.18,PF29997.1,PF28175.1,PF31275.1,PF00261.26,PF08941.16,PF10779.15,PF06156.19,PF29308.1,PF06005.19",1,"Cimm",2],["F3C79A11_011768-T1",27,0.8438,27,0,"","5_3_exonuc,ApoO,ATG17_like,Baculo_PEP_C,betaPIX_CC,BORCS6,CCDC18_2nd,CCDC89,CLIP1,DUF1411,DUF1664,DUF2730,DUF3450,DUF4250,DUF7174,DUF7310,DUF7809,DUF883,FapA,Filament,FKBP15,FUSC,GAS,Golgin_A5,IFT57,LIC4_C,Lipoprotein_7,NOCA1_mid,PfUIS3,Pox_A_type_inc,Rx_N,Seryl_tRNA_N,SHE3,T4SS_LegC2C7,TACC_C,TPR_IF140_C,TPR_TNPO3_IPO13_4th,Tropomyosin,Utp12,YabA,YbaB_DNA_bd,YjzK,ZapB",0,"","5_3_exonuc,ApoO,ATG17_like,Baculo_PEP_C,betaPIX_CC,BORCS6,CCDC18_2nd,CCDC89,CLIP1,DUF1411,DUF1664,DUF2730,DUF3450,DUF4250,DUF7174,DUF7310,DUF7809,DUF883,FapA,Filament,FKBP15,FUSC,GAS,Golgin_A5,IFT57,LIC4_C,Lipoprotein_7,NOCA1_mid,PfUIS3,Pox_A_type_inc,Rx_N,Seryl_tRNA_N,SHE3,T4SS_LegC2C7,TACC_C,TPR_IF140_C,TPR_TNPO3_IPO13_4th,Tropomyosin,Utp12,YabA,YbaB_DNA_bd,YjzK,ZapB","PF01367.26,PF09769.15,PF04108.18,PF04513.18,PF16523.11,PF10157.15,PF30679.1,PF28422.1,PF27241.1,PF07199.17,PF07889.18,PF10805.15,PF11932.14,PF14056.12,PF23796.2,PF23991.2,PF25100.1,PF05957.19,PF03961.20,PF00038.27,PF23649.2,PF04632.19,PF13851.12,PF09787.15,PF10498.15,PF28633.1,PF01540.22,PF29075.1,PF11567.14,PF04508.18,PF18052.7,PF02403.28,PF17078.11,PF28175.1,PF05010.20,PF24760.2,PF24139.2,PF00261.26,PF04003.18,PF06156.19,PF02575.23,PF29944.1,PF06005.19",1,"Cimm",2],["FAEEFDE6_001022-T1",38,0.8438,27,0,"","5_3_exonuc,ApoO,ATG17_like,betaPIX_CC,BORCS6,CCDC18_2nd,CCDC89,CLIP1,DUF1319,DUF1664,DUF2730,DUF3450,DUF4250,DUF7310,DUF7809,FapA,Filament,FKBP15,FUSC,GAS,Golgin_A5,IFT57,Lebercilin,LIC4_C,Lipoprotein_20,Lipoprotein_7,NOCA1_mid,Pox_A_type_inc,Rx_N,Seryl_tRNA_N,SHE3,T4SS_LegC2C7,TACC_C,TPR_TNPO3_IPO13_4th,Tropomyosin,Utp12,YabA,YjzK,ZapB",0,"","5_3_exonuc,ApoO,ATG17_like,betaPIX_CC,BORCS6,CCDC18_2nd,CCDC89,CLIP1,DUF1319,DUF1664,DUF2730,DUF3450,DUF4250,DUF7310,DUF7809,FapA,Filament,FKBP15,FUSC,GAS,Golgin_A5,IFT57,Lebercilin,LIC4_C,Lipoprotein_20,Lipoprotein_7,NOCA1_mid,Pox_A_type_inc,Rx_N,Seryl_tRNA_N,SHE3,T4SS_LegC2C7,TACC_C,TPR_TNPO3_IPO13_4th,Tropomyosin,Utp12,YabA,YjzK,ZapB","PF01367.26,PF09769.15,PF04108.18,PF16523.11,PF10157.15,PF30679.1,PF28422.1,PF27241.1,PF07028.17,PF07889.18,PF10805.15,PF11932.14,PF14056.12,PF23991.2,PF25100.1,PF03961.20,PF00038.27,PF23649.2,PF04632.19,PF13851.12,PF09787.15,PF10498.15,PF15619.12,PF28633.1,PF13942.12,PF01540.22,PF29075.1,PF04508.18,PF18052.7,PF02403.28,PF17078.11,PF28175.1,PF05010.20,PF24139.2,PF00261.26,PF04003.18,PF06156.19,PF29944.1,PF06005.19",1,"Cimm",2],["F4B1C99F_003046-T1",32,0.8438,27,0,"","ATG17_like,CCDC89,CG4951_N,DUF1515,DUF2730,DUF6468,DUF7032,GAD,LD_N,LOH1CR12,Stc1,Vps54",0,"","ATG17_like,CCDC89,CG4951_N,DUF1515,DUF2730,DUF6468,DUF7032,GAD,LD_N,LOH1CR12,Stc1,Vps54","PF04108.18,PF28422.1,PF29483.1,PF07439.16,PF10805.15,PF20072.5,PF23005.2,PF02938.20,PF28692.1,PF10158.14,PF12898.14,PF07928.18",1,"Cimm",2],["F2985E37_002118-T1",31,0.8438,27,0,"","Acetyltransf_11,ApoO,BEGAIN_coil,CCDC146_CC_N,CCDC89,CdaS_N,CoV_S2,Dcst2,DUF1192,DUF16,DUF1664,DUF2203,DUF2721,DUF2730,DUF4407,DUF5798,DUF6317,DUF7310,Erythro-docking,Fib_alpha,Filament,HEF_HK,HU-CCDC81_bac_2,IZUMO,LEKR1,LPP,MbeD_MobD,NOCA1_mid,NPV_P10,PRD3_coil,Rv0250c,SKA1,Spectrin_3,Syntaxin,WXG100_2,YabA",0,"","Acetyltransf_11,ApoO,BEGAIN_coil,CCDC146_CC_N,CCDC89,CdaS_N,CoV_S2,Dcst2,DUF1192,DUF16,DUF1664,DUF2203,DUF2721,DUF2730,DUF4407,DUF5798,DUF6317,DUF7310,Erythro-docking,Fib_alpha,Filament,HEF_HK,HU-CCDC81_bac_2,IZUMO,LEKR1,LPP,MbeD_MobD,NOCA1_mid,NPV_P10,PRD3_coil,Rv0250c,SKA1,Spectrin_3,Syntaxin,WXG100_2,YabA","PF13720.12,PF09769.15,PF27583.1,PF30882.1,PF28422.1,PF10372.15,PF01601.22,PF26039.3,PF06698.17,PF01519.23,PF07889.18,PF09969.15,PF11026.14,PF10805.15,PF14362.12,PF19111.6,PF19840.6,PF23991.2,PF09277.18,PF08702.16,PF00038.27,PF19191.7,PF18175.7,PF15005.12,PF30842.1,PF04728.19,PF04899.18,PF29075.1,PF05531.18,PF28641.1,PF29599.1,PF07160.19,PF21019.5,PF00804.32,PF25547.2,PF06156.19",1,"Cimm",2]]}</script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = JSON.parse(document.getElementById("payload").textContent);
+  var F = {};
+  DATA.fields.forEach(function (name, i) { F[name] = i; });
+
+  var ROWS = DATA.rows;
+  var PROTEOMES = DATA.proteomes;
+  var FAMILIES = DATA.families || [];
+  var nRows = ROWS.length;
+  var N_OUT = DATA.n_outgroup != null ? DATA.n_outgroup :
+    PROTEOMES.filter(function (p) { return p.group === "OUT"; }).length;
+  var N_IN = DATA.n_ingroup != null ? DATA.n_ingroup :
+    PROTEOMES.filter(function (p) { return p.group === "IN"; }).length;
+
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text; // labels are untrusted data
+    return n;
+  }
+
+  function geneIdFromProteinId(pid) {
+    return pid.replace(/-[Tt][^-]*(-p\d+)?$|-p\d+$/, "");
+  }
+  function uniprotAcc(sprot) {
+    if (!sprot) return "";
+    var m = /(?:^|\|)([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:\||\s|$)/.exec(sprot);
+    return m ? m[1] : "";
+  }
+
+  function download(name, text, type) {
+    var blob = new Blob([text], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+  }
+
+
+  function familyLabel(fam) {
+    return fam.rep + " (" + fam.size + " in " + fam.species.length +
+      (fam.species.length === 1 ? " species)" : " species)");
+  }
+
+  var HAY = new Array(nRows);
+  for (var h = 0; h < nRows; h++) {
+    var row = ROWS[h];
+    var famRep = row[F.fam] >= 0 ? FAMILIES[row[F.fam]].rep : "";
+    HAY[h] = (row[F.id] + " " + row[F.gene] + " " + row[F.prod] + " " +
+              row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
+  }
+
+  var state = {
+    search: "",
+    src: "",
+    fsrc: "",
+    family: -1,
+    noTb: false,
+    sort: "priority",
+    selected: -1
+  };
+  var view = [];
+
+  function applyFilters() {
+    var q = state.search.trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+    var srcIdx = state.src ? PROTEOMES.findIndex(function (p) { return p.short === state.src; }) : -1;
+    var fsrcIdx = state.fsrc ? DATA.fsources.indexOf(state.fsrc) : -2;
+
+    view = [];
+    for (var i = 0; i < nRows; i++) {
+      var row = ROWS[i];
+      if (state.family >= 0 && row[F.fam] !== state.family) continue;
+      if (srcIdx >= 0 && row[F.src] !== srcIdx) continue;
+      if (state.fsrc && row[F.fsrc] !== fsrcIdx) continue;
+      if (state.noTb && row[F.tb_hit]) continue;
+      if (terms.length) {
+        var hay = HAY[i], ok = true;
+        for (var t = 0; t < terms.length; t++) {
+          if (hay.indexOf(terms[t]) === -1) { ok = false; break; }
+        }
+        if (!ok) continue;
+      }
+      view.push(i);
+    }
+    sortView();
+  }
+
+  function sortView() {
+    var s = state.sort;
+    var cmpId = function (a, b) { return ROWS[a][F.id] < ROWS[b][F.id] ? -1 : ROWS[a][F.id] > ROWS[b][F.id] ? 1 : 0; };
+    var cmp;
+    if (s === "id") cmp = cmpId;
+    else if (s === "src") cmp = function (a, b) { return (ROWS[a][F.src] - ROWS[b][F.src]) || cmpId(a, b); };
+    else if (s === "frac") cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
+    else if (s === "breadth") cmp = function (a, b) { return (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) || cmpId(a, b); };
+    // priority: the strongest loss call is a gene family retained in the fewest ingroup
+    // species (cleanest loss), conserved across the most outgroup species (broadest
+    // ortholog set), with no ingroup TBLASTN hit — a genomic hit means "might just be a
+    // missed gene model", so it ranks below rows with none.
+    else cmp = function (a, b) {
+      return (ROWS[a][F.in_retained] - ROWS[b][F.in_retained]) ||
+             (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) ||
+             (ROWS[a][F.tb_hit] - ROWS[b][F.tb_hit]) || cmpId(a, b);
+    };
+    view.sort(cmp);
+  }
+
+  // ---- table --------------------------------------------------------------
+  var TBL_COLS = [
+    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
+    { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
+    { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num" },
+    { label: "Ingroup retained", get: function (r) { return ROWS[r][F.in_retained] + " / " + N_IN + " species"; }, cls: "num" },
+    { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num" },
+    { label: "Ingroup TBLASTN", get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; }, cls: "wrap-cell" },
+    {
+      label: "Gene family", cls: "wrap-cell",
+      get: function (r) {
+        var fi = ROWS[r][F.fam];
+        return fi >= 0 ? FAMILIES[fi].rep + " (" + FAMILIES[fi].size + ")" : "";
+      }
+    },
+    { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
+    { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
+    { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
+    { label: "Pfam domains", get: function (r) { return ROWS[r][F.pfam_n]; }, cls: "wrap-cell" }
+  ];
+
+  var TBL_PAGE = 300;
+  var tblShown = TBL_PAGE;
+  var tblBody = document.getElementById("tbl-body");
+  var tblScroll = document.getElementById("tbl-scroll");
+
+  function renderTableHead() {
+    var thead = document.getElementById("tbl-head");
+    thead.textContent = "";
+    var tr = document.createElement("tr");
+    TBL_COLS.forEach(function (c) {
+      var th = el("th", c.cls || null, c.label);
+      th.scope = "col";
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+  }
+
+  function renderTable(reset) {
+    if (reset) { tblShown = TBL_PAGE; tblBody.textContent = ""; tblScroll.scrollTop = 0; }
+    var start = tblBody.childNodes.length;
+    var end = Math.min(tblShown, view.length);
+    var frag = document.createDocumentFragment();
+    for (var i = start; i < end; i++) {
+      var ri = view[i];
+      var tr = document.createElement("tr");
+      tr.dataset.ri = ri;
+      if (ri === state.selected) tr.className = "sel";
+      TBL_COLS.forEach(function (c) {
+        var td = el("td", c.cls || null, c.get(ri) || "");
+        tr.appendChild(td);
+      });
+      frag.appendChild(tr);
+    }
+    tblBody.appendChild(frag);
+    document.getElementById("tbl-empty").classList.toggle("hidden", view.length > 0);
+  }
+
+  function markTableSelection() {
+    Array.prototype.forEach.call(tblBody.childNodes, function (tr) {
+      tr.className = Number(tr.dataset.ri) === state.selected ? "sel" : "";
+    });
+  }
+
+  tblScroll.addEventListener("scroll", function () {
+    if (tblScroll.scrollTop + tblScroll.clientHeight > tblScroll.scrollHeight - 200 && tblShown < view.length) {
+      tblShown = Math.min(tblShown + TBL_PAGE, view.length);
+      renderTable(false);
+    }
+  });
+  tblBody.addEventListener("click", function (e) {
+    var tr = e.target.closest("tr");
+    if (tr && tr.dataset.ri !== undefined) select(Number(tr.dataset.ri));
+  });
+
+  // ---- detail panel ---------------------------------------------------------
+  var detailEl = document.getElementById("detail");
+
+  function field(label, valueNode) {
+    var f = el("div", "field");
+    f.appendChild(el("div", "field-label", label));
+    if (typeof valueNode === "string") f.appendChild(el("div", "field-value", valueNode));
+    else f.appendChild(valueNode);
+    return f;
+  }
+
+  function renderDetail() {
+    detailEl.textContent = "";
+    var ri = state.selected;
+    if (ri < 0) {
+      detailEl.appendChild(el("p", "placeholder",
+        "Select a protein in the table to see its annotation and database links."));
+      return;
+    }
+    var row = ROWS[ri];
+    var sp = row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null;
+
+    detailEl.appendChild(el("h3", null, row[F.id]));
+    if (sp) {
+      detailEl.appendChild(el("div", "species",
+        sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short + " · outgroup"));
+    }
+
+    var retained = row[F.in_retained];
+    var statusText = (retained === 0
+        ? "Absent from every ingroup proteome"
+        : "Retained in " + retained + " of " + N_IN + " ingroup species") +
+      "; the gene family is present in " + row[F.out_breadth] + " of " + N_OUT +
+      " outgroup species (this protein hits " + Math.round(row[F.frac] * 100) +
+      "% of the outgroup).";
+    var statusBox = el("div");
+    statusBox.appendChild(el("div", "field-value", statusText));
+    if (row[F.tb_hit]) {
+      var warn = el("span", "badge warn",
+        "TBLASTN hit in ingroup genome: " + row[F.tb_genomes]);
+      warn.title = "The protein search found no ortholog, but a translated nucleotide " +
+        "search did — this may be a missed gene model rather than a true loss.";
+      statusBox.appendChild(el("div", null, warn));
+    } else if (DATA.tblastn_genomes && DATA.tblastn_genomes.length) {
+      statusBox.appendChild(el("div", null, el("span", "badge", "No ingroup TBLASTN hit")));
+    }
+    detailEl.appendChild(field("Status", statusBox));
+
+    if (row[F.fam] >= 0) {
+      var fam = FAMILIES[row[F.fam]];
+      var famBox = el("div");
+      famBox.appendChild(el("div", "field-value",
+        fam.size + " members across " + fam.species.length + " species (" + fam.species.join(", ") + ")"));
+      var famLinks = el("div", "links");
+      var famBtn = el("button", null, "Show family members (" + fam.size + ")");
+      famBtn.type = "button";
+      famBtn.addEventListener("click", function () { setFamilyFilter(row[F.fam]); });
+      famLinks.appendChild(famBtn);
+      famBox.appendChild(famLinks);
+      detailEl.appendChild(field("Gene family — independently recovered in multiple outgroup species", famBox));
+    }
+
+    if (row[F.gene]) detailEl.appendChild(field("Gene name (outgroup)", row[F.gene]));
+    if (row[F.prod]) detailEl.appendChild(field("Product", row[F.prod]));
+    if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
+    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", row[F.sprot]));
+
+    if (row[F.pfam_n]) {
+      var names = row[F.pfam_n].split(",");
+      var accs = row[F.pfam_a] ? row[F.pfam_a].split(",") : [];
+      var chips = el("div", "chips");
+      names.forEach(function (n, i) {
+        var acc = (accs[i] || "").split(".")[0];
+        var node;
+        if (/^PF\d+$/.test(acc)) {
+          node = el("a", "chip", n);
+          node.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
+          node.target = "_blank";
+          node.rel = "noopener noreferrer";
+          node.title = acc;
+        } else {
+          node = el("span", "chip", n);
+        }
+        chips.appendChild(node);
+      });
+      detailEl.appendChild(field("Pfam domains (" + names.length + ")", chips));
+    }
+
+    // external links — resolved against the *outgroup* protein, since that is
+    // where the gene actually is (e.g. "this looks like S. cerevisiae's ERG3").
+    var links = el("div", "links");
+    var acc = uniprotAcc(row[F.sprot]);
+    var fsrcName = row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "";
+    if (acc) {
+      var up = el("a", null, "UniProt " + acc);
+      up.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
+      up.target = "_blank"; up.rel = "noopener noreferrer";
+      links.appendChild(up);
+      var af = el("a", null, "AlphaFold");
+      af.href = "https://alphafold.ebi.ac.uk/entry/" + acc;
+      af.target = "_blank"; af.rel = "noopener noreferrer";
+      links.appendChild(af);
+    }
+    if (fsrcName.indexOf("ModelOrg_") === 0) {
+      var fd = el("a", null, "FungiDB gene");
+      fd.href = "https://fungidb.org/fungidb/app/record/gene/" + encodeURIComponent(geneIdFromProteinId(row[F.id]));
+      fd.target = "_blank"; fd.rel = "noopener noreferrer";
+      links.appendChild(fd);
+    }
+    if (!acc && fsrcName.indexOf("ModelOrg_") !== 0) {
+      var term = row[F.gene] || geneIdFromProteinId(row[F.id]);
+      var nc = el("a", null, "Search NCBI Protein");
+      nc.href = "https://www.ncbi.nlm.nih.gov/protein/?term=" + encodeURIComponent(term);
+      nc.target = "_blank"; nc.rel = "noopener noreferrer";
+      nc.title = "No model-organism or SwissProt hit — worth a manual check";
+      links.appendChild(nc);
+    }
+    if (links.childNodes.length) detailEl.appendChild(field("External resources (outgroup protein)", links));
+  }
+
+  function select(ri) {
+    state.selected = ri;
+    renderDetail();
+    markTableSelection();
+  }
+
+  // ---- downloads ------------------------------------------------------------
+  document.getElementById("dl-tsv").addEventListener("click", function () {
+    var lines = [TBL_COLS.map(function (c) { return c.label; }).join("\t")];
+    view.forEach(function (ri) {
+      lines.push(TBL_COLS.map(function (c) { return String(c.get(ri) || "").replace(/[\t\n\r]/g, " "); }).join("\t"));
+    });
+    download(DATA.project + ".losses.tsv", lines.join("\n") + "\n", "text/tab-separated-values");
+  });
+
+  // ---- summary ----------------------------------------------------------
+  function renderSummary() {
+    var flagged = 0;
+    for (var i = 0; i < nRows; i++) { if (ROWS[i][F.tb_hit]) flagged++; }
+    var nOut = PROTEOMES.filter(function (p) { return p.group === "OUT"; }).length;
+
+    var absenceText = (DATA.loss_ingroup_max_frac > 0)
+      ? "retained in at most " + Math.round(DATA.loss_ingroup_max_frac * 100) + "% of the ingroup"
+      : "absent from every ingroup proteome";
+    document.getElementById("summary-note").textContent =
+      "Gene families conserved in ≥" + Math.round((DATA.outgroup_min_frac || 0) * 100) +
+      "% of the outgroup but " + absenceText + " — candidate lineage-specific gene losses, " +
+      "prioritized by ingroup retention (cleanest loss first), outgroup family breadth, and " +
+      "absence of ingroup genomic (TBLASTN) evidence.";
+    document.getElementById("t-total").textContent = nRows.toLocaleString();
+    document.getElementById("t-out").textContent = nOut + (nOut === 1 ? " species" : " species");
+    document.getElementById("t-fam").textContent = FAMILIES.length.toLocaleString();
+    document.getElementById("t-flagged").textContent =
+      nRows ? flagged.toLocaleString() + " (" + Math.round((flagged / nRows) * 100) + "%)" : "—";
+  }
+
+  // ---- wiring -------------------------------------------------------------
+  function refresh(resetScroll) {
+    applyFilters();
+    if (state.selected >= 0 && view.indexOf(state.selected) === -1) {
+      state.selected = -1;
+      renderDetail();
+    }
+    document.getElementById("count").textContent =
+      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins";
+    renderTable(true);
+  }
+
+  function populateSelects() {
+    var src = document.getElementById("f-src");
+    src.appendChild(new Option("All outgroup proteomes", ""));
+    PROTEOMES.filter(function (p) { return p.group === "OUT"; }).forEach(function (p) {
+      src.appendChild(new Option(p.short + " — " + p.species, p.short));
+    });
+    var fs = document.getElementById("f-fsrc");
+    fs.appendChild(new Option("Any annotation source", ""));
+    DATA.fsources.slice().sort().forEach(function (f) { fs.appendChild(new Option(f, f)); });
+
+    var fam = document.getElementById("f-family");
+    fam.appendChild(new Option(
+      FAMILIES.length ? "All families (" + FAMILIES.length + ")" : "No multi-species families", ""
+    ));
+    FAMILIES.forEach(function (f, i) { fam.appendChild(new Option(familyLabel(f), String(i))); });
+  }
+
+  function setFamilyFilter(idx) {
+    state.family = idx;
+    document.getElementById("f-family").value = idx >= 0 ? String(idx) : "";
+    refresh(true);
+  }
+
+  var searchTimer = null;
+  document.getElementById("f-search").addEventListener("input", function (e) {
+    var v = e.target.value;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () { state.search = v; refresh(true); }, 140);
+  });
+  document.getElementById("f-src").addEventListener("change", function (e) { state.src = e.target.value; refresh(true); });
+  document.getElementById("f-fsrc").addEventListener("change", function (e) { state.fsrc = e.target.value; refresh(true); });
+  document.getElementById("f-family").addEventListener("change", function (e) {
+    state.family = e.target.value === "" ? -1 : Number(e.target.value);
+    refresh(true);
+  });
+  document.getElementById("f-notb").addEventListener("change", function (e) { state.noTb = e.target.checked; refresh(true); });
+  document.getElementById("f-sort").addEventListener("change", function (e) { state.sort = e.target.value; refresh(true); });
+  document.getElementById("f-reset").addEventListener("click", function () {
+    state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
+    state.noTb = false; state.sort = "priority";
+    document.getElementById("f-search").value = "";
+    document.getElementById("f-src").value = "";
+    document.getElementById("f-fsrc").value = "";
+    document.getElementById("f-family").value = "";
+    document.getElementById("f-notb").checked = false;
+    document.getElementById("f-sort").value = "priority";
+    refresh(true);
+  });
+
+
+  var themeBtn = document.getElementById("theme-toggle");
+  themeBtn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) {
+      cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  });
+
+
+  // ---- init ---------------------------------------------------------------
+  document.getElementById("title").textContent = DATA.project + " — candidate gene losses";
+  var inNames = PROTEOMES.filter(function (p) { return p.group === "IN"; })
+    .map(function (p) { return p.species; }).join(", ");
+  var outNames = PROTEOMES.filter(function (p) { return p.group === "OUT"; })
+    .map(function (p) { return p.species; }).join(", ");
+  document.getElementById("subtitle").textContent =
+    "Ingroup: " + inNames + "  ·  Outgroup: " + outNames;
+  document.title = DATA.project + " — NovInvenio candidate losses";
+
+  populateSelects();
+  renderSummary();
+  renderTableHead();
+  refresh(true);
+  renderDetail();
+})();
+</script>
+</body>
+</html>
