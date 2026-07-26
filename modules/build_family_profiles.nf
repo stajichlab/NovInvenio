@@ -18,7 +18,8 @@
 process EXTRACT_FAMILY_SEQS {
     label 'low_cpu'
     tag "extract_families"
-    publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}families" }, mode: 'copy', pattern: 'families.tsv'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}families" }, mode: 'copy',
+        pattern: '{families.tsv,oversized_families.tsv}'
 
     input:
     path(cluster_tsv)
@@ -26,8 +27,9 @@ process EXTRACT_FAMILY_SEQS {
     val(out_prefix)    // '' (novelty) | 'loss_' — families/ vs loss_families/
 
     output:
-    path("fam_*.faa"),    emit: family_fastas, optional: true
-    path("families.tsv"), emit: families
+    path("fam_*.faa"),              emit: family_fastas, optional: true
+    path("families.tsv"),           emit: families
+    path("oversized_families.tsv"), emit: oversized, optional: true
 
     shell:
     '''
@@ -39,6 +41,8 @@ process EXTRACT_FAMILY_SEQS {
         --cluster-tsv !{cluster_tsv} \
         --fasta !{seed_fa} \
         --min-members !{params.family_min_members} \
+        --max-members !{params.family_max_members} \
+        --oversized-report oversized_families.tsv \
         --outdir .
     '''
 }
@@ -62,8 +66,19 @@ process BUILD_CHUNK {
         [ -e "$fa" ] || continue
         base=$(basename "$fa" .faa)
         rep=$(awk -F'\\t' -v b="$base" '$1==b{print $2}' !{families_tsv})
-        famsa -t !{task.cpus} "$fa" "${fa}.aln" 2>/dev/null
-        hmmbuild --cpu !{task.cpus} -n "$rep" "${fa}.hmm" "${fa}.aln" > /dev/null
+        # Per-family safety net: --max-members should already exclude the pathological
+        # multi-copy superfamilies that dominate famsa's runtime, but a rare outlier
+        # (e.g. one unusually long/low-complexity sequence) could still stall. Bound each
+        # family's alignment+build so one bad family can't cost the whole chunk a SLURM
+        # walltime kill — skip it (logged) and keep going instead.
+        if ! timeout !{params.family_align_timeout} famsa -t !{task.cpus} "$fa" "${fa}.aln" 2>/dev/null; then
+            echo "WARN: famsa exceeded !{params.family_align_timeout}s or failed for $base ($rep) — skipping family" >&2
+            continue
+        fi
+        if ! timeout !{params.family_align_timeout} hmmbuild --cpu !{task.cpus} -n "$rep" "${fa}.hmm" "${fa}.aln" > /dev/null; then
+            echo "WARN: hmmbuild exceeded !{params.family_align_timeout}s or failed for $base ($rep) — skipping family" >&2
+            continue
+        fi
         cat "${fa}.hmm" >> chunk.!{task.index}.hmm
     done
     '''
