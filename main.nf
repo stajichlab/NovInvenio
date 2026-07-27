@@ -15,6 +15,7 @@ include { ANNOTATE } from './workflows/annotate'
 include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
+include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
 
 // Resolve a FASTA basename against data_dir, checking the flat layout first
 // then the listed subdirectories (so configs that reference bare basenames
@@ -35,7 +36,7 @@ workflow {
     if (!file(params.config).exists())   error "ERROR: --config file not found: ${params.config}"
     if (!file(params.data_dir).isDirectory()) error "ERROR: --data_dir is not a directory: ${params.data_dir}"
     if (params.run_tool !in ['phmmer', 'diamond', 'blast']) error "ERROR: --run_tool must be phmmer, diamond, or blast (got: ${params.run_tool})"
-    if (params.cluster_tool !in ['pairwise', 'mmseqs']) error "ERROR: --cluster_tool must be pairwise or mmseqs (got: ${params.cluster_tool})"
+    if (params.cluster_tool !in ['pairwise', 'mmseqs', 'novelty_discovery']) error "ERROR: --cluster_tool must be pairwise, mmseqs, or novelty_discovery (got: ${params.cluster_tool})"
 
     // Resolve DB paths to absolute at launch time and pass them as val inputs —
     // params mutations do not reliably propagate into process script closures.
@@ -71,6 +72,20 @@ workflow {
     ingroup_dna_ch    = samples_ch.filter { meta, prot, dna -> meta.group == 'IN' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
 
+    // Channels for the two-phase novelty_discovery / novelty_screen workflow.
+    target_prot_ch    = samples_ch.filter { meta, prot, dna -> meta.group == 'TARGET' }
+                                   .map    { meta, prot, dna -> [ meta, prot ] }
+    disc_out_prot_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'DISC_OUT' }
+                                   .map    { meta, prot, dna -> [ meta, prot ] }
+    disc_out_dna_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'DISC_OUT' && dna }
+                                   .map    { meta, prot, dna -> [ meta, dna ] }
+    near_in_prot_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'NEAR_IN' }
+                                   .map    { meta, prot, dna -> [ meta, prot ] }
+    broad_out_prot_ch = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUT' }
+                                   .map    { meta, prot, dna -> [ meta, prot ] }
+    broad_out_dna_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUT' && dna }
+                                   .map    { meta, prot, dna -> [ meta, dna ] }
+
     // Novelty-direction presence matrix + candidates. --cluster_tool selects the producer:
     //   pairwise (default) — the O(N^2) phmmer/diamond/blast SEARCH workflow.
     //   mmseqs             — the scalable family-profile pathway (ADR-0002). Both emit the
@@ -96,6 +111,16 @@ workflow {
         cand_fa          = PROFILE_CANDIDATE_CLUSTERS.out.candidates_fa
         cand_reps        = PROFILE_CANDIDATE_CLUSTERS.out.representatives
         cand_cluster_tsv = PROFILE_CANDIDATE_CLUSTERS.out.cluster_tsv
+    }
+    else if (params.cluster_tool == 'novelty_discovery') {
+        // Two-phase targeted novelty pipeline (see todo/novelty-discovery-screen.md).
+        // Currently a stub; Ticket #26 implements the real workflow.
+        NOVELTY_DISCOVERY(target_prot_ch, disc_out_prot_ch, disc_out_dna_ch, file(params.config))
+        novelty_matrix     = NOVELTY_DISCOVERY.out.matrix
+        novelty_candidates = NOVELTY_DISCOVERY.out.candidates
+        cand_fa            = NOVELTY_DISCOVERY.out.cand_fa
+        cand_reps          = NOVELTY_DISCOVERY.out.cand_reps
+        cand_cluster_tsv   = NOVELTY_DISCOVERY.out.cand_cluster_tsv
     }
     else {
         SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
