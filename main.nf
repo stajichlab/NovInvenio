@@ -114,12 +114,11 @@ workflow {
     }
     else if (params.cluster_tool == 'novelty_discovery') {
         // Two-phase targeted novelty pipeline (see todo/novelty-discovery-screen.md).
-        // Currently a stub; Ticket #26 implements the real workflow.
         NOVELTY_DISCOVERY(target_prot_ch, disc_out_prot_ch, disc_out_dna_ch, file(params.config))
         novelty_matrix     = NOVELTY_DISCOVERY.out.matrix
         novelty_candidates = NOVELTY_DISCOVERY.out.candidates
-        cand_fa            = NOVELTY_DISCOVERY.out.cand_fa
-        cand_reps          = NOVELTY_DISCOVERY.out.cand_reps
+        cand_fa            = Channel.empty()
+        cand_reps          = Channel.empty()
         cand_cluster_tsv   = NOVELTY_DISCOVERY.out.cand_cluster_tsv
     }
     else {

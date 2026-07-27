@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""Build the novelty discovery presence matrix from two evidence sources.
+
+1. Family HMM search: multi-member target families are profiled (famsa +
+   hmmbuild) and searched via hmmsearch against all proteomes (target +
+   DISC_OUT).  A family is "present" in a proteome if the domtblout has a
+   hit with full-sequence E-value below the (optionally calibrated)
+   per-family threshold AND profile coverage >= --min-coverage.
+
+2. Singleton pairwise search: singletons (target proteins not in any
+   multi-member family) are searched via phmmer/diamond/blast against the
+   DISC_OUT proteomes.  A singleton is "present" in a proteome if the
+   pairwise search reports a hit with E-value below the singleton
+   threshold.  The singleton's source proteome is always present.
+
+The script merges both sources into a single presence_matrix.tsv with
+columns:
+
+    protein_id, source_proteome, <sorted proteome shorts>
+
+And a candidates.txt with lines:
+
+    source_proteome::protein_id
+
+A protein/family is a novelty candidate if it is present in >=
+--target-min-frac of the target proteomes AND absent from all DISC_OUT
+proteomes (--disc-out-max-frac, default 0.0 = strictly absent).
+"""
+import argparse
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+from config_parser import parse_config  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# Parsing helpers
+# ---------------------------------------------------------------------------
+
+def parse_domtblout(path):
+    """Return dict: query(HMM name) -> (best_full_evalue, best_coverage).
+
+    Coverage = summed HMM-coordinate span / HMM length.
+    hmmsearch --domtblout columns (0-indexed): 0=target, 3=query, 5=qlen,
+    6=full E-value, 15=hmm_from, 16=hmm_to.
+    """
+    agg: dict[str, list] = {}
+    with open(path) as fh:
+        for line in fh:
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split()
+            if len(parts) < 17:
+                continue
+            query = parts[3]
+            try:
+                qlen = int(parts[5])
+                full_e = float(parts[6])
+                hmm_from = int(parts[15])
+                hmm_to = int(parts[16])
+            except ValueError:
+                continue
+            key = query
+            span = max(0, hmm_to - hmm_from + 1)
+            if key not in agg:
+                agg[key] = [qlen, full_e, span]
+            else:
+                if full_e < agg[key][1]:
+                    agg[key][1] = full_e
+                agg[key][2] += span
+
+    result = {}
+    for query, (qlen, min_e, covered) in agg.items():
+        coverage = covered / qlen if qlen > 0 else 0.0
+        result[query] = (min_e, coverage)
+    return result
+
+
+def parse_pairwise_tsv(path):
+    """Return list of (query_id, target_id, evalue) tuples from parsed hits TSV."""
+    hits = []
+    with open(path) as fh:
+        header = fh.readline()
+        del header
+        for line in fh:
+            line = line.rstrip('\n')
+            if not line:
+                continue
+            parts = line.split('\t')
+            if len(parts) < 3:
+                continue
+            try:
+                evalue = float(parts[2])
+            except ValueError:
+                continue
+            hits.append((parts[0], parts[1], evalue))
+    return hits
+
+
+def load_cluster_membership(cluster_tsv):
+    """Return (rep_to_members, member_to_rep) from mmseqs cluster TSV."""
+    rep_to_members = defaultdict(list)
+    member_to_rep = {}
+    with open(cluster_tsv) as fh:
+        for line in fh:
+            line = line.rstrip('\n')
+            if not line:
+                continue
+            parts = line.split('\t')
+            if len(parts) < 2:
+                continue
+            rep, member = parts[0], parts[1]
+            rep_to_members[rep].append(member)
+            member_to_rep[member] = rep
+    return rep_to_members, member_to_rep
+
+
+def load_protein_map(path):
+    """Return dict: protein_id -> proteome_short."""
+    mapping = {}
+    with open(path) as fh:
+        for line in fh:
+            line = line.rstrip('\n')
+            if not line:
+                continue
+            parts = line.split('\t')
+            if len(parts) >= 2:
+                mapping[parts[0]] = parts[1]
+    return mapping
+
+
+def load_family_thresholds(path):
+    """Return dict: rep_id -> threshold_evalue."""
+    thresholds = {}
+    with open(path) as fh:
+        header = fh.readline()
+        del header
+        for line in fh:
+            line = line.rstrip('\n')
+            if not line:
+                continue
+            parts = line.split('\t')
+            if len(parts) >= 2:
+                try:
+                    thresholds[parts[0]] = float(parts[1])
+                except ValueError:
+                    continue
+    return thresholds
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--family-domtblout', nargs='+', default=[],
+                    dest='family_domtblout',
+                    help='Per-proteome hmmsearch domtblout files for family HMMs')
+    ap.add_argument('--singleton-hits', nargs='+', default=[],
+                    dest='singleton_hits',
+                    help='Parsed pairwise hits TSVs for singletons')
+    ap.add_argument('--cluster-tsv', required=True, dest='cluster_tsv',
+                    help='mmseqs *_cluster.tsv (rep_id<TAB>member_id)')
+    ap.add_argument('--protein-map', required=True, dest='protein_map',
+                    help='protein_id<TAB>proteome_short TSV')
+    ap.add_argument('--config', required=True, help='Analysis description CSV')
+    ap.add_argument('--family-thresholds', default=None, dest='family_thresholds',
+                    help='Calibrated family thresholds TSV (rep_id<TAB>threshold)')
+    ap.add_argument('--default-family-evalue', type=float, default=1e-3,
+                    dest='default_family_evalue',
+                    help='Default E-value threshold for families without calibration')
+    ap.add_argument('--singleton-evalue', type=float, default=1e-5,
+                    dest='singleton_evalue',
+                    help='E-value threshold for singleton pairwise hits')
+    ap.add_argument('--min-coverage', type=float, default=0.5,
+                    dest='min_coverage',
+                    help='Minimum profile coverage for family presence')
+    ap.add_argument('--target-min-frac', type=float, default=0.75,
+                    dest='target_min_frac',
+                    help='Minimum fraction of target proteomes a family/protein must be present in')
+    ap.add_argument('--disc-out-max-frac', type=float, default=0.0,
+                    dest='disc_out_max_frac',
+                    help='Max fraction of DISC_OUT proteomes a candidate may be present in')
+    ap.add_argument('--output-matrix', required=True, dest='output_matrix')
+    ap.add_argument('--output-candidates', required=True, dest='output_candidates')
+    args = ap.parse_args()
+
+    samples = parse_config(args.config)
+    short_to_group = {s.short: s.group for s in samples}
+    all_shorts = sorted(short_to_group.keys())
+
+    rep_to_members, member_to_rep = load_cluster_membership(args.cluster_tsv)
+    protein_to_proteome = load_protein_map(args.protein_map)
+
+    # Identify multi-member families (>= 2 members) and singletons
+    multi_reps = {rep for rep, members in rep_to_members.items() if len(members) >= 2}
+    singleton_reps = {rep for rep, members in rep_to_members.items() if len(members) == 1}
+
+    # --- Family HMM presence ---
+    family_thresholds = {}
+    if args.family_thresholds:
+        family_thresholds = load_family_thresholds(args.family_thresholds)
+
+    # family_presence[proteome_short] = set of family rep IDs present
+    family_presence = defaultdict(set)
+
+    for dom_path in args.family_domtblout:
+        short = Path(dom_path).name
+        for suffix in ('.family.domtblout', '.domtblout'):
+            if short.endswith(suffix):
+                short = short[:-len(suffix)]
+                break
+        hits = parse_domtblout(dom_path)
+        for query, (evalue, coverage) in hits.items():
+            threshold = family_thresholds.get(query, args.default_family_evalue)
+            if evalue < threshold and coverage >= args.min_coverage:
+                family_presence[short].add(query)
+
+    # --- Singleton pairwise presence ---
+    # singleton_presence[proteome_short] = set of singleton protein IDs present
+    singleton_presence = defaultdict(set)
+
+    for hits_path in args.singleton_hits:
+        short = Path(hits_path).name
+        for suffix in ('.parsed.tsv', '.tsv', '.parsed'):
+            if short.endswith(suffix):
+                short = short[:-len(suffix)]
+                break
+        for query_id, target_id, evalue in parse_pairwise_tsv(hits_path):
+            if evalue < args.singleton_evalue:
+                singleton_presence[short].add(query_id)
+
+    # --- Build combined presence matrix ---
+    # Collect all proteins: family members + singletons
+    all_proteins = set()
+
+    # Family members
+    for rep in multi_reps:
+        for member in rep_to_members[rep]:
+            all_proteins.add(member)
+
+    # Singletons (proteins in clusters of size 1)
+    for rep in singleton_reps:
+        all_proteins.add(rep)
+
+    # Build presence: protein_id -> {proteome_short: 0/1}
+    presence = {p: {s: 0 for s in all_shorts} for p in all_proteins}
+
+    # Family members: present in proteomes where family HMM is present, plus source proteome
+    for rep in multi_reps:
+        present_proteomes = set()
+        for short, present_reps in family_presence.items():
+            if rep in present_reps:
+                present_proteomes.add(short)
+        for member in rep_to_members[rep]:
+            source = protein_to_proteome.get(member, '')
+            if source:
+                present_proteomes.add(source)
+            if member in presence:
+                for sp in present_proteomes:
+                    if sp in presence[member]:
+                        presence[member][sp] = 1
+
+    # Singletons: present in proteomes where pairwise hit was found, plus source proteome
+    for rep in singleton_reps:
+        present_proteomes = set()
+        for short, present_ids in singleton_presence.items():
+            if rep in present_ids:
+                present_proteomes.add(short)
+        source = protein_to_proteome.get(rep, '')
+        if source:
+            present_proteomes.add(source)
+        if rep in presence:
+            for sp in present_proteomes:
+                if sp in presence[rep]:
+                    presence[rep][sp] = 1
+
+    # --- Write presence matrix ---
+    with open(args.output_matrix, 'w') as out:
+        out.write('protein_id\tsource_proteome\t' + '\t'.join(all_shorts) + '\n')
+        for protein in sorted(all_proteins):
+            source = protein_to_proteome.get(protein, '')
+            vals = '\t'.join(str(presence[protein][s]) for s in all_shorts)
+            out.write(f'{protein}\t{source}\t{vals}\n')
+
+    # --- Filter to novelty candidates ---
+    target_shorts = [s for s in all_shorts if short_to_group.get(s) == 'TARGET']
+    disc_out_shorts = [s for s in all_shorts if short_to_group.get(s) == 'DISC_OUT']
+
+    candidates = []
+    for protein in sorted(all_proteins):
+        target_present = sum(presence[protein][s] for s in target_shorts)
+        disc_out_present = sum(presence[protein][s] for s in disc_out_shorts)
+
+        target_frac = target_present / len(target_shorts) if target_shorts else 0
+        disc_out_frac = disc_out_present / len(disc_out_shorts) if disc_out_shorts else 0
+
+        if target_frac >= args.target_min_frac and disc_out_frac <= args.disc_out_max_frac:
+            source = protein_to_proteome.get(protein, '')
+            candidates.append(f'{source}::{protein}')
+
+    with open(args.output_candidates, 'w') as out:
+        if candidates:
+            out.write('\n'.join(candidates) + '\n')
+
+    print(f"Built presence matrix: {len(all_proteins)} proteins × {len(all_shorts)} proteomes; "
+          f"{len(candidates)} novelty candidates", file=sys.stderr)
+
+
+if __name__ == '__main__':
+    main()
