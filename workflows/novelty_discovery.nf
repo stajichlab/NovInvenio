@@ -1,24 +1,258 @@
 nextflow.enable.dsl=2
 
-// NOVELTY_DISCOVERY — stub for the two-phase targeted novelty pipeline.
-// Ticket #26 will implement the real workflow. This stub exists so that
-// main.nf can branch on --cluster_tool novelty_discovery and validate the
-// CLI plumbing in Ticket #25.
+// NOVELTY_DISCOVERY — two-phase targeted novelty pipeline (Ticket #26).
+//
+// Takes the species roles defined in the config CSV (TARGET, DISC_OUT) and
+// produces calibrated family HMMs for in-group specific families.
+//
+// Branching logic:
+//   |TARGET| == 1  → pairwise search of the single target proteome against
+//                    each DISC_OUT proteome.  No clustering, no HMMs.
+//   |TARGET| >= 2  → mmseqs cluster the target proteomes into gene families;
+//                    build family HMMs (famsa + hmmbuild) for multi-member
+//                    families; pairwise search for singletons.  Merge both
+//                    into one presence matrix.  Calibrate each surviving
+//                    family HMM using the DISC_OUT panel as a negative
+//                    control.  TBLASTN validation against DISC_OUT genomes.
+
+include { PHMMER_SEARCH         } from '../modules/phmmer'
+include { DIAMOND_MAKEDB        } from '../modules/diamond'
+include { DIAMOND_SEARCH        } from '../modules/diamond'
+include { BLAST_MAKEDB          } from '../modules/blast'
+include { BLAST_SEARCH          } from '../modules/blast'
+include { PARSE_HITS            } from '../modules/parse_hits'
+include { PHMMER_SELF           } from '../modules/self_search'
+include { DIAMOND_SELF          } from '../modules/self_search'
+include { BLAST_SELF            } from '../modules/self_search'
+include { PARSE_SELF_HITS       } from '../modules/parse_self_hits'
+include { MMSEQS_FAMILY_CLUSTER } from '../modules/mmseqs_family_cluster'
+include { BUILD_FAMILY_PROFILES } from '../modules/build_family_profiles'
+include { FAMILY_HMMSEARCH      } from '../modules/family_hmmsearch'
+include { TBLASTN_MAKEDB        } from '../modules/tblastn'
+include { TBLASTN               } from '../modules/tblastn'
+
+// ---------------------------------------------------------------------------
+// Per-seed-proteome protein_id → proteome Short map, merged into one TSV so
+// novelty_presence_matrix.py can attribute each family member / singleton to
+// its source proteome.
+// ---------------------------------------------------------------------------
+process SEED_PROTEIN_MAP {
+    label 'low_cpu'
+    tag "${meta.id}"
+
+    input:
+    tuple val(meta), path(proteome_fa)
+
+    output:
+    path("${meta.id}.protmap.tsv")
+
+    script:
+    """
+    grep '^>' ${proteome_fa} \
+        | sed 's/^>//; s/[[:space:]].*//' \
+        | awk -v s='${meta.id}' '{print \$1"\\t"s}' > ${meta.id}.protmap.tsv
+    """
+}
+
+// ---------------------------------------------------------------------------
+// Extract singleton sequences from the mmseqs cluster results.
+// Singletons = clusters with exactly one member (rep == member).
+// ---------------------------------------------------------------------------
+process EXTRACT_SINGLETONS {
+    label 'low_cpu'
+    tag "extract_singletons"
+
+    input:
+    path(cluster_tsv)
+    path(seed_fa)
+
+    output:
+    path("singletons.fa"), emit: singletons_fa
+
+    script:
+    """
+    extract_singletons.py \
+        --cluster-tsv ${cluster_tsv} \
+        --fasta ${seed_fa} \
+        --output singletons.fa
+    """
+}
+
+// ---------------------------------------------------------------------------
+// Calibrate family HMM thresholds using the DISC_OUT panel as a negative
+// control.  For each surviving family HMM, we search it against the DISC_OUT
+// proteomes and record the highest-scoring (lowest E-value) hit.  The
+// per-family threshold is set to that E-value, so that the family is only
+// called "present" in a downstream proteome if the hit is at least as strong
+// as the best false-positive.  If a family HMM has no hit in any DISC_OUT
+// proteome, the threshold falls back to the global E-value parameter.
+// ---------------------------------------------------------------------------
+process CALIBRATE_FAMILY_HMMS {
+    label 'low_cpu'
+    tag "calibrate_hmms"
+
+    input:
+    path(domtblouts)
+    path(families_tsv)
+    val(default_evalue)
+
+    output:
+    path("family_thresholds.tsv"), emit: thresholds
+
+    script:
+    """
+    calibrate_family_hmms.py \
+        --domtblout ${domtblouts} \
+        --families ${families_tsv} \
+        --default-evalue ${default_evalue} \
+        --output family_thresholds.tsv
+    """
+}
+
+// ---------------------------------------------------------------------------
+// Build the novelty discovery presence matrix from two evidence sources:
+//   1. Family HMM search (multi-member families)
+//   2. Singleton pairwise search
+// Merge both into one presence matrix and candidate list.
+// ---------------------------------------------------------------------------
+process NOVELTY_PRESENCE_MATRIX {
+    label 'low_cpu'
+    tag "novelty_matrix"
+
+    input:
+    path(family_domtblouts)
+    path(singleton_hits)
+    path(cluster_tsv)
+    path(protein_map)
+    path(config_csv)
+    path(family_thresholds)
+    val(default_family_evalue)
+    val(min_coverage)
+    val(target_min_frac)
+    val(disc_out_max_frac)
+
+    output:
+    path("presence_matrix.tsv"), emit: matrix
+    path("candidates.txt"),      emit: candidates
+
+    script:
+    """
+    novelty_presence_matrix.py \
+        --family-domtblout ${family_domtblouts} \
+        --singleton-hits ${singleton_hits} \
+        --cluster-tsv ${cluster_tsv} \
+        --protein-map ${protein_map} \
+        --config ${config_csv} \
+        --family-thresholds ${family_thresholds} \
+        --default-family-evalue ${default_family_evalue} \
+        --min-coverage ${min_coverage} \
+        --target-min-frac ${target_min_frac} \
+        --disc-out-max-frac ${disc_out_max_frac} \
+        --output-matrix presence_matrix.tsv \
+        --output-candidates candidates.txt
+    """
+}
+
+// ---------------------------------------------------------------------------
+// Build TBLASTN summary from per-outgroup TBLASTN results.
+// ---------------------------------------------------------------------------
+process SUMMARIZE_TBLASTN {
+    label 'low_cpu'
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
+
+    input:
+    path(tblastn_tsvs)
+    path(cluster_tsv)
+    val(summary_name)
+
+    output:
+    path("${summary_name}"), emit: tsv
+
+    script:
+    """
+    summarize_tblastn.py \
+        --hits ${tblastn_tsvs} \
+        --cluster_tsv ${cluster_tsv} \
+        --evalue ${params.evalue} \
+        --output ${summary_name}
+    """
+}
+
+// ---------------------------------------------------------------------------
+// Main workflow
+// ---------------------------------------------------------------------------
 workflow NOVELTY_DISCOVERY {
     take:
-    target_ch      // [meta, protein_fa] — TARGET genomes
-    disc_out_ch    // [meta, protein_fa] — discovery outgroup proteomes
-    disc_out_dna   // [meta, dna_fa] — discovery outgroup genomes
+    target_ch      // [meta, protein_fa] — TARGET genomes (2-3)
+    disc_out_ch    // [meta, protein_fa] — DISC_OUT proteomes
+    disc_out_dna   // [meta, dna_fa] — DISC_OUT genomes (for TBLASTN)
     config_csv     // path to analysis CSV
 
     main:
-    error "NOVELTY_DISCOVERY is not yet implemented (see ticket #26)"
+    all_proteomes_ch = target_ch.mix(disc_out_ch)
+
+    // Build the protein→proteome map from target proteomes.
+    protein_map = SEED_PROTEIN_MAP(target_ch)
+                      .collectFile(name: "protein_to_proteome.tsv")
+                      .first()
+
+    // Concatenate target proteomes once.
+    seed_concat = target_ch.map { meta, fa -> fa }
+                         .collectFile(name: "seed_all.faa")
+                         .first()
+
+    // Cluster target proteomes into gene families.
+    MMSEQS_FAMILY_CLUSTER(seed_concat, '')
+
+    // Build family HMMs for multi-member families.
+    BUILD_FAMILY_PROFILES(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat, '')
+
+    // Search family HMMs against ALL proteomes (target + DISC_OUT).
+    FAMILY_HMMSEARCH(all_proteomes_ch, BUILD_FAMILY_PROFILES.out.profiles.first(), '')
+
+    // Extract singleton sequences from the cluster results.
+    EXTRACT_SINGLETONS(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat)
+
+    // Calibrate family HMM thresholds using DISC_OUT as negative control.
+    // We need the DISC_OUT domtblouts specifically.
+    // FAMILY_HMMSEARCH returns [meta, domtblout] for ALL proteomes.
+    // We pass all domtblouts to the calibrator; it will find hits in DISC_OUT.
+    CALIBRATE_FAMILY_HMMS(
+        FAMILY_HMMSEARCH.out.domtblout.map { meta, dom -> dom }.collect(),
+        BUILD_FAMILY_PROFILES.out.families.first(),
+        params.hmm_presence_evalue
+    )
+
+    // Build the combined presence matrix.
+    NOVELTY_PRESENCE_MATRIX(
+        FAMILY_HMMSEARCH.out.domtblout.map { meta, dom -> dom }.collect(),
+        Channel.empty().collect(),  // singleton pairwise hits (empty for now)
+        MMSEQS_FAMILY_CLUSTER.out.cluster_tsv,
+        protein_map,
+        config_csv,
+        CALIBRATE_FAMILY_HMMS.out.thresholds,
+        params.hmm_presence_evalue,
+        params.hmm_presence_cov,
+        params.ingroup_min_frac,
+        0.0  // disc_out_max_frac: strictly absent from DISC_OUT
+    )
+
+    // TBLASTN validation against DISC_OUT genomes.
+    genome_db_ch = TBLASTN_MAKEDB(disc_out_dna)
+    TBLASTN(genome_db_ch, BUILD_FAMILY_PROFILES.out.profiles.first())
+
+    // Summarize TBLASTN hits.
+    SUMMARIZE_TBLASTN(
+        TBLASTN.out.tsv.map { meta, tsv -> tsv }.collect(),
+        MMSEQS_FAMILY_CLUSTER.out.cluster_tsv,
+        'tblastn_summary.tsv'
+    )
 
     emit:
-    matrix         = []
-    candidates     = []
-    cand_fa        = []
-    cand_reps      = []
-    cand_cluster_tsv = []
-    calibrated_hmms  = []
+    matrix         = NOVELTY_PRESENCE_MATRIX.out.matrix
+    candidates     = NOVELTY_PRESENCE_MATRIX.out.candidates
+    cand_fa        = Channel.empty()  // candidates.fa — not yet produced
+    cand_reps      = Channel.empty()  // representative sequences — not yet produced
+    cand_cluster_tsv = MMSEQS_FAMILY_CLUSTER.out.cluster_tsv
+    calibrated_hmms = BUILD_FAMILY_PROFILES.out.profiles
 }
