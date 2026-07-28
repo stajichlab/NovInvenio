@@ -16,6 +16,7 @@ include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
+include { EMPTY_LOSS_STUB } from './modules/empty_loss_stub'
 
 // Resolve a FASTA basename against data_dir, checking the flat layout first
 // then the listed subdirectories (so configs that reference bare basenames
@@ -117,9 +118,26 @@ workflow {
         NOVELTY_DISCOVERY(target_prot_ch, disc_out_prot_ch, disc_out_dna_ch, file(params.config))
         novelty_matrix     = NOVELTY_DISCOVERY.out.matrix
         novelty_candidates = NOVELTY_DISCOVERY.out.candidates
-        cand_fa            = Channel.empty()
-        cand_reps          = Channel.empty()
-        cand_cluster_tsv   = NOVELTY_DISCOVERY.out.cand_cluster_tsv
+
+        // Family-as-cluster (ADR-0002 Q7): reuse NOVELTY_DISCOVERY's own gene families
+        // (restricted to candidate-containing ones) instead of re-clustering candidates.
+        PROFILE_CANDIDATE_CLUSTERS(
+            novelty_candidates,
+            NOVELTY_DISCOVERY.out.family_cluster_tsv,
+            NOVELTY_DISCOVERY.out.family_reps,
+            NOVELTY_DISCOVERY.out.seed_concat,
+            'candidates.fa',
+            ''
+        )
+        cand_fa          = PROFILE_CANDIDATE_CLUSTERS.out.candidates_fa
+        cand_reps        = PROFILE_CANDIDATE_CLUSTERS.out.representatives
+        cand_cluster_tsv = PROFILE_CANDIDATE_CLUSTERS.out.cluster_tsv
+
+        // NOVELTY_DISCOVERY already ran its own TBLASTN vs DISC_OUT genomes and summarized
+        // it (SUMMARIZE_TBLASTN) — the generic VALIDATE workflow below would be redundant
+        // (and its outgroup_dna_ch is empty for TARGET/DISC_OUT configs anyway), so this
+        // branch's TBLASTN summary is carried straight through to REPORT/SUMMARIZE.
+        novelty_tblastn_summary = NOVELTY_DISCOVERY.out.summary
     }
     else {
         SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
@@ -132,11 +150,16 @@ workflow {
         cand_cluster_tsv = CLUSTER.out.cluster_tsv
     }
 
-    VALIDATE(cand_reps, outgroup_dna_ch, cand_cluster_tsv, 'tblastn_summary.tsv')
+    // novelty_discovery already produced its own TBLASTN summary (see above); the other two
+    // cluster_tool paths still need the generic VALIDATE (TBLASTN vs the OUT proteomes' DNA).
+    if (params.cluster_tool != 'novelty_discovery') {
+        VALIDATE(cand_reps, outgroup_dna_ch, cand_cluster_tsv, 'tblastn_summary.tsv')
+        novelty_tblastn_summary = VALIDATE.out.summary
+    }
 
     ANNOTATE(cand_fa, novelty_matrix, pfam_abs, sprot_abs, morgs_abs, '')
 
-    SUMMARIZE(ANNOTATE.out.annotated_matrix, VALIDATE.out.summary, cand_cluster_tsv, file(params.config))
+    SUMMARIZE(ANNOTATE.out.annotated_matrix, novelty_tblastn_summary, cand_cluster_tsv, file(params.config))
 
     // Loss direction — candidate lineage-specific gene losses (present in the outgroup,
     // absent from the ingroup). --cluster_tool selects the producer, mirroring the novelty
@@ -161,6 +184,17 @@ workflow {
         loss_cand_reps        = LOSS_PROFILE_CANDIDATE_CLUSTERS.out.representatives
         loss_cand_cluster_tsv = LOSS_PROFILE_CANDIDATE_CLUSTERS.out.cluster_tsv
     }
+    else if (params.cluster_tool == 'novelty_discovery') {
+        // Loss analysis is an explicitly deferred future extension for the two-phase
+        // novelty_discovery/novelty_screen plan (todo/novelty-discovery-screen.md); a
+        // TARGET/DISC_OUT config has no IN/OUT rows, so LOSS_SEARCH would only ever see
+        // empty channels. REPORT's COLLATE_REPORTS still needs a (zero-row) losses.html
+        // to assemble view/<project>/, so stub the three loss artifacts instead.
+        EMPTY_LOSS_STUB(ANNOTATE.out.annotated_matrix)
+        loss_annotated_matrix   = EMPTY_LOSS_STUB.out.matrix
+        loss_tblastn_summary    = EMPTY_LOSS_STUB.out.tblastn_summary
+        loss_cand_cluster_tsv   = EMPTY_LOSS_STUB.out.cluster_tsv
+    }
     else {
         // See workflows/loss_search.nf for why this needs its own search direction.
         LOSS_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
@@ -172,18 +206,21 @@ workflow {
         loss_cand_cluster_tsv = LOSS_CLUSTER.out.cluster_tsv
     }
 
-    LOSS_VALIDATE(loss_cand_reps, ingroup_dna_ch, loss_cand_cluster_tsv, 'loss_tblastn_summary.tsv')
-
-    LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
+    if (params.cluster_tool != 'novelty_discovery') {
+        LOSS_VALIDATE(loss_cand_reps, ingroup_dna_ch, loss_cand_cluster_tsv, 'loss_tblastn_summary.tsv')
+        LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
+        loss_annotated_matrix = LOSS_ANNOTATE.out.annotated_matrix
+        loss_tblastn_summary  = LOSS_VALIDATE.out.summary
+    }
 
     REPORT(
         ANNOTATE.out.annotated_matrix,
-        VALIDATE.out.summary,
+        novelty_tblastn_summary,
         SUMMARIZE.out.novelties,
         cand_fa,
         cand_cluster_tsv,
-        LOSS_ANNOTATE.out.annotated_matrix,
-        LOSS_VALIDATE.out.summary,
+        loss_annotated_matrix,
+        loss_tblastn_summary,
         loss_cand_cluster_tsv,
         file(params.config)
     )

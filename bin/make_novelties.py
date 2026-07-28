@@ -28,17 +28,26 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from clusters import build_families, read_cluster_tsv
+from config_parser import INGROUP_ROLES, OUTGROUP_ROLES
 
 
 def load_groups(config_csv):
-    """Return (ingroup_ids, outgroup_ids) as lists of Short IDs."""
+    """Return (ingroup_ids, outgroup_ids) as lists of Short IDs.
+
+    'IN'/'TARGET' are treated as the ingroup band, 'OUT'/'DISC_OUT'/'NEAR_IN'/
+    'BROAD_OUT' as the outgroup band (see lib/config_parser.py INGROUP_ROLES/
+    OUTGROUP_ROLES) — this is the same coarse banding the report payload
+    builders use, so novelty_discovery configs (TARGET/DISC_OUT) produce
+    novelties.<SHORT>.tsv just like classic IN/OUT configs.
+    """
     ingroup, outgroup = [], []
     with open(config_csv, newline='') as fh:
         for row in csv.DictReader(fh):
             short = row['Short'].strip()
-            if row['GROUP'].strip().upper() == 'IN':
+            group = row['GROUP'].strip().upper()
+            if group in INGROUP_ROLES:
                 ingroup.append(short)
-            else:
+            elif group in OUTGROUP_ROLES:
                 outgroup.append(short)
     return ingroup, outgroup
 

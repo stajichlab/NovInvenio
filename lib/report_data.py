@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from clusters import FamilyIndex
+from config_parser import INGROUP_ROLES, OUTGROUP_ROLES  # noqa: F401 (re-exported)
 
 # Order of the per-protein arrays in payload['rows'].  The browser reads these
 # positionally via the same names exported in payload['fields'].
@@ -150,8 +151,8 @@ def read_support_novelties(
     if not support_matrix_path or not Path(support_matrix_path).exists():
         return set()
     header, rows = read_matrix(support_matrix_path)
-    ingroup_ids = [s.short for s in config_samples if s.group == 'IN' and s.short in header]
-    outgroup_ids = [s.short for s in config_samples if s.group == 'OUT' and s.short in header]
+    ingroup_ids = [s.short for s in config_samples if s.group in INGROUP_ROLES and s.short in header]
+    outgroup_ids = [s.short for s in config_samples if s.group in OUTGROUP_ROLES and s.short in header]
     return derive_novelties(rows, ingroup_ids, outgroup_ids, ingroup_min_frac)
 
 
@@ -196,8 +197,8 @@ def build_payload(
 
     # Only proteomes that actually have a column in the matrix are shown; ingroup
     # first so the heatmap's column blocks read left-to-right IN then OUT.
-    ingroup = [s for s in config_samples if s.group == 'IN' and s.short in header]
-    outgroup = [s for s in config_samples if s.group == 'OUT' and s.short in header]
+    ingroup = [s for s in config_samples if s.group in INGROUP_ROLES and s.short in header]
+    outgroup = [s for s in config_samples if s.group in OUTGROUP_ROLES and s.short in header]
     proteomes = ingroup + outgroup
     shorts = [s.short for s in proteomes]
     ingroup_ids = [s.short for s in ingroup]
@@ -347,8 +348,8 @@ def build_core_payload(
 
     fam_index = FamilyIndex(cluster_tsv)
 
-    ingroup = [s for s in config_samples if s.group == 'IN' and s.short in header]
-    outgroup = [s for s in config_samples if s.group == 'OUT' and s.short in header]
+    ingroup = [s for s in config_samples if s.group in INGROUP_ROLES and s.short in header]
+    outgroup = [s for s in config_samples if s.group in OUTGROUP_ROLES and s.short in header]
     proteomes = ingroup + outgroup
     shorts = [s.short for s in proteomes]
     ingroup_ids = {s.short for s in ingroup}
@@ -493,8 +494,8 @@ def build_losses_payload(
 
     fam_index = FamilyIndex(cluster_tsv)
 
-    ingroup = [s for s in config_samples if s.group == 'IN' and s.short in header]
-    outgroup = [s for s in config_samples if s.group == 'OUT' and s.short in header]
+    ingroup = [s for s in config_samples if s.group in INGROUP_ROLES and s.short in header]
+    outgroup = [s for s in config_samples if s.group in OUTGROUP_ROLES and s.short in header]
     proteomes = ingroup + outgroup
     shorts = [s.short for s in proteomes]
     ingroup_ids = [s.short for s in ingroup]

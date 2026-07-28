@@ -592,3 +592,34 @@ def test_make_report_escapes_a_script_tag_hiding_in_an_annotation(run_dir):
     prod = payload['fields'].index('prod')
     descriptions = [r[prod] for r in payload['rows']]
     assert '</script><script>alert(1)</script>' in descriptions
+
+
+# novelty_discovery (todo/novelty-discovery-screen.md) configs use TARGET/DISC_OUT instead
+# of IN/OUT — the report payload builders must treat them identically (issue #33).
+TARGET_DISC_OUT_CONFIG = CONFIG.replace('IN,', 'TARGET,').replace('OUT,', 'DISC_OUT,')
+
+
+def test_payload_treats_target_disc_out_roles_like_in_out(tmp_path):
+    (tmp_path / 'config.csv').write_text(TARGET_DISC_OUT_CONFIG)
+    (tmp_path / 'matrix.tsv').write_text(MATRIX)
+    samples = parse_config(tmp_path / 'config.csv')
+
+    payload = build_payload(tmp_path / 'matrix.tsv', samples, sequences='none')
+
+    assert [p['short'] for p in payload['proteomes']] == ['Ncra', 'Afum', 'Spom', 'Scer']
+    assert [p['group'] for p in payload['proteomes']] == ['TARGET', 'TARGET', 'DISC_OUT', 'DISC_OUT']
+    rows = rows_by_id(payload)
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    # Same novelty calls as the IN/OUT config: n1/n2 novel, shared/lonely not.
+    assert {pid for pid, r in rows.items() if r[F['nov']] == 1} == {'n1', 'n2'}
+
+
+def test_core_payload_treats_target_disc_out_roles_like_in_out(tmp_path):
+    (tmp_path / 'config.csv').write_text(TARGET_DISC_OUT_CONFIG)
+    (tmp_path / 'matrix.tsv').write_text(CORE_MATRIX)
+    samples = parse_config(tmp_path / 'config.csv')
+
+    payload = build_core_payload(tmp_path / 'matrix.tsv', samples, core_min_frac=0.95)
+
+    ids = {r[payload['fields'].index('id')] for r in payload['rows']}
+    assert ids == {'core1', 'core1b'}
