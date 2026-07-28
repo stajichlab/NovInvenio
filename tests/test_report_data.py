@@ -623,3 +623,70 @@ def test_core_payload_treats_target_disc_out_roles_like_in_out(tmp_path):
 
     ids = {r[payload['fields'].index('id')] for r in payload['rows']}
     assert ids == {'core1', 'core1b'}
+
+
+# novelty_category (issue #27's bin/novelty_screen.py output, issue #28's report rendering).
+# Rows without the column (pairwise/mmseqs runs) must still work -- 'category' defaults to ''.
+CATEGORY_MATRIX = """\
+protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\tnovelty_category
+n1\tNcra\t1\t1\t0\t0\ttarget_specific
+n2\tAfum\t1\t1\t0\t0\tclade_specific
+shared\tNcra\t1\t1\t1\t0\tfalse_novelty
+lonely\tNcra\t1\t0\t0\t0\t
+"""
+
+
+def test_payload_includes_novelty_category_field(run_dir, samples):
+    (run_dir / 'matrix.tsv').write_text(CATEGORY_MATRIX)
+    payload = payload_for(run_dir, samples)
+
+    assert 'category' in payload['fields']
+    rows = rows_by_id(payload)
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    assert rows['n1'][F['category']] == 'target_specific'
+    assert rows['n2'][F['category']] == 'clade_specific'
+    assert rows['shared'][F['category']] == 'false_novelty'
+    assert rows['lonely'][F['category']] == ''
+    assert payload['novelty_categories'] == ['clade_specific', 'false_novelty', 'target_specific']
+
+
+def test_payload_defaults_category_to_empty_when_column_absent(run_dir, samples):
+    # MATRIX (the module-level default fixture) has no novelty_category column at all --
+    # pairwise/mmseqs runs never populate it.
+    payload = payload_for(run_dir, samples)
+
+    assert 'category' in payload['fields']
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    assert all(r[F['category']] == '' for r in payload['rows'])
+    assert payload['novelty_categories'] == []
+
+
+def test_make_report_escapes_a_script_tag_hiding_in_novelty_category(run_dir):
+    # novelty_category is always one of three fixed enum strings written by
+    # bin/novelty_screen.py, never free text from an external source -- but the payload's
+    # escaping is applied to the whole embedded JSON block (see
+    # test_make_report_escapes_a_script_tag_hiding_in_an_annotation), so an adversarial value
+    # here must be neutralised the same way any other field's would be.
+    matrix_with_category = (
+        "protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\tgene_name\tproduct_description"
+        "\tfunction_source\tBest_Swissprot\tPfam_Names\tPfam_Accessions\tPfam_Evalues"
+        "\tnovelty_category\n"
+        "n1\tNcra\t1\t1\t0\t0\tada-1\tall development altered-1\tModelOrg_Ncra\t\tbZIP_1"
+        "\tPF00170.27\t4.5e-09\t</script><script>alert(1)</script>\n"
+    )
+    (run_dir / 'matrix.tsv').write_text(matrix_with_category)
+    out = run_dir / 'novelties.html'
+    subprocess.run(
+        [sys.executable, str(REPO / 'bin' / 'make_report.py'),
+         '--matrix', str(run_dir / 'matrix.tsv'),
+         '--config', str(run_dir / 'config.csv'),
+         '--output', str(out)],
+        check=True, capture_output=True,
+    )
+    doc = out.read_text()
+    payload_block = doc.split('id="payload">')[1].split('</script>')[0]
+    assert '</script' not in payload_block.lower()
+    payload = json.loads(payload_block)
+    cat_idx = payload['fields'].index('category')
+    categories = [r[cat_idx] for r in payload['rows']]
+    assert '</script><script>alert(1)</script>' in categories
