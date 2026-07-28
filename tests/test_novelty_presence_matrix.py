@@ -78,6 +78,19 @@ def test_matrix_columns_include_all_proteomes(tmp_path):
     assert list(matrix.columns) == ['protein_id', 'source_proteome', 'D1', 'D2', 'T1', 'T2']
 
 
+def test_family_member_presence_does_not_leak_across_siblings(tmp_path):
+    # Regression test (found via issue #29's integration test): with no hmmsearch hits at
+    # all for family A, each member should be present ONLY in its own source proteome --
+    # not also in its sibling's source proteome. A shared, mutated-in-place presence set
+    # previously leaked pA1's source (T1) onto pA2's row once pA2 was processed second.
+    _setup(tmp_path)
+    matrix, _ = _run(tmp_path, family_domtblouts=[])
+    row_a1 = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    row_a2 = matrix[matrix['protein_id'] == 'pA2'].iloc[0]
+    assert row_a1['T1'] == 1 and row_a1['T2'] == 0
+    assert row_a2['T2'] == 1 and row_a2['T1'] == 0
+
+
 def test_family_present_in_targets_absent_from_disc_out(tmp_path):
     _setup(tmp_path)
     # Family A present in both targets (domtblout hits), absent from DISC_OUT

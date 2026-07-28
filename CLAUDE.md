@@ -369,6 +369,12 @@ CLUSTER/VALIDATE/ANNOTATE/REPORT are unchanged. `--run_tool` is still used under
 for the self-search paralog calibration. See `README.md` "Two analysis approaches" for the
 user-facing comparison and copy-paste launch examples.
 
+`--cluster_tool novelty_discovery` runs a third, target-focused pathway (`NOVELTY_DISCOVERY`
+→ `NOVELTY_SCREEN`) for a small known target lineage against a small reference panel, then a
+broader clade-vs-distant-lineage screen — see "Two-Phase Targeted Novelty Pipeline" below.
+It requires the config CSV to use `TARGET`/`DISC_OUT`/`NEAR_IN`/`BROAD_OUT` GROUP values
+instead of (or alongside) `IN`/`OUT`.
+
 ---
 
 ## Development Guide
@@ -623,6 +629,111 @@ IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,Cimm,Peziz
 - `Strain` may be empty.
 - The config CSV filename (without `.csv`) becomes the results output subdirectory name.
 - `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs).
+
+## Two-Phase Targeted Novelty Pipeline (`--cluster_tool novelty_discovery`)
+
+A third `--cluster_tool` option, alongside `pairwise` and `mmseqs`: a target-focused
+alternative to the whole-ingroup/whole-outgroup design of those two, for when you already
+know the small target lineage you care about and want a tighter, faster screen than an
+all-vs-all run across a large sample set. Full design rationale and rejected alternatives
+are in `todo/novelty-discovery-screen.md`; this section documents what the implementation
+actually does today.
+
+### Config format — four new `GROUP` values
+
+The same single analysis CSV (`--config`) carries all four roles together, alongside (or
+instead of) `IN`/`OUT`:
+
+| `GROUP` value | Role | Typical size |
+|---|---|---|
+| `TARGET` | The genome(s) to find novelties in | 2-3 |
+| `DISC_OUT` | Small reference panel for the phase-1 absence call | 5-6 |
+| `NEAR_IN` | Close relatives of the target, same clade | 20-50 |
+| `BROAD_OUT` | Distant lineages, outside the target clade | 20-100 |
+
+See `configs/novelty_discovery_example.csv` for a minimal example. `lib/config_parser.py`'s
+`GROUPS`/`INGROUP_ROLES`/`OUTGROUP_ROLES` constants are the source of truth for which values
+are recognized and how they band into "ingroup-like" (`IN`, `TARGET`) vs "outgroup-like"
+(`OUT`, `DISC_OUT`, `NEAR_IN`, `BROAD_OUT`) for the report payload builders.
+
+### Phase 1 — `workflows/novelty_discovery.nf` (`NOVELTY_DISCOVERY`)
+
+1. Cluster `TARGET` proteomes into gene families with mmseqs2 (`MMSEQS_FAMILY_CLUSTER`).
+2. Build a family HMM per multi-member family (famsa + hmmbuild scatter-gather,
+   `BUILD_FAMILY_PROFILES` — the same module `--cluster_tool mmseqs` uses).
+3. `hmmsearch` every family HMM against `TARGET` + `DISC_OUT` proteomes
+   (`FAMILY_HMMSEARCH`).
+4. Calibrate a per-family E-value threshold against `DISC_OUT` as a negative control
+   (`CALIBRATE_FAMILY_HMMS`): if a family hits any `DISC_OUT` proteome, the threshold is set
+   tighter than that hit's E-value; otherwise it falls back to `--hmm_presence_evalue`.
+5. Build the phase-1 presence matrix and candidate list (`NOVELTY_PRESENCE_MATRIX` /
+   `bin/novelty_presence_matrix.py`): a family/protein is a candidate when present in
+   `>= --ingroup_min_frac` of `TARGET` and absent from every `DISC_OUT` proteome.
+6. TBLASTN family representatives against `DISC_OUT` genomes for genomic validation
+   (reporting-only, same rationale as `make_novelties.py --skip_tblastn_filter`).
+
+**Known gap:** step 5's presence matrix only reflects multi-member family HMM hits.
+Singleton target proteins (no family) are extracted (`EXTRACT_SINGLETONS`) but never
+searched — the "hybrid" pairwise-vs-DISC_OUT branch for singletons described in the design
+doc is not implemented, so single-copy target-specific genes are currently invisible to this
+pathway. The design doc's single-`TARGET`-genome pairwise-search branch (skip clustering
+entirely when `|TARGET| == 1`) is likewise not implemented — the pipeline always runs the
+mmseqs family-clustering path regardless of `TARGET` count, so a lone target genome mostly
+yields single-member "families" that phase 1 currently can't evaluate for the same reason.
+Family HMM `storeDir` caching (keyed by a hash of the family's member IDs, so overlapping
+target sets across runs reuse HMMs) is also not yet implemented — every run rebuilds every
+family HMM from scratch.
+
+### Phase 2 — `workflows/novelty_screen.nf` (`NOVELTY_SCREEN`)
+
+Always runs after `NOVELTY_DISCOVERY` for this `--cluster_tool` (there is no flag to skip
+it). Re-searches the *same* calibrated family HMMs against `NEAR_IN` and `BROAD_OUT`
+proteomes and reclassifies every phase-1 candidate (`NOVELTY_SCREEN_CLASSIFY` /
+`bin/novelty_screen.py`) into one of three categories, written as a `novelty_category`
+column on the screened presence matrix:
+
+- **`target_specific`** — no hit in `NEAR_IN` or `BROAD_OUT`.
+- **`clade_specific`** — hit in `NEAR_IN`, no hit in `BROAD_OUT`.
+- **`false_novelty`** — hit in `BROAD_OUT` (removed from the screened candidate list, but
+  kept — labelled — in the matrix for visibility).
+
+TBLASTN also validates family representatives against `BROAD_OUT` genomes
+(reporting-only), published as `screen_tblastn_summary.tsv`; the interactive report
+currently only surfaces `NOVELTY_DISCOVERY`'s `DISC_OUT`-genome TBLASTN evidence
+(`tblastn_summary.tsv`), not this one.
+
+A config with no `NEAR_IN`/`BROAD_OUT` rows degrades gracefully rather than erroring: zero
+proteomes to search means zero hits, so every phase-1 candidate defaults to
+`target_specific` — there's no broader-screen evidence to demote it with.
+
+Only the screened candidates (`false_novelty` removed) proceed to `ANNOTATE` (Pfam +
+SwissProt) — annotation is expensive, so there's no reason to spend it on families the
+screen already ruled out. `novelty_category` survives `ANNOTATE_MATRIX` untouched
+(`annotate_presence_matrix.py` only appends columns) and reaches the interactive report.
+
+### Report integration
+
+`novelties.html` renders `novelty_category` as a table column, a detail-panel field, and a
+`<select>` filter (hidden unless the payload actually has category data — pairwise/mmseqs
+runs never populate it). `core.html` and `losses.html` are unaffected: the loss direction
+(present in the outgroup, absent from the ingroup) is an explicitly deferred future
+extension for this pathway, not mirrored the way it is for `pairwise`/`mmseqs` — `main.nf`
+stubs a valid zero-row `losses.html` (`modules/empty_loss_stub.nf`) purely so
+`COLLATE_REPORTS` can still assemble `view/<project>/report.html`.
+
+### Running it
+
+```bash
+nextflow run main.nf \
+    --config configs/novelty_discovery_example.csv \
+    --data_dir /path/to/fastas \
+    --cluster_tool novelty_discovery \
+    --run_tool phmmer
+```
+
+Same `--pfam_hmm`/`--swissprot_dmnd`/`--modelorgs_config`/report flags as the other two
+`--cluster_tool` paths apply. `--ingroup_min_frac`/`--hmm_presence_evalue`/
+`--hmm_presence_cov` are shared with `--cluster_tool mmseqs` and mean the same thing here.
 
 ## Model Organisms YAML Format (`configs/modelorgs.yaml`)
 

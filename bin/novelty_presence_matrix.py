@@ -180,11 +180,14 @@ def main():
 
     # Family members: present in proteomes where family HMM is present, plus source proteome
     for rep in multi_reps:
-        present_proteomes = set()
+        family_present = set()
         for short, present_reps in family_presence.items():
             if rep in present_reps:
-                present_proteomes.add(short)
+                family_present.add(short)
         for member in rep_to_members[rep]:
+            # A fresh copy per member: each member is present in every proteome the family
+            # HMM hit, plus (always) its own source proteome -- never another member's.
+            present_proteomes = set(family_present)
             source = protein_to_proteome.get(member, '')
             if source:
                 present_proteomes.add(source)
