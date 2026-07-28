@@ -73,7 +73,7 @@ workflow PROFILE_SEARCH {
     PROFILE_PRESENCE_MATRIX(
         FAMILY_HMMSEARCH.out.domtblout.map { meta, dom -> dom }.collect(),
         MMSEQS_FAMILY_CLUSTER.out.cluster_tsv,
-        BUILD_FAMILY_PROFILES.out.families,
+        BUILD_FAMILY_PROFILES.out.families.first(),
         protein_map,
         config_csv,
         query_group,

@@ -20,6 +20,15 @@ class Sample:
 # novelty_screen workflow.
 GROUPS = {'IN', 'OUT', 'TARGET', 'DISC_OUT', 'NEAR_IN', 'BROAD_OUT'}
 
+# Coarse ingroup/outgroup banding shared by every downstream consumer that only
+# cares "is this the query side or the reference side" (report payload builders,
+# make_novelties.py) rather than the fine-grained role (used by the workflows
+# themselves via get_target()/get_disc_out()/etc. above). 'NEAR_IN'/'BROAD_OUT'
+# fold into the outgroup band here; the finer near/broad distinction is carried
+# by the novelty_category column (issue #28), not a third band.
+INGROUP_ROLES = {'IN', 'TARGET'}
+OUTGROUP_ROLES = {'OUT', 'DISC_OUT', 'NEAR_IN', 'BROAD_OUT'}
+
 
 def parse_config(config_path: Union[str, Path]) -> list[Sample]:
     samples = []

@@ -136,10 +136,14 @@ process NOVELTY_PRESENCE_MATRIX {
     path("candidates.txt"),      emit: candidates
 
     script:
+    // singleton_hits is [] until the singleton pairwise-search branch is implemented
+    // (see todo/novelty-discovery-screen.md) — omit the flag rather than pass an empty
+    // Groovy list literal ("[]") on the command line.
+    def singleton_arg = singleton_hits ? "--singleton-hits ${singleton_hits}" : ''
     """
     novelty_presence_matrix.py \
         --family-domtblout ${family_domtblouts} \
-        --singleton-hits ${singleton_hits} \
+        ${singleton_arg} \
         --cluster-tsv ${cluster_tsv} \
         --protein-map ${protein_map} \
         --config ${config_csv} \
@@ -206,9 +210,10 @@ workflow NOVELTY_DISCOVERY {
 
     // Build family HMMs for multi-member families.
     BUILD_FAMILY_PROFILES(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat, '')
+    family_profiles = BUILD_FAMILY_PROFILES.out.profiles.first()
 
     // Search family HMMs against ALL proteomes (target + DISC_OUT).
-    FAMILY_HMMSEARCH(all_proteomes_ch, BUILD_FAMILY_PROFILES.out.profiles.first(), '')
+    FAMILY_HMMSEARCH(all_proteomes_ch, family_profiles, '')
 
     // Extract singleton sequences from the cluster results.
     EXTRACT_SINGLETONS(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat)
@@ -226,7 +231,7 @@ workflow NOVELTY_DISCOVERY {
     // Build the combined presence matrix.
     NOVELTY_PRESENCE_MATRIX(
         FAMILY_HMMSEARCH.out.domtblout.map { meta, dom -> dom }.collect(),
-        Channel.empty().collect(),  // singleton pairwise hits (empty for now)
+        Channel.value([]),  // singleton pairwise hits (empty for now) — see script: above
         MMSEQS_FAMILY_CLUSTER.out.cluster_tsv,
         protein_map,
         config_csv,
@@ -237,9 +242,11 @@ workflow NOVELTY_DISCOVERY {
         0.0  // disc_out_max_frac: strictly absent from DISC_OUT
     )
 
-    // TBLASTN validation against DISC_OUT genomes.
+    // TBLASTN validation against DISC_OUT genomes — query is the family representative
+    // protein sequences, not the HMM database.
+    family_reps_fa = MMSEQS_FAMILY_CLUSTER.out.representatives.first()
     genome_db_ch = TBLASTN_MAKEDB(disc_out_dna)
-    TBLASTN(genome_db_ch, BUILD_FAMILY_PROFILES.out.profiles.first())
+    TBLASTN(genome_db_ch, family_reps_fa)
 
     // Summarize TBLASTN hits.
     SUMMARIZE_TBLASTN(
@@ -249,10 +256,14 @@ workflow NOVELTY_DISCOVERY {
     )
 
     emit:
-    matrix         = NOVELTY_PRESENCE_MATRIX.out.matrix
-    candidates     = NOVELTY_PRESENCE_MATRIX.out.candidates
-    cand_fa        = Channel.empty()  // candidates.fa — not yet produced
-    cand_reps      = Channel.empty()  // representative sequences — not yet produced
-    cand_cluster_tsv = MMSEQS_FAMILY_CLUSTER.out.cluster_tsv
-    calibrated_hmms = BUILD_FAMILY_PROFILES.out.profiles
+    matrix             = NOVELTY_PRESENCE_MATRIX.out.matrix
+    candidates         = NOVELTY_PRESENCE_MATRIX.out.candidates
+    summary            = SUMMARIZE_TBLASTN.out.tsv
+    // Family clustering + reps + the concatenated seed group, for the family-as-cluster
+    // path (ADR-0002 Q7): main.nf feeds these to PROFILE_CANDIDATE_CLUSTERS instead of
+    // re-clustering the candidates (mirrors PROFILE_SEARCH's emit contract).
+    family_cluster_tsv = MMSEQS_FAMILY_CLUSTER.out.cluster_tsv
+    family_reps        = family_reps_fa
+    seed_concat        = seed_concat
+    calibrated_hmms    = family_profiles
 }

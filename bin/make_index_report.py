@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
 from report_common import BASE_PAGE_CSS, THEME_TOGGLE_JS, THEME_VARS_CSS  # noqa: E402
+from report_data import INGROUP_ROLES, OUTGROUP_ROLES  # noqa: E402
 
 # Each entry: (relative filename, title, one-line description).
 REPORTS = [
@@ -36,10 +37,10 @@ REPORTS = [
 ]
 
 
-def _species_rows(samples, group):
+def _species_rows(samples, roles):
     cells = []
     for s in samples:
-        if s.group != group:
+        if s.group not in roles:
             continue
         name = html.escape(s.species + (f' {s.strain}' if s.strain else ''))
         cells.append(
@@ -195,15 +196,15 @@ def main():
     if not available:
         available = {fname for fname, _, _ in REPORTS}
 
-    n_in = sum(1 for s in samples if s.group == 'IN')
-    n_out = sum(1 for s in samples if s.group == 'OUT')
+    n_in = sum(1 for s in samples if s.group in INGROUP_ROLES)
+    n_out = sum(1 for s in samples if s.group in OUTGROUP_ROLES)
 
     doc = (PAGE
            .replace('__PROJECT_TITLE__', html.escape(project))
            .replace('__REPORT_CARDS__', _report_cards(available))
            .replace('__PARAM_TILES__', _param_tiles(args, n_in, n_out))
-           .replace('__INGROUP_ROWS__', _species_rows(samples, 'IN'))
-           .replace('__OUTGROUP_ROWS__', _species_rows(samples, 'OUT'))
+           .replace('__INGROUP_ROWS__', _species_rows(samples, INGROUP_ROLES))
+           .replace('__OUTGROUP_ROWS__', _species_rows(samples, OUTGROUP_ROLES))
            .replace('__N_IN__', str(n_in))
            .replace('__N_OUT__', str(n_out)))
 
