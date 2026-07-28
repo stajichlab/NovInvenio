@@ -194,12 +194,19 @@ workflow NOVELTY_DISCOVERY {
     // Extract singleton sequences from the cluster results.
     EXTRACT_SINGLETONS(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat)
 
-    // Calibrate family HMM thresholds using DISC_OUT as negative control.
-    // We need the DISC_OUT domtblouts specifically.
-    // FAMILY_HMMSEARCH returns [meta, domtblout] for ALL proteomes.
-    // We pass all domtblouts to the calibrator; it will find hits in DISC_OUT.
+    // Calibrate family HMM thresholds using DISC_OUT as negative control. Must be
+    // restricted to DISC_OUT proteomes' domtblouts only: FAMILY_HMMSEARCH returns
+    // [meta, domtblout] for ALL proteomes (target + DISC_OUT), and a family's near-perfect
+    // self-hit against its own TARGET source protein would otherwise poison the "negative
+    // control" with an all-but-impossible-to-beat E-value, making every family's threshold
+    // effectively unmatchable in phase 2 (found via issue #29's integration test).
+    disc_out_domtblouts = FAMILY_HMMSEARCH.out.domtblout
+        .filter { meta, dom -> meta.group == 'DISC_OUT' }
+        .map { meta, dom -> dom }
+        .collect()
+        .ifEmpty([])
     CALIBRATE_FAMILY_HMMS(
-        FAMILY_HMMSEARCH.out.domtblout.map { meta, dom -> dom }.collect(),
+        disc_out_domtblouts,
         BUILD_FAMILY_PROFILES.out.families.first(),
         params.hmm_presence_evalue
     )
