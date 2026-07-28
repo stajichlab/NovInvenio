@@ -35,6 +35,10 @@ ROW_FIELDS = [
     'support',   # which search method(s) called this protein novel — e.g. 'pairwise',
                  # 'mmseqs', or 'pairwise+mmseqs' (cross-method concordance). '' if no
                  # method calls it. Single-method runs carry just the one method name.
+    'category',  # novelty_category from novelty_screen.py (issue #27): 'target_specific',
+                 # 'clade_specific', 'false_novelty', or '' — either not a phase-1 candidate,
+                 # or this run's matrix predates/doesn't come from the novelty_discovery /
+                 # novelty_screen pathway (--cluster_tool pairwise/mmseqs never populate it).
 ]
 
 # Trailing transcript/protein suffixes that separate a FungiDB gene ID from the
@@ -235,6 +239,7 @@ def build_payload(
     fsources: list[str] = []
     fsource_idx: dict[str, int] = {}
     out_rows = []
+    categories: set[str] = set()
 
     for row in rows:
         pid = row.get('protein_id', '')
@@ -266,6 +271,12 @@ def build_payload(
             row_methods.append(support_method)
         support = '+'.join(row_methods)
 
+        # novelty_category (issue #27/#28): only present when the matrix came from the
+        # novelty_discovery/novelty_screen pathway; '' for pairwise/mmseqs runs.
+        category = row.get('novelty_category', '') or ''
+        if category:
+            categories.add(category)
+
         out_rows.append([
             pid,
             shorts.index(src) if src in shorts else -1,
@@ -282,6 +293,7 @@ def build_payload(
             fam_i,
             seq,
             support,
+            category,
         ])
 
     return {
@@ -302,6 +314,7 @@ def build_payload(
         ],
         'tblastn_genomes': tb_genomes,
         'fsources': fsources,
+        'novelty_categories': sorted(categories),
         'families': fam_index.payload(),
         'rows': out_rows,
     }
