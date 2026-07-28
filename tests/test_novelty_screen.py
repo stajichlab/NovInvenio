@@ -10,12 +10,12 @@ BIN = Path(__file__).resolve().parent.parent / 'bin' / 'novelty_screen.py'
 
 CONFIG = """\
 GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
-TARGET,Species one,,target1.pep.fa,target1.dna.fa,T1,X
-TARGET,Species two,,target2.pep.fa,target2.dna.fa,T2,X
-DISC_OUT,Outgroup one,,disc1.pep.fa,disc1.dna.fa,D1,Y
-NEAR_IN,Near relative,,near1.pep.fa,near1.dna.fa,N1,X
-BROAD_OUT,Distant one,,broad1.pep.fa,broad1.dna.fa,B1,Z
-BROAD_OUT,Distant two,,broad2.pep.fa,broad2.dna.fa,B2,Z
+DISCOVERY_TARGET,Species one,,target1.pep.fa,target1.dna.fa,T1,X
+DISCOVERY_TARGET,Species two,,target2.pep.fa,target2.dna.fa,T2,X
+DISCOVERY_OUT,Outgroup one,,disc1.pep.fa,disc1.dna.fa,D1,Y
+NEAR_INGROUP,Near relative,,near1.pep.fa,near1.dna.fa,N1,X
+BROAD_OUTGROUP,Distant one,,broad1.pep.fa,broad1.dna.fa,B1,Z
+BROAD_OUTGROUP,Distant two,,broad2.pep.fa,broad2.dna.fa,B2,Z
 """
 
 # Discovery matrix: three phase-1 candidates (famA -> pA1/pA2, famB -> pB1/pB2, famC -> pC1)
@@ -163,9 +163,10 @@ def test_non_candidate_rows_carry_empty_category_but_real_presence(tmp_path):
 
 def test_preexisting_near_in_broad_out_columns_are_updated_not_duplicated(tmp_path):
     # bin/novelty_presence_matrix.py's own header spans every proteome short ID in the
-    # config (not just TARGET/DISC_OUT), so a discovery matrix commonly already carries
-    # NEAR_IN/BROAD_OUT columns, always 0 (phase 1 never searches them). novelty_screen.py
-    # must overwrite those columns in place rather than appending duplicates.
+    # config (not just DISCOVERY_TARGET/DISCOVERY_OUT), so a discovery matrix commonly
+    # already carries NEAR_INGROUP/BROAD_OUTGROUP columns, always 0 (phase 1 never searches
+    # them). novelty_screen.py must overwrite those columns in place rather than appending
+    # duplicates.
     (tmp_path / 'config.csv').write_text(CONFIG)
     (tmp_path / 'discovery_matrix.tsv').write_text(
         "protein_id\tsource_proteome\tD1\tT1\tT2\tN1\tB1\tB2\n"

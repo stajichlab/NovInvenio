@@ -1,8 +1,8 @@
 GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
-TARGET,Neurospora crassa,OR74A,Ncrassa.pep.fa,Ncrassa.dna.fa,Ncra,Pezizomycotina
-TARGET,Podospora anserina,,Pans.pep.fa,Pans.dna.fa,Pans,Pezizomycotina
-DISC_OUT,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
-DISC_OUT,Saccharomyces cerevisiae,S288C,Scer.pep.fa,Scer.dna.fa,Scer,Saccharomycotina
-NEAR_IN,Coccidioides immitis,WA211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,Cimm,Pezizomycotina
-BROAD_OUT,Schizosaccharomyces pombe,,Spom.pep.fa,Spom.dna.fa,Spom,Taphrinomycotina
-BROAD_OUT,Candida albicans,,Calb.pep.fa,Calb.dna.fa,Calb,Saccharomycotina
+DISCOVERY_TARGET,Neurospora crassa,OR74A,Ncrassa.pep.fa,Ncrassa.dna.fa,Ncra,Pezizomycotina
+DISCOVERY_TARGET,Podospora anserina,,Pans.pep.fa,Pans.dna.fa,Pans,Pezizomycotina
+DISCOVERY_OUT,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
+DISCOVERY_OUT,Saccharomyces cerevisiae,S288C,Scer.pep.fa,Scer.dna.fa,Scer,Saccharomycotina
+NEAR_INGROUP,Coccidioides immitis,WA211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,Cimm,Pezizomycotina
+BROAD_OUTGROUP,Schizosaccharomyces pombe,,Spom.pep.fa,Spom.dna.fa,Spom,Taphrinomycotina
+BROAD_OUTGROUP,Candida albicans,,Calb.pep.fa,Calb.dna.fa,Calb,Saccharomycotina

@@ -1,8 +1,8 @@
 """Shared family-HMM presence-calling helpers for the novelty_discovery /
 novelty_screen two-phase pathway (todo/novelty-discovery-screen.md).
 
-Used by bin/novelty_presence_matrix.py (discovery phase, TARGET vs DISC_OUT) and
-bin/novelty_screen.py (screen phase, calibrated families vs NEAR_IN/BROAD_OUT) so both
+Used by bin/novelty_presence_matrix.py (discovery phase, DISCOVERY_TARGET vs DISCOVERY_OUT) and
+bin/novelty_screen.py (screen phase, calibrated families vs NEAR_INGROUP/BROAD_OUTGROUP) so both
 phases call "present" the same way: a family HMM hit with full-sequence E-value below its
 (optionally calibrated) per-family threshold AND profile coverage >= a minimum.
 """

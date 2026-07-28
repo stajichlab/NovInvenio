@@ -30,6 +30,6 @@ All future work items, ideas, and planned improvements for this project are trac
 | Phase 2 — Cross-method support column | medium | open | feature | 2026-07-20 | Jason Stajich | [cross-method-support-column.md](cross-method-support-column.md) |
 | Phase 3 — Gene-contraction analysis | medium | open | analysis | 2026-07-20 | Jason Stajich | [gene-contraction-analysis.md](gene-contraction-analysis.md) |
 | Phase 4 — OrthoFinder pathway + phylostrata | low | open | feature | 2026-07-20 | Jason Stajich | [orthofinder-pathway-phylostrata.md](orthofinder-pathway-phylostrata.md) |
-| Rename novelty_discovery/novelty_screen GROUP labels for clarity | low | open | chore | 2026-07-28 | Jason Stajich | [rename-novelty-discovery-group-labels.md](rename-novelty-discovery-group-labels.md) |
+| Rename novelty_discovery/novelty_screen GROUP labels for clarity | low | complete | chore | 2026-07-28 | Jason Stajich | [rename-novelty-discovery-group-labels.md](rename-novelty-discovery-group-labels.md) |
 
 <!-- Add new entries above this line -->

@@ -372,7 +372,7 @@ user-facing comparison and copy-paste launch examples.
 `--cluster_tool novelty_discovery` runs a third, target-focused pathway (`NOVELTY_DISCOVERY`
 → `NOVELTY_SCREEN`) for a small known target lineage against a small reference panel, then a
 broader clade-vs-distant-lineage screen — see "Two-Phase Targeted Novelty Pipeline" below.
-It requires the config CSV to use `TARGET`/`DISC_OUT`/`NEAR_IN`/`BROAD_OUT` GROUP values
+It requires the config CSV to use `DISCOVERY_TARGET`/`DISCOVERY_OUT`/`NEAR_INGROUP`/`BROAD_OUTGROUP` GROUP values
 instead of (or alongside) `IN`/`OUT`.
 
 ---
@@ -646,39 +646,39 @@ instead of) `IN`/`OUT`:
 
 | `GROUP` value | Role | Typical size |
 |---|---|---|
-| `TARGET` | The genome(s) to find novelties in | 2-3 |
-| `DISC_OUT` | Small reference panel for the phase-1 absence call | 5-6 |
-| `NEAR_IN` | Close relatives of the target, same clade | 20-50 |
-| `BROAD_OUT` | Distant lineages, outside the target clade | 20-100 |
+| `DISCOVERY_TARGET` | The genome(s) to find novelties in | 2-3 |
+| `DISCOVERY_OUT` | Small reference panel for the phase-1 absence call | 5-6 |
+| `NEAR_INGROUP` | Close relatives of the target, same clade | 20-50 |
+| `BROAD_OUTGROUP` | Distant lineages, outside the target clade | 20-100 |
 
 See `configs/novelty_discovery_example.csv` for a minimal example. `lib/config_parser.py`'s
 `GROUPS`/`INGROUP_ROLES`/`OUTGROUP_ROLES` constants are the source of truth for which values
-are recognized and how they band into "ingroup-like" (`IN`, `TARGET`) vs "outgroup-like"
-(`OUT`, `DISC_OUT`, `NEAR_IN`, `BROAD_OUT`) for the report payload builders.
+are recognized and how they band into "ingroup-like" (`IN`, `DISCOVERY_TARGET`) vs "outgroup-like"
+(`OUT`, `DISCOVERY_OUT`, `NEAR_INGROUP`, `BROAD_OUTGROUP`) for the report payload builders.
 
 ### Phase 1 — `workflows/novelty_discovery.nf` (`NOVELTY_DISCOVERY`)
 
-1. Cluster `TARGET` proteomes into gene families with mmseqs2 (`MMSEQS_FAMILY_CLUSTER`).
+1. Cluster `DISCOVERY_TARGET` proteomes into gene families with mmseqs2 (`MMSEQS_FAMILY_CLUSTER`).
 2. Build a family HMM per multi-member family (famsa + hmmbuild scatter-gather,
    `BUILD_FAMILY_PROFILES` — the same module `--cluster_tool mmseqs` uses).
-3. `hmmsearch` every family HMM against `TARGET` + `DISC_OUT` proteomes
+3. `hmmsearch` every family HMM against `DISCOVERY_TARGET` + `DISCOVERY_OUT` proteomes
    (`FAMILY_HMMSEARCH`).
-4. Calibrate a per-family E-value threshold against `DISC_OUT` as a negative control
-   (`CALIBRATE_FAMILY_HMMS`): if a family hits any `DISC_OUT` proteome, the threshold is set
+4. Calibrate a per-family E-value threshold against `DISCOVERY_OUT` as a negative control
+   (`CALIBRATE_FAMILY_HMMS`): if a family hits any `DISCOVERY_OUT` proteome, the threshold is set
    tighter than that hit's E-value; otherwise it falls back to `--hmm_presence_evalue`.
 5. Build the phase-1 presence matrix and candidate list (`NOVELTY_PRESENCE_MATRIX` /
    `bin/novelty_presence_matrix.py`): a family/protein is a candidate when present in
-   `>= --ingroup_min_frac` of `TARGET` and absent from every `DISC_OUT` proteome.
-6. TBLASTN family representatives against `DISC_OUT` genomes for genomic validation
+   `>= --ingroup_min_frac` of `DISCOVERY_TARGET` and absent from every `DISCOVERY_OUT` proteome.
+6. TBLASTN family representatives against `DISCOVERY_OUT` genomes for genomic validation
    (reporting-only, same rationale as `make_novelties.py --skip_tblastn_filter`).
 
 **Known gap:** step 5's presence matrix only reflects multi-member family HMM hits.
 Singleton target proteins (no family) are extracted (`EXTRACT_SINGLETONS`) but never
-searched — the "hybrid" pairwise-vs-DISC_OUT branch for singletons described in the design
+searched — the "hybrid" pairwise-vs-DISCOVERY_OUT branch for singletons described in the design
 doc is not implemented, so single-copy target-specific genes are currently invisible to this
-pathway. The design doc's single-`TARGET`-genome pairwise-search branch (skip clustering
-entirely when `|TARGET| == 1`) is likewise not implemented — the pipeline always runs the
-mmseqs family-clustering path regardless of `TARGET` count, so a lone target genome mostly
+pathway. The design doc's single-`DISCOVERY_TARGET`-genome pairwise-search branch (skip clustering
+entirely when `|DISCOVERY_TARGET| == 1`) is likewise not implemented — the pipeline always runs the
+mmseqs family-clustering path regardless of `DISCOVERY_TARGET` count, so a lone target genome mostly
 yields single-member "families" that phase 1 currently can't evaluate for the same reason.
 Family HMM `storeDir` caching (keyed by a hash of the family's member IDs, so overlapping
 target sets across runs reuse HMMs) is also not yet implemented — every run rebuilds every
@@ -687,22 +687,22 @@ family HMM from scratch.
 ### Phase 2 — `workflows/novelty_screen.nf` (`NOVELTY_SCREEN`)
 
 Always runs after `NOVELTY_DISCOVERY` for this `--cluster_tool` (there is no flag to skip
-it). Re-searches the *same* calibrated family HMMs against `NEAR_IN` and `BROAD_OUT`
+it). Re-searches the *same* calibrated family HMMs against `NEAR_INGROUP` and `BROAD_OUTGROUP`
 proteomes and reclassifies every phase-1 candidate (`NOVELTY_SCREEN_CLASSIFY` /
 `bin/novelty_screen.py`) into one of three categories, written as a `novelty_category`
 column on the screened presence matrix:
 
-- **`target_specific`** — no hit in `NEAR_IN` or `BROAD_OUT`.
-- **`clade_specific`** — hit in `NEAR_IN`, no hit in `BROAD_OUT`.
-- **`false_novelty`** — hit in `BROAD_OUT` (removed from the screened candidate list, but
+- **`target_specific`** — no hit in `NEAR_INGROUP` or `BROAD_OUTGROUP`.
+- **`clade_specific`** — hit in `NEAR_INGROUP`, no hit in `BROAD_OUTGROUP`.
+- **`false_novelty`** — hit in `BROAD_OUTGROUP` (removed from the screened candidate list, but
   kept — labelled — in the matrix for visibility).
 
-TBLASTN also validates family representatives against `BROAD_OUT` genomes
+TBLASTN also validates family representatives against `BROAD_OUTGROUP` genomes
 (reporting-only), published as `screen_tblastn_summary.tsv`; the interactive report
-currently only surfaces `NOVELTY_DISCOVERY`'s `DISC_OUT`-genome TBLASTN evidence
+currently only surfaces `NOVELTY_DISCOVERY`'s `DISCOVERY_OUT`-genome TBLASTN evidence
 (`tblastn_summary.tsv`), not this one.
 
-A config with no `NEAR_IN`/`BROAD_OUT` rows degrades gracefully rather than erroring: zero
+A config with no `NEAR_INGROUP`/`BROAD_OUTGROUP` rows degrades gracefully rather than erroring: zero
 proteomes to search means zero hits, so every phase-1 candidate defaults to
 `target_specific` — there's no broader-screen evidence to demote it with.
 

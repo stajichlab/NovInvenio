@@ -46,14 +46,15 @@ def _write_dna(path, n_records=2, length=300):
 
 @pytest.fixture
 def fixture_dir(tmp_path):
-    """Build TARGET x2 / DISC_OUT x1 / NEAR_IN x1 / BROAD_OUT x1 proteomes + genomes.
+    """Build DISCOVERY_TARGET x2 / DISCOVERY_OUT x1 / NEAR_INGROUP x1 / BROAD_OUTGROUP x1
+    proteomes + genomes.
 
-    NOVEL1 is an identical sequence planted in both TARGET proteomes and in NEAR_IN,
-    but absent from DISC_OUT and BROAD_OUT -- a deterministic setup that should survive
-    phase 1 (present in TARGET, absent from DISC_OUT) and land in the 'clade_specific'
-    category in phase 2 (found in NEAR_IN, not in BROAD_OUT). DECOY* sequences are
-    unrelated pseudo-random sequences that should never cluster with NOVEL1 at the
-    default --family_min_seq_id 0.3.
+    NOVEL1 is an identical sequence planted in both DISCOVERY_TARGET proteomes and in
+    NEAR_INGROUP, but absent from DISCOVERY_OUT and BROAD_OUTGROUP -- a deterministic setup
+    that should survive phase 1 (present in the targets, absent from DISCOVERY_OUT) and land
+    in the 'clade_specific' category in phase 2 (found in NEAR_INGROUP, not in
+    BROAD_OUTGROUP). DECOY* sequences are unrelated pseudo-random sequences that should
+    never cluster with NOVEL1 at the default --family_min_seq_id 0.3.
     """
     data_dir = tmp_path / 'data'
     data_dir.mkdir()
@@ -77,11 +78,11 @@ def fixture_dir(tmp_path):
     config = tmp_path / 'config.csv'
     config.write_text(
         "GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup\n"
-        "TARGET,Target species one,,target1.pep.fa,target1.dna.fa,Targ1,TestClade\n"
-        "TARGET,Target species two,,target2.pep.fa,target2.dna.fa,Targ2,TestClade\n"
-        "DISC_OUT,Discovery outgroup one,,discout1.pep.fa,discout1.dna.fa,Disc1,OtherClade\n"
-        "NEAR_IN,Near ingroup one,,nearin1.pep.fa,nearin1.dna.fa,Near1,TestClade\n"
-        "BROAD_OUT,Broad outgroup one,,broadout1.pep.fa,broadout1.dna.fa,Broad1,FarClade\n"
+        "DISCOVERY_TARGET,Target species one,,target1.pep.fa,target1.dna.fa,Targ1,TestClade\n"
+        "DISCOVERY_TARGET,Target species two,,target2.pep.fa,target2.dna.fa,Targ2,TestClade\n"
+        "DISCOVERY_OUT,Discovery outgroup one,,discout1.pep.fa,discout1.dna.fa,Disc1,OtherClade\n"
+        "NEAR_INGROUP,Near ingroup one,,nearin1.pep.fa,nearin1.dna.fa,Near1,TestClade\n"
+        "BROAD_OUTGROUP,Broad outgroup one,,broadout1.pep.fa,broadout1.dna.fa,Broad1,FarClade\n"
     )
     return tmp_path, data_dir, config
 
@@ -120,8 +121,9 @@ def test_novelty_discovery_and_screen_end_to_end(fixture_dir):
     assert 'novelty_category' in fields
     assert 'Near1' in fields and 'Broad1' in fields
 
-    # NOVEL1's family: present in both TARGET genomes and NEAR_IN, absent from
-    # DISC_OUT/BROAD_OUT -- should survive phase 1 and land in 'clade_specific'.
+    # NOVEL1's family: present in both DISCOVERY_TARGET genomes and NEAR_INGROUP, absent
+    # from DISCOVERY_OUT/BROAD_OUTGROUP -- should survive phase 1 and land in
+    # 'clade_specific'.
     cat_idx = fields.index('novelty_category')
     pid_idx = fields.index('protein_id')
     rows = [line.split('\t') for line in

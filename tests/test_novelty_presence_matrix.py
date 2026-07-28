@@ -9,10 +9,10 @@ BIN = Path(__file__).resolve().parent.parent / 'bin' / 'novelty_presence_matrix.
 
 CONFIG = """\
 GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
-TARGET,Species one,,target1.pep.fa,target1.dna.fa,T1,X
-TARGET,Species two,,target2.pep.fa,target2.dna.fa,T2,X
-DISC_OUT,Outgroup one,,disc1.pep.fa,disc1.dna.fa,D1,Y
-DISC_OUT,Outgroup two,,disc2.pep.fa,disc2.dna.fa,D2,Y
+DISCOVERY_TARGET,Species one,,target1.pep.fa,target1.dna.fa,T1,X
+DISCOVERY_TARGET,Species two,,target2.pep.fa,target2.dna.fa,T2,X
+DISCOVERY_OUT,Outgroup one,,disc1.pep.fa,disc1.dna.fa,D1,Y
+DISCOVERY_OUT,Outgroup two,,disc2.pep.fa,disc2.dna.fa,D2,Y
 """
 
 
@@ -93,7 +93,7 @@ def test_family_member_presence_does_not_leak_across_siblings(tmp_path):
 
 def test_family_present_in_targets_absent_from_disc_out(tmp_path):
     _setup(tmp_path)
-    # Family A present in both targets (domtblout hits), absent from DISC_OUT
+    # Family A present in both targets (domtblout hits), absent from DISCOVERY_OUT
     dom_t1 = tmp_path / 'T1.domtblout'
     dom_t2 = tmp_path / 'T2.domtblout'
     _write_domtblout(dom_t1, [('pA1', 'pA1')])

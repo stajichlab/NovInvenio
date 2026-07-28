@@ -1,7 +1,7 @@
 // EMPTY_LOSS_STUB — placeholder loss-direction artifacts for --cluster_tool
 // novelty_discovery. Loss analysis (present in outgroup, absent from ingroup) is an
 // explicitly deferred future extension for the two-phase novelty_discovery/novelty_screen
-// pathway (see todo/novelty-discovery-screen.md "Loss Direction") — TARGET/DISC_OUT configs
+// pathway (see todo/novelty-discovery-screen.md "Loss Direction") — DISCOVERY_TARGET/DISCOVERY_OUT configs
 // have no IN/OUT rows, so the generic LOSS_SEARCH/LOSS_CLUSTER/LOSS_VALIDATE/LOSS_ANNOTATE
 // mirror would only ever see empty channels and never fire.
 //
@@ -9,7 +9,7 @@
 // reports, including losses.html, so MAKE_LOSSES_REPORT must still run — with zero rows.
 // build_losses_payload() requires at least one proteome column from the config to be
 // present in the matrix header (otherwise it raises), so the stub matrix's header is
-// copied from the real novelty-direction annotated matrix (same TARGET/DISC_OUT columns),
+// copied from the real novelty-direction annotated matrix (same DISCOVERY_TARGET/DISCOVERY_OUT columns),
 // just with zero data rows.
 process EMPTY_LOSS_STUB {
     label 'low_cpu'
