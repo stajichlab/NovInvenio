@@ -344,6 +344,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     <select id="f-src" aria-label="Source proteome"></select>
     <select id="f-fsrc" aria-label="Annotation source"></select>
     <select id="f-family" aria-label="Gene family"></select>
+    <select id="f-category" class="hidden" aria-label="Novelty category"></select>
     <label class="check"><input type="checkbox" id="f-nov" checked> Novelty candidates only</label>
     <label class="check"><input type="checkbox" id="f-pfam"> Has Pfam</label>
     <label class="check"><input type="checkbox" id="f-notb"> No TBLASTN hit</label>
@@ -501,6 +502,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     pfamOnly: false,
     noTb: false,
     concordantOnly: false,
+    category: "",
     sort: "ingroup",
     view: "heatmap",
     selected: -1,
@@ -571,6 +573,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       if (state.noTb && tbN[i] > 0) continue;
       // Concordant = called novel by both search methods (support has a "+").
       if (state.concordantOnly && String(row[F.support] || "").indexOf("+") === -1) continue;
+      if (state.category && row[F.category] !== state.category) continue;
       if (terms.length) {
         var hay = HAY[i], ok = true;
         for (var t = 0; t < terms.length; t++) {
@@ -860,6 +863,17 @@ HTML_TEMPLATE = r"""<!doctype html>
         Math.round(DATA.ingroup_min_frac * 100) + "% of the ingroup and absent from every outgroup proteome."));
     }
 
+    // novelty_category (issues #27/#28) — only present for novelty_discovery/novelty_screen
+    // runs (see DATA.novelty_categories).
+    if (row[F.category]) {
+      var catText = {
+        target_specific: "Target-specific — not found in the near-ingroup or broad-outgroup screen.",
+        clade_specific: "Clade-specific — found in near-ingroup relatives, but not in the broad outgroup.",
+        false_novelty: "False novelty — found in the broad outgroup; not clade- or target-specific."
+      }[row[F.category]] || row[F.category];
+      detailEl.appendChild(field("Novelty category", catText));
+    }
+
     // Cross-method support (only when a second method's matrix was supplied).
     if (DATA.methods && DATA.methods.length > 1) {
       var sup = String(row[F.support] || "");
@@ -998,6 +1012,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
     { label: "Novelty", get: function (r) { return ROWS[r][F.nov] ? "yes" : "no"; } },
     { label: "Support", get: function (r) { return ROWS[r][F.support] || ""; } },
+    { label: "Category", get: function (r) { return ROWS[r][F.category] ? categoryLabel(ROWS[r][F.category]) : ""; } },
     {
       label: "Gene family", cls: "wrap-cell",
       get: function (r) {
@@ -1193,6 +1208,21 @@ HTML_TEMPLATE = r"""<!doctype html>
       FAMILIES.length ? "All families (" + FAMILIES.length + ")" : "No multi-species families", ""
     ));
     FAMILIES.forEach(function (f, i) { fam.appendChild(new Option(familyLabel(f), String(i))); });
+
+    // novelty_category (issues #27/#28) — only present for novelty_discovery/novelty_screen
+    // runs; hidden entirely for pairwise/mmseqs reports, which never populate it.
+    var cats = DATA.novelty_categories || [];
+    if (cats.length) {
+      var catSel = document.getElementById("f-category");
+      catSel.appendChild(new Option("All categories", ""));
+      cats.forEach(function (c) { catSel.appendChild(new Option(categoryLabel(c), c)); });
+      catSel.classList.remove("hidden");
+    }
+  }
+
+  function categoryLabel(c) {
+    return { target_specific: "Target-specific", clade_specific: "Clade-specific",
+             false_novelty: "False novelty" }[c] || c;
   }
 
   function setFamilyFilter(idx) {
@@ -1217,11 +1247,12 @@ HTML_TEMPLATE = r"""<!doctype html>
   document.getElementById("f-pfam").addEventListener("change", function (e) { state.pfamOnly = e.target.checked; refresh(true); });
   document.getElementById("f-notb").addEventListener("change", function (e) { state.noTb = e.target.checked; refresh(true); });
   document.getElementById("f-concordant").addEventListener("change", function (e) { state.concordantOnly = e.target.checked; refresh(true); });
+  document.getElementById("f-category").addEventListener("change", function (e) { state.category = e.target.value; refresh(true); });
   document.getElementById("f-sort").addEventListener("change", function (e) { state.sort = e.target.value; refresh(true); });
   document.getElementById("f-reset").addEventListener("click", function () {
     state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
     state.novOnly = true; state.pfamOnly = false; state.noTb = false;
-    state.concordantOnly = false; state.sort = "ingroup";
+    state.concordantOnly = false; state.category = ""; state.sort = "ingroup";
     document.getElementById("f-search").value = "";
     document.getElementById("f-src").value = "";
     document.getElementById("f-fsrc").value = "";
@@ -1230,6 +1261,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("f-pfam").checked = false;
     document.getElementById("f-notb").checked = false;
     document.getElementById("f-concordant").checked = false;
+    document.getElementById("f-category").value = "";
     document.getElementById("f-sort").value = "ingroup";
     refresh(true);
   });
