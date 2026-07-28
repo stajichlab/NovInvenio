@@ -30,6 +30,7 @@ include { BUILD_FAMILY_PROFILES } from '../modules/build_family_profiles'
 include { FAMILY_HMMSEARCH      } from '../modules/family_hmmsearch'
 include { TBLASTN_MAKEDB        } from '../modules/tblastn'
 include { TBLASTN               } from '../modules/tblastn'
+include { SUMMARIZE_TBLASTN     } from '../modules/summarize_tblastn'
 
 // ---------------------------------------------------------------------------
 // Per-seed-proteome protein_id → proteome Short map, merged into one TSV so
@@ -158,31 +159,6 @@ process NOVELTY_PRESENCE_MATRIX {
 }
 
 // ---------------------------------------------------------------------------
-// Build TBLASTN summary from per-outgroup TBLASTN results.
-// ---------------------------------------------------------------------------
-process SUMMARIZE_TBLASTN {
-    label 'low_cpu'
-    publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
-
-    input:
-    path(tblastn_tsvs)
-    path(cluster_tsv)
-    val(summary_name)
-
-    output:
-    path("${summary_name}"), emit: tsv
-
-    script:
-    """
-    summarize_tblastn.py \
-        --hits ${tblastn_tsvs} \
-        --cluster_tsv ${cluster_tsv} \
-        --evalue ${params.evalue} \
-        --output ${summary_name}
-    """
-}
-
-// ---------------------------------------------------------------------------
 // Main workflow
 // ---------------------------------------------------------------------------
 workflow NOVELTY_DISCOVERY {
@@ -266,4 +242,9 @@ workflow NOVELTY_DISCOVERY {
     family_reps        = family_reps_fa
     seed_concat        = seed_concat
     calibrated_hmms    = family_profiles
+    // Per-family E-value thresholds (rep_id -> threshold), calibrated against DISC_OUT as a
+    // negative control -- novelty_screen (issue #27) reuses these same thresholds when
+    // calling family presence against NEAR_IN/BROAD_OUT, so a family's definition of
+    // "present" stays consistent across both phases.
+    family_thresholds  = CALIBRATE_FAMILY_HMMS.out.thresholds
 }

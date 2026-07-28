@@ -16,6 +16,7 @@ include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
+include { NOVELTY_SCREEN } from './workflows/novelty_screen'
 include { EMPTY_LOSS_STUB } from './modules/empty_loss_stub'
 
 // Resolve a FASTA basename against data_dir, checking the flat layout first
@@ -116,11 +117,33 @@ workflow {
     else if (params.cluster_tool == 'novelty_discovery') {
         // Two-phase targeted novelty pipeline (see todo/novelty-discovery-screen.md).
         NOVELTY_DISCOVERY(target_prot_ch, disc_out_prot_ch, disc_out_dna_ch, file(params.config))
-        novelty_matrix     = NOVELTY_DISCOVERY.out.matrix
-        novelty_candidates = NOVELTY_DISCOVERY.out.candidates
+
+        // Phase 2 (issue #27): reclassify phase-1 candidates against NEAR_IN (clade-mates)
+        // and BROAD_OUT (distant lineages). Reuses the FULL calibrated family HMM db and
+        // family clustering (not narrowed to phase-1 candidates) — simpler wiring than
+        // re-clustering twice, at the cost of a little extra hmmsearch/TBLASTN work on
+        // families phase 1 already rejected.
+        NOVELTY_SCREEN(
+            near_in_prot_ch,
+            broad_out_prot_ch,
+            broad_out_dna_ch,
+            NOVELTY_DISCOVERY.out.calibrated_hmms,
+            NOVELTY_DISCOVERY.out.family_thresholds,
+            NOVELTY_DISCOVERY.out.family_reps,
+            NOVELTY_DISCOVERY.out.family_cluster_tsv,
+            NOVELTY_DISCOVERY.out.matrix,
+            NOVELTY_DISCOVERY.out.candidates,
+            file(params.config)
+        )
+        novelty_matrix     = NOVELTY_SCREEN.out.matrix
+        novelty_candidates = NOVELTY_SCREEN.out.candidates
 
         // Family-as-cluster (ADR-0002 Q7): reuse NOVELTY_DISCOVERY's own gene families
         // (restricted to candidate-containing ones) instead of re-clustering candidates.
+        // Uses the *screened* candidate list (false_novelty already removed) so annotation
+        // only runs on the surviving novelty candidates, per todo/novelty-discovery-screen.md
+        // "Post-Screen: Annotation" — annotation is expensive, no reason to spend it on
+        // families the screen phase already ruled out.
         PROFILE_CANDIDATE_CLUSTERS(
             novelty_candidates,
             NOVELTY_DISCOVERY.out.family_cluster_tsv,
@@ -137,6 +160,10 @@ workflow {
         // it (SUMMARIZE_TBLASTN) — the generic VALIDATE workflow below would be redundant
         // (and its outgroup_dna_ch is empty for TARGET/DISC_OUT configs anyway), so this
         // branch's TBLASTN summary is carried straight through to REPORT/SUMMARIZE.
+        // NOVELTY_SCREEN.out.tblastn_summary (vs BROAD_OUT genomes) is published separately
+        // (screen_tblastn_summary.tsv) but not yet wired into the report -- which TBLASTN
+        // evidence the final report surfaces is a report-rendering decision left to #28
+        // alongside the novelty_category column.
         novelty_tblastn_summary = NOVELTY_DISCOVERY.out.summary
     }
     else {

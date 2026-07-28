@@ -33,50 +33,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
+from family_presence import (  # noqa: E402
+    load_cluster_membership,
+    load_family_thresholds,
+    parse_domtblout,
+)
 
 
 # ---------------------------------------------------------------------------
 # Parsing helpers
 # ---------------------------------------------------------------------------
-
-def parse_domtblout(path):
-    """Return dict: query(HMM name) -> (best_full_evalue, best_coverage).
-
-    Coverage = summed HMM-coordinate span / HMM length.
-    hmmsearch --domtblout columns (0-indexed): 0=target, 3=query, 5=qlen,
-    6=full E-value, 15=hmm_from, 16=hmm_to.
-    """
-    agg: dict[str, list] = {}
-    with open(path) as fh:
-        for line in fh:
-            if not line or line.startswith('#'):
-                continue
-            parts = line.split()
-            if len(parts) < 17:
-                continue
-            query = parts[3]
-            try:
-                qlen = int(parts[5])
-                full_e = float(parts[6])
-                hmm_from = int(parts[15])
-                hmm_to = int(parts[16])
-            except ValueError:
-                continue
-            key = query
-            span = max(0, hmm_to - hmm_from + 1)
-            if key not in agg:
-                agg[key] = [qlen, full_e, span]
-            else:
-                if full_e < agg[key][1]:
-                    agg[key][1] = full_e
-                agg[key][2] += span
-
-    result = {}
-    for query, (qlen, min_e, covered) in agg.items():
-        coverage = covered / qlen if qlen > 0 else 0.0
-        result[query] = (min_e, coverage)
-    return result
-
 
 def parse_pairwise_tsv(path):
     """Return list of (query_id, target_id, evalue) tuples from parsed hits TSV."""
@@ -99,24 +65,6 @@ def parse_pairwise_tsv(path):
     return hits
 
 
-def load_cluster_membership(cluster_tsv):
-    """Return (rep_to_members, member_to_rep) from mmseqs cluster TSV."""
-    rep_to_members = defaultdict(list)
-    member_to_rep = {}
-    with open(cluster_tsv) as fh:
-        for line in fh:
-            line = line.rstrip('\n')
-            if not line:
-                continue
-            parts = line.split('\t')
-            if len(parts) < 2:
-                continue
-            rep, member = parts[0], parts[1]
-            rep_to_members[rep].append(member)
-            member_to_rep[member] = rep
-    return rep_to_members, member_to_rep
-
-
 def load_protein_map(path):
     """Return dict: protein_id -> proteome_short."""
     mapping = {}
@@ -129,25 +77,6 @@ def load_protein_map(path):
             if len(parts) >= 2:
                 mapping[parts[0]] = parts[1]
     return mapping
-
-
-def load_family_thresholds(path):
-    """Return dict: rep_id -> threshold_evalue."""
-    thresholds = {}
-    with open(path) as fh:
-        header = fh.readline()
-        del header
-        for line in fh:
-            line = line.rstrip('\n')
-            if not line:
-                continue
-            parts = line.split('\t')
-            if len(parts) >= 2:
-                try:
-                    thresholds[parts[0]] = float(parts[1])
-                except ValueError:
-                    continue
-    return thresholds
 
 
 # ---------------------------------------------------------------------------

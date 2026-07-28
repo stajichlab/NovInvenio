@@ -205,6 +205,6 @@ OUT,Phaeomoniella chlamydospora,UCRPC4,Phaeomoniella_chlamydospora_UCRPC4.protei
 OUT,Pyrenula aspistea,KRB14,Pyrenula_aspistea_KRB14.proteins.fa,Pyrenula_aspistea_KRB14.scaffolds.fa,Pyreaspi,Pyrenulales
 OUT,Pyrenula massariospora,TSL107,Pyrenula_massariospora_TSL107.proteins.fa,Pyrenula_massariospora_TSL107.scaffolds.fa,Pyremass,Pyrenulales
 OUT,Trichophyton concentricum,aejpx,Trichophyton_concentricum_aejpx.proteins.fa,Trichophyton_concentricum_aejpx.scaffolds.fa,Triccon3,Onygenales
-IN,Aspergillus fumigatus,Af293,Aspergillus_fumigatus_Af293.pep.fa,Aspergillus_fumigatus_Af293.dna.fa,Afum,Pezizomycotina
-IN,Zymoseptoria tritici,,Zymoseptoria_tritici.proteins.fa,Zymoseptoria_tritici.scaffolds.fa,Ztri,Pezizomycotina
-IN,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidioides_immitis_WA_211.scaffolds.fa,Cimm,Pezizomycotina
+OUT,Aspergillus fumigatus,Af293,Aspergillus_fumigatus_Af293.pep.fa,Aspergillus_fumigatus_Af293.dna.fa,Afum,Eurotiales
+OUT,Zymoseptoria tritici,,Zymoseptoria_tritici.proteins.fa,Zymoseptoria_tritici.scaffolds.fa,Ztri,Dothideomycetes
+OUT,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidioides_immitis_WA_211.scaffolds.fa,Cimm,Onygenales
