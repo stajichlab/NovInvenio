@@ -1,12 +1,12 @@
 from config_parser import (
     GROUPS,
-    get_broad_out,
-    get_disc_out,
+    get_broad_outgroup,
+    get_discovery_out,
+    get_discovery_target,
     get_group,
     get_ingroup,
-    get_near_in,
+    get_near_ingroup,
     get_outgroup,
-    get_target,
     parse_config,
     short_to_group,
 )
@@ -21,10 +21,20 @@ IN,Pyronema omphalodes,CBS144459,Pomp.pep.fa,,Pomp,Pezizomycotina
 
 NOVELTY_CSV = """\
 GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
+DISCOVERY_TARGET,Neurospora crassa,OR74A,Ncra.pep.fa,Ncra.dna.fa,Ncra,Pezizomycotina
+DISCOVERY_TARGET,Pyronema omphalodes,CBS144459,Pomp.pep.fa,,Pomp,Pezizomycotina
+DISCOVERY_OUT,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
+DISCOVERY_OUT,Saccharomyces cerevisiae,S288C,Scer.pep.fa,Scer.dna.fa,Scer,Pezizomycotina
+NEAR_INGROUP,Coccidioides immitis,WA211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,Cimm,Pezizomycotina
+BROAD_OUTGROUP,Schizosaccharomyces pombe,,Spom.pep.fa,Spom.dna.fa,Spom,Taphrinomycotina
+"""
+
+# The original novelty_discovery/novelty_screen labels (issues #24-#29), still accepted as
+# aliases for backward compatibility (todo/rename-novelty-discovery-group-labels.md).
+NOVELTY_CSV_OLD_ALIASES = """\
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
 TARGET,Neurospora crassa,OR74A,Ncra.pep.fa,Ncra.dna.fa,Ncra,Pezizomycotina
-TARGET,Pyronema omphalodes,CBS144459,Pomp.pep.fa,,Pomp,Pezizomycotina
 DISC_OUT,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
-DISC_OUT,Saccharomyces cerevisiae,S288C,Scer.pep.fa,Scer.dna.fa,Scer,Saccharomycotina
 NEAR_IN,Coccidioides immitis,WA211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,Cimm,Pezizomycotina
 BROAD_OUT,Schizosaccharomyces pombe,,Spom.pep.fa,Spom.dna.fa,Spom,Taphrinomycotina
 """
@@ -56,25 +66,27 @@ def test_short_to_group(tmp_path):
 
 
 def test_groups_constant():
-    assert GROUPS == {'IN', 'OUT', 'TARGET', 'DISC_OUT', 'NEAR_IN', 'BROAD_OUT'}
+    assert GROUPS == {
+        'IN', 'OUT', 'DISCOVERY_TARGET', 'DISCOVERY_OUT', 'NEAR_INGROUP', 'BROAD_OUTGROUP',
+    }
 
 
 def test_novelty_group_helpers(tmp_path):
     p = tmp_path / 'cfg.csv'
     p.write_text(NOVELTY_CSV)
     samples = parse_config(p)
-    assert [s.short for s in get_target(samples)] == ['Ncra', 'Pomp']
-    assert [s.short for s in get_disc_out(samples)] == ['Afum', 'Scer']
-    assert [s.short for s in get_near_in(samples)] == ['Cimm']
-    assert [s.short for s in get_broad_out(samples)] == ['Spom']
+    assert [s.short for s in get_discovery_target(samples)] == ['Ncra', 'Pomp']
+    assert [s.short for s in get_discovery_out(samples)] == ['Afum', 'Scer']
+    assert [s.short for s in get_near_ingroup(samples)] == ['Cimm']
+    assert [s.short for s in get_broad_outgroup(samples)] == ['Spom']
 
 
 def test_get_group_generic(tmp_path):
     p = tmp_path / 'cfg.csv'
     p.write_text(NOVELTY_CSV)
     samples = parse_config(p)
-    assert [s.short for s in get_group(samples, 'TARGET')] == ['Ncra', 'Pomp']
-    assert [s.short for s in get_group(samples, 'DISC_OUT')] == ['Afum', 'Scer']
+    assert [s.short for s in get_group(samples, 'DISCOVERY_TARGET')] == ['Ncra', 'Pomp']
+    assert [s.short for s in get_group(samples, 'DISCOVERY_OUT')] == ['Afum', 'Scer']
 
 
 def test_short_to_group_with_novelty_roles(tmp_path):
@@ -82,10 +94,26 @@ def test_short_to_group_with_novelty_roles(tmp_path):
     p.write_text(NOVELTY_CSV)
     samples = parse_config(p)
     assert short_to_group(samples) == {
-        'Ncra': 'TARGET',
-        'Pomp': 'TARGET',
-        'Afum': 'DISC_OUT',
-        'Scer': 'DISC_OUT',
-        'Cimm': 'NEAR_IN',
-        'Spom': 'BROAD_OUT',
+        'Ncra': 'DISCOVERY_TARGET',
+        'Pomp': 'DISCOVERY_TARGET',
+        'Afum': 'DISCOVERY_OUT',
+        'Scer': 'DISCOVERY_OUT',
+        'Cimm': 'NEAR_INGROUP',
+        'Spom': 'BROAD_OUTGROUP',
     }
+
+
+def test_old_group_aliases_still_parse_and_normalize(tmp_path):
+    # TARGET/DISC_OUT/NEAR_IN/BROAD_OUT (issues #24-#29) are renamed for clarity
+    # (todo/rename-novelty-discovery-group-labels.md), but existing config CSVs using the
+    # old labels must keep working unchanged -- parse_config() normalizes them.
+    p = tmp_path / 'cfg.csv'
+    p.write_text(NOVELTY_CSV_OLD_ALIASES)
+    samples = parse_config(p)
+    assert short_to_group(samples) == {
+        'Ncra': 'DISCOVERY_TARGET',
+        'Afum': 'DISCOVERY_OUT',
+        'Cimm': 'NEAR_INGROUP',
+        'Spom': 'BROAD_OUTGROUP',
+    }
+    assert [s.short for s in get_discovery_target(samples)] == ['Ncra']

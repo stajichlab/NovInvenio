@@ -19,6 +19,20 @@ include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
 include { NOVELTY_SCREEN } from './workflows/novelty_screen'
 include { EMPTY_LOSS_STUB } from './modules/empty_loss_stub'
 
+// Original novelty_discovery/novelty_screen GROUP labels (issues #24-#29), renamed for
+// clarity (todo/rename-novelty-discovery-group-labels.md) -- still accepted in a config
+// CSV's GROUP column and normalized to the canonical spelling here, mirroring
+// lib/config_parser.py's GROUP_ALIASES so both the Python and Nextflow sides agree.
+def normalizeGroup(String group) {
+    def aliases = [
+        'TARGET':    'DISCOVERY_TARGET',
+        'DISC_OUT':  'DISCOVERY_OUT',
+        'NEAR_IN':   'NEAR_INGROUP',
+        'BROAD_OUT': 'BROAD_OUTGROUP',
+    ]
+    return aliases[group] ?: group
+}
+
 // Resolve a FASTA basename against data_dir, checking the flat layout first
 // then the listed subdirectories (so configs that reference bare basenames
 // still find files under data_dir/pep/ and data_dir/dna/).
@@ -53,9 +67,10 @@ workflow {
         .fromPath(params.config)
         .splitCsv(header: true)
         .map { row ->
+            def group = normalizeGroup(row.GROUP?.trim())
             def meta = [
                 id:      row.Short,
-                group:   row.GROUP,
+                group:   group,
                 species: row.Species,
                 strain:  row.Strain ?: '',
                 taxon:   row.TaxonGroup
@@ -75,17 +90,17 @@ workflow {
                                    .map    { meta, prot, dna -> [ meta, dna ] }
 
     // Channels for the two-phase novelty_discovery / novelty_screen workflow.
-    target_prot_ch    = samples_ch.filter { meta, prot, dna -> meta.group == 'TARGET' }
+    target_prot_ch    = samples_ch.filter { meta, prot, dna -> meta.group == 'DISCOVERY_TARGET' }
                                    .map    { meta, prot, dna -> [ meta, prot ] }
-    disc_out_prot_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'DISC_OUT' }
+    disc_out_prot_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'DISCOVERY_OUT' }
                                    .map    { meta, prot, dna -> [ meta, prot ] }
-    disc_out_dna_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'DISC_OUT' && dna }
+    disc_out_dna_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'DISCOVERY_OUT' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
-    near_in_prot_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'NEAR_IN' }
+    near_in_prot_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'NEAR_INGROUP' }
                                    .map    { meta, prot, dna -> [ meta, prot ] }
-    broad_out_prot_ch = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUT' }
+    broad_out_prot_ch = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUTGROUP' }
                                    .map    { meta, prot, dna -> [ meta, prot ] }
-    broad_out_dna_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUT' && dna }
+    broad_out_dna_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUTGROUP' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
 
     // Novelty-direction presence matrix + candidates. --cluster_tool selects the producer:
@@ -118,8 +133,9 @@ workflow {
         // Two-phase targeted novelty pipeline (see todo/novelty-discovery-screen.md).
         NOVELTY_DISCOVERY(target_prot_ch, disc_out_prot_ch, disc_out_dna_ch, file(params.config))
 
-        // Phase 2 (issue #27): reclassify phase-1 candidates against NEAR_IN (clade-mates)
-        // and BROAD_OUT (distant lineages). Reuses the FULL calibrated family HMM db and
+        // Phase 2 (issue #27): reclassify phase-1 candidates against NEAR_INGROUP
+        // (clade-mates) and BROAD_OUTGROUP (distant lineages). Reuses the FULL calibrated
+        // family HMM db and
         // family clustering (not narrowed to phase-1 candidates) — simpler wiring than
         // re-clustering twice, at the cost of a little extra hmmsearch/TBLASTN work on
         // families phase 1 already rejected.
@@ -156,11 +172,12 @@ workflow {
         cand_reps        = PROFILE_CANDIDATE_CLUSTERS.out.representatives
         cand_cluster_tsv = PROFILE_CANDIDATE_CLUSTERS.out.cluster_tsv
 
-        // NOVELTY_DISCOVERY already ran its own TBLASTN vs DISC_OUT genomes and summarized
-        // it (SUMMARIZE_TBLASTN) — the generic VALIDATE workflow below would be redundant
-        // (and its outgroup_dna_ch is empty for TARGET/DISC_OUT configs anyway), so this
-        // branch's TBLASTN summary is carried straight through to REPORT/SUMMARIZE.
-        // NOVELTY_SCREEN.out.tblastn_summary (vs BROAD_OUT genomes) is published separately
+        // NOVELTY_DISCOVERY already ran its own TBLASTN vs DISCOVERY_OUT genomes and
+        // summarized it (SUMMARIZE_TBLASTN) — the generic VALIDATE workflow below would be
+        // redundant (and its outgroup_dna_ch is empty for DISCOVERY_TARGET/DISCOVERY_OUT
+        // configs anyway), so this branch's TBLASTN summary is carried straight through to
+        // REPORT/SUMMARIZE. NOVELTY_SCREEN.out.tblastn_summary (vs BROAD_OUTGROUP genomes)
+        // is published separately
         // (screen_tblastn_summary.tsv) but not yet wired into the report -- which TBLASTN
         // evidence the final report surfaces is a report-rendering decision left to #28
         // alongside the novelty_category column.
@@ -214,7 +231,7 @@ workflow {
     else if (params.cluster_tool == 'novelty_discovery') {
         // Loss analysis is an explicitly deferred future extension for the two-phase
         // novelty_discovery/novelty_screen plan (todo/novelty-discovery-screen.md); a
-        // TARGET/DISC_OUT config has no IN/OUT rows, so LOSS_SEARCH would only ever see
+        // DISCOVERY_TARGET/DISCOVERY_OUT config has no IN/OUT rows, so LOSS_SEARCH would only ever see
         // empty channels. REPORT's COLLATE_REPORTS still needs a (zero-row) losses.html
         // to assemble view/<project>/, so stub the three loss artifacts instead.
         EMPTY_LOSS_STUB(ANNOTATE.out.annotated_matrix)

@@ -34,10 +34,10 @@ from config_parser import INGROUP_ROLES, OUTGROUP_ROLES
 def load_groups(config_csv):
     """Return (ingroup_ids, outgroup_ids) as lists of Short IDs.
 
-    'IN'/'TARGET' are treated as the ingroup band, 'OUT'/'DISC_OUT'/'NEAR_IN'/
-    'BROAD_OUT' as the outgroup band (see lib/config_parser.py INGROUP_ROLES/
-    OUTGROUP_ROLES) — this is the same coarse banding the report payload
-    builders use, so novelty_discovery configs (TARGET/DISC_OUT) produce
+    'IN'/'DISCOVERY_TARGET' are treated as the ingroup band, 'OUT'/'DISCOVERY_OUT'/
+    'NEAR_INGROUP'/'BROAD_OUTGROUP' as the outgroup band (see lib/config_parser.py
+    INGROUP_ROLES/OUTGROUP_ROLES) — this is the same coarse banding the report payload
+    builders use, so novelty_discovery configs (DISCOVERY_TARGET/DISCOVERY_OUT) produce
     novelties.<SHORT>.tsv just like classic IN/OUT configs.
     """
     ingroup, outgroup = [], []

@@ -27,7 +27,7 @@ def _write_domtblout(path, hits):
 
 
 def test_negative_control_calibration(tmp_path):
-    """Family with a DISC_OUT hit → threshold = best outgroup E-value."""
+    """Family with a DISCOVERY_OUT hit → threshold = best outgroup E-value."""
     families = tmp_path / 'families.tsv'
     families.write_text("family_index\trepresentative_id\tn_members\n"
                         "fam_000001\tfamA\t2\n"
@@ -55,7 +55,7 @@ def test_negative_control_calibration(tmp_path):
 
 
 def test_global_default_for_no_hit(tmp_path):
-    """Family with no DISC_OUT hit → threshold = global default."""
+    """Family with no DISCOVERY_OUT hit → threshold = global default."""
     families = tmp_path / 'families.tsv'
     families.write_text("family_index\trepresentative_id\tn_members\n"
                         "fam_000001\tfamA\t2\n")
@@ -81,7 +81,7 @@ def test_global_default_for_no_hit(tmp_path):
 
 
 def test_best_evalue_across_multiple_domtblouts(tmp_path):
-    """Multiple DISC_OUT proteomes → threshold = lowest (best) E-value across all."""
+    """Multiple DISCOVERY_OUT proteomes → threshold = lowest (best) E-value across all."""
     families = tmp_path / 'families.tsv'
     families.write_text("family_index\trepresentative_id\tn_members\n"
                         "fam_000001\tfamA\t2\n")

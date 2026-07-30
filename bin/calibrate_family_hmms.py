@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Calibrate family HMM thresholds using the DISC_OUT panel as a negative control.
+"""Calibrate family HMM thresholds using the DISCOVERY_OUT panel as a negative control.
 
-For each profiled family HMM, we search it against the DISC_OUT proteomes
+For each profiled family HMM, we search it against the DISCOVERY_OUT proteomes
 (the discovery outgroup panel) and record the highest-scoring (lowest E-value)
 hit.  The per-family threshold is set to that E-value, so that the family is
 only called "present" in a downstream proteome if the hit is at least as
 strong as the best false-positive observed in the negative control.
 
-If a family HMM has no hit in any DISC_OUT proteome, the threshold falls back
+If a family HMM has no hit in any DISCOVERY_OUT proteome, the threshold falls back
 to the global E-value parameter (--default-evalue).
 
 Input:
-  --domtblout  Per-proteome hmmsearch domtblout files (DISC_OUT proteomes)
+  --domtblout  Per-proteome hmmsearch domtblout files (DISCOVERY_OUT proteomes)
   --families   families.tsv from extract_family_seqs.py (family_index, rep_id, n_members)
 
 Output:
@@ -50,7 +50,7 @@ def parse_domtblout_best_evalue(path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--domtblout', nargs='+', required=True,
-                    help='Per-proteome hmmsearch domtblout files (DISC_OUT scan)')
+                    help='Per-proteome hmmsearch domtblout files (DISCOVERY_OUT scan)')
     ap.add_argument('--families', required=True,
                     help='families.tsv from extract_family_seqs.py')
     ap.add_argument('--default-evalue', type=float, default=1e-3,
@@ -60,7 +60,7 @@ def main():
                     help='Output TSV: representative_id, threshold_evalue, calibration_source')
     args = ap.parse_args()
 
-    # Collect the best (lowest) E-value per family HMM across all DISC_OUT proteomes
+    # Collect the best (lowest) E-value per family HMM across all DISCOVERY_OUT proteomes
     family_best_e: dict[str, float] = {}
     for dom_path in args.domtblout:
         for query, evalue in parse_domtblout_best_evalue(dom_path).items():

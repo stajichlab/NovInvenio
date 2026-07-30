@@ -4,7 +4,7 @@
 Singletons are clusters with exactly one member (rep == member).  In the
 novelty_discovery workflow, multi-member families are profiled with famsa
 + hmmbuild, while singletons are handled via pairwise search against the
-DISC_OUT proteomes.  This script pulls the singleton sequences from the
+DISCOVERY_OUT proteomes.  This script pulls the singleton sequences from the
 concatenated target proteome FASTA and writes them as a single FASTA file.
 
 Output: one FASTA file containing all singleton protein sequences.

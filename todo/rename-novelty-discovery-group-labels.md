@@ -5,7 +5,7 @@
 | **Date** | 2026-07-28 |
 | **Author** | Jason Stajich |
 | **Priority** | low |
-| **Status** | open |
+| **Status** | complete |
 | **Category** | chore |
 | **Related** | `todo/novelty-discovery-screen.md`, issues #24-#29 |
 
@@ -43,4 +43,11 @@ labels, and `DISC_OUT` isn't an obvious abbreviation on first read.
 
 ## Status
 
-Not started — captured as a future idea, not scheduled.
+Complete — implemented as a rename with backward-compatible aliases. `lib/config_parser.py`
+now normalizes `TARGET`/`DISC_OUT`/`NEAR_IN`/`BROAD_OUT` (via `GROUP_ALIASES`) to the
+canonical `DISCOVERY_TARGET`/`DISCOVERY_OUT`/`NEAR_INGROUP`/`BROAD_OUTGROUP` spellings in
+`parse_config()`; `main.nf` mirrors the same alias table for its own Groovy-side CSV
+parsing. Existing config CSVs (e.g. `configs/sordario.csv`) using the old labels keep
+working unchanged. `get_target()`/`get_disc_out()`/`get_near_in()`/`get_broad_out()` were
+renamed to `get_discovery_target()`/`get_discovery_out()`/`get_near_ingroup()`/
+`get_broad_outgroup()` to match.

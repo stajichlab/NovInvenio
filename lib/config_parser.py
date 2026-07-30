@@ -6,7 +6,9 @@ from typing import Union
 
 @dataclass
 class Sample:
-    group: str          # 'IN', 'OUT', 'TARGET', 'DISC_OUT', 'NEAR_IN', 'BROAD_OUT'
+    group: str          # 'IN', 'OUT', 'DISCOVERY_TARGET', 'DISCOVERY_OUT', 'NEAR_INGROUP',
+                         # 'BROAD_OUTGROUP' -- always normalized to these canonical spellings
+                         # by parse_config(), even if the source CSV used an old alias.
     species: str
     strain: str
     protein: str        # filename, resolved relative to protein_dir
@@ -15,27 +17,41 @@ class Sample:
     taxon_group: str
 
 
-# All recognised group labels. IN/OUT are the classic pairwise/mmseqs pathway
-# roles; TARGET/DISC_OUT/NEAR_IN/BROAD_OUT are used by the novelty_discovery /
-# novelty_screen workflow.
-GROUPS = {'IN', 'OUT', 'TARGET', 'DISC_OUT', 'NEAR_IN', 'BROAD_OUT'}
+# All recognised group labels. IN/OUT are the classic pairwise/mmseqs pathway roles;
+# DISCOVERY_TARGET/DISCOVERY_OUT/NEAR_INGROUP/BROAD_OUTGROUP are used by the
+# novelty_discovery/novelty_screen workflow (todo/novelty-discovery-screen.md).
+GROUPS = {'IN', 'OUT', 'DISCOVERY_TARGET', 'DISCOVERY_OUT', 'NEAR_INGROUP', 'BROAD_OUTGROUP'}
+
+# Original novelty_discovery/novelty_screen labels (issues #24-#29), renamed for clarity
+# (todo/rename-novelty-discovery-group-labels.md) -- still accepted in a config CSV's GROUP
+# column and normalized to the canonical spelling above by parse_config(), so existing
+# configs keep working unchanged.
+GROUP_ALIASES = {
+    'TARGET': 'DISCOVERY_TARGET',
+    'DISC_OUT': 'DISCOVERY_OUT',
+    'NEAR_IN': 'NEAR_INGROUP',
+    'BROAD_OUT': 'BROAD_OUTGROUP',
+}
 
 # Coarse ingroup/outgroup banding shared by every downstream consumer that only
 # cares "is this the query side or the reference side" (report payload builders,
 # make_novelties.py) rather than the fine-grained role (used by the workflows
-# themselves via get_target()/get_disc_out()/etc. above). 'NEAR_IN'/'BROAD_OUT'
-# fold into the outgroup band here; the finer near/broad distinction is carried
-# by the novelty_category column (issue #28), not a third band.
-INGROUP_ROLES = {'IN', 'TARGET'}
-OUTGROUP_ROLES = {'OUT', 'DISC_OUT', 'NEAR_IN', 'BROAD_OUT'}
+# themselves via get_discovery_target()/get_discovery_out()/etc. above).
+# 'NEAR_INGROUP'/'BROAD_OUTGROUP' fold into the outgroup band here; the finer
+# near/broad distinction is carried by the novelty_category column (issue #28),
+# not a third band.
+INGROUP_ROLES = {'IN', 'DISCOVERY_TARGET'}
+OUTGROUP_ROLES = {'OUT', 'DISCOVERY_OUT', 'NEAR_INGROUP', 'BROAD_OUTGROUP'}
 
 
 def parse_config(config_path: Union[str, Path]) -> list[Sample]:
     samples = []
     with open(config_path) as fh:
         for row in csv.DictReader(fh):
+            group = row['GROUP'].strip()
+            group = GROUP_ALIASES.get(group, group)
             samples.append(Sample(
-                group=row['GROUP'].strip(),
+                group=group,
                 species=row['Species'].strip(),
                 strain=row.get('Strain', '').strip(),
                 protein=row['Protein'].strip(),
@@ -59,26 +75,26 @@ def get_outgroup(samples: list[Sample]) -> list[Sample]:
     return get_group(samples, 'OUT')
 
 
-def get_target(samples: list[Sample]) -> list[Sample]:
-    """Return TARGET samples for novelty_discovery."""
-    return get_group(samples, 'TARGET')
+def get_discovery_target(samples: list[Sample]) -> list[Sample]:
+    """Return DISCOVERY_TARGET samples for novelty_discovery."""
+    return get_group(samples, 'DISCOVERY_TARGET')
 
 
-def get_disc_out(samples: list[Sample]) -> list[Sample]:
-    """Return DISC_OUT samples for novelty_discovery."""
-    return get_group(samples, 'DISC_OUT')
+def get_discovery_out(samples: list[Sample]) -> list[Sample]:
+    """Return DISCOVERY_OUT samples for novelty_discovery."""
+    return get_group(samples, 'DISCOVERY_OUT')
 
 
-def get_near_in(samples: list[Sample]) -> list[Sample]:
-    """Return NEAR_IN samples for novelty_screen."""
-    return get_group(samples, 'NEAR_IN')
+def get_near_ingroup(samples: list[Sample]) -> list[Sample]:
+    """Return NEAR_INGROUP samples for novelty_screen."""
+    return get_group(samples, 'NEAR_INGROUP')
 
 
-def get_broad_out(samples: list[Sample]) -> list[Sample]:
-    """Return BROAD_OUT samples for novelty_screen."""
-    return get_group(samples, 'BROAD_OUT')
+def get_broad_outgroup(samples: list[Sample]) -> list[Sample]:
+    """Return BROAD_OUTGROUP samples for novelty_screen."""
+    return get_group(samples, 'BROAD_OUTGROUP')
 
 
 def short_to_group(samples: list[Sample]) -> dict[str, str]:
-    """Map Short ID → GROUP (IN/OUT/TARGET/DISC_OUT/NEAR_IN/BROAD_OUT)."""
+    """Map Short ID → GROUP (IN/OUT/DISCOVERY_TARGET/DISCOVERY_OUT/NEAR_INGROUP/BROAD_OUTGROUP)."""
     return {s.short: s.group for s in samples}

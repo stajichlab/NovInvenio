@@ -3,13 +3,13 @@
 
 1. Family HMM search: multi-member target families are profiled (famsa +
    hmmbuild) and searched via hmmsearch against all proteomes (target +
-   DISC_OUT).  A family is "present" in a proteome if the domtblout has a
+   DISCOVERY_OUT).  A family is "present" in a proteome if the domtblout has a
    hit with full-sequence E-value below the (optionally calibrated)
    per-family threshold AND profile coverage >= --min-coverage.
 
 2. Singleton pairwise search: singletons (target proteins not in any
    multi-member family) are searched via phmmer/diamond/blast against the
-   DISC_OUT proteomes.  A singleton is "present" in a proteome if the
+   DISCOVERY_OUT proteomes.  A singleton is "present" in a proteome if the
    pairwise search reports a hit with E-value below the singleton
    threshold.  The singleton's source proteome is always present.
 
@@ -23,7 +23,7 @@ And a candidates.txt with lines:
     source_proteome::protein_id
 
 A protein/family is a novelty candidate if it is present in >=
---target-min-frac of the target proteomes AND absent from all DISC_OUT
+--target-min-frac of the target proteomes AND absent from all DISCOVERY_OUT
 proteomes (--disc-out-max-frac, default 0.0 = strictly absent).
 """
 import argparse
@@ -112,7 +112,7 @@ def main():
                     help='Minimum fraction of target proteomes a family/protein must be present in')
     ap.add_argument('--disc-out-max-frac', type=float, default=0.0,
                     dest='disc_out_max_frac',
-                    help='Max fraction of DISC_OUT proteomes a candidate may be present in')
+                    help='Max fraction of DISCOVERY_OUT proteomes a candidate may be present in')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
     ap.add_argument('--output-candidates', required=True, dest='output_candidates')
     args = ap.parse_args()
@@ -219,8 +219,8 @@ def main():
             out.write(f'{protein}\t{source}\t{vals}\n')
 
     # --- Filter to novelty candidates ---
-    target_shorts = [s for s in all_shorts if short_to_group.get(s) == 'TARGET']
-    disc_out_shorts = [s for s in all_shorts if short_to_group.get(s) == 'DISC_OUT']
+    target_shorts = [s for s in all_shorts if short_to_group.get(s) == 'DISCOVERY_TARGET']
+    disc_out_shorts = [s for s in all_shorts if short_to_group.get(s) == 'DISCOVERY_OUT']
 
     candidates = []
     for protein in sorted(all_proteins):

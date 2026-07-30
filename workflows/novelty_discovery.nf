@@ -2,18 +2,19 @@ nextflow.enable.dsl=2
 
 // NOVELTY_DISCOVERY — two-phase targeted novelty pipeline (Ticket #26).
 //
-// Takes the species roles defined in the config CSV (TARGET, DISC_OUT) and
+// Takes the species roles defined in the config CSV (DISCOVERY_TARGET, DISCOVERY_OUT --
+// old aliases TARGET/DISC_OUT still accepted, see lib/config_parser.py GROUP_ALIASES) and
 // produces calibrated family HMMs for in-group specific families.
 //
 // Branching logic:
-//   |TARGET| == 1  → pairwise search of the single target proteome against
-//                    each DISC_OUT proteome.  No clustering, no HMMs.
-//   |TARGET| >= 2  → mmseqs cluster the target proteomes into gene families;
+//   |DISCOVERY_TARGET| == 1  → pairwise search of the single target proteome against
+//                    each DISCOVERY_OUT proteome.  No clustering, no HMMs.
+//   |DISCOVERY_TARGET| >= 2  → mmseqs cluster the target proteomes into gene families;
 //                    build family HMMs (famsa + hmmbuild) for multi-member
 //                    families; pairwise search for singletons.  Merge both
 //                    into one presence matrix.  Calibrate each surviving
-//                    family HMM using the DISC_OUT panel as a negative
-//                    control.  TBLASTN validation against DISC_OUT genomes.
+//                    family HMM using the DISCOVERY_OUT panel as a negative
+//                    control.  TBLASTN validation against DISCOVERY_OUT genomes.
 
 include { PHMMER_SEARCH         } from '../modules/phmmer'
 include { DIAMOND_MAKEDB        } from '../modules/diamond'
@@ -80,12 +81,12 @@ process EXTRACT_SINGLETONS {
 }
 
 // ---------------------------------------------------------------------------
-// Calibrate family HMM thresholds using the DISC_OUT panel as a negative
-// control.  For each surviving family HMM, we search it against the DISC_OUT
+// Calibrate family HMM thresholds using the DISCOVERY_OUT panel as a negative
+// control.  For each surviving family HMM, we search it against the DISCOVERY_OUT
 // proteomes and record the highest-scoring (lowest E-value) hit.  The
 // per-family threshold is set to that E-value, so that the family is only
 // called "present" in a downstream proteome if the hit is at least as strong
-// as the best false-positive.  If a family HMM has no hit in any DISC_OUT
+// as the best false-positive.  If a family HMM has no hit in any DISCOVERY_OUT
 // proteome, the threshold falls back to the global E-value parameter.
 // ---------------------------------------------------------------------------
 process CALIBRATE_FAMILY_HMMS {
@@ -163,9 +164,9 @@ process NOVELTY_PRESENCE_MATRIX {
 // ---------------------------------------------------------------------------
 workflow NOVELTY_DISCOVERY {
     take:
-    target_ch      // [meta, protein_fa] — TARGET genomes (2-3)
-    disc_out_ch    // [meta, protein_fa] — DISC_OUT proteomes
-    disc_out_dna   // [meta, dna_fa] — DISC_OUT genomes (for TBLASTN)
+    target_ch      // [meta, protein_fa] — DISCOVERY_TARGET genomes (2-3)
+    disc_out_ch    // [meta, protein_fa] — DISCOVERY_OUT proteomes
+    disc_out_dna   // [meta, dna_fa] — DISCOVERY_OUT genomes (for TBLASTN)
     config_csv     // path to analysis CSV
 
     main:
@@ -188,20 +189,20 @@ workflow NOVELTY_DISCOVERY {
     BUILD_FAMILY_PROFILES(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat, '')
     family_profiles = BUILD_FAMILY_PROFILES.out.profiles.first()
 
-    // Search family HMMs against ALL proteomes (target + DISC_OUT).
+    // Search family HMMs against ALL proteomes (target + DISCOVERY_OUT).
     FAMILY_HMMSEARCH(all_proteomes_ch, family_profiles, '')
 
     // Extract singleton sequences from the cluster results.
     EXTRACT_SINGLETONS(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat)
 
-    // Calibrate family HMM thresholds using DISC_OUT as negative control. Must be
-    // restricted to DISC_OUT proteomes' domtblouts only: FAMILY_HMMSEARCH returns
-    // [meta, domtblout] for ALL proteomes (target + DISC_OUT), and a family's near-perfect
-    // self-hit against its own TARGET source protein would otherwise poison the "negative
+    // Calibrate family HMM thresholds using DISCOVERY_OUT as negative control. Must be
+    // restricted to DISCOVERY_OUT proteomes' domtblouts only: FAMILY_HMMSEARCH returns
+    // [meta, domtblout] for ALL proteomes (target + DISCOVERY_OUT), and a family's near-perfect
+    // self-hit against its own DISCOVERY_TARGET source protein would otherwise poison the "negative
     // control" with an all-but-impossible-to-beat E-value, making every family's threshold
     // effectively unmatchable in phase 2 (found via issue #29's integration test).
     disc_out_domtblouts = FAMILY_HMMSEARCH.out.domtblout
-        .filter { meta, dom -> meta.group == 'DISC_OUT' }
+        .filter { meta, dom -> meta.group == 'DISCOVERY_OUT' }
         .map { meta, dom -> dom }
         .collect()
         .ifEmpty([])
@@ -222,10 +223,10 @@ workflow NOVELTY_DISCOVERY {
         params.hmm_presence_evalue,
         params.hmm_presence_cov,
         params.ingroup_min_frac,
-        0.0  // disc_out_max_frac: strictly absent from DISC_OUT
+        0.0  // disc_out_max_frac: strictly absent from DISCOVERY_OUT
     )
 
-    // TBLASTN validation against DISC_OUT genomes — query is the family representative
+    // TBLASTN validation against DISCOVERY_OUT genomes — query is the family representative
     // protein sequences, not the HMM database.
     family_reps_fa = MMSEQS_FAMILY_CLUSTER.out.representatives.first()
     genome_db_ch = TBLASTN_MAKEDB(disc_out_dna)
@@ -249,9 +250,9 @@ workflow NOVELTY_DISCOVERY {
     family_reps        = family_reps_fa
     seed_concat        = seed_concat
     calibrated_hmms    = family_profiles
-    // Per-family E-value thresholds (rep_id -> threshold), calibrated against DISC_OUT as a
+    // Per-family E-value thresholds (rep_id -> threshold), calibrated against DISCOVERY_OUT as a
     // negative control -- novelty_screen (issue #27) reuses these same thresholds when
-    // calling family presence against NEAR_IN/BROAD_OUT, so a family's definition of
+    // calling family presence against NEAR_INGROUP/BROAD_OUTGROUP, so a family's definition of
     // "present" stays consistent across both phases.
     family_thresholds  = CALIBRATE_FAMILY_HMMS.out.thresholds
 }

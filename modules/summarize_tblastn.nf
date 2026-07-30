@@ -1,6 +1,6 @@
 // SUMMARIZE_TBLASTN — build a protein x genome TBLASTN hit summary from per-genome TSVs,
 // expanding cluster-representative hits out to every family member. Shared by
-// novelty_discovery.nf (vs DISC_OUT genomes) and novelty_screen.nf (vs BROAD_OUT genomes) —
+// novelty_discovery.nf (vs DISCOVERY_OUT genomes) and novelty_screen.nf (vs BROAD_OUTGROUP genomes) —
 // both search the same family representative sequences (families_rep_seq.fasta), just
 // against different genome panels, so this is the same summarization either way.
 process SUMMARIZE_TBLASTN {

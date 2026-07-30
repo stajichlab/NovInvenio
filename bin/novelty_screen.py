@@ -4,28 +4,28 @@ Phase 2 of the two-phase targeted novelty pipeline (todo/novelty-discovery-scree
 refine novelty_discovery's candidate list against a broader phylogenetic screen.
 
 novelty_discovery (phase 1) calls a family "in-group specific" if its calibrated HMM has no
-hit in the small DISC_OUT reference panel. This phase re-searches the SAME calibrated family
+hit in the small DISCOVERY_OUT reference panel. This phase re-searches the SAME calibrated family
 HMMs against two broader proteome sets and reclassifies each phase-1 candidate into one of
 three categories:
 
-    target_specific  -- not found in NEAR_IN or BROAD_OUT.  Unique to the target genome(s).
-    clade_specific   -- found in NEAR_IN, not found in BROAD_OUT.  Shared with close
+    target_specific  -- not found in NEAR_INGROUP or BROAD_OUTGROUP.  Unique to the target genome(s).
+    clade_specific   -- found in NEAR_INGROUP, not found in BROAD_OUTGROUP.  Shared with close
                         relatives, but still absent from distant lineages.
-    false_novelty    -- found in BROAD_OUT.  The family is widespread, not clade-specific;
+    false_novelty    -- found in BROAD_OUTGROUP.  The family is widespread, not clade-specific;
                         removed from the screened candidate list (but kept, labelled, in the
                         screened matrix for visibility).
 
 "Found in" a group means at least one hit clears that family's calibrated E-value threshold
 (falling back to --default-family-evalue when uncalibrated) and --min-coverage, in at least
 one proteome of that group -- the same presence rule bin/novelty_presence_matrix.py applies
-for the DISC_OUT panel (see lib/family_presence.py).
+for the DISCOVERY_OUT panel (see lib/family_presence.py).
 
-Every row from the discovery matrix is carried through -- extended with NEAR_IN/BROAD_OUT
+Every row from the discovery matrix is carried through -- extended with NEAR_INGROUP/BROAD_OUTGROUP
 presence columns and a novelty_category -- matching the established convention that the
 presence matrix holds every scored row while candidates.txt carries the filtered list (see
 workflows/search.nf's BUILD_PRESENCE_MATRIX docstring). Rows that were not phase-1 candidates
 get an empty novelty_category (they were never novelty candidates, so classifying them into
-one of the three categories is meaningless), but still get real NEAR_IN/BROAD_OUT presence
+one of the three categories is meaningless), but still get real NEAR_INGROUP/BROAD_OUTGROUP presence
 values -- the family HMM search covers every family, not just phase-1 survivors.
 """
 import argparse
@@ -88,9 +88,9 @@ def main():
     ap.add_argument('--cluster-tsv', required=True, dest='cluster_tsv',
                     help='families_cluster.tsv (rep_id<TAB>member_id) from novelty_discovery')
     ap.add_argument('--near-in-domtblout', nargs='*', default=[], dest='near_in_domtblout',
-                    help='hmmsearch domtblout files, family HMMs vs NEAR_IN proteomes')
+                    help='hmmsearch domtblout files, family HMMs vs NEAR_INGROUP proteomes')
     ap.add_argument('--broad-out-domtblout', nargs='*', default=[], dest='broad_out_domtblout',
-                    help='hmmsearch domtblout files, family HMMs vs BROAD_OUT proteomes')
+                    help='hmmsearch domtblout files, family HMMs vs BROAD_OUTGROUP proteomes')
     ap.add_argument('--family-thresholds', default=None, dest='family_thresholds',
                     help='Calibrated family thresholds TSV (rep_id<TAB>threshold), from '
                          'novelty_discovery\'s CALIBRATE_FAMILY_HMMS')
@@ -109,8 +109,8 @@ def main():
     _, member_to_rep = load_cluster_membership(args.cluster_tsv)
 
     samples = parse_config(args.config)
-    near_in_shorts = sorted(s.short for s in samples if s.group == 'NEAR_IN')
-    broad_out_shorts = sorted(s.short for s in samples if s.group == 'BROAD_OUT')
+    near_in_shorts = sorted(s.short for s in samples if s.group == 'NEAR_INGROUP')
+    broad_out_shorts = sorted(s.short for s in samples if s.group == 'BROAD_OUTGROUP')
 
     family_thresholds = {}
     if args.family_thresholds:
@@ -126,8 +126,8 @@ def main():
     pid_idx = header.index('protein_id')
 
     # The discovery matrix's own header already spans every proteome short ID in the config
-    # (see bin/novelty_presence_matrix.py, which is not restricted to TARGET/DISC_OUT) --
-    # NEAR_IN/BROAD_OUT columns are usually already present there, always 0 (phase 1 never
+    # (see bin/novelty_presence_matrix.py, which is not restricted to DISCOVERY_TARGET/DISCOVERY_OUT) --
+    # NEAR_INGROUP/BROAD_OUTGROUP columns are usually already present there, always 0 (phase 1 never
     # searches them). Update those columns in place rather than appending duplicates; only
     # append a short ID that is genuinely new to this matrix.
     new_near_in = [s for s in near_in_shorts if s not in header]

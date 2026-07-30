@@ -594,9 +594,12 @@ def test_make_report_escapes_a_script_tag_hiding_in_an_annotation(run_dir):
     assert '</script><script>alert(1)</script>' in descriptions
 
 
-# novelty_discovery (todo/novelty-discovery-screen.md) configs use TARGET/DISC_OUT instead
-# of IN/OUT — the report payload builders must treat them identically (issue #33).
-TARGET_DISC_OUT_CONFIG = CONFIG.replace('IN,', 'TARGET,').replace('OUT,', 'DISC_OUT,')
+# novelty_discovery (todo/novelty-discovery-screen.md) configs use DISCOVERY_TARGET/
+# DISCOVERY_OUT instead of IN/OUT — the report payload builders must treat them identically
+# (issue #33; labels renamed for clarity in todo/rename-novelty-discovery-group-labels.md).
+TARGET_DISC_OUT_CONFIG = (
+    CONFIG.replace('IN,', 'DISCOVERY_TARGET,').replace('OUT,', 'DISCOVERY_OUT,')
+)
 
 
 def test_payload_treats_target_disc_out_roles_like_in_out(tmp_path):
@@ -607,7 +610,9 @@ def test_payload_treats_target_disc_out_roles_like_in_out(tmp_path):
     payload = build_payload(tmp_path / 'matrix.tsv', samples, sequences='none')
 
     assert [p['short'] for p in payload['proteomes']] == ['Ncra', 'Afum', 'Spom', 'Scer']
-    assert [p['group'] for p in payload['proteomes']] == ['TARGET', 'TARGET', 'DISC_OUT', 'DISC_OUT']
+    assert [p['group'] for p in payload['proteomes']] == [
+        'DISCOVERY_TARGET', 'DISCOVERY_TARGET', 'DISCOVERY_OUT', 'DISCOVERY_OUT',
+    ]
     rows = rows_by_id(payload)
     F = {n: i for i, n in enumerate(payload['fields'])}
     # Same novelty calls as the IN/OUT config: n1/n2 novel, shared/lonely not.
