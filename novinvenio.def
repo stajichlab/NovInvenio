@@ -1,0 +1,27 @@
+Bootstrap: docker
+From: mambaforge/mambaforge:24.11.2
+
+%post
+    conda config --add channels conda-forge
+    conda config --add channels bioconda
+    conda config --set channel_priority strict
+    mamba install --yes --name base \
+        python=3.12 \
+        hmmer=3.4 \
+        famsa \
+        diamond=2.2 \
+        blast=2.17 \
+        mmseqs2=18.8 \
+        openmpi=4.1 \
+        pandas \
+        biopython \
+        pyyaml \
+        matplotlib
+
+%environment
+    export TMPDIR=/tmp
+    export OMPI_MCA_tmpdir_base=/tmp
+
+%labels
+    Registry ghcr.io/stajichlab/novinvenio
+    Version 0.5.0
