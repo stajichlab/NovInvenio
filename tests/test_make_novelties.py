@@ -72,3 +72,26 @@ def test_family_columns_link_the_same_gene_across_ingroup_species(run_dir):
     assert n1['family_size'] == n2['family_size'] == '2'
     assert n1['family_members'] == 'n2'
     assert n2['family_members'] == 'n1'
+
+
+# Regression test: bin/make_novelties.py's load_groups() previously read row['GROUP']
+# directly (bypassing lib/config_parser.py's GROUP_ALIASES normalization), so a config
+# still using the pre-rename TARGET/DISC_OUT labels
+# (todo/rename-novelty-discovery-group-labels.md) silently produced zero ingroup/outgroup
+# matches -- caught when run_sordario.sh's real config (configs/sordario.csv, untracked,
+# still uses TARGET/DISC_OUT) failed with "0 total novelties across 0 ingroup species".
+OLD_ALIAS_CONFIG = """\
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
+TARGET,Neurospora crassa,OR74A,Ncra.pep.fa,Ncra.dna.fa,Ncra,Pezizomycotina
+TARGET,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
+DISC_OUT,Schizosaccharomyces pombe,972h,Spom.pep.fa,Spom.dna.fa,Spom,Taphrinomycotina
+"""
+
+
+def test_old_group_aliases_still_produce_novelties(tmp_path):
+    (tmp_path / 'config.csv').write_text(OLD_ALIAS_CONFIG)
+    (tmp_path / 'matrix.tsv').write_text(MATRIX)
+    run_make_novelties(tmp_path)
+    rows = read_novelties(tmp_path / 'novelties.Ncra.tsv')
+    assert len(rows) == 1
+    assert rows[0]['protein_id'] == 'n1'
