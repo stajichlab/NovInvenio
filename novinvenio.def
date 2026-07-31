@@ -1,11 +1,11 @@
 Bootstrap: docker
-From: mambaforge/mambaforge:24.11.2
+from: continuumio/miniconda3:24.9.2-0
 
 %post
     conda config --add channels conda-forge
     conda config --add channels bioconda
     conda config --set channel_priority strict
-    mamba install --yes --name base \
+    conda install --yes --name base \
         python=3.12 \
         hmmer=3.4 \
         famsa \
