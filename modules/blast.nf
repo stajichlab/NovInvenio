@@ -3,6 +3,7 @@
 process BLAST_MAKEDB {
     label 'high_cpu'
     tag "${meta.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     storeDir { "${params.outdir}/${Helpers.projectName(params)}/search_cache" }
 
@@ -21,6 +22,7 @@ process BLAST_MAKEDB {
 process BLAST_SEARCH {
     label 'high_cpu'
     tag "${meta_q.id}_vs_${meta_t.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     storeDir { "${params.outdir}/${Helpers.projectName(params)}/search_cache" }
 

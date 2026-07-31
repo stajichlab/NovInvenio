@@ -1,6 +1,7 @@
 process HMMBUILD {
     label 'low_cpu'
     tag "${cluster_id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/hmms" }, mode: 'copy'
 
     input:

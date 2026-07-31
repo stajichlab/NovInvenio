@@ -51,6 +51,7 @@ workflow REPORT {
 
 process MAKE_PDF_REPORT {
     label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
@@ -89,6 +90,7 @@ process MAKE_PDF_REPORT {
 
 process MAKE_REPORT {
     label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
@@ -120,6 +122,7 @@ process MAKE_REPORT {
 
 process MAKE_CORE_REPORT {
     label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
@@ -144,6 +147,7 @@ process MAKE_CORE_REPORT {
 
 process MAKE_LOSSES_REPORT {
     label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
@@ -174,6 +178,7 @@ process MAKE_LOSSES_REPORT {
 // result set lives in one shareable folder alongside its index.
 process COLLATE_REPORTS {
     label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:

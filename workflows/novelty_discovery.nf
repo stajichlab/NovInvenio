@@ -41,6 +41,7 @@ include { SUMMARIZE_TBLASTN     } from '../modules/summarize_tblastn'
 process SEED_PROTEIN_MAP {
     label 'low_cpu'
     tag "${meta.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     tuple val(meta), path(proteome_fa)
@@ -63,6 +64,7 @@ process SEED_PROTEIN_MAP {
 process EXTRACT_SINGLETONS {
     label 'low_cpu'
     tag "extract_singletons"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     path(cluster_tsv)
@@ -92,6 +94,7 @@ process EXTRACT_SINGLETONS {
 process CALIBRATE_FAMILY_HMMS {
     label 'low_cpu'
     tag "calibrate_hmms"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     path(domtblouts)
@@ -120,6 +123,7 @@ process CALIBRATE_FAMILY_HMMS {
 process NOVELTY_PRESENCE_MATRIX {
     label 'low_cpu'
     tag "novelty_matrix"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     path(family_domtblouts)

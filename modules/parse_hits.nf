@@ -1,6 +1,7 @@
 process PARSE_HITS {
     label 'low_cpu'
     tag "${meta_pair.query_id}_vs_${meta_pair.target_id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     tuple val(meta_pair), path(hits_file)

@@ -7,6 +7,7 @@
 process MMSEQS_FAMILY_CLUSTER {
     label 'high_cpu'
     tag "family_cluster"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}families" }, mode: 'copy'
 
     input:

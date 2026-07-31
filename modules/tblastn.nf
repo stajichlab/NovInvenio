@@ -3,6 +3,7 @@
 process TBLASTN_MAKEDB {
     label 'low_cpu'
     tag "${meta_genome.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     storeDir { "${params.outdir}/${Helpers.projectName(params)}/tblastn/db" }
 
@@ -21,6 +22,7 @@ process TBLASTN_MAKEDB {
 process TBLASTN {
     label 'high_cpu'
     tag "${meta_genome.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/tblastn" }, mode: 'copy'
 
     input:

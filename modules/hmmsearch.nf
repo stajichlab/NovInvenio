@@ -3,6 +3,7 @@ nextflow.enable.dsl=2
 process HMMSEARCH {
     label 'hmmsearch'
     tag "${cluster_id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/hmm_results" }, mode: 'copy'
 
     input:

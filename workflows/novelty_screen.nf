@@ -28,6 +28,7 @@ include { SUMMARIZE_TBLASTN } from '../modules/summarize_tblastn'
 process NOVELTY_SCREEN_CLASSIFY {
     label 'low_cpu'
     tag "novelty_screen_classify"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
