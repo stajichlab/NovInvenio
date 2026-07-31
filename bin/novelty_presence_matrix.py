@@ -153,11 +153,15 @@ def main():
     singleton_presence = defaultdict(set)
 
     for hits_path in args.singleton_hits:
-        short = Path(hits_path).name
+        name = Path(hits_path).name
         for suffix in ('.parsed.tsv', '.tsv', '.parsed'):
-            if short.endswith(suffix):
-                short = short[:-len(suffix)]
+            if name.endswith(suffix):
+                name = name[:-len(suffix)]
                 break
+        # PARSE_HITS names its output '<query_id>_vs_<target_id>.parsed.tsv' (the same
+        # convention workflows/search.nf uses) -- the singleton search's query_id is always
+        # the literal 'singletons', so the proteome short is whatever follows '_vs_'.
+        short = name.rsplit('_vs_', 1)[1] if '_vs_' in name else name
         for query_id, target_id, evalue in parse_pairwise_tsv(hits_path):
             if evalue < args.singleton_evalue:
                 singleton_presence[short].add(query_id)
