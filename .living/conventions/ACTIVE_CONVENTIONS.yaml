@@ -1,0 +1,20 @@
+# Active Convention Packs
+# Updated by init_repo.py and install_convention.py
+
+active_conventions:
+  - name: robust-analysis
+    path: .living/conventions/robust-analysis/
+    installed: 2026-07-20T21:39:01Z
+    core: true
+  - name: report-generator
+    path: .living/conventions/report-generator/
+    installed: 2026-07-20T21:39:01Z
+    core: true
+  - name: idea-generator
+    path: .living/conventions/idea-generator/
+    installed: 2026-07-20T21:39:01Z
+    core: true
+  - name: bioinformatics
+    path: .living/conventions/bioinformatics/
+    installed: 2026-07-20T21:42:57Z
+    core: false

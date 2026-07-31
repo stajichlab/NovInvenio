@@ -1,0 +1,5 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
+OUT,Out species one,,out1.pep.fa,out1.dna.fa,Out1,Outgroup
+OUT,Out species two,,out2.pep.fa,out2.dna.fa,Out2,Outgroup
+IN,In species one,,in1.pep.fa,in1.dna.fa,In1,Ingroup
+IN,In species two,,in2.pep.fa,in2.dna.fa,In2,Ingroup

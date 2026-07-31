@@ -1,0 +1,59 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/rhome/jstajich/.claude/plugins/marketplaces/mycelium/skills/core/hooks/mycelium-health.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/rhome/jstajich/.claude/plugins/marketplaces/mycelium/skills/core/hooks/mycelium-post-action.sh"
+          },
+          {
+            "type": "command",
+            "command": "/rhome/jstajich/.claude/plugins/marketplaces/mycelium/skills/core/hooks/mycelium-data-tracker.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/rhome/jstajich/.claude/plugins/marketplaces/mycelium/skills/core/hooks/mycelium-activity-tracker.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/rhome/jstajich/.claude/plugins/marketplaces/mycelium/skills/core/hooks/mycelium-read-tracker.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/rhome/jstajich/.claude/plugins/marketplaces/mycelium/skills/core/hooks/mycelium-data-lineage-stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
+DISC_OUT,Neolecta irregularis,DAH-3,Neolecta_irregularis_DAH-3.proteins.fa,Neolecta_irregularis_DAH-3.scaffolds.fa,Nirr,Taphrinomycotina
+DISC_OUT,Schizosaccharomyces pombe,972h,Schizosaccharomyces_pombe_972h.pep.fa,Schizosaccharomyces_pombe_972h-.scaffolds.fa,Spom,Taphrinomycotina
+DISC_OUT,Saccharomyces cerevisiae,S288c,Saccharomyces_cerevisiae_S288C.pep.fa,Saccharomyces_cerevisiae_S288c.scaffolds.fa,Scer,Saccharomycotina
+DISC_OUT,Yarrowia lipolytica,CLIB122,Yarrowia_lipolytica_CLIB122.proteins.fa,Yarrowia_lipolytica_CLIB122.scaffolds.fa,Ylip,Saccharomycotina
+TARGET,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.pep.fa,Neurospora_crassa_OR74A.scaffolds.fa,Ncra,Sordariomycete
+TARGET,Aspergillus fumigatus,Af293,Aspergillus_fumigatus_Af293.pep.fa,Aspergillus_fumigatus_Af293.dna.fa,Afum,Eurotiomycete
+TARGET,Fusarium graminearum,PH-1,Fusarium_graminearum_PH-1.proteins.fa,Fusarium_graminearum_PH-1.scaffolds.fa,FgraPH1,Sordariomycete
+TARGET,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidioides_immitis_WA_211.scaffolds.fa,Cimm,Eurotiomycete
+NEAR_IN,Zymoseptoria tritici,,Zymoseptoria_tritici.proteins.fa,Zymoseptoria_tritici.scaffolds.fa,Ztri,Dothideomycete
+BROAD_OUT,Cryptococcus neoformans,H99,Cryptococcus_neoformans_H99.pep.fa,Cryptococcus_neoformans_H99.scaffolds.fa,CneoH99,Basidiomycota
+BROAD_OUT,Coprinus cinerea,okyama 7-130,Coprinus_cinerea.pep.fa,Coprinus_cinerea.scaffolds.fa,Ccin,Basidiomycota
+BROAD_OUT,Mucor circinelloides,1006PhL,Mucor_circinelloides.pep.fa,Mucor_circinelloides.scaffolds.fa,Mcir,Mucoromycotina
+
