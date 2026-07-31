@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sordario_pairwise_diamond — NovInvenio candidate losses</title>
+<style>
+
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --wash: rgba(42, 120, 214, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --wash: rgba(57, 135, 229, 0.16);
+      --hover-wash: rgba(255, 255, 255, 0.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --wash: rgba(57, 135, 229, 0.16);
+    --hover-wash: rgba(255, 255, 255, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
+  header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+  header.top .titles { flex: 1; min-width: 0; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  button, select, input[type="search"] {
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover-wash); }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--series-1);
+    outline-offset: 2px;
+  }
+  .btn-ghost { background: transparent; }
+  section.card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card-title { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .card-note { margin: 0 0 16px; color: var(--text-secondary); font-size: 12px; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 28px; }
+  .tile-label { color: var(--text-secondary); font-size: 12px; }
+  .tile-value { font-size: 20px; font-weight: 600; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .filters input[type="search"] { min-width: 260px; }
+  .spacer { flex: 1; }
+  .count { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .explorer { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+  @media (max-width: 1180px) { .explorer { grid-template-columns: 1fr; } }
+  .tbl-scroll { overflow: auto; height: 560px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.data th, table.data td {
+    text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap;
+  }
+  table.data th {
+    position: sticky; top: 0; background: var(--surface-1); font-weight: 600; z-index: 1;
+    border-bottom: 1px solid var(--axis);
+  }
+  table.data td.num { font-variant-numeric: tabular-nums; }
+  /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
+  table.data td.wrap-cell, table.data th.wrap-cell {
+    white-space: normal; overflow-wrap: anywhere;
+    min-width: 200px; max-width: clamp(260px, 26vw, 640px);
+  }
+  table.data td.cell, table.data th.cell { padding: 6px 5px; text-align: center; }
+  table.data tbody tr:hover { background: var(--hover-wash); }
+  table.data tbody tr.sel { background: var(--wash); }
+  .empty { padding: 40px 8px; color: var(--text-secondary); font-size: 13px; }
+  .detail { position: sticky; top: 16px; }
+  .detail h3 { margin: 0 0 2px; font-size: 15px; font-weight: 600; word-break: break-all; }
+  .detail .species { color: var(--text-secondary); font-size: 12px; font-style: italic; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px; }
+  .field-value { font-size: 13px; word-break: break-word; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    display: inline-block; padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 11px; text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .chip:hover { border-color: var(--series-1); }
+  .links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .links a, .links button {
+    font-size: 12px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px;
+    text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .links a:hover, .links button:hover { border-color: var(--series-1); }
+  .placeholder { color: var(--text-secondary); font-size: 13px; }
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .badge.warn { color: #a15c00; border-color: #a15c00; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .badge.warn { color: #e0a030; border-color: #e0a030; }
+  }
+  :root[data-theme="dark"] .badge.warn { color: #e0a030; border-color: #e0a030; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="titles">
+      <h1 id="title"></h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <button id="theme-toggle" class="btn-ghost" type="button" aria-label="Toggle colour theme">Theme</button>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">Run summary</h2>
+    <p class="card-note" id="summary-note"></p>
+    <div class="tiles">
+      <div>
+        <div class="tile-label">Loss candidates</div>
+        <div class="tile-value" id="t-total"></div>
+      </div>
+      <div>
+        <div class="tile-label">Outgroup species</div>
+        <div class="tile-value" id="t-out"></div>
+      </div>
+      <div>
+        <div class="tile-label">Gene families</div>
+        <div class="tile-value" id="t-fam"></div>
+      </div>
+      <div>
+        <div class="tile-label">Flagged by ingroup TBLASTN</div>
+        <div class="tile-value" id="t-flagged"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="filters" role="group" aria-label="Filter loss candidates">
+    <input type="search" id="f-search" placeholder="Search ID, gene, product, Pfam…" aria-label="Search proteins">
+    <select id="f-src" aria-label="Source outgroup proteome"></select>
+    <select id="f-fsrc" aria-label="Annotation source"></select>
+    <select id="f-family" aria-label="Gene family"></select>
+    <label class="check" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+      <input type="checkbox" id="f-notb"> No ingroup TBLASTN hit
+    </label>
+    <select id="f-sort" aria-label="Sort by">
+      <option value="priority">Sort: priority (clean loss, broad in outgroup, no TBLASTN hit first)</option>
+      <option value="breadth">Sort: outgroup family breadth</option>
+      <option value="frac">Sort: outgroup presence fraction</option>
+      <option value="id">Sort: protein ID</option>
+      <option value="src">Sort: source proteome</option>
+    </select>
+    <button id="f-reset" type="button">Reset</button>
+    <div class="spacer"></div>
+    <span class="count" id="count"></span>
+    <button id="dl-tsv" type="button">Download TSV</button>
+  </div>
+
+  <div class="explorer">
+    <section class="card" style="padding:14px">
+      <div class="tbl-scroll" id="tbl-scroll">
+        <table class="data">
+          <caption class="sr-only">Candidate gene losses matching the current filters</caption>
+          <thead id="tbl-head"></thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+      <p class="empty hidden" id="tbl-empty">No proteins match the current filters.</p>
+    </section>
+
+    <aside class="card detail" id="detail" aria-live="polite">
+      <p class="placeholder">Select a protein in the table to see its annotation and database links.</p>
+    </aside>
+  </div>
+</div>
+
+<script type="application/json" id="payload">{"project":"sordario_pairwise_diamond","outgroup_min_frac":0.75,"loss_ingroup_max_frac":0.0,"n_ingroup":4,"n_outgroup":8,"fields":["id","src","frac","out_breadth","in_retained","gene","prod","fsrc","sprot","pfam_n","pfam_a","tb_hit","tb_genomes","fam"],"proteomes":[{"short":"Ncra","species":"Neurospora crassa","strain":"OR74A","group":"IN","taxon":"Sordariomycete"},{"short":"Afum","species":"Aspergillus fumigatus","strain":"Af293","group":"IN","taxon":"Eurotiomycete"},{"short":"FgraPH1","species":"Fusarium graminearum","strain":"PH-1","group":"IN","taxon":"Sordariomycete"},{"short":"Cimm","species":"Coccidioides immitis","strain":"WA_211","group":"IN","taxon":"Eurotiomycete"},{"short":"Nirr","species":"Neolecta irregularis","strain":"DAH-3","group":"OUT","taxon":"Taphrinomycotina"},{"short":"Spom","species":"Schizosaccharomyces pombe","strain":"972h","group":"OUT","taxon":"Taphrinomycotina"},{"short":"Scer","species":"Saccharomyces cerevisiae","strain":"S288c","group":"OUT","taxon":"Saccharomycotina"},{"short":"Ylip","species":"Yarrowia lipolytica","strain":"CLIB122","group":"OUT","taxon":"Saccharomycotina"},{"short":"Ztri","species":"Zymoseptoria tritici","strain":"","group":"OUT","taxon":"Dothideomycete"},{"short":"CneoH99","species":"Cryptococcus neoformans","strain":"H99","group":"OUT","taxon":"Basidiomycota"},{"short":"Ccin","species":"Coprinus cinerea","strain":"okyama 7-130","group":"OUT","taxon":"Basidiomycota"},{"short":"Mcir","species":"Mucor circinelloides","strain":"1006PhL","group":"OUT","taxon":"Mucoromycotina"}],"tblastn_genomes":["Ncra","Afum","Cimm","FgraPH1"],"fsources":["Pfam"],"families":[{"rep":"CC1G_03112-t26_1-p1","size":4,"species":["Ccin","CneoH99","Mcir","Nirr"]},{"rep":"CC1G_05172-t26_1-p1","size":2,"species":["Ccin","Spom"]},{"rep":"CC1G_10821-t26_1-p1","size":3,"species":["Ccin","Mcir","Scer"]},{"rep":"F8ED4A94_004055-T1","size":2,"species":["Scer","Ylip"]},{"rep":"HMPREF1544_04131-t46_1-p1","size":2,"species":["Mcir","Ylip"]},{"rep":"SPAC23C4.09c.1-p1","size":2,"species":["Nirr","Spom"]},{"rep":"SPAC23H4.04.1-p1","size":6,"species":["Ccin","CneoH99","Mcir","Scer","Spom","Ylip"]},{"rep":"SPAC2C4.04c.1-p1","size":2,"species":["Mcir","Spom"]}],"rows":[["F8ED4A94_000033-T1",7,0.75,6,0,"","ABC1,Haspin_kinase",0,"Serine/threonine-protein kinase haspin homolog hrk1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hrk1 PE=1 SV=1","ABC1,Haspin_kinase","PF03109.23,PF12330.15",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_000677-T1",7,0.875,7,0,"","Bflower_2,DUF6286,Pro_isomerase",0,"Peptidyl-prolyl isomerase CWC27 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=CWC27 PE=3 SV=1","Bflower_2,DUF6286,Pro_isomerase","PF21785.4,PF19803.5,PF00160.27",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_000879-T1",7,0.75,6,0,"","MT-A70",0,"N(6)-adenosine-methyltransferase IME4 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=IME4 PE=1 SV=1","MT-A70","PF05063.21",0,"",-1],["F8ED4A94_003205-T1",7,0.75,6,0,"","Activator-TraM,AlgP_helical,CCDC125,CCDC90-like,Csm1_B,DH2-like,DUF8108_M,DUF8849,Fib_alpha,HpsJ,MG280,MJ0349,Myo5a,Neur_chan_memb,Phage_scaffold,Remorin_C,THOC7,TMEM120A-B",0,"Protein fmp32, mitochondrial OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=fmp32 PE=3 SV=1","Activator-TraM,AlgP_helical,CCDC125,CCDC90-like,Csm1_B,DH2-like,DUF8108_M,DUF8849,Fib_alpha,HpsJ,MG280,MJ0349,Myo5a,Neur_chan_memb,Phage_scaffold,Remorin_C,THOC7,TMEM120A-B","PF11657.14,PF27285.1,PF30757.1,PF07798.17,PF18211.8,PF27927.1,PF26440.1,PF31276.1,PF08702.16,PF28006.1,PF23067.1,PF27276.1,PF25966.1,PF02932.22,PF06810.18,PF03763.19,PF05615.19,PF07851.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_003632-T1",7,0.75,6,0,"","Adeno_terminal,BTAD,RIG-I_C,SHNi-TPR,TPR_2",0,"NASP-related protein sim3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sim3 PE=1 SV=1","Adeno_terminal,BTAD,RIG-I_C,SHNi-TPR,TPR_2","PF02459.21,PF03704.24,PF18119.7,PF10516.16,PF07719.24",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_004055-T1",7,0.875,7,0,"","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_lid_PRS2_C,AAA_RNF213_4,ABC_tran,AFG1_ATPase,ATPase,ATPase_2,Bac_DnaA,bpMoxR,DUF1677,DUF5906,DUF815,IstB_IS21,Mg_chelatase,NACHT,NB-ARC,NPHP3_N,nSTAND3,nSTAND6,nSTAND_NTPase5,ORC-CDC6-like,Parvo_NS1,Rad17,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,SRPRB,TIP49,TniB,TsaE,Viral_helicase1,Vps4_C,Zeta_toxin",0,"ATPase family gene 2 protein OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AFG2 PE=1 SV=1","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_lid_PRS2_C,AAA_RNF213_4,ABC_tran,AFG1_ATPase,ATPase,ATPase_2,Bac_DnaA,bpMoxR,DUF1677,DUF5906,DUF815,IstB_IS21,Mg_chelatase,NACHT,NB-ARC,NPHP3_N,nSTAND3,nSTAND6,nSTAND_NTPase5,ORC-CDC6-like,Parvo_NS1,Rad17,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,SRPRB,TIP49,TniB,TsaE,Viral_helicase1,Vps4_C,Zeta_toxin","PF00004.36,PF13086.13,PF13173.13,PF13191.13,PF13207.13,PF13238.13,PF13245.13,PF07724.21,PF13401.13,PF13479.13,PF13481.13,PF13521.13,PF07726.18,PF13604.13,PF13671.13,PF07728.21,PF12775.14,PF17862.8,PF23902.1,PF30683.1,PF00005.34,PF03969.23,PF06745.20,PF01637.25,PF00308.25,PF20030.6,PF07911.19,PF19263.6,PF05673.20,PF01695.24,PF01078.28,PF05729.19,PF00931.29,PF24883.3,PF20720.4,PF25201.1,PF25199.2,PF24389.2,PF01057.24,PF03215.22,PF00910.29,PF05496.19,PF00158.33,PF14532.13,PF09439.17,PF06068.20,PF05621.18,PF02367.24,PF01443.25,PF09336.17,PF06414.19",1,"Afum,Cimm,FgraPH1,Ncra",3],["F8ED4A94_005160-T1",7,0.875,7,0,"","DUF3644,KH_6,Rrp40_N,RRP40_S1,S1_RRP4",0,"Exosome complex component RRP40 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=RRP40 PE=1 SV=2","DUF3644,KH_6,Rrp40_N,RRP40_S1,S1_RRP4","PF12358.14,PF15985.12,PF18311.8,PF21262.4,PF21266.4",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_005573-T1",7,0.75,6,0,"","Acetyltransf_11,Dsc3_C,Dsc3_N",0,"DSC E3 ubiquitin ligase complex subunit 3 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=dsc3 PE=1 SV=1","Acetyltransf_11,Dsc3_C,Dsc3_N","PF13720.12,PF13373.12,PF10302.16",1,"Afum,Cimm,FgraPH1",-1],["F8ED4A94_006581-T1",7,0.75,6,0,"","Clathrin-link,PH,RasGEF,RasGEF_N,RhoGAP,SelP_N",0,"GTPase-activating protein BEM2/IPL2 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=BEM2 PE=1 SV=1","Clathrin-link,PH,RasGEF,RasGEF_N,RhoGAP,SelP_N","PF09268.17,PF00169.36,PF00617.25,PF00618.26,PF00620.33,PF04592.21",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPAC15F9.02.1-p1",5,1.0,8,0,"","ANAPC4_WD40,Beta-prop_CAF1B_HIR1,Beta-prop_EIPR1,Beta-prop_EML,Beta-prop_EML_2,Beta-prop_IFT122_1st,Beta-prop_TEP1_2nd,Beta-prop_TEP1_C,Beta-prop_THOC3,Beta-prop_Vps41,Beta-prop_WDR19_1st,Beta-prop_WDR35_TULP_N,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR5,Beta-prop_WDR75_1st,Beta-prop_WDR90_POC16_2nd,C3H64_C,EIF3I,Ge1_WD40,WD40,WD40_CDC20-Fz,WD40_MABP1-WDR62_2nd,WD40_Prp19,WD40_WDHD1_1st,WDR55,WDR90_beta-prop_4th",0,"Nucleoporin seh1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=seh1 PE=1 SV=1","ANAPC4_WD40,Beta-prop_CAF1B_HIR1,Beta-prop_EIPR1,Beta-prop_EML,Beta-prop_EML_2,Beta-prop_IFT122_1st,Beta-prop_TEP1_2nd,Beta-prop_TEP1_C,Beta-prop_THOC3,Beta-prop_Vps41,Beta-prop_WDR19_1st,Beta-prop_WDR35_TULP_N,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR5,Beta-prop_WDR75_1st,Beta-prop_WDR90_POC16_2nd,C3H64_C,EIF3I,Ge1_WD40,WD40,WD40_CDC20-Fz,WD40_MABP1-WDR62_2nd,WD40_Prp19,WD40_WDHD1_1st,WDR55,WDR90_beta-prop_4th","PF12894.14,PF24105.2,PF23609.2,PF23409.2,PF23414.2,PF23381.2,PF25047.1,PF25048.2,PF25174.2,PF23411.2,PF23389.2,PF24797.2,PF25168.2,PF25173.2,PF25172.2,PF25175.2,PF23869.2,PF23393.3,PF28878.1,PF24805.2,PF16529.12,PF00400.39,PF24807.2,PF24782.3,PF24814.2,PF24817.2,PF24796.2,PF23342.2",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPAC16E8.10c.1-p1",5,0.75,6,0,"","MRP-L27,Ribosomal_S7",0,"Small ribosomal subunit protein uS7m OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rsm7 PE=1 SV=2","MRP-L27,Ribosomal_S7","PF09809.15,PF00177.28",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPAC23C4.09c.1-p1",5,0.875,8,0,"","dsDNA_bind,EF-1_beta_acid,PCI,TetR_C_43,UvrA_inter,YdaT_toxin",0,"Uncharacterized protein C23C4.09c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC23C4.09c PE=3 SV=1","dsDNA_bind,EF-1_beta_acid,PCI,TetR_C_43,UvrA_inter,YdaT_toxin","PF01984.26,PF10587.15,PF01399.34,PF21597.3,PF17760.7,PF06254.18",1,"Afum,Cimm,FgraPH1,Ncra",5],["SPAC3H1.11.1-p1",5,0.75,6,0,"","ARS2,B129_C2H2-zf,C2CH-4th_BIRD-IDD,DUF629,GAGA,Salivary_glue,Teflon_C,Tscrpt_reg_Tri6,zf-BED,zf-C2H2,zf-C2H2_4,zf-C2H2_6,zf-C2H2_fungi,zf-C2H2_jaz,zf-C2H2_STOP2_C,zf-Di19,zf-H2C2_2,zf-H2C2_5,zf-LYAR,zf-met,zf-UBR,zf_C2H2_ZHX",0,"Hydrogen peroxide stress regulator 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=hsr1 PE=2 SV=1","ARS2,B129_C2H2-zf,C2CH-4th_BIRD-IDD,DUF629,GAGA,Salivary_glue,Teflon_C,Tscrpt_reg_Tri6,zf-BED,zf-C2H2,zf-C2H2_4,zf-C2H2_6,zf-C2H2_fungi,zf-C2H2_jaz,zf-C2H2_STOP2_C,zf-Di19,zf-H2C2_2,zf-H2C2_5,zf-LYAR,zf-met,zf-UBR,zf_C2H2_ZHX","PF04959.20,PF22034.3,PF22992.3,PF04780.18,PF09237.18,PF29534.1,PF29496.1,PF27716.1,PF02892.22,PF00096.33,PF13894.13,PF13912.13,PF24537.2,PF12171.15,PF23118.3,PF05605.19,PF13465.13,PF13909.13,PF08790.18,PF12874.14,PF02207.26,PF18387.8",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPAC57A10.02.1-p1",5,0.75,6,0,"","ABC1,Fungal_KA1,Kinase-like,Pkinase,PK_Tyr_Ser-Thr,UBA_Crd2",0,"Mitosis inducer protein kinase cdr2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cdr2 PE=1 SV=1","ABC1,Fungal_KA1,Kinase-like,Pkinase,PK_Tyr_Ser-Thr,UBA_Crd2","PF03109.23,PF16797.12,PF14531.13,PF00069.32,PF07714.24,PF23149.2",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPAC688.14.1-p1",5,0.75,6,0,"","HAC6_helical,SET",0,"Ribosomal lysine N-methyltransferase 4 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=set13 PE=3 SV=2","HAC6_helical,SET","PF28613.1,PF00856.34",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPAC7D4.10.1-p1",5,0.75,8,0,"","Arm,Arm_2,ARM_PUB,DUF4518_N,HEAT,HEAT_2,V-ATPase_H_C,V-ATPase_H_N,YDR249C_C",0,"V-type proton ATPase subunit H OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vma13 PE=3 SV=2","Arm,Arm_2,ARM_PUB,DUF4518_N,HEAT,HEAT_2,V-ATPase_H_C,V-ATPase_H_N,YDR249C_C","PF00514.30,PF04826.20,PF25598.2,PF29669.1,PF02985.29,PF13646.13,PF11698.15,PF03224.21,PF28950.1",1,"Afum,Cimm,FgraPH1,Ncra",1],["SPAPYUG7.04c.1-p1",5,0.75,6,0,"","Baculo_LEF5_C,ComFA_N,Cytochrome_C7,DUF3716,DUF6510,DUF7351,DUF7838,DUF8054_C,DUF8250,EcdD_BsdD_detox,GpA_ATPase,Lar_restr_allev,PH_fung_RdRP,Ribosomal_aS21,RUBY_RBDX,UPF0547,zf-LITAF-like,Zn_Ribbon_1,Zn_ribbon_13,Zn_ribbon_8,Zn_ribbon_Elf1,Zn_ribbon_IS1595,Zn_ribbon_LapB,Zn_ribbon_Nudix,Zn_ribbon_PaaD,Zn_ribbon_RPB9,Zn_ribbon_SprT,Zn_ribbon_TFIIS",0,"DNA-directed RNA polymerase II subunit RPB9 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=rpb9 PE=1 SV=1","Baculo_LEF5_C,ComFA_N,Cytochrome_C7,DUF3716,DUF6510,DUF7351,DUF7838,DUF8054_C,DUF8250,EcdD_BsdD_detox,GpA_ATPase,Lar_restr_allev,PH_fung_RdRP,Ribosomal_aS21,RUBY_RBDX,UPF0547,zf-LITAF-like,Zn_Ribbon_1,Zn_ribbon_13,Zn_ribbon_8,Zn_ribbon_Elf1,Zn_ribbon_IS1595,Zn_ribbon_LapB,Zn_ribbon_Nudix,Zn_ribbon_PaaD,Zn_ribbon_RPB9,Zn_ribbon_SprT,Zn_ribbon_TFIIS","PF11792.15,PF27511.2,PF14522.12,PF12511.14,PF20120.6,PF24042.2,PF25208.2,PF26237.1,PF26757.1,PF26358.1,PF05876.19,PF14354.14,PF25358.2,PF07754.18,PF21349.3,PF10571.16,PF10601.15,PF13240.12,PF09855.15,PF09723.16,PF05129.19,PF12760.13,PF18073.8,PF14803.12,PF23451.2,PF02150.22,PF17283.9,PF01096.24",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPBC17F3.02.1-p1",5,0.75,6,0,"","ABC1,FTA2,Haspin_kinase,Kdo,Kinase-like,LIF-R_Ig-like,Pkinase,Pkinase_fungal,PK_Tyr_Ser-Thr,RIO1",0,"Serine/threonine-protein kinase nak1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=nak1 PE=1 SV=1","ABC1,FTA2,Haspin_kinase,Kdo,Kinase-like,LIF-R_Ig-like,Pkinase,Pkinase_fungal,PK_Tyr_Ser-Thr,RIO1","PF03109.23,PF13095.13,PF12330.15,PF06293.21,PF14531.13,PF21177.5,PF00069.32,PF17667.8,PF07714.24,PF01163.29",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPBC2G5.04c.1-p1",5,0.875,7,0,"","COPIIcoated_ERV,ERGIC_N",0,"ER-derived vesicles protein 41 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=erv41 PE=1 SV=1","COPIIcoated_ERV,ERGIC_N","PF07970.18,PF13850.12",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPBC56F2.07c.1-p1",5,0.875,7,0,"","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_lid_PRS2_C,AAA_RNF213_4,ABC_tran,AFG1_ATPase,ATP-synt_ab,ATPase,ATPase_2,Bac_DnaA,bpMoxR,CDC48_N,DEAD,DUF815,IPT,IstB_IS21,Mg_chelatase,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,NTPase_1,ORC-CDC6-like,Parvo_NS1,Rad17,ResIII,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,TIP49,TniB,TsaE,Zeta_toxin",0,"ATPase family gene 2 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=afg2 PE=3 SV=1","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_lid_PRS2_C,AAA_RNF213_4,ABC_tran,AFG1_ATPase,ATP-synt_ab,ATPase,ATPase_2,Bac_DnaA,bpMoxR,CDC48_N,DEAD,DUF815,IPT,IstB_IS21,Mg_chelatase,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,NTPase_1,ORC-CDC6-like,Parvo_NS1,Rad17,ResIII,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,TIP49,TniB,TsaE,Zeta_toxin","PF00004.36,PF13086.13,PF13173.13,PF13191.13,PF13207.13,PF13238.13,PF13245.13,PF07724.21,PF13401.13,PF13479.13,PF13481.13,PF13521.13,PF07726.18,PF13604.13,PF13671.13,PF07728.21,PF12775.14,PF17862.8,PF23902.1,PF30683.1,PF00005.34,PF03969.23,PF00006.32,PF06745.20,PF01637.25,PF00308.25,PF20030.6,PF02359.25,PF00270.36,PF05673.20,PF01745.23,PF01695.24,PF01078.28,PF05729.19,PF24883.3,PF20720.4,PF25199.2,PF03266.22,PF24389.2,PF01057.24,PF03215.22,PF04851.22,PF00910.29,PF05496.19,PF00158.33,PF14532.13,PF06068.20,PF05621.18,PF02367.24,PF06414.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPBC9B6.11c.1-p1",5,0.75,6,0,"","Exo_endo_phos,Mtf2,UMP2",0,"Probable RNA exonuclease C9B6.11c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC9B6.11c PE=3 SV=1","Exo_endo_phos,Mtf2,UMP2","PF03372.30,PF19189.7,PF28671.1",1,"Afum,Cimm,Ncra",-1],["YDL002C-t26_1-p1",6,0.75,6,0,"","DUF3679,HMG_box,HMG_box_2,INO80F",0,"Non-histone protein 10 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NHP10 PE=1 SV=1","DUF3679,HMG_box,HMG_box_2,INO80F","PF12438.14,PF00505.26,PF09011.17,PF24245.2",1,"FgraPH1,Ncra",-1],["YDR101C-t26_1-p1",6,0.75,6,0,"","Peptidase_M24",0,"Probable metalloprotease ARX1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=ARX1 PE=1 SV=1","Peptidase_M24","PF00557.30",1,"Ncra",-1],["YDR398W-t26_1-p1",6,0.75,6,0,"","ANAPC4_WD40,Beta-prop_BBS7,Beta-prop_EML_2,Beta-prop_IFT122_1st,Beta-prop_LRRK2,Beta-prop_TEP1_2nd,Beta-prop_THOC3,Beta-prop_WDR36-Utp21_1st,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR5,Bin2_C,Cmr7b-like,DARPP-32,DUF7502,EIF3I,Endonuc-BglII,Utp12,WD40,WD40_CDC20-Fz,WD40_Gbeta,WD40_like,WD40_Prp19,WD40_WDHD1_1st,WDR55",0,"U3 small nucleolar RNA-associated protein 5 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=UTP5 PE=1 SV=1","ANAPC4_WD40,Beta-prop_BBS7,Beta-prop_EML_2,Beta-prop_IFT122_1st,Beta-prop_LRRK2,Beta-prop_TEP1_2nd,Beta-prop_THOC3,Beta-prop_WDR36-Utp21_1st,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR5,Bin2_C,Cmr7b-like,DARPP-32,DUF7502,EIF3I,Endonuc-BglII,Utp12,WD40,WD40_CDC20-Fz,WD40_Gbeta,WD40_like,WD40_Prp19,WD40_WDHD1_1st,WDR55","PF12894.14,PF23743.2,PF23414.2,PF23381.2,PF23748.2,PF25047.1,PF25174.2,PF25171.2,PF25168.2,PF25173.2,PF25172.2,PF25175.2,PF21532.3,PF22392.2,PF05395.18,PF24334.2,PF24805.2,PF09195.18,PF04003.18,PF00400.39,PF24807.2,PF25391.2,PF17005.12,PF24814.2,PF24817.2,PF24796.2",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YDR429C-t26_1-p1",6,1.0,8,0,"","eIF3g,PHM7_cyt,RRM_1,zf-CCCH_7",0,"Eukaryotic translation initiation factor 3 subunit G OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=TIF35 PE=1 SV=1","eIF3g,PHM7_cyt,RRM_1,zf-CCCH_7","PF12353.14,PF14703.13,PF00076.29,PF18586.8",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YHR102W-t26_1-p1",6,0.75,6,0,"","ABC1,Kinase-like,Pkinase,Pkinase_fungal,PK_Tyr_Ser-Thr",0,"Serine/threonine-protein kinase KIC1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=KIC1 PE=1 SV=1","ABC1,Kinase-like,Pkinase,Pkinase_fungal,PK_Tyr_Ser-Thr","PF03109.23,PF14531.13,PF00069.32,PF17667.8,PF07714.24",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YIL104C-t26_1-p1",6,0.75,6,0,"","Phage_ORF5,SHQ1,SHQ1-like_CS",0,"Protein SHQ1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SHQ1 PE=1 SV=1","Phage_ORF5,SHQ1,SHQ1-like_CS","PF20577.5,PF04925.21,PF21413.4",0,"",2],["YJL145W-t26_1-p1",6,0.875,7,0,"","CRAL_TRIO,CRAL_TRIO_N",0,"Phosphatidylinositol transfer protein SFH5 OS=Saccharomyces cerevisiae (strain YJM789) OX=307796 GN=SFH5 PE=1 SV=1","CRAL_TRIO,CRAL_TRIO_N","PF00650.26,PF03765.22",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YJR122W-t26_1-p1",6,0.875,7,0,"","Beta-barrel_CAF17_C",0,"Iron-sulfur cluster assembly factor IBA57, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=IBA57 PE=1 SV=1","Beta-barrel_CAF17_C","PF25455.3",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YKR063C-t26_1-p1",6,1.0,8,0,"","DENND11,Las1",0,"Protein LAS1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=LAS1 PE=1 SV=1","DENND11,Las1","PF09804.15,PF04031.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YLR397C-t26_1-p1",6,0.875,7,0,"","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_RNF213_4,ABC_tran,ATPase,ATPase_2,bpMoxR,CDC48_N,DUF815,IstB_IS21,Mg_chelatase,NACHT,NB-ARC,NPHP3_N,nSTAND3,nSTAND_NTPase5,ORC-CDC6-like,Rad17,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,TIP49,TsaE,Viral_helicase1,Vps4_C,Zeta_toxin",0,"ATPase family gene 2 protein OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AFG2 PE=1 SV=1","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_RNF213_4,ABC_tran,ATPase,ATPase_2,bpMoxR,CDC48_N,DUF815,IstB_IS21,Mg_chelatase,NACHT,NB-ARC,NPHP3_N,nSTAND3,nSTAND_NTPase5,ORC-CDC6-like,Rad17,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,TIP49,TsaE,Viral_helicase1,Vps4_C,Zeta_toxin","PF00004.36,PF13086.13,PF13173.13,PF13191.13,PF13207.13,PF13238.13,PF13245.13,PF07724.21,PF13401.13,PF13479.13,PF13481.13,PF13521.13,PF07726.18,PF13604.13,PF13671.13,PF07728.21,PF12775.14,PF17862.8,PF30683.1,PF00005.34,PF06745.20,PF01637.25,PF20030.6,PF02359.25,PF05673.20,PF01695.24,PF01078.28,PF05729.19,PF00931.29,PF24883.3,PF20720.4,PF25199.2,PF24389.2,PF03215.22,PF00910.29,PF05496.19,PF00158.33,PF14532.13,PF06068.20,PF02367.24,PF01443.25,PF09336.17,PF06414.19",1,"Afum,Cimm,FgraPH1,Ncra",3],["YOR036W-t26_1-p1",6,0.75,6,0,"","BLOC1S4,BLOC1_2,CEP209_CC5,CoV_S2,DUF16,DUF1664,DUF1690,DUF2203,DUF7237,DUF733,DYH2-5-8_CC,Map3k7cl,RUNDC1,Sigma_reg_N,SlyX,SNARE,Syntaxin,Syntaxin_2,Tweety,WHD_MCM4",0,"Syntaxin PEP12 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=PEP12 PE=1 SV=2","BLOC1S4,BLOC1_2,CEP209_CC5,CoV_S2,DUF16,DUF1664,DUF1690,DUF2203,DUF7237,DUF733,DYH2-5-8_CC,Map3k7cl,RUNDC1,Sigma_reg_N,SlyX,SNARE,Syntaxin,Syntaxin_2,Tweety,WHD_MCM4","PF28963.1,PF10046.15,PF16574.11,PF01601.22,PF01519.23,PF07889.18,PF07956.17,PF09969.15,PF23884.2,PF05306.17,PF25007.2,PF27575.1,PF26030.1,PF13800.12,PF04102.18,PF05739.27,PF00804.32,PF14523.13,PF04906.19,PF21128.6",1,"Afum,Cimm,Ncra",-1],["YOR143C-t26_1-p1",6,0.75,6,0,"","Alp7A_like_C,LYTB,TPK_B1_binding,TPK_catalytic,UPF0387_membrane,WTF",0,"Thiamine pyrophosphokinase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=THI80 PE=1 SV=1","Alp7A_like_C,LYTB,TPK_B1_binding,TPK_catalytic,UPF0387_membrane,WTF","PF22128.3,PF02401.24,PF04265.20,PF04263.22,PF27791.2,PF03303.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YPR131C-t26_1-p1",6,0.875,7,0,"","Acetyltransf_1,Acetyltransf_10,Acetyltransf_7,FR47,PB1-like",0,"N-terminal acetyltransferase B complex catalytic subunit NAT3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NAT3 PE=1 SV=2","Acetyltransf_1,Acetyltransf_10,Acetyltransf_7,FR47,PB1-like","PF00583.32,PF13673.14,PF13508.14,PF08445.17,PF26130.1",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YBR056W-t26_1-p1",6,0.875,7,0,"","Exg3_C",0,"Uncharacterized glycosyl hydrolase YBR056W OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YBR056W PE=1 SV=1","Exg3_C","PF28394.1",1,"Afum,FgraPH1,Ncra",-1],["YBR175W-t26_1-p1",6,0.75,6,0,"","ANAPC4_WD40,ASA1,B-prop_COPA_B_2nd,Beta-prop_ACSF4,Beta-prop_Aladin,Beta-prop_CAF1B_HIR1,Beta-prop_DCAF4,Beta-prop_ELP1_1st,Beta-prop_EML,Beta-prop_EML_2,Beta-prop_HPS5,Beta-prop_IFT122_1st,Beta-prop_IFT140_1st,Beta-prop_NOL10_N,Beta-prop_Nup120_160,Beta-prop_NUP159_NUP214,Beta-prop_NWD2_C,Beta-prop_RIG_1st,Beta-prop_RIG_2nd,Beta-prop_SCAP,Beta-prop_TEP1_2nd,Beta-prop_TEP1_C,Beta-prop_THOC3,Beta-prop_Vps41,Beta-prop_VPS8,Beta-prop_WDR19_1st,Beta-prop_WDR35_TULP_N,Beta-prop_WDR36-Utp21_1st,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR41,Beta-prop_WDR5,Beta-prop_WDR75_1st,Beta-prop_WDR90_POC16_2nd,CFAP251_N,Cytochrom_D1,DPPIV_N,DSE1_N,DUF7165,EIF3I,Ge1_WD40,INI1_DNA-bd,NBCH_WD40,PAC11,PD40,PEP5_VPS11_N,PROPPIN,RMC1_N,Tricorn_2nd,Tricorn_N,TRM82_WD,UCP007778,WD40,WD40_CDC20-Fz,WD40_Gbeta,WD40_MABP1-WDR62_1st,WD40_MABP1-WDR62_2nd,WD40_Prp19,WD40_RFWD3,WD40_WDHD1_1st,WDR55,WDR90_beta-prop_4th",0,"COMPASS component SWD3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SWD3 PE=1 SV=1","ANAPC4_WD40,ASA1,B-prop_COPA_B_2nd,Beta-prop_ACSF4,Beta-prop_Aladin,Beta-prop_CAF1B_HIR1,Beta-prop_DCAF4,Beta-prop_ELP1_1st,Beta-prop_EML,Beta-prop_EML_2,Beta-prop_HPS5,Beta-prop_IFT122_1st,Beta-prop_IFT140_1st,Beta-prop_NOL10_N,Beta-prop_Nup120_160,Beta-prop_NUP159_NUP214,Beta-prop_NWD2_C,Beta-prop_RIG_1st,Beta-prop_RIG_2nd,Beta-prop_SCAP,Beta-prop_TEP1_2nd,Beta-prop_TEP1_C,Beta-prop_THOC3,Beta-prop_Vps41,Beta-prop_VPS8,Beta-prop_WDR19_1st,Beta-prop_WDR35_TULP_N,Beta-prop_WDR36-Utp21_1st,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR41,Beta-prop_WDR5,Beta-prop_WDR75_1st,Beta-prop_WDR90_POC16_2nd,CFAP251_N,Cytochrom_D1,DPPIV_N,DSE1_N,DUF7165,EIF3I,Ge1_WD40,INI1_DNA-bd,NBCH_WD40,PAC11,PD40,PEP5_VPS11_N,PROPPIN,RMC1_N,Tricorn_2nd,Tricorn_N,TRM82_WD,UCP007778,WD40,WD40_CDC20-Fz,WD40_Gbeta,WD40_MABP1-WDR62_1st,WD40_MABP1-WDR62_2nd,WD40_Prp19,WD40_RFWD3,WD40_WDHD1_1st,WDR55,WDR90_beta-prop_4th","PF12894.14,PF29630.1,PF04053.21,PF13570.14,PF25460.2,PF24105.2,PF23761.2,PF04762.19,PF23409.2,PF23414.2,PF23756.2,PF23381.2,PF23383.2,PF23098.2,PF11715.17,PF16755.12,PF23586.3,PF23770.2,PF23775.2,PF24017.3,PF25047.1,PF25048.2,PF25174.2,PF23411.2,PF23410.5,PF23389.2,PF24797.2,PF25171.2,PF25168.2,PF25173.2,PF25172.2,PF25178.1,PF25175.2,PF23869.2,PF23393.3,PF30552.1,PF02239.23,PF00930.28,PF29037.1,PF23749.2,PF24805.2,PF16529.12,PF21459.4,PF20426.5,PF30151.1,PF07676.20,PF23341.2,PF21032.3,PF21029.4,PF26550.2,PF26549.1,PF30361.1,PF27702.2,PF00400.39,PF24807.2,PF25391.2,PF24780.2,PF24782.3,PF24814.2,PF23419.3,PF24817.2,PF24796.2,PF23342.2",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YDL033C-t26_1-p1",6,0.75,6,0,"","Asn_synthase,ATPase_gene1,NAD_synthase,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M",0,"Mitochondrial tRNA-specific 2-thiouridylase 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SLM3 PE=1 SV=1","Asn_synthase,ATPase_gene1,NAD_synthase,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M","PF00733.28,PF09527.16,PF02540.24,PF03054.23,PF20258.5,PF20259.4",0,"",6],["YLR074C-t26_1-p1",6,0.75,6,0,"","zf-C2H2_2,zf-C2H2_jaz,zf-C2HE,zf-met,zf-U1",0,"Bud site selection protein 20 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=BUD20 PE=1 SV=1","zf-C2H2_2,zf-C2H2_jaz,zf-C2HE,zf-met,zf-U1","PF12756.14,PF12171.15,PF16278.12,PF12874.14,PF06220.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YPL120W-t26_1-p1",6,0.75,6,0,"","APG6,APG6_N,NOA36",0,"Vacuolar protein sorting-associated protein 30 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=VPS30 PE=1 SV=1","APG6,APG6_N,NOA36","PF04111.18,PF17675.7,PF06524.18",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_001198-T1",7,0.75,6,0,"","DSPc,PTP-NADK,PTP-SAK,Tc-R-P,Y_phosphatase",0,"Tyrosine-protein phosphatase YVH1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YVH1 PE=1 SV=1","DSPc,PTP-NADK,PTP-SAK,Tc-R-P,Y_phosphatase","PF00782.26,PF22741.2,PF22784.2,PF22785.2,PF00102.33",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_002514-T1",7,0.875,8,0,"","PRELI",0,"Protein UPS1, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=UPS1 PE=1 SV=1","PRELI","PF04707.21",1,"Afum,Cimm,FgraPH1,Ncra",4],["F8ED4A94_005206-T1",7,0.75,6,0,"","Exg3_C,PAP1",0,"Uncharacterized glycosyl hydrolase YBR056W OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YBR056W PE=1 SV=1","Exg3_C,PAP1","PF28394.1,PF08601.16",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F8ED4A94_006287-T1",7,0.75,6,0,"","Asn_synthase,NAD_synthase,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M",0,"Mitochondrial tRNA-specific 2-thiouridylase 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SLM3 PE=1 SV=1","Asn_synthase,NAD_synthase,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M","PF00733.28,PF02540.24,PF03054.23,PF20258.5,PF20259.4",0,"",6],["F4173319_001162-T1",4,1.0,8,0,"","Gcd10p",0,"tRNA (adenine(58)-N(1))-methyltransferase non-catalytic subunit TRM6 OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=TRM6 PE=3 SV=1","Gcd10p","PF04189.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F4173319_001345-T1",4,0.75,6,0,"","bZIP_1,bZIP_2,bZIP_Maf,GAPES3,NdhM",0,"","bZIP_1,bZIP_2,bZIP_Maf,GAPES3,NdhM","PF00170.27,PF07716.21,PF03131.23,PF17154.11,PF10664.16",1,"Afum",-1],["F4173319_001829-T1",4,0.75,6,0,"","SH3_1,SH3_2,SH3_9",0,"Actin cytoskeleton-regulatory complex protein SLA1 OS=Saccharomyces cerevisiae (strain YJM789) OX=307796 GN=SLA1 PE=3 SV=1","SH3_1,SH3_2,SH3_9","PF00018.35,PF07653.24,PF14604.13",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F4173319_001873-T1",4,1.0,8,0,"","GH97_N,PolC_DP2_central,PTS_2-RNA",0,"Putative tRNA 2'-phosphotransferase OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2C4.12c PE=3 SV=2","GH97_N,PolC_DP2_central,PTS_2-RNA","PF14508.13,PF24844.2,PF01885.23",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F4173319_001987-T1",4,0.75,6,0,"","DUF543",0,"MICOS complex subunit mic10 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mic10 PE=3 SV=1","DUF543","PF04418.18",1,"FgraPH1",-1],["F4173319_002233-T1",4,0.875,7,0,"","ADH_N,ATP-synt_G,AtzH-like,DUF2964",0,"ATP synthase subunit g, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=ATP20 PE=1 SV=1","ADH_N,ATP-synt_G,AtzH-like,DUF2964","PF08240.18,PF04718.21,PF11533.16,PF11177.15",0,"",-1],["F4173319_003071-T1",4,0.75,6,0,"","AIF-1,Allatotropin-like_C,Caleosin,CFAP251_C,Dockerin_1,DUF5580_M,EF-hand_1,EF-hand_11,EF-hand_14,EF-hand_5,EF-hand_6,EF-hand_7,EF-hand_8,EF-hand_9,EF-hand_EFHB_C,EF-hand_FSTL1,EF-hand_SWAP70_N,EF_EFCAB10_C,EF_SSP120,EH,Imm5_like,PhetRS_B1,SAPC2_N,SPARC_Ca_bdg,UBA2_UBAP-1",0,"Cell division control protein 31 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cdc31 PE=1 SV=1","AIF-1,Allatotropin-like_C,Caleosin,CFAP251_C,Dockerin_1,DUF5580_M,EF-hand_1,EF-hand_11,EF-hand_14,EF-hand_5,EF-hand_6,EF-hand_7,EF-hand_8,EF-hand_9,EF-hand_EFHB_C,EF-hand_FSTL1,EF-hand_SWAP70_N,EF_EFCAB10_C,EF_SSP120,EH,Imm5_like,PhetRS_B1,SAPC2_N,SPARC_Ca_bdg,UBA2_UBAP-1","PF21008.4,PF29176.1,PF05042.20,PF30551.1,PF00404.25,PF20742.4,PF00036.39,PF08976.18,PF17959.8,PF13202.13,PF13405.13,PF13499.13,PF13833.13,PF14658.13,PF25325.2,PF23564.2,PF25530.2,PF24548.2,PF30624.1,PF12763.14,PF21805.4,PF18262.8,PF25825.2,PF10591.16,PF21267.4",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F4173319_003391-T1",4,1.0,8,0,"","DUF6594,PolyA_pol",0,"CCA tRNA nucleotidyltransferase, mitochondrial OS=Candida glabrata (strain ATCC 2001 / BCRC 20586 / JCM 3761 / NBRC 0622 / NRRL Y-65 / CBS 138) OX=284593 GN=CCA1 PE=1 SV=2","DUF6594,PolyA_pol","PF20237.4,PF01743.27",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F4173319_003571-T1",4,0.75,6,0,"","APC1_5th,Endonuc_subdom,SHQ1-like_CS",0,"Protein shq1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=shq1 PE=3 SV=1","APC1_5th,Endonuc_subdom,SHQ1-like_CS","PF29300.1,PF09062.16,PF21413.4",0,"",-1],["F4173319_003754-T1",4,0.875,7,0,"","EMP70",0,"Transmembrane 9 superfamily member 1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=EMP70 PE=1 SV=2","EMP70","PF02990.22",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F4173319_003852-T1",4,0.875,7,0,"","DUF5959,Wheel",0,"Hsp70/Hsp90 co-chaperone cns1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cns1 PE=3 SV=1","DUF5959,Wheel","PF19384.5,PF18972.6",1,"Afum,Cimm,FgraPH1,Ncra",-1],["F4173319_003930-T1",4,1.0,8,0,"","dsDNA_bind,Mac,TetR_C_43",0,"Uncharacterized protein C23C4.09c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC23C4.09c PE=3 SV=1","dsDNA_bind,Mac,TetR_C_43","PF01984.26,PF12464.14,PF21597.3",1,"Afum,Cimm,FgraPH1,Ncra",5],["F4173319_003968-T1",4,0.75,6,0,"","MT-A70",0,"N(6)-adenosine-methyltransferase catalytic subunit METTL3 OS=Homo sapiens OX=9606 GN=METTL3 PE=1 SV=2","MT-A70","PF05063.21",0,"",-1],["F4173319_004210-T1",4,0.875,7,0,"","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_29,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_RNF213_4,ABC_tran,Aq_aa27,ATPase,ATPase_2,Bac_DnaA,bpMoxR,CDC48_N,DUF5906,DUF815,IstB_IS21,Mg_chelatase,MMR_HSR1,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,NusA_N,Parvo_NS1,Rad17,Rad9_Rad53_bind,Rho_RNA_bind,RNA_helicase,RuvB_N,SH3_HelY,Sigma54_activ_2,TIP49,TsaE,Vps4_C",0,"ATPase family gene 2 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=afg2 PE=3 SV=1","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_29,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_RNF213_4,ABC_tran,Aq_aa27,ATPase,ATPase_2,Bac_DnaA,bpMoxR,CDC48_N,DUF5906,DUF815,IstB_IS21,Mg_chelatase,MMR_HSR1,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,NusA_N,Parvo_NS1,Rad17,Rad9_Rad53_bind,Rho_RNA_bind,RNA_helicase,RuvB_N,SH3_HelY,Sigma54_activ_2,TIP49,TsaE,Vps4_C","PF00004.36,PF13086.13,PF13173.13,PF13191.13,PF13207.13,PF13238.13,PF13245.13,PF07724.21,PF13401.13,PF13479.13,PF13481.13,PF13521.13,PF13555.13,PF07726.18,PF13604.13,PF13671.13,PF07728.21,PF12775.14,PF17862.8,PF30683.1,PF00005.34,PF27394.1,PF06745.20,PF01637.25,PF00308.25,PF20030.6,PF02359.25,PF19263.6,PF05673.20,PF01695.24,PF01078.28,PF01926.30,PF05729.19,PF24883.3,PF20720.4,PF25199.2,PF08529.17,PF01057.24,PF03215.22,PF08605.17,PF07497.19,PF00910.29,PF05496.19,PF26090.1,PF14532.13,PF06068.20,PF02367.24,PF09336.17",1,"Afum,Cimm,FgraPH1,Ncra",0],["F4173319_004650-T1",4,0.75,6,0,"","Ank,Ank_2,Ank_3,Ank_4,Ank_5,Ank_KRIT1",0,"Ankyrin repeat-containing protein YAR1 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YAR1 PE=1 SV=1","Ank,Ank_2,Ank_3,Ank_4,Ank_5,Ank_KRIT1","PF00023.37,PF12796.14,PF13606.13,PF13637.13,PF13857.13,PF24521.3",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPAC1687.21.1-p1",5,0.75,6,0,"","aRib,DUF5868,His_Phos_1",0,"Probable phosphatase C1687.21 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC1687.21 PE=3 SV=1","aRib,DUF5868,His_Phos_1","PF18938.7,PF19186.6,PF00300.28",0,"",-1],["SPAC23H4.04.1-p1",5,0.75,6,0,"","ATP_bind_3,DUF7411,NAD_synthase,PEX6_4th,QueC,ThiI,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M",0,"Mitochondrial tRNA-specific 2-thiouridylase 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC23H4.04 PE=3 SV=1","ATP_bind_3,DUF7411,NAD_synthase,PEX6_4th,QueC,ThiI,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M","PF01171.28,PF24167.2,PF02540.24,PF23315.2,PF06508.20,PF02568.21,PF03054.23,PF20258.5,PF20259.4",0,"",6],["SPAC2C4.04c.1-p1",5,0.75,6,0,"","BCD1,DUF2340,Get5_N",0,"UPF0538 protein C2C4.04c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2C4.04c PE=3 SV=1","BCD1,DUF2340,Get5_N","PF25790.2,PF10209.15,PF12754.14",0,"",7],["SPAC31A2.11c.1-p1",5,0.75,6,0,"","Copper-fist",0,"Metal-binding regulatory protein cuf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=cuf1 PE=1 SV=1","Copper-fist","PF00649.24",1,"Cimm,FgraPH1",-1],["SPBC17A3.06.1-p1",5,0.875,7,0,"","baeRF_family7,CDKN3,DSPc,DUF7695,DUF7837,DUF8512,IBR_1,Init_tRNA_PT,PTP-NADK,PTP-SAK,Tc-R-P,tRNA_anti_2,UBA_4,Yippee-Mis18,Y_phosphatase,Zn_ribbon_4,Zn_ribbon_FGT1_2,Zn_ribbon_IS1595",0,"Tyrosine-protein phosphatase yvh1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=yvh1 PE=3 SV=1","baeRF_family7,CDKN3,DSPc,DUF7695,DUF7837,DUF8512,IBR_1,Init_tRNA_PT,PTP-NADK,PTP-SAK,Tc-R-P,tRNA_anti_2,UBA_4,Yippee-Mis18,Y_phosphatase,Zn_ribbon_4,Zn_ribbon_FGT1_2,Zn_ribbon_IS1595","PF18849.7,PF05706.18,PF00782.26,PF24749.4,PF25207.2,PF29210.1,PF22191.3,PF04179.18,PF22741.2,PF22784.2,PF22785.2,PF13742.13,PF14555.13,PF03226.22,PF00102.33,PF13717.12,PF23548.2,PF12760.13",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPCC1795.07.1-p1",5,0.875,7,0,"","H2TH_5,NFACT_N,Ribosomal_S13",0,"Small ribosomal subunit protein uS13m OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=sws2 PE=3 SV=1","H2TH_5,NFACT_N,Ribosomal_S13","PF22525.2,PF05833.17,PF00416.28",1,"Afum,Cimm,FgraPH1,Ncra",-1],["SPCC24B10.15.1-p1",5,0.75,6,0,"","PIN_4,SWT1_3rd",0,"Transcriptional protein swt1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=swt1 PE=3 SV=2","PIN_4,SWT1_3rd","PF13638.13,PF21693.4",0,"",-1],["F4173319_004365-T1",4,0.75,6,0,"","ApoO,Cnn_1N,DUF4192,HpsJ,Ist1,Med26_C,Snf7",0,"Vacuolar protein-sorting-associated protein 46 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=did2 PE=3 SV=2","ApoO,Cnn_1N,DUF4192,HpsJ,Ist1,Med26_C,Snf7","PF09769.15,PF07989.17,PF13830.12,PF28006.1,PF03398.20,PF15693.11,PF03357.27",1,"Cimm",-1],["SPBC2A9.05c.1-p1",5,0.75,6,0,"","DUF2207_C,DUF2651,DUF3671,DUF846,PhoR,RseC_MucC",0,"Golgi apparatus membrane protein tvp23 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=tvp23 PE=3 SV=2","DUF2207_C,DUF2651,DUF3671,DUF846,PhoR,RseC_MucC","PF20990.3,PF10852.15,PF12420.14,PF05832.18,PF11808.14,PF04246.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["YPL162C-t26_1-p1",6,0.75,6,0,"","DUF2208,STIMATE,TMEM192,TrbL_3,TssO",0,"Vacuolar membrane protein YPL162C OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YPL162C PE=1 SV=1","DUF2208,STIMATE,TMEM192,TrbL_3,TssO","PF09973.15,PF12400.14,PF14802.12,PF19590.5,PF17561.8",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_00665-t26_1-p1",9,0.75,6,0,"","PAT1",0,"Deadenylation-dependent mRNA-decapping factor pdc2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pdc2 PE=1 SV=2","PAT1","PF09770.16",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_02597-t26_1-p1",9,0.75,6,0,"","DUF5955,DUF6800,Nup35_RRM_2,PWI,PWI_CCDC43,RRM_3,Torus,zf-CCCH,zf-CCCH_12,zf-CCCH_2,zf-CCCH_4,zf_CCCH_4",0,"Uncharacterized RNA-binding protein C902.04 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC902.04 PE=1 SV=1","DUF5955,DUF6800,Nup35_RRM_2,PWI,PWI_CCDC43,RRM_3,Torus,zf-CCCH,zf-CCCH_12,zf-CCCH_2,zf-CCCH_4,zf_CCCH_4","PF19380.5,PF20607.5,PF14605.13,PF01480.23,PF26091.1,PF08777.18,PF16131.12,PF00642.31,PF25542.2,PF14608.13,PF18044.8,PF18345.8",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_02782-t26_1-p1",9,0.75,6,0,"","EFM1_middle,MetOD2",0,"Ribosomal lysine N-methyltransferase set10 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=set10 PE=3 SV=1","EFM1_middle,MetOD2","PF28952.1,PF18548.7",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_00923-t26_1-p1",9,0.875,7,0,"","PHM7_cyt,RSN1_7TM,RSN1_TM",0,"Calcium permeable stress-gated cation channel 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC2G11.09 PE=3 SV=2","PHM7_cyt,RSN1_7TM,RSN1_TM","PF14703.13,PF02714.21,PF13967.12",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_03390-t26_1-p1",9,0.875,7,0,"","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_6,AAA_7,AAA_chap_N,AAA_lid_3,AAA_RNF213_4,ABC_tran,ATPase,ATPase_2,bpMoxR,DUF815,IPT,IstB_IS21,Mg_chelatase,Molydop_binding,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,Parvo_NS1,Rad17,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,TIP49,TsaE,Viral_helicase1,Zeta_toxin",0,"ATPase family gene 2 protein OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AFG2 PE=1 SV=1","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_6,AAA_7,AAA_chap_N,AAA_lid_3,AAA_RNF213_4,ABC_tran,ATPase,ATPase_2,bpMoxR,DUF815,IPT,IstB_IS21,Mg_chelatase,Molydop_binding,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,Parvo_NS1,Rad17,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,TIP49,TsaE,Viral_helicase1,Zeta_toxin","PF00004.36,PF13086.13,PF13173.13,PF13191.13,PF13207.13,PF13238.13,PF13245.13,PF07724.21,PF13401.13,PF13479.13,PF13481.13,PF13521.13,PF07726.18,PF13604.13,PF13671.13,PF07728.21,PF12774.14,PF12775.14,PF29202.1,PF17862.8,PF30683.1,PF00005.34,PF06745.20,PF01637.25,PF20030.6,PF05673.20,PF01745.23,PF01695.24,PF01078.28,PF01568.28,PF05729.19,PF24883.3,PF20720.4,PF25199.2,PF01057.24,PF03215.22,PF00910.29,PF05496.19,PF00158.33,PF14532.13,PF06068.20,PF02367.24,PF01443.25,PF06414.19",1,"Afum,Cimm,FgraPH1,Ncra",0],["CNAG_04376-t26_1-p1",9,0.75,6,0,"","Kri1,Kri1_C",0,"Protein kri1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=kri1 PE=1 SV=1","Kri1,Kri1_C","PF05178.18,PF12936.13",0,"",-1],["CNAG_04743-t26_1-p1",9,0.75,6,0,"","AstA,DtrJ-like,OST48_MD,OST48_N",0,"Dolichyl-diphosphooligosaccharide--protein glycosyltransferase 48 kDa subunit OS=Homo sapiens OX=9606 GN=DDOST PE=1 SV=4","AstA,DtrJ-like,OST48_MD,OST48_N","PF04958.20,PF14348.12,PF23358.2,PF03345.22",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_01897-t26_1-p1",9,0.75,6,0,"","AATF-Che1,Allexi_40kDa,ASD2,BET,Bromodomain,C24B10_03,CEP162_helical_3,SCD2_helical_N,VPA1267",0,"SWR1 complex bromodomain subunit bdf1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=bdf1 PE=1 SV=1","AATF-Che1,Allexi_40kDa,ASD2,BET,Bromodomain,C24B10_03,CEP162_helical_3,SCD2_helical_N,VPA1267","PF13339.12,PF05549.17,PF08687.17,PF17035.11,PF00439.31,PF27815.2,PF27821.1,PF27823.1,PF28121.1",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_06002-t26_1-p1",9,0.75,6,0,"","NAD_synthase,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M",0,"tRNA-specific 2-thiouridylase MnmA OS=Levilactobacillus brevis (strain ATCC 367 / BCRC 12310 / CIP 105137 / JCM 1170 / LMG 11437 / NCIMB 947 / NCTC 947) OX=387344 GN=mnmA PE=3 SV=1","NAD_synthase,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M","PF02540.24,PF03054.23,PF20258.5,PF20259.4",0,"",6],["CNAG_02534-t26_1-p1",9,0.75,6,0,"","PTS_2-RNA",0,"tRNA 2'-phosphotransferase 1 OS=Danio rerio OX=7955 GN=trpt1 PE=2 SV=2","PTS_2-RNA","PF01885.23",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_03064-t26_1-p1",9,0.75,6,0,"","Bud13,Nop16",0,"Nucleolar protein 16 OS=Cryptococcus deneoformans (strain JEC21 / ATCC MYA-565) OX=214684 GN=NOP16 PE=3 SV=1","Bud13,Nop16","PF09736.15,PF09420.16",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_05072-t26_1-p1",9,0.75,6,0,"","Asp,Asp_protease_2,gag-asp_proteas,TAXi_N",0,"Candidapepsin-2 OS=Candida albicans (strain WO-1) OX=294748 GN=SAP2 PE=1 SV=1","Asp,Asp_protease_2,gag-asp_proteas,TAXi_N","PF00026.29,PF13650.12,PF13975.12,PF14543.12",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_06591-t26_1-p1",9,0.75,6,0,"","DUF3915,PHD,PHD_5,PHD_JHD1,SET",0,"SET domain-containing protein 3 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=SET3 PE=1 SV=1","DUF3915,PHD,PHD_5,PHD_JHD1,SET","PF13054.11,PF00628.36,PF20826.3,PF31197.1,PF00856.34",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CNAG_03352-t26_1-p1",9,0.75,6,0,"","BolA,DUF6602",0,"BolA-like protein 2 OS=Mus musculus OX=10090 GN=Bola2 PE=1 SV=1","BolA,DUF6602","PF01722.24,PF20247.4",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_03766-t26_1-p1",10,0.75,6,0,"","ANAPC4_WD40,Beta-prop_ACSF4,Beta-prop_EML_2,Beta-prop_HPS5,Beta-prop_IFT122_1st,Beta-prop_SPT8,Beta-prop_TEP1_2nd,Beta-prop_THOC3,Beta-prop_Vps41,Beta-prop_WDR36-Utp21_1st,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR5,EIF3I,NBCH_WD40,Utp12,WD40,WD40_2,WD40_CDC20-Fz,WD40_Prp19,WD40_WDHD1_1st,WDR55,WDR90_beta-prop_4th",0,"U3 small nucleolar RNA-associated protein 5 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=UTP5 PE=1 SV=1","ANAPC4_WD40,Beta-prop_ACSF4,Beta-prop_EML_2,Beta-prop_HPS5,Beta-prop_IFT122_1st,Beta-prop_SPT8,Beta-prop_TEP1_2nd,Beta-prop_THOC3,Beta-prop_Vps41,Beta-prop_WDR36-Utp21_1st,Beta-prop_WDR36-Utp21_2nd,Beta-prop_WDR3_1st,Beta-prop_WDR3_2nd,Beta-prop_WDR5,EIF3I,NBCH_WD40,Utp12,WD40,WD40_2,WD40_CDC20-Fz,WD40_Prp19,WD40_WDHD1_1st,WDR55,WDR90_beta-prop_4th","PF12894.14,PF13570.14,PF23414.2,PF23756.2,PF23381.2,PF23798.2,PF25047.1,PF25174.2,PF23411.2,PF25171.2,PF25168.2,PF25173.2,PF25172.2,PF25175.2,PF24805.2,PF20426.5,PF04003.18,PF00400.39,PF19056.7,PF24807.2,PF24814.2,PF24817.2,PF24796.2,PF23342.2",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_13714-t26_1-p1",10,1.0,8,0,"","ALMT,APG6_N,Ax_dynein_light,Bfr1,CLIP1,DUF3958,DUF4407,DUF6847,Exonuc_VII_L,FAM184,Fez1,GOSR1_N,HAUS-augmin3,kleA_kleC,Lebercilin,LEKR1,Muted,Nup54,Sec20,SHE3,SlyX,Spectrin,STB2_C,T2SSM_N,V-SNARE_C,Vip3A_N,Vir_act_alpha_C,V_ATPase_I,YgaB",0,"Golgi SNAP receptor complex member 1 OS=Bos taurus OX=9913 GN=GOSR1 PE=2 SV=1","ALMT,APG6_N,Ax_dynein_light,Bfr1,CLIP1,DUF3958,DUF4407,DUF6847,Exonuc_VII_L,FAM184,Fez1,GOSR1_N,HAUS-augmin3,kleA_kleC,Lebercilin,LEKR1,Muted,Nup54,Sec20,SHE3,SlyX,Spectrin,STB2_C,T2SSM_N,V-SNARE_C,Vip3A_N,Vir_act_alpha_C,V_ATPase_I,YgaB","PF11744.15,PF17675.7,PF10211.15,PF30554.1,PF27241.1,PF13125.12,PF14362.12,PF20935.3,PF02601.21,PF15665.11,PF06818.21,PF27017.1,PF14932.12,PF17383.7,PF15619.12,PF30842.1,PF14942.12,PF13874.12,PF03908.19,PF17078.11,PF04102.18,PF00435.28,PF28231.1,PF28880.1,PF12352.14,PF12495.14,PF10400.16,PF01496.25,PF14182.12",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_04266-t26_1-p1",10,0.75,6,0,"","Abhydrolase_1,RIPR_EGF-like_6th,RSA-1_M",0,"Monoacylglycerol lipase OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=MGL2 PE=1 SV=1","Abhydrolase_1,RIPR_EGF-like_6th,RSA-1_M","PF00561.27,PF29979.1,PF30344.1",0,"",-1],["CC1G_05172-t26_1-p1",10,1.0,8,0,"","Arm,Arm_2,HEAT,HEAT_2,V-ATPase_H_C,V-ATPase_H_N",0,"V-type proton ATPase subunit H OS=Mus musculus OX=10090 GN=Atp6v1h PE=1 SV=1","Arm,Arm_2,HEAT,HEAT_2,V-ATPase_H_C,V-ATPase_H_N","PF00514.30,PF04826.20,PF02985.29,PF13646.13,PF11698.15,PF03224.21",1,"Afum,Cimm,FgraPH1,Ncra",1],["CC1G_05200-t26_1-p1",10,0.75,6,0,"","BBS1,DUF1759,DUF7785,GatF,HSA,ING,PHD,PHD-1st_NSD,PHD_2,PHD_G2E3,PHD_Pygo,PHD_UBR7-like,zf-HC5HC2H",0,"Chromatin modification-related protein YNG2 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YNG2 PE=1 SV=1","BBS1,DUF1759,DUF7785,GatF,HSA,ING,PHD,PHD-1st_NSD,PHD_2,PHD_G2E3,PHD_Pygo,PHD_UBR7-like,zf-HC5HC2H","PF14779.13,PF03564.22,PF25009.2,PF20977.3,PF07529.19,PF12998.13,PF00628.36,PF23011.3,PF13831.13,PF26054.1,PF27108.1,PF30811.1,PF13771.13",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_10554-t26_1-p1",10,0.75,6,0,"","DUF7411,NAD_synthase,ThiI,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M",0,"tRNA-specific 2-thiouridylase MnmA OS=Alkaliphilus metalliredigens (strain QYMF) OX=293826 GN=mnmA PE=3 SV=1","DUF7411,NAD_synthase,ThiI,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M","PF24167.2,PF02540.24,PF02568.21,PF03054.23,PF20258.5,PF20259.4",0,"",6],["CC1G_10821-t26_1-p1",10,0.75,6,0,"","CS,PIH1_CS,SHQ1,SHQ1-like_CS",0,"Protein shq1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=shq1 PE=3 SV=1","CS,PIH1_CS,SHQ1,SHQ1-like_CS","PF04969.23,PF18201.8,PF04925.21,PF21413.4",0,"",2],["CC1G_04573-t26_1-p1",10,0.75,6,0,"","DUF5955,DUF8326,Efg1,LMBR1,Phe_tRNA-synt_N",0,"rRNA-processing protein EFG1 OS=Coprinopsis cinerea (strain Okayama-7 / 130 / ATCC MYA-4618 / FGSC 9003) OX=240176 GN=EFG1 PE=3 SV=1","DUF5955,DUF8326,Efg1,LMBR1,Phe_tRNA-synt_N","PF19380.5,PF27005.1,PF10153.15,PF04791.22,PF02912.24",0,"",-1],["CC1G_04120-t26_1-p1",10,0.75,6,0,"","ATP-synt_G",0,"ATP synthase subunit g, mitochondrial OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=ATP20 PE=1 SV=1","ATP-synt_G","PF04718.21",0,"",-1],["CC1G_06392-t26_1-p1",10,0.875,7,0,"","Ank,Ank_2,Ank_4,DUF5610,RESC9_M",0,"Ankyrin repeat-containing protein YCR051W OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=YCR051W PE=1 SV=1","Ank,Ank_2,Ank_4,DUF5610,RESC9_M","PF00023.37,PF12796.14,PF13637.13,PF18433.7,PF26229.1",0,"",-1],["CC1G_14583-t26_1-p1",10,0.75,6,0,"","MT-A70",0,"N(6)-adenosine-methyltransferase catalytic subunit METTL3 OS=Homo sapiens OX=9606 GN=METTL3 PE=1 SV=2","MT-A70","PF05063.21",0,"",-1],["CC1G_00775-t26_1-p1",10,0.75,6,0,"","DUF357,Rhodanese,UCH,UCH_1",0,"Ubiquitin carboxyl-terminal hydrolase 4 OS=Vanderwaltozyma polyspora (strain ATCC 22028 / DSM 70294 / BCRC 21397 / CBS 2163 / NBRC 10782 / NRRL Y-8283 / UCD 57-17) OX=436907 GN=DOA4 PE=3 SV=1","DUF357,Rhodanese,UCH,UCH_1","PF04010.19,PF00581.26,PF00443.36,PF13423.13",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_08347-t26_1-p1",10,0.875,7,0,"","PTS_2-RNA",0,"tRNA 2'-phosphotransferase 1 OS=Danio rerio OX=7955 GN=trpt1 PE=2 SV=2","PTS_2-RNA","PF01885.23",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_03112-t26_1-p1",10,0.875,7,0,"","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,ABC_tran,Adeno_IVa2,AFG1_ATPase,ATP-synt_ab,ATPase,ATPase_2,Bac_DnaA,bpMoxR,DAP3,DUF5906,DUF815,ETF,IstB_IS21,Mg_chelatase,NACHT,NB-ARC,NPHP3_N,nSTAND3,NTPase_1,ORC-CDC6-like,Parvo_NS1,PhoH,Rad17,ResIII,RNA_helicase,RuvB_N,Sigma54_activat,TIP49,TsaE,Viral_helicase1,Vps4_C,Zeta_toxin",0,"ATPase family gene 2 protein OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=afg2 PE=3 SV=1","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,ABC_tran,Adeno_IVa2,AFG1_ATPase,ATP-synt_ab,ATPase,ATPase_2,Bac_DnaA,bpMoxR,DAP3,DUF5906,DUF815,ETF,IstB_IS21,Mg_chelatase,NACHT,NB-ARC,NPHP3_N,nSTAND3,NTPase_1,ORC-CDC6-like,Parvo_NS1,PhoH,Rad17,ResIII,RNA_helicase,RuvB_N,Sigma54_activat,TIP49,TsaE,Viral_helicase1,Vps4_C,Zeta_toxin","PF00004.36,PF13086.13,PF13173.13,PF13191.13,PF13207.13,PF13238.13,PF13245.13,PF07724.21,PF13401.13,PF13479.13,PF13481.13,PF13521.13,PF07726.18,PF13604.13,PF13671.13,PF07728.21,PF12775.14,PF17862.8,PF00005.34,PF02456.23,PF03969.23,PF00006.32,PF06745.20,PF01637.25,PF00308.25,PF20030.6,PF10236.16,PF19263.6,PF05673.20,PF01012.28,PF01695.24,PF01078.28,PF05729.19,PF00931.29,PF24883.3,PF20720.4,PF03266.22,PF24389.2,PF01057.24,PF02562.23,PF03215.22,PF04851.22,PF00910.29,PF05496.19,PF00158.33,PF06068.20,PF02367.24,PF01443.25,PF09336.17,PF06414.19",1,"Afum,Cimm,FgraPH1,Ncra",0],["CC1G_09441-t26_1-p1",10,0.875,7,0,"","Cnd1,DUF5053,Fes1,HEAT,HEAT_2,HEAT_EZ,IFRD,SIL1_FES1_HPBP1_C,TAN",0,"Hsp70 nucleotide exchange factor FES1 OS=Mycosarcoma maydis OX=5270 GN=FES1 PE=3 SV=2","Cnd1,DUF5053,Fes1,HEAT,HEAT_2,HEAT_EZ,IFRD,SIL1_FES1_HPBP1_C,TAN","PF12717.14,PF16476.12,PF08609.17,PF02985.29,PF13646.13,PF13513.13,PF05004.20,PF28415.2,PF11640.14",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_06560-t26_1-p1",10,0.875,7,0,"","Gcd10p,LPD34",0,"tRNA (adenine(58)-N(1))-methyltransferase non-catalytic subunit TRM6 OS=Cryptococcus deneoformans (strain JEC21 / ATCC MYA-565) OX=214684 GN=TRM6 PE=3 SV=1","Gcd10p,LPD34","PF04189.19,PF18852.7",1,"Afum,Cimm,FgraPH1",-1],["CC1G_10823-t26_1-p1",10,0.875,7,0,"","Ribosomal_S2",0,"Small ribosomal subunit protein uS2m OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=mrp4 PE=3 SV=2","Ribosomal_S2","PF00318.26",1,"Afum,Cimm,FgraPH1,Ncra",-1],["CC1G_14200-t26_1-p1",10,0.75,6,0,"","DUF218",0,"Uncharacterized protein C57A10.07 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPAC57A10.07 PE=4 SV=1","DUF218","PF02698.24",1,"Afum,FgraPH1,Ncra",-1],["HMPREF1544_00556-t46_1-p1",11,0.75,6,0,"","ABC1,APH,FTA2,Haspin_kinase,Kdo,Kinase-like,Pkinase,Pkinase_fungal,PK_Tyr_Ser-Thr,YrbL-PhoP_reg",0,"Serine/threonine-protein kinase nak1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=nak1 PE=1 SV=1","ABC1,APH,FTA2,Haspin_kinase,Kdo,Kinase-like,Pkinase,Pkinase_fungal,PK_Tyr_Ser-Thr,YrbL-PhoP_reg","PF03109.23,PF01636.30,PF13095.13,PF12330.15,PF06293.21,PF14531.13,PF00069.32,PF17667.8,PF07714.24,PF10707.16",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_00772-t46_1-p1",11,0.75,6,0,"","DUF1664,SHQ1,SHQ1-like_CS",0,"Protein shq1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=shq1 PE=3 SV=1","DUF1664,SHQ1,SHQ1-like_CS","PF07889.18,PF04925.21,PF21413.4",0,"",2],["HMPREF1544_01809-t46_1-p1",11,1.0,8,0,"","Ist1,RGM_C,Snf7",0,"Vacuolar protein-sorting-associated protein 46 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=did2 PE=3 SV=2","Ist1,RGM_C,Snf7","PF03398.20,PF06534.19,PF03357.27",0,"",-1],["HMPREF1544_01810-t46_1-p1",11,0.875,7,0,"","Death_MADD",0,"Charged multivesicular body protein 1 OS=Dictyostelium discoideum OX=44689 GN=chmp1 PE=3 SV=1","Death_MADD","PF23629.1",0,"",-1],["HMPREF1544_02012-t46_1-p1",11,0.875,7,0,"","BING4CT,DnaJ,Torus",0,"Chaperone protein DnaJ OS=Chlorobaculum tepidum (strain ATCC 49652 / DSM 12025 / NBRC 103806 / TLS) OX=194439 GN=dnaJ PE=3 SV=1","BING4CT,DnaJ,Torus","PF08149.17,PF00226.37,PF16131.12",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_03538-t46_1-p1",11,0.875,7,0,"","Arc1p_N_like,GST_C,GST_C_3,GST_C_6,KH_PARP14_2,OB_RRP5_4th,Prot_ATP_ID_OB_C,tRNA_bind",0,"Aminoacyl tRNA synthase complex-interacting multifunctional protein 1 OS=Cricetulus griseus OX=10029 GN=AIMP1 PE=2 SV=1","Arc1p_N_like,GST_C,GST_C_3,GST_C_6,KH_PARP14_2,OB_RRP5_4th,Prot_ATP_ID_OB_C,tRNA_bind","PF21972.2,PF00043.31,PF14497.12,PF17171.10,PF23248.2,PF24685.2,PF16450.12,PF01588.27",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_04131-t46_1-p1",11,0.875,8,0,"","PRELI,RRM_LARP4",0,"PRELI domain-containing protein 1, mitochondrial OS=Gallus gallus OX=9031 GN=PRELID1 PE=2 SV=1","PRELI,RRM_LARP4","PF04707.21,PF26088.1",1,"Afum,Cimm,FgraPH1,Ncra",4],["HMPREF1544_04739-t46_1-p1",11,0.75,6,0,"","DUF2340,Get5_N,Ubiquitin_TPR1",0,"Altered inheritance rate of mitochondria protein 29 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=AIM29 PE=1 SV=1","DUF2340,Get5_N,Ubiquitin_TPR1","PF10209.15,PF12754.14,PF23603.2",0,"",7],["HMPREF1544_04822-t46_1-p1",11,0.75,6,0,"","DYNC2H1_AAA_dom,TMEM33_Pom33",0,"Tetra-spanning protein 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=tts1 PE=1 SV=1","DYNC2H1_AAA_dom,TMEM33_Pom33","PF21264.4,PF03661.19",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_05331-t46_1-p1",11,0.75,6,0,"","Med14,WH_Halo_primase",0,"Mediator of RNA polymerase II transcription subunit 14 OS=Aedes aegypti OX=7159 GN=MED14 PE=3 SV=2","Med14,WH_Halo_primase","PF08638.17,PF26462.1",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_05961-t46_1-p1",11,0.75,6,0,"","Arginosuc_synth,Asn_synthase,DRHyd-ASK,DUF7411,NAD_synthase,QueC,ThiI,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M",0,"tRNA-specific 2-thiouridylase MnmA OS=Halalkalibacterium halodurans (strain ATCC BAA-125 / DSM 18197 / FERM 7344 / JCM 9153 / C-125) OX=272558 GN=mnmA PE=3 SV=1","Arginosuc_synth,Asn_synthase,DRHyd-ASK,DUF7411,NAD_synthase,QueC,ThiI,tRNA_Me_trans,tRNA_Me_trans_C,tRNA_Me_trans_M","PF00764.26,PF00733.28,PF20309.5,PF24167.2,PF02540.24,PF06508.20,PF02568.21,PF03054.23,PF20258.5,PF20259.4",0,"",6],["HMPREF1544_06175-t46_1-p1",11,0.75,6,0,"","Hist_deacetyl",0,"Histone deacetylase phd1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=phd1 PE=1 SV=1","Hist_deacetyl","PF00850.25",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_06463-t46_1-p1",11,0.875,7,0,"","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_RNF213_4,ABC_tran,ATP-synt_ab,ATPase,ATPase_2,bpMoxR,DUF815,IPT,IstB_IS21,Mg_chelatase,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,NTPase_1,Parvo_NS1,PhoH,Rad17,ResIII,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,SLFN-g3_helicase,TIP49,TsaE,Vps4_C,Zeta_toxin",0,"ATPase family gene 2 protein homolog A OS=Homo sapiens OX=9606 GN=AFG2A PE=1 SV=3","AAA,AAA_11,AAA_14,AAA_16,AAA_17,AAA_18,AAA_19,AAA_2,AAA_22,AAA_24,AAA_25,AAA_28,AAA_3,AAA_30,AAA_33,AAA_5,AAA_7,AAA_lid_3,AAA_RNF213_4,ABC_tran,ATP-synt_ab,ATPase,ATPase_2,bpMoxR,DUF815,IPT,IstB_IS21,Mg_chelatase,NACHT,NPHP3_N,nSTAND3,nSTAND_NTPase5,NTPase_1,Parvo_NS1,PhoH,Rad17,ResIII,RNA_helicase,RuvB_N,Sigma54_activat,Sigma54_activ_2,SLFN-g3_helicase,TIP49,TsaE,Vps4_C,Zeta_toxin","PF00004.36,PF13086.13,PF13173.13,PF13191.13,PF13207.13,PF13238.13,PF13245.13,PF07724.21,PF13401.13,PF13479.13,PF13481.13,PF13521.13,PF07726.18,PF13604.13,PF13671.13,PF07728.21,PF12775.14,PF17862.8,PF30683.1,PF00005.34,PF00006.32,PF06745.20,PF01637.25,PF20030.6,PF05673.20,PF01745.23,PF01695.24,PF01078.28,PF05729.19,PF24883.3,PF20720.4,PF25199.2,PF03266.22,PF01057.24,PF02562.23,PF03215.22,PF04851.22,PF00910.29,PF05496.19,PF00158.33,PF14532.13,PF09848.16,PF06068.20,PF02367.24,PF09336.17,PF06414.19",1,"Afum,Cimm,FgraPH1,Ncra",0],["HMPREF1544_07510-t46_1-p1",11,0.75,6,0,"","GCV_T,GCV_T_C,IFT74,POP1_C,POP1_N,POPLD",0,"Ribonucleases P/MRP protein subunit pop1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=pop1 PE=3 SV=1","GCV_T,GCV_T_C,IFT74,POP1_C,POP1_N,POPLD","PF01571.27,PF08669.18,PF30951.1,PF22770.3,PF06978.17,PF08170.18",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_08629-t46_1-p1",11,0.75,6,0,"","ATP-synt_G,Phage_holin_6_1,YdhT_N",0,"ATP synthase subunit g, mitochondrial OS=Yarrowia lipolytica (strain CLIB 122 / E 150) OX=284591 GN=ATP20 PE=1 SV=1","ATP-synt_G,Phage_holin_6_1,YdhT_N","PF04718.21,PF09682.16,PF27195.1",1,"Afum,FgraPH1,Ncra",-1],["HMPREF1544_09396-t46_1-p1",11,0.75,6,0,"","Exo_endo_phos,Phage_Inh_N",0,"RNA exonuclease NGL2 OS=Saccharomyces cerevisiae (strain ATCC 204508 / S288c) OX=559292 GN=NGL2 PE=1 SV=1","Exo_endo_phos,Phage_Inh_N","PF03372.30,PF26097.2",1,"Afum,Cimm,Ncra",-1],["HMPREF1544_09709-t46_1-p1",11,0.75,6,0,"","Polyketide_cyc",0,"Coenzyme Q-binding protein COQ10 homolog A, mitochondrial OS=Xenopus laevis OX=8355 GN=coq10b-a PE=2 SV=1","Polyketide_cyc","PF03364.26",1,"Cimm,FgraPH1",-1],["HMPREF1544_09885-t46_1-p1",11,0.875,7,0,"","Methyltransf_11,Methyltransf_12,Methyltransf_23,Methyltransf_25,Methyltransf_31,Methyltransf_4,Methyltransf_ANTKMT,mRNA_G-N7_MeTrfase,MTS,NNMT_PNMT_TEMT,NodS,PrmA",0,"mRNA cap guanine-N(7) methyltransferase OS=Cryptococcus deneoformans (strain JEC21 / ATCC MYA-565) OX=214684 GN=ABD1 PE=3 SV=2","Methyltransf_11,Methyltransf_12,Methyltransf_23,Methyltransf_25,Methyltransf_31,Methyltransf_4,Methyltransf_ANTKMT,mRNA_G-N7_MeTrfase,MTS,NNMT_PNMT_TEMT,NodS,PrmA","PF08241.19,PF08242.19,PF13489.13,PF13649.13,PF13847.13,PF02390.24,PF29244.1,PF03291.23,PF05175.21,PF01234.25,PF05401.17,PF06325.20",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_10086-t46_1-p1",11,0.875,7,0,"","NRG2_N,Peptidase_S26",0,"Mitochondrial inner membrane protease subunit 2 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC336.13c PE=3 SV=1","NRG2_N,Peptidase_S26","PF25518.2,PF10502.15",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_10852-t46_1-p1",11,0.875,7,0,"","DUF8449,KH-I_KHDC4-BBP,KH_1,KH_11,KH_2,KH_BICC1,KH_KHD4_2nd,KH_N4BP1_1st,KH_N4BP1_2nd,KH_PARP14_6,KH_PARP14_8,KH_PNO1_2nd,KH_Vigilin,KH_YLL032C_2nd,KH_YLL032C_4th,KH_YLL032C_5th,PhoPQ_related,PINA_C,RNase_E_G_Thio,STATa_Ig",0,"Vigilin 1 OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=vgl1 PE=1 SV=2","DUF8449,KH-I_KHDC4-BBP,KH_1,KH_11,KH_2,KH_BICC1,KH_KHD4_2nd,KH_N4BP1_1st,KH_N4BP1_2nd,KH_PARP14_6,KH_PARP14_8,KH_PNO1_2nd,KH_Vigilin,KH_YLL032C_2nd,KH_YLL032C_4th,KH_YLL032C_5th,PhoPQ_related,PINA_C,RNase_E_G_Thio,STATa_Ig","PF28723.1,PF22675.3,PF00013.36,PF22952.3,PF07650.24,PF22985.4,PF29998.1,PF23050.2,PF23052.2,PF23253.2,PF23254.2,PF22891.3,PF24668.2,PF29522.1,PF29529.1,PF29533.1,PF10142.16,PF27298.1,PF20833.3,PF18214.8",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_11952-t46_1-p1",11,0.75,6,0,"","FtsJ,Methyltransf_25,Methyltransf_31,Methyltr_RsmB-F",0,"Ribosomal RNA large subunit methyltransferase E OS=Acidiphilium cryptum (strain JF-5) OX=349163 GN=rlmE PE=3 SV=1","FtsJ,Methyltransf_25,Methyltransf_31,Methyltr_RsmB-F","PF01728.26,PF13649.13,PF13847.13,PF01189.24",1,"Afum,Cimm,FgraPH1,Ncra",-1],["HMPREF1544_08154-t46_1-p1",11,0.75,6,0,"","A2L_zn_ribbon,AAA_34,CENP-B_dimeris,DEAD,DUF7685,FYDLN_acid,Helicase_C,NOA36,PH_RBD,Selenoprotein_S,SNF2-rel_dom,Tuberin",0,"Uncharacterized ATP-dependent helicase C582.10c OS=Schizosaccharomyces pombe (strain 972 / ATCC 24843) OX=284812 GN=SPBC582.10c PE=1 SV=1","A2L_zn_ribbon,AAA_34,CENP-B_dimeris,DEAD,DUF7685,FYDLN_acid,Helicase_C,NOA36,PH_RBD,Selenoprotein_S,SNF2-rel_dom,Tuberin","PF08792.17,PF13872.13,PF09026.15,PF00270.36,PF24734.2,PF09538.16,PF00271.38,PF06524.18,PF12068.15,PF06936.17,PF00176.30,PF03542.22",1,"Afum,Cimm,FgraPH1,Ncra",-1]]}</script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = JSON.parse(document.getElementById("payload").textContent);
+  var F = {};
+  DATA.fields.forEach(function (name, i) { F[name] = i; });
+
+  var ROWS = DATA.rows;
+  var PROTEOMES = DATA.proteomes;
+  var FAMILIES = DATA.families || [];
+  var nRows = ROWS.length;
+  var N_OUT = DATA.n_outgroup != null ? DATA.n_outgroup :
+    PROTEOMES.filter(function (p) { return p.group === "OUT"; }).length;
+  var N_IN = DATA.n_ingroup != null ? DATA.n_ingroup :
+    PROTEOMES.filter(function (p) { return p.group === "IN"; }).length;
+
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text; // labels are untrusted data
+    return n;
+  }
+
+  function geneIdFromProteinId(pid) {
+    return pid.replace(/-[Tt][^-]*(-p\d+)?$|-p\d+$/, "");
+  }
+  function uniprotAcc(sprot) {
+    if (!sprot) return "";
+    var m = /(?:^|\|)([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:\||\s|$)/.exec(sprot);
+    return m ? m[1] : "";
+  }
+
+  function download(name, text, type) {
+    var blob = new Blob([text], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+  }
+
+
+  function familyLabel(fam) {
+    return fam.rep + " (" + fam.size + " in " + fam.species.length +
+      (fam.species.length === 1 ? " species)" : " species)");
+  }
+
+  var HAY = new Array(nRows);
+  for (var h = 0; h < nRows; h++) {
+    var row = ROWS[h];
+    var famRep = row[F.fam] >= 0 ? FAMILIES[row[F.fam]].rep : "";
+    HAY[h] = (row[F.id] + " " + row[F.gene] + " " + row[F.prod] + " " +
+              row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
+  }
+
+  var state = {
+    search: "",
+    src: "",
+    fsrc: "",
+    family: -1,
+    noTb: false,
+    sort: "priority",
+    selected: -1
+  };
+  var view = [];
+
+  function applyFilters() {
+    var q = state.search.trim().toLowerCase();
+    var terms = q ? q.split(/\s+/) : [];
+    var srcIdx = state.src ? PROTEOMES.findIndex(function (p) { return p.short === state.src; }) : -1;
+    var fsrcIdx = state.fsrc ? DATA.fsources.indexOf(state.fsrc) : -2;
+
+    view = [];
+    for (var i = 0; i < nRows; i++) {
+      var row = ROWS[i];
+      if (state.family >= 0 && row[F.fam] !== state.family) continue;
+      if (srcIdx >= 0 && row[F.src] !== srcIdx) continue;
+      if (state.fsrc && row[F.fsrc] !== fsrcIdx) continue;
+      if (state.noTb && row[F.tb_hit]) continue;
+      if (terms.length) {
+        var hay = HAY[i], ok = true;
+        for (var t = 0; t < terms.length; t++) {
+          if (hay.indexOf(terms[t]) === -1) { ok = false; break; }
+        }
+        if (!ok) continue;
+      }
+      view.push(i);
+    }
+    sortView();
+  }
+
+  function sortView() {
+    var s = state.sort;
+    var cmpId = function (a, b) { return ROWS[a][F.id] < ROWS[b][F.id] ? -1 : ROWS[a][F.id] > ROWS[b][F.id] ? 1 : 0; };
+    var cmp;
+    if (s === "id") cmp = cmpId;
+    else if (s === "src") cmp = function (a, b) { return (ROWS[a][F.src] - ROWS[b][F.src]) || cmpId(a, b); };
+    else if (s === "frac") cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
+    else if (s === "breadth") cmp = function (a, b) { return (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) || cmpId(a, b); };
+    // priority: the strongest loss call is a gene family retained in the fewest ingroup
+    // species (cleanest loss), conserved across the most outgroup species (broadest
+    // ortholog set), with no ingroup TBLASTN hit — a genomic hit means "might just be a
+    // missed gene model", so it ranks below rows with none.
+    else cmp = function (a, b) {
+      return (ROWS[a][F.in_retained] - ROWS[b][F.in_retained]) ||
+             (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) ||
+             (ROWS[a][F.tb_hit] - ROWS[b][F.tb_hit]) || cmpId(a, b);
+    };
+    view.sort(cmp);
+  }
+
+  // ---- table --------------------------------------------------------------
+  var TBL_COLS = [
+    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
+    { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
+    { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num" },
+    { label: "Ingroup retained", get: function (r) { return ROWS[r][F.in_retained] + " / " + N_IN + " species"; }, cls: "num" },
+    { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num" },
+    { label: "Ingroup TBLASTN", get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; }, cls: "wrap-cell" },
+    {
+      label: "Gene family", cls: "wrap-cell",
+      get: function (r) {
+        var fi = ROWS[r][F.fam];
+        return fi >= 0 ? FAMILIES[fi].rep + " (" + FAMILIES[fi].size + ")" : "";
+      }
+    },
+    { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
+    { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
+    { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
+    { label: "Pfam domains", get: function (r) { return ROWS[r][F.pfam_n]; }, cls: "wrap-cell" }
+  ];
+
+  var TBL_PAGE = 300;
+  var tblShown = TBL_PAGE;
+  var tblBody = document.getElementById("tbl-body");
+  var tblScroll = document.getElementById("tbl-scroll");
+
+  function renderTableHead() {
+    var thead = document.getElementById("tbl-head");
+    thead.textContent = "";
+    var tr = document.createElement("tr");
+    TBL_COLS.forEach(function (c) {
+      var th = el("th", c.cls || null, c.label);
+      th.scope = "col";
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+  }
+
+  function renderTable(reset) {
+    if (reset) { tblShown = TBL_PAGE; tblBody.textContent = ""; tblScroll.scrollTop = 0; }
+    var start = tblBody.childNodes.length;
+    var end = Math.min(tblShown, view.length);
+    var frag = document.createDocumentFragment();
+    for (var i = start; i < end; i++) {
+      var ri = view[i];
+      var tr = document.createElement("tr");
+      tr.dataset.ri = ri;
+      if (ri === state.selected) tr.className = "sel";
+      TBL_COLS.forEach(function (c) {
+        var td = el("td", c.cls || null, c.get(ri) || "");
+        tr.appendChild(td);
+      });
+      frag.appendChild(tr);
+    }
+    tblBody.appendChild(frag);
+    document.getElementById("tbl-empty").classList.toggle("hidden", view.length > 0);
+  }
+
+  function markTableSelection() {
+    Array.prototype.forEach.call(tblBody.childNodes, function (tr) {
+      tr.className = Number(tr.dataset.ri) === state.selected ? "sel" : "";
+    });
+  }
+
+  tblScroll.addEventListener("scroll", function () {
+    if (tblScroll.scrollTop + tblScroll.clientHeight > tblScroll.scrollHeight - 200 && tblShown < view.length) {
+      tblShown = Math.min(tblShown + TBL_PAGE, view.length);
+      renderTable(false);
+    }
+  });
+  tblBody.addEventListener("click", function (e) {
+    var tr = e.target.closest("tr");
+    if (tr && tr.dataset.ri !== undefined) select(Number(tr.dataset.ri));
+  });
+
+  // ---- detail panel ---------------------------------------------------------
+  var detailEl = document.getElementById("detail");
+
+  function field(label, valueNode) {
+    var f = el("div", "field");
+    f.appendChild(el("div", "field-label", label));
+    if (typeof valueNode === "string") f.appendChild(el("div", "field-value", valueNode));
+    else f.appendChild(valueNode);
+    return f;
+  }
+
+  function renderDetail() {
+    detailEl.textContent = "";
+    var ri = state.selected;
+    if (ri < 0) {
+      detailEl.appendChild(el("p", "placeholder",
+        "Select a protein in the table to see its annotation and database links."));
+      return;
+    }
+    var row = ROWS[ri];
+    var sp = row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null;
+
+    detailEl.appendChild(el("h3", null, row[F.id]));
+    if (sp) {
+      detailEl.appendChild(el("div", "species",
+        sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short + " · outgroup"));
+    }
+
+    var retained = row[F.in_retained];
+    var statusText = (retained === 0
+        ? "Absent from every ingroup proteome"
+        : "Retained in " + retained + " of " + N_IN + " ingroup species") +
+      "; the gene family is present in " + row[F.out_breadth] + " of " + N_OUT +
+      " outgroup species (this protein hits " + Math.round(row[F.frac] * 100) +
+      "% of the outgroup).";
+    var statusBox = el("div");
+    statusBox.appendChild(el("div", "field-value", statusText));
+    if (row[F.tb_hit]) {
+      var warn = el("span", "badge warn",
+        "TBLASTN hit in ingroup genome: " + row[F.tb_genomes]);
+      warn.title = "The protein search found no ortholog, but a translated nucleotide " +
+        "search did — this may be a missed gene model rather than a true loss.";
+      statusBox.appendChild(el("div", null, warn));
+    } else if (DATA.tblastn_genomes && DATA.tblastn_genomes.length) {
+      statusBox.appendChild(el("div", null, el("span", "badge", "No ingroup TBLASTN hit")));
+    }
+    detailEl.appendChild(field("Status", statusBox));
+
+    if (row[F.fam] >= 0) {
+      var fam = FAMILIES[row[F.fam]];
+      var famBox = el("div");
+      famBox.appendChild(el("div", "field-value",
+        fam.size + " members across " + fam.species.length + " species (" + fam.species.join(", ") + ")"));
+      var famLinks = el("div", "links");
+      var famBtn = el("button", null, "Show family members (" + fam.size + ")");
+      famBtn.type = "button";
+      famBtn.addEventListener("click", function () { setFamilyFilter(row[F.fam]); });
+      famLinks.appendChild(famBtn);
+      famBox.appendChild(famLinks);
+      detailEl.appendChild(field("Gene family — independently recovered in multiple outgroup species", famBox));
+    }
+
+    if (row[F.gene]) detailEl.appendChild(field("Gene name (outgroup)", row[F.gene]));
+    if (row[F.prod]) detailEl.appendChild(field("Product", row[F.prod]));
+    if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
+    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", row[F.sprot]));
+
+    if (row[F.pfam_n]) {
+      var names = row[F.pfam_n].split(",");
+      var accs = row[F.pfam_a] ? row[F.pfam_a].split(",") : [];
+      var chips = el("div", "chips");
+      names.forEach(function (n, i) {
+        var acc = (accs[i] || "").split(".")[0];
+        var node;
+        if (/^PF\d+$/.test(acc)) {
+          node = el("a", "chip", n);
+          node.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
+          node.target = "_blank";
+          node.rel = "noopener noreferrer";
+          node.title = acc;
+        } else {
+          node = el("span", "chip", n);
+        }
+        chips.appendChild(node);
+      });
+      detailEl.appendChild(field("Pfam domains (" + names.length + ")", chips));
+    }
+
+    // external links — resolved against the *outgroup* protein, since that is
+    // where the gene actually is (e.g. "this looks like S. cerevisiae's ERG3").
+    var links = el("div", "links");
+    var acc = uniprotAcc(row[F.sprot]);
+    var fsrcName = row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "";
+    if (acc) {
+      var up = el("a", null, "UniProt " + acc);
+      up.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
+      up.target = "_blank"; up.rel = "noopener noreferrer";
+      links.appendChild(up);
+      var af = el("a", null, "AlphaFold");
+      af.href = "https://alphafold.ebi.ac.uk/entry/" + acc;
+      af.target = "_blank"; af.rel = "noopener noreferrer";
+      links.appendChild(af);
+    }
+    if (fsrcName.indexOf("ModelOrg_") === 0) {
+      var fd = el("a", null, "FungiDB gene");
+      fd.href = "https://fungidb.org/fungidb/app/record/gene/" + encodeURIComponent(geneIdFromProteinId(row[F.id]));
+      fd.target = "_blank"; fd.rel = "noopener noreferrer";
+      links.appendChild(fd);
+    }
+    if (!acc && fsrcName.indexOf("ModelOrg_") !== 0) {
+      var term = row[F.gene] || geneIdFromProteinId(row[F.id]);
+      var nc = el("a", null, "Search NCBI Protein");
+      nc.href = "https://www.ncbi.nlm.nih.gov/protein/?term=" + encodeURIComponent(term);
+      nc.target = "_blank"; nc.rel = "noopener noreferrer";
+      nc.title = "No model-organism or SwissProt hit — worth a manual check";
+      links.appendChild(nc);
+    }
+    if (links.childNodes.length) detailEl.appendChild(field("External resources (outgroup protein)", links));
+  }
+
+  function select(ri) {
+    state.selected = ri;
+    renderDetail();
+    markTableSelection();
+  }
+
+  // ---- downloads ------------------------------------------------------------
+  document.getElementById("dl-tsv").addEventListener("click", function () {
+    var lines = [TBL_COLS.map(function (c) { return c.label; }).join("\t")];
+    view.forEach(function (ri) {
+      lines.push(TBL_COLS.map(function (c) { return String(c.get(ri) || "").replace(/[\t\n\r]/g, " "); }).join("\t"));
+    });
+    download(DATA.project + ".losses.tsv", lines.join("\n") + "\n", "text/tab-separated-values");
+  });
+
+  // ---- summary ----------------------------------------------------------
+  function renderSummary() {
+    var flagged = 0;
+    for (var i = 0; i < nRows; i++) { if (ROWS[i][F.tb_hit]) flagged++; }
+    var nOut = PROTEOMES.filter(function (p) { return p.group === "OUT"; }).length;
+
+    var absenceText = (DATA.loss_ingroup_max_frac > 0)
+      ? "retained in at most " + Math.round(DATA.loss_ingroup_max_frac * 100) + "% of the ingroup"
+      : "absent from every ingroup proteome";
+    document.getElementById("summary-note").textContent =
+      "Gene families conserved in ≥" + Math.round((DATA.outgroup_min_frac || 0) * 100) +
+      "% of the outgroup but " + absenceText + " — candidate lineage-specific gene losses, " +
+      "prioritized by ingroup retention (cleanest loss first), outgroup family breadth, and " +
+      "absence of ingroup genomic (TBLASTN) evidence.";
+    document.getElementById("t-total").textContent = nRows.toLocaleString();
+    document.getElementById("t-out").textContent = nOut + (nOut === 1 ? " species" : " species");
+    document.getElementById("t-fam").textContent = FAMILIES.length.toLocaleString();
+    document.getElementById("t-flagged").textContent =
+      nRows ? flagged.toLocaleString() + " (" + Math.round((flagged / nRows) * 100) + "%)" : "—";
+  }
+
+  // ---- wiring -------------------------------------------------------------
+  function refresh(resetScroll) {
+    applyFilters();
+    if (state.selected >= 0 && view.indexOf(state.selected) === -1) {
+      state.selected = -1;
+      renderDetail();
+    }
+    document.getElementById("count").textContent =
+      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins";
+    renderTable(true);
+  }
+
+  function populateSelects() {
+    var src = document.getElementById("f-src");
+    src.appendChild(new Option("All outgroup proteomes", ""));
+    PROTEOMES.filter(function (p) { return p.group === "OUT"; }).forEach(function (p) {
+      src.appendChild(new Option(p.short + " — " + p.species, p.short));
+    });
+    var fs = document.getElementById("f-fsrc");
+    fs.appendChild(new Option("Any annotation source", ""));
+    DATA.fsources.slice().sort().forEach(function (f) { fs.appendChild(new Option(f, f)); });
+
+    var fam = document.getElementById("f-family");
+    fam.appendChild(new Option(
+      FAMILIES.length ? "All families (" + FAMILIES.length + ")" : "No multi-species families", ""
+    ));
+    FAMILIES.forEach(function (f, i) { fam.appendChild(new Option(familyLabel(f), String(i))); });
+  }
+
+  function setFamilyFilter(idx) {
+    state.family = idx;
+    document.getElementById("f-family").value = idx >= 0 ? String(idx) : "";
+    refresh(true);
+  }
+
+  var searchTimer = null;
+  document.getElementById("f-search").addEventListener("input", function (e) {
+    var v = e.target.value;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () { state.search = v; refresh(true); }, 140);
+  });
+  document.getElementById("f-src").addEventListener("change", function (e) { state.src = e.target.value; refresh(true); });
+  document.getElementById("f-fsrc").addEventListener("change", function (e) { state.fsrc = e.target.value; refresh(true); });
+  document.getElementById("f-family").addEventListener("change", function (e) {
+    state.family = e.target.value === "" ? -1 : Number(e.target.value);
+    refresh(true);
+  });
+  document.getElementById("f-notb").addEventListener("change", function (e) { state.noTb = e.target.checked; refresh(true); });
+  document.getElementById("f-sort").addEventListener("change", function (e) { state.sort = e.target.value; refresh(true); });
+  document.getElementById("f-reset").addEventListener("click", function () {
+    state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
+    state.noTb = false; state.sort = "priority";
+    document.getElementById("f-search").value = "";
+    document.getElementById("f-src").value = "";
+    document.getElementById("f-fsrc").value = "";
+    document.getElementById("f-family").value = "";
+    document.getElementById("f-notb").checked = false;
+    document.getElementById("f-sort").value = "priority";
+    refresh(true);
+  });
+
+
+  var themeBtn = document.getElementById("theme-toggle");
+  themeBtn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) {
+      cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  });
+
+
+  // ---- init ---------------------------------------------------------------
+  document.getElementById("title").textContent = DATA.project + " — candidate gene losses";
+  var inNames = PROTEOMES.filter(function (p) { return p.group === "IN"; })
+    .map(function (p) { return p.species; }).join(", ");
+  var outNames = PROTEOMES.filter(function (p) { return p.group === "OUT"; })
+    .map(function (p) { return p.species; }).join(", ");
+  document.getElementById("subtitle").textContent =
+    "Ingroup: " + inNames + "  ·  Outgroup: " + outNames;
+  document.title = DATA.project + " — NovInvenio candidate losses";
+
+  populateSelects();
+  renderSummary();
+  renderTableHead();
+  refresh(true);
+  renderDetail();
+})();
+</script>
+</body>
+</html>
