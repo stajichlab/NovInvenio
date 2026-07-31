@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from clusters import build_families, read_cluster_tsv
-from config_parser import INGROUP_ROLES, OUTGROUP_ROLES
+from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config
 
 
 def load_groups(config_csv):
@@ -39,16 +39,19 @@ def load_groups(config_csv):
     INGROUP_ROLES/OUTGROUP_ROLES) — this is the same coarse banding the report payload
     builders use, so novelty_discovery configs (DISCOVERY_TARGET/DISCOVERY_OUT) produce
     novelties.<SHORT>.tsv just like classic IN/OUT configs.
+
+    Uses parse_config() rather than a hand-rolled csv.DictReader loop so old-style GROUP
+    labels (TARGET/DISC_OUT/NEAR_IN/BROAD_OUT) get the same GROUP_ALIASES normalization
+    every other consumer of the config gets -- a prior version of this function read
+    row['GROUP'] directly and silently produced zero ingroup/outgroup matches for any
+    config still using the pre-rename labels (todo/rename-novelty-discovery-group-labels.md).
     """
     ingroup, outgroup = [], []
-    with open(config_csv, newline='') as fh:
-        for row in csv.DictReader(fh):
-            short = row['Short'].strip()
-            group = row['GROUP'].strip().upper()
-            if group in INGROUP_ROLES:
-                ingroup.append(short)
-            elif group in OUTGROUP_ROLES:
-                outgroup.append(short)
+    for sample in parse_config(config_csv):
+        if sample.group in INGROUP_ROLES:
+            ingroup.append(sample.short)
+        elif sample.group in OUTGROUP_ROLES:
+            outgroup.append(sample.short)
     return ingroup, outgroup
 
 
