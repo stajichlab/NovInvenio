@@ -14,6 +14,7 @@
 process EMPTY_LOSS_STUB {
     label 'low_cpu'
     tag "empty_loss_stub"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     path(header_source_matrix)   // annotated novelty-direction matrix, for its column header

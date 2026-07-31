@@ -5,6 +5,7 @@
 // can wire either interchangeably.
 process PROFILE_CANDIDATE_CLUSTERS {
     label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:

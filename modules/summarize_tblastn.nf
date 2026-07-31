@@ -5,6 +5,7 @@
 // against different genome panels, so this is the same summarization either way.
 process SUMMARIZE_TBLASTN {
     label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:

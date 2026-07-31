@@ -31,6 +31,7 @@ workflow ANNOTATE {
 // path from params; they are not staged into the work directory.
 process ANNOTATE_MATRIX {
     label 'high_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:

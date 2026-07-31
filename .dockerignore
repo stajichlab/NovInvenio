@@ -1,0 +1,38 @@
+# Large data directories — provided by the user at runtime
+db/
+data/
+results/
+busco_pezizo5/
+
+# Nextflow run state
+.nextflow/
+.nextflow.log*
+.nextflow.pid
+work/
+
+# Logs
+logs/
+
+# pixi lock files — not needed inside the image
+pixi.lock
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# Test fixtures with real proteome data (large, not needed in image)
+tests/data/*.pep.fa
+tests/data/*.dna.fa
+tests/data/logs/
+
+# Temporary / scratch
+*.tmp
+*.bak

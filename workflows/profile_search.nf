@@ -22,6 +22,7 @@ include { PROFILE_PRESENCE_MATRIX } from '../modules/profile_presence_matrix'
 process SEED_PROTEIN_MAP {
     label 'low_cpu'
     tag "${meta.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     tuple val(meta), path(proteome_fa)

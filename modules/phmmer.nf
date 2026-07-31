@@ -1,6 +1,7 @@
 process PHMMER_SEARCH {
     label 'med_cpu'
     tag "${meta_q.id}_vs_${meta_t.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     storeDir { "${params.outdir}/${Helpers.projectName(params)}/search_cache" }
 

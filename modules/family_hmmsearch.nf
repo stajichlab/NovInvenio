@@ -21,6 +21,7 @@
 process SPLIT_HMM_DB {
     label 'low_cpu'
     tag "split_hmm_db"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     path(profiles_hmm)
@@ -61,6 +62,7 @@ process SPLIT_HMM_DB {
 process HMMSEARCH_CHUNK {
     label 'hmmsearch'
     tag { "${meta.id}_${hmm_chunk.baseName}" }
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     tuple val(meta), path(proteome_fa), path(hmm_chunk)
@@ -89,6 +91,7 @@ process HMMSEARCH_CHUNK {
 process MERGE_DOMTBLOUT {
     label 'low_cpu'
     tag { meta.id }
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}family_hmmsearch" }, mode: 'copy'
 
     input:

@@ -8,6 +8,7 @@ nextflow.enable.dsl=2
 process PHMMER_SELF {
     label 'med_cpu'
     tag "${meta.id}_self"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     storeDir { "${params.outdir}/${Helpers.projectName(params)}/search_cache" }
 
     input:
@@ -33,6 +34,7 @@ process PHMMER_SELF {
 process DIAMOND_SELF {
     label 'high_cpu'
     tag "${meta.id}_self"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     storeDir { "${params.outdir}/${Helpers.projectName(params)}/search_cache" }
 
     input:
@@ -62,6 +64,7 @@ process DIAMOND_SELF {
 process BLAST_SELF {
     label 'high_cpu'
     tag "${meta.id}_self"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     storeDir { "${params.outdir}/${Helpers.projectName(params)}/search_cache" }
 
     input:

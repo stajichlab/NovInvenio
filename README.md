@@ -159,6 +159,110 @@ nextflow run main.nf \
 nextflow run main.nf -resume --config configs/... --data_dir ...
 ```
 
+## Running with Docker / Singularity
+
+The pipeline ships a containerised build so you can run it without installing
+any tools locally.  The image (`ghcr.io/stajichlab/novinvenio`) contains
+`phmmer`, `diamond`, `blast`, `mmseqs2`, `famsa`, `hmmsearch`, `hmmbuild`,
+and all other bioinformatics tools used by the pipeline.
+
+### Build the image (one time)
+
+```bash
+# Clone the repo first
+git clone https://github.com/stajichlab/NovInvenio.git
+cd NovInvenio
+
+# Build locally
+docker build -t ghcr.io/stajichlab/novinvenio:0.5.0 .
+
+# Push to GitHub Container Registry (requires GHCR write access to stajichlab)
+docker push ghcr.io/stajichlab/novinvenio:0.5.0
+```
+
+Or pull a pre-built image directly:
+
+```bash
+# Pull from GHCR (public images — no authentication needed)
+docker pull ghcr.io/stajichlab/novinvenio:0.5.0
+
+# Convert to a Singularity/Apptainer SIF for HPC environments
+singularity build novenio.sif docker://ghcr.io/stajichlab/novinvenio:0.5.0
+```
+
+### Run with Docker
+
+All paths must be **absolute** so they resolve inside the container:
+
+```bash
+nextflow run stajichlab/NovInvenio \
+    -profile docker \
+    --config /absolute/path/to/analysis_config.csv \
+    --data_dir /absolute/path/to/proteome_fastas \
+    --pfam_hmm /absolute/path/to/Pfam-A.hmm \
+    --swissprot_dmnd /absolute/path/to/uniprot_sprot.fasta.dmnd \
+    --modelorgs_config /absolute/path/to/modelorgs.yaml
+```
+
+Nextflow automatically bind-mounts the launch directory and project directory,
+so `--config`, `--data_dir`, and the annotation DB paths all resolve correctly
+inside the container as long as they are absolute host paths.
+
+### Run with Singularity
+
+```bash
+nextflow run stajichlab/NovInvenio \
+    -profile singularity \
+    --config /absolute/path/to/analysis_config.csv \
+    --data_dir /absolute/path/to/proteome_fastas \
+    --pfam_hmm /absolute/path/to/Pfam-A.hmm \
+    --swissprot_dmnd /absolute/path/to/uniprot_sprot.fasta.dmnd
+```
+
+### UCR HPCC: Docker + SLURM combined
+
+```bash
+nextflow run stajichlab/NovInvenio \
+    -profile slurm,docker \
+    -c conf/ucr_hpcc_slurm.config \
+    --config configs/pezizo4_asco.csv \
+    --data_dir /path/to/fastas \
+    --run_tool diamond \
+    --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
+    --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
+    --modelorgs_config configs/modelorgs.yaml
+```
+
+`conf/ucr_hpcc_slurm.config` provides the SLURM queue routing, AVX2 node
+constraints for `famsa`, and preempt-queue settings specific to the UCR HPCC.
+See that file's header for full usage documentation.
+
+### Override the container image tag
+
+```bash
+# Use a local build instead of the registry
+nextflow run stajichlab/NovInvenio -profile docker \
+    --container_version 0.5.0 \
+    --config /path/to/config.csv ...
+```
+
+### What the container does NOT include
+
+The image ships **only the tool layer**.  User data files are always provided at
+runtime via bind-mounts:
+
+| Runtime artefact | How provided |
+|---|---|
+| Proteome & genome FASTAs | `--data_dir` (bind-mounted by Nextflow) |
+| Config CSV | `--config` (bind-mounted by Nextflow) |
+| Pfam-A HMM | `--pfam_hmm` (absolute path passed as a param) |
+| SwissProt diamond DB | `--swissprot_dmnd` (absolute path passed as a param) |
+| Model organism YAML | `--modelorgs_config` (absolute path passed as a param) |
+
+The pipeline source (`bin/`, `lib/`, `modules/`, `workflows/`) is supplied by the
+cloned repository and staged into each task's working directory by Nextflow — no
+need to bake it into the image.
+
 ## Parameters
 
 | Parameter | Default | Description |
@@ -187,6 +291,7 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 | `--outdir` | `results` | Root output directory |
 | `--hmm_mpi` | `false` | Run hmmsearch in MPI mode (requires MPI-enabled HMMER) |
 | `--hmm_mpi_tasks` | `null` | Number of MPI tasks; defaults to `max_cpus` when `--hmm_mpi true` |
+| `--container_version` | `0.5.0` | Docker/Singularity image tag (e.g. `0.5.0`, `latest`). See [Running with Docker / Singularity](#running-with-docker--singularity) |
 
 ## Config CSV format
 
@@ -484,16 +589,35 @@ bin/make_losses_report.py \
 
 ## Running on SLURM
 
+The SLURM profile works together with the site configuration file
+`conf/ucr_hpcc_slurm.config`, which provides queue routing, AVX2 node
+constraints, and resource settings specific to the UCR HPCC.
+
+### Pixi environment (no container)
+
 ```bash
-nextflow run main.nf \
-    -profile slurm \
+nextflow run stajichlab/NovInvenio \
+    -profile slurm -c conf/ucr_hpcc_slurm.config \
     --config configs/pezizo4_asco.csv \
     --data_dir /bigdata/stajichlab/shared/data/fungi/proteomes \
     --run_tool diamond \
     --ingroup_min_frac 0.8 \
-    --pfam_hmm db/pfam/Pfam-A.hmm \
-    --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
-    --modelorgs_config configs/modelorgs.yaml
+    --pfam_hmm /absolute/path/to/Pfam-A.hmm \
+    --swissprot_dmnd /absolute/path/to/uniprot_sprot.fasta.dmnd \
+    --modelorgs_config /absolute/path/to/modelorgs.yaml
+```
+
+### Docker container on SLURM
+
+```bash
+nextflow run stajichlab/NovInvenio \
+    -profile slurm,docker -c conf/ucr_hpcc_slurm.config \
+    --config /absolute/path/to/config.csv \
+    --data_dir /absolute/path/to/proteomes \
+    --run_tool diamond \
+    --ingroup_min_frac 0.8 \
+    --pfam_hmm /absolute/path/to/Pfam-A.hmm \
+    --swissprot_dmnd /absolute/path/to/uniprot_sprot.fasta.dmnd
 ```
 
 ### MPI mode for hmmsearch
@@ -504,10 +628,10 @@ HMMER build (e.g. from conda-forge), pass `--hmm_mpi true` to use
 profile automatically requests `--ntasks N` instead of `--cpus-per-task N`.
 
 ```bash
-nextflow run main.nf \
-    -profile slurm \
+nextflow run stajichlab/NovInvenio \
+    -profile slurm,docker -c conf/ucr_hpcc_slurm.config \
     --config configs/pezizo4_asco.csv \
-    --data_dir /bigdata/stajichlab/shared/data/fungi/proteomes \
+    --data_dir /absolute/path/to/proteomes \
     --run_tool diamond \
     --hmm_mpi true \
     --hmm_mpi_tasks 16
@@ -518,8 +642,8 @@ If `--hmm_mpi_tasks` is omitted it defaults to `--max_cpus` (32 by default).
 ### Database paths
 
 The pipeline resolves `--pfam_hmm`, `--swissprot_dmnd`, and
-`--modelorgs_config` to absolute paths at startup and automatically creates a
-`db/` symlink inside every task work directory.  You can pass relative paths
+`--modelorgs_config` to absolute paths at startup and creates a `db/` symlink
+inside every task work directory.  You can pass relative paths
 (e.g. `db/pfam/Pfam-A.hmm`) from the project root and they will resolve
 correctly regardless of where Nextflow stages the task.
 

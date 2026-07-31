@@ -18,6 +18,7 @@
 process EXTRACT_FAMILY_SEQS {
     label 'low_cpu'
     tag "extract_families"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}families" }, mode: 'copy',
         pattern: '{families.tsv,oversized_families.tsv}'
 
@@ -51,6 +52,7 @@ process EXTRACT_FAMILY_SEQS {
 process BUILD_CHUNK {
     label 'high_cpu'
     tag { "chunk_${task.index}" }
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
     path(fam_files)       // a chunk: N per-family FASTAs (fam_*.faa)
@@ -88,6 +90,7 @@ process BUILD_CHUNK {
 process MERGE_PROFILES {
     label 'low_cpu'
     tag "merge_profiles"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/${out_prefix}families" }, mode: 'copy'
 
     input:

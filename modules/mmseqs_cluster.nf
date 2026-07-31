@@ -1,6 +1,7 @@
 process MMSEQS_CLUSTER {
     label 'high_cpu'
     tag "mmseqs_cluster"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/clusters" }, mode: 'copy'
 
     input:
