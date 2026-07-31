@@ -40,7 +40,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from config_parser import parse_config, short_to_group
+from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config, short_to_group
 
 DEFAULT_EVALUE = 1e-5
 
@@ -125,8 +125,12 @@ def main():
     args = ap.parse_args()
 
     samples      = parse_config(args.config)
-    ingroup_ids  = {s.short for s in samples if s.group == 'IN'}
-    outgroup_ids = {s.short for s in samples if s.group == 'OUT'}
+    # Coarse banding (see config_parser.INGROUP_ROLES/OUTGROUP_ROLES): NEAR_INGROUP/
+    # BROAD_OUTGROUP/DISCOVERY_OUT fold into the outgroup band here, same as
+    # make_novelties.py, so those samples still get a matrix column instead of being
+    # silently dropped.
+    ingroup_ids  = {s.short for s in samples if s.group in INGROUP_ROLES}
+    outgroup_ids = {s.short for s in samples if s.group in OUTGROUP_ROLES}
     all_ids      = ingroup_ids | outgroup_ids
     query_ids    = ingroup_ids if args.query_group == 'IN' else outgroup_ids
     other_ids    = outgroup_ids if args.query_group == 'IN' else ingroup_ids
