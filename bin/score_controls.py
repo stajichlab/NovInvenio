@@ -44,7 +44,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from config_parser import parse_config  # noqa: E402
+from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config  # noqa: E402
 
 META_COLS = ('protein_id', 'source_proteome')
 
@@ -215,8 +215,11 @@ def score_controls(controls, matrix, member_to_rep, rep_to_members, samples,
                    ingroup_min_frac, other_max_frac, busco_map, controls_dir,
                    profiles_hmm, cpus):
     proteome_cols = [c for c in matrix.columns if c not in META_COLS]
-    ingroup_ids = [s.short for s in samples if s.group == 'IN' and s.short in proteome_cols]
-    outgroup_ids = [s.short for s in samples if s.group == 'OUT' and s.short in proteome_cols]
+    # Coarse banding (see config_parser.INGROUP_ROLES/OUTGROUP_ROLES): must match
+    # profile_to_matrix.py's/build_presence_matrix.py's keep-rule groups exactly, or
+    # recall/FP-rate here silently diverge from what the pipeline itself called.
+    ingroup_ids = [s.short for s in samples if s.group in INGROUP_ROLES and s.short in proteome_cols]
+    outgroup_ids = [s.short for s in samples if s.group in OUTGROUP_ROLES and s.short in proteome_cols]
 
     results = []
     for row in controls:
