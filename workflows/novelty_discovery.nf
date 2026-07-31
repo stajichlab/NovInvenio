@@ -16,16 +16,9 @@ nextflow.enable.dsl=2
 //                    family HMM using the DISCOVERY_OUT panel as a negative
 //                    control.  TBLASTN validation against DISCOVERY_OUT genomes.
 
-include { PHMMER_SEARCH         } from '../modules/phmmer'
 include { DIAMOND_MAKEDB        } from '../modules/diamond'
-include { DIAMOND_SEARCH        } from '../modules/diamond'
 include { BLAST_MAKEDB          } from '../modules/blast'
-include { BLAST_SEARCH          } from '../modules/blast'
 include { PARSE_HITS            } from '../modules/parse_hits'
-include { PHMMER_SELF           } from '../modules/self_search'
-include { DIAMOND_SELF          } from '../modules/self_search'
-include { BLAST_SELF            } from '../modules/self_search'
-include { PARSE_SELF_HITS       } from '../modules/parse_self_hits'
 include { MMSEQS_FAMILY_CLUSTER } from '../modules/mmseqs_family_cluster'
 include { BUILD_FAMILY_PROFILES } from '../modules/build_family_profiles'
 include { FAMILY_HMMSEARCH      } from '../modules/family_hmmsearch'
@@ -83,6 +76,111 @@ process EXTRACT_SINGLETONS {
 }
 
 // ---------------------------------------------------------------------------
+// Singleton pairwise search ("hybrid approach", todo/novelty-discovery-screen.md).
+// mmseqs clustering can miss real orthologs when annotated gene models differ
+// substantially in length (e.g. a large N/C-terminal extension unique to one
+// species' gene model) -- its bidirectional coverage requirement
+// (-c 0.8 --cov-mode 0) structurally excludes such pairs regardless of identity
+// in the aligned region. A protein that ends up an mmseqs "singleton" (no
+// cluster partners) is otherwise invisible to the discovery presence matrix
+// beyond its own source proteome. This searches every singleton, once, against
+// every TARGET+DISCOVERY_OUT proteome -- presence in other TARGET genomes
+// (mmseqs-clustering-independent) and absence in DISCOVERY_OUT.
+//
+// No storeDir, unlike modules/phmmer.nf|diamond.nf|blast.nf's per-species search
+// processes: singletons.fa is DERIVED (its content changes whenever the TARGET
+// set or clustering parameters change) rather than a stable per-species proteome,
+// so filename-only caching would silently reuse a stale result for a different
+// target set under the same --project name.
+// ---------------------------------------------------------------------------
+process SINGLETON_PHMMER_SEARCH {
+    label 'med_cpu'
+    tag "singletons_vs_${meta_t.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(singletons_fa)
+    tuple val(meta_t), path(target_fa)
+
+    output:
+    tuple val(meta_pair), path("singletons_vs_${meta_t.id}.phmmer.tblout")
+
+    script:
+    meta_pair = [query_id: 'singletons', target_id: meta_t.id, tool: 'phmmer']
+    """
+    if [ -s ${singletons_fa} ]; then
+        phmmer \
+            --cpu ${task.cpus} \
+            --tblout singletons_vs_${meta_t.id}.phmmer.tblout \
+            --noali \
+            ${singletons_fa} ${target_fa} \
+            > /dev/null
+    else
+        touch singletons_vs_${meta_t.id}.phmmer.tblout
+    fi
+    """
+}
+
+process SINGLETON_DIAMOND_SEARCH {
+    label 'high_cpu'
+    tag "singletons_vs_${meta_t.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(singletons_fa)
+    tuple val(meta_t), path(target_db)
+
+    output:
+    tuple val(meta_pair), path("singletons_vs_${meta_t.id}.diamond.tsv")
+
+    script:
+    meta_pair = [query_id: 'singletons', target_id: meta_t.id, tool: 'diamond']
+    """
+    if [ -s ${singletons_fa} ]; then
+        diamond blastp \
+            --query ${singletons_fa} \
+            --db ${target_db.baseName} \
+            --outfmt 6 qseqid sseqid evalue bitscore \
+            --evalue ${params.parse_evalue} \
+            --threads ${task.cpus} \
+            --quiet \
+            --out singletons_vs_${meta_t.id}.diamond.tsv
+    else
+        touch singletons_vs_${meta_t.id}.diamond.tsv
+    fi
+    """
+}
+
+process SINGLETON_BLAST_SEARCH {
+    label 'high_cpu'
+    tag "singletons_vs_${meta_t.id}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(singletons_fa)
+    tuple val(meta_t), path(target_db)
+
+    output:
+    tuple val(meta_pair), path("singletons_vs_${meta_t.id}.blast.tsv")
+
+    script:
+    meta_pair = [query_id: 'singletons', target_id: meta_t.id, tool: 'blast']
+    """
+    if [ -s ${singletons_fa} ]; then
+        blastp \
+            -query ${singletons_fa} \
+            -db ${meta_t.id}.blast_db \
+            -outfmt "6 qseqid sseqid evalue bitscore" \
+            -evalue ${params.parse_evalue} \
+            -num_threads ${task.cpus} \
+            -out singletons_vs_${meta_t.id}.blast.tsv
+    else
+        touch singletons_vs_${meta_t.id}.blast.tsv
+    fi
+    """
+}
+
+// ---------------------------------------------------------------------------
 // Calibrate family HMM thresholds using the DISCOVERY_OUT panel as a negative
 // control.  For each surviving family HMM, we search it against the DISCOVERY_OUT
 // proteomes and record the highest-scoring (lowest E-value) hit.  The
@@ -136,15 +234,16 @@ process NOVELTY_PRESENCE_MATRIX {
     val(min_coverage)
     val(target_min_frac)
     val(disc_out_max_frac)
+    val(singleton_evalue)
 
     output:
     path("presence_matrix.tsv"), emit: matrix
     path("candidates.txt"),      emit: candidates
 
     script:
-    // singleton_hits is [] until the singleton pairwise-search branch is implemented
-    // (see todo/novelty-discovery-screen.md) — omit the flag rather than pass an empty
-    // Groovy list literal ("[]") on the command line.
+    // singleton_hits is [] when there were no singletons at all (extract_singletons.py
+    // produced an empty FASTA) -- omit the flag rather than pass an empty Groovy list
+    // literal ("[]") on the command line.
     def singleton_arg = singleton_hits ? "--singleton-hits ${singleton_hits}" : ''
     """
     novelty_presence_matrix.py \
@@ -158,6 +257,7 @@ process NOVELTY_PRESENCE_MATRIX {
         --min-coverage ${min_coverage} \
         --target-min-frac ${target_min_frac} \
         --disc-out-max-frac ${disc_out_max_frac} \
+        --singleton-evalue ${singleton_evalue} \
         --output-matrix presence_matrix.tsv \
         --output-candidates candidates.txt
     """
@@ -198,6 +298,30 @@ workflow NOVELTY_DISCOVERY {
 
     // Extract singleton sequences from the cluster results.
     EXTRACT_SINGLETONS(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat)
+    singletons_fa = EXTRACT_SINGLETONS.out.singletons_fa.first()
+
+    // Singleton pairwise search ("hybrid approach") against every TARGET+DISCOVERY_OUT
+    // proteome -- see the SINGLETON_*_SEARCH process docs above for why mmseqs clustering
+    // alone isn't enough.
+    if (params.run_tool == 'phmmer') {
+        SINGLETON_PHMMER_SEARCH(singletons_fa, all_proteomes_ch)
+        singleton_raw_ch = SINGLETON_PHMMER_SEARCH.out
+    }
+    else if (params.run_tool == 'diamond') {
+        singleton_db_ch = DIAMOND_MAKEDB(all_proteomes_ch)
+        SINGLETON_DIAMOND_SEARCH(singletons_fa, singleton_db_ch)
+        singleton_raw_ch = SINGLETON_DIAMOND_SEARCH.out
+    }
+    else if (params.run_tool == 'blast') {
+        singleton_db_ch = BLAST_MAKEDB(all_proteomes_ch)
+        SINGLETON_BLAST_SEARCH(singletons_fa, singleton_db_ch)
+        singleton_raw_ch = SINGLETON_BLAST_SEARCH.out
+    }
+    else {
+        error "Unknown --run_tool '${params.run_tool}': choose phmmer, diamond, or blast"
+    }
+    PARSE_HITS(singleton_raw_ch)
+    singleton_hits_ch = PARSE_HITS.out.map { meta_pair, tsv -> tsv }.collect().ifEmpty([])
 
     // Calibrate family HMM thresholds using DISCOVERY_OUT as negative control. Must be
     // restricted to DISCOVERY_OUT proteomes' domtblouts only: FAMILY_HMMSEARCH returns
@@ -219,7 +343,7 @@ workflow NOVELTY_DISCOVERY {
     // Build the combined presence matrix.
     NOVELTY_PRESENCE_MATRIX(
         FAMILY_HMMSEARCH.out.domtblout.map { meta, dom -> dom }.collect(),
-        Channel.value([]),  // singleton pairwise hits (empty for now) — see script: above
+        singleton_hits_ch,
         MMSEQS_FAMILY_CLUSTER.out.cluster_tsv,
         protein_map,
         config_csv,
@@ -227,7 +351,8 @@ workflow NOVELTY_DISCOVERY {
         params.hmm_presence_evalue,
         params.hmm_presence_cov,
         params.ingroup_min_frac,
-        0.0  // disc_out_max_frac: strictly absent from DISCOVERY_OUT
+        0.0,  // disc_out_max_frac: strictly absent from DISCOVERY_OUT
+        params.evalue  // singleton_evalue: flat threshold, no per-protein paralog calibration
     )
 
     // TBLASTN validation against DISCOVERY_OUT genomes — query is the family representative
