@@ -208,6 +208,11 @@ Nextflow automatically bind-mounts the launch directory and project directory,
 so `--config`, `--data_dir`, and the annotation DB paths all resolve correctly
 inside the container as long as they are absolute host paths.
 
+> **UCR HPCC note:** compute nodes do not run a Docker daemon (no root access
+> for regular users). Use the Singularity/Apptainer profile below for any
+> real SLURM submission — the `docker` profile is only useful on a machine
+> where you have Docker installed (e.g. a laptop or a VM).
+
 ### Run with Singularity
 
 ```bash
@@ -218,6 +223,49 @@ nextflow run stajichlab/NovInvenio \
     --pfam_hmm /absolute/path/to/Pfam-A.hmm \
     --swissprot_dmnd /absolute/path/to/uniprot_sprot.fasta.dmnd
 ```
+
+### UCR HPCC: Docker + SLURM combined
+
+```bash
+nextflow run stajichlab/NovInvenio \
+    -profile slurm,docker \
+    -c conf/ucr_hpcc_slurm.config \
+    --config configs/pezizo4_asco.csv \
+    --data_dir /path/to/fastas \
+    --run_tool diamond \
+    --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
+    --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
+    --modelorgs_config configs/modelorgs.yaml
+```
+
+### UCR HPCC: Singularity + SLURM combined (recommended)
+
+This is the recommended way to run NovInvenio on the HPCC — no pixi
+environment needed, and no Docker daemon required on compute nodes.
+
+```bash
+module load nextflow singularity
+
+nextflow run stajichlab/NovInvenio \
+    -profile slurm,singularity \
+    -c conf/ucr_hpcc_slurm.config \
+    --config configs/pezizo4_asco.csv \
+    --data_dir /path/to/fastas \
+    --run_tool diamond \
+    --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
+    --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
+    --modelorgs_config configs/modelorgs.yaml
+```
+
+`run.sh` sets `NXF_SINGULARITY_CACHEDIR` (if not already set in your
+environment) so the SIF is pulled/converted once instead of once per SLURM
+array task. `conf/ucr_hpcc_slurm.config` adds `--bind /bigdata` to
+`runOptions` — required because `--pfam_hmm`,
+`--swissprot_dmnd`, `--modelorgs_config`, and `--data_dir` are passed to
+processes as plain string params rather than staged Nextflow `path` inputs
+(see `workflows/annotate.nf`), so Singularity's `autoMounts` can't detect
+and bind them automatically. If your data lives outside `/bigdata`, add that
+path to `runOptions` too.
 
 ### UCR HPCC: Docker + SLURM combined
 
