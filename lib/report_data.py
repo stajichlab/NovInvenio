@@ -39,6 +39,10 @@ ROW_FIELDS = [
                  # 'clade_specific', 'false_novelty', or '' — either not a phase-1 candidate,
                  # or this run's matrix predates/doesn't come from the novelty_discovery /
                  # novelty_screen pathway (--cluster_tool pairwise/mmseqs never populate it).
+    'ev',        # search-hit e-values (issue #44), aligned position-for-position with 'pres'
+                 # — comma-separated, one entry per payload['proteomes'] column, '' where
+                 # there's no e-value evidence (absent, self-sourced, or the run's pathway
+                 # doesn't track e-values). Report-only: never affects presence/novelty calls.
 ]
 
 # Trailing transcript/protein suffixes that separate a FungiDB gene ID from the
@@ -73,6 +77,30 @@ def read_tblastn_summary(path: str | Path | None) -> tuple[list[str], dict[str, 
             if hit:
                 hits[row['protein_id']] = hit
     return genomes, hits
+
+
+def read_evalues(path: str | Path | None) -> dict[str, dict[str, str]]:
+    """Return {protein_id: {proteome_short: evalue_str}} from an evalues sidecar TSV.
+
+    Same shape as the presence matrix (protein_id, source_proteome, <proteome columns>)
+    but cells hold the qualifying hit's e-value (or '') instead of 0/1 — see
+    bin/build_presence_matrix.py / bin/novelty_presence_matrix.py's --output-evalues.
+    Missing, unreadable, or empty/header-only files (e.g. EMPTY_EVALUES_STUB for pathways
+    that don't track e-values yet) return an empty dict — callers treat that as "no
+    evidence available" rather than an error.
+    """
+    if not path or not Path(path).exists() or not Path(path).stat().st_size:
+        return {}
+    with open(path, newline='') as fh:
+        reader = csv.DictReader(fh, delimiter='\t')
+        cols = [c for c in (reader.fieldnames or []) if c not in ('protein_id', 'source_proteome')]
+        out: dict[str, dict[str, str]] = {}
+        for row in reader:
+            pid = row.get('protein_id', '')
+            if not pid:
+                continue
+            out[pid] = {c: row.get(c, '') or '' for c in cols}
+    return out
 
 
 def read_novelties(paths: list[str | Path]) -> tuple[set[str], dict[str, str]]:
@@ -167,6 +195,7 @@ def build_payload(
     novelty_paths=None,
     candidates_fa=None,
     cluster_tsv=None,
+    evalues_path=None,
     ingroup_min_frac=0.75,
     project='NovInvenio',
     sequences='novelties',
@@ -194,8 +223,14 @@ def build_payload(
     'pairwise+mmseqs'.  Multi-method rows are high-confidence; disagreements
     flag threshold/boundary sensitivity.  Single-method runs leave `support` as
     just `method` for novelty rows.
+
+    evalues_path (issue #44): optional presence_matrix.evalues.tsv sidecar —
+    report-only search-hit e-value evidence, surfaced in the detail panel to
+    help judge whether a presence call is a strong or marginal hit. Missing or
+    empty means no evidence available; never affects presence/novelty calls.
     """
     header, rows = read_matrix(matrix_path)
+    evalue_lookup = read_evalues(evalues_path)
 
     fam_index = FamilyIndex(cluster_tsv)
 
@@ -245,6 +280,8 @@ def build_payload(
         pid = row.get('protein_id', '')
         src = row.get('source_proteome', '')
         pres = ''.join('1' if row.get(s, '0') == '1' else '0' for s in shorts)
+        row_evalues = evalue_lookup.get(pid, {})
+        ev = ','.join(row_evalues.get(s, '') for s in shorts)
         hit_genomes = tb_hits.get(pid, set())
         tb = ''.join('1' if g in hit_genomes else '0' for g in tb_genomes)
 
@@ -294,6 +331,7 @@ def build_payload(
             seq,
             support,
             category,
+            ev,
         ])
 
     return {
@@ -315,6 +353,7 @@ def build_payload(
         'tblastn_genomes': tb_genomes,
         'fsources': fsources,
         'novelty_categories': sorted(categories),
+        'has_evalues': bool(evalue_lookup),
         'families': fam_index.payload(),
         'rows': out_rows,
     }

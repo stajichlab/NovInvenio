@@ -53,7 +53,7 @@ def _setup(tmp_path):
     )
 
 
-def _run(tmp_path, family_domtblouts=None, **extra):
+def _run(tmp_path, family_domtblouts=None, output_evalues=False, **extra):
     args = [
         sys.executable, str(BIN),
         '--cluster-tsv', str(tmp_path / 'cluster.tsv'),
@@ -64,11 +64,16 @@ def _run(tmp_path, family_domtblouts=None, **extra):
     ]
     if family_domtblouts:
         args += ['--family-domtblout'] + [str(d) for d in family_domtblouts]
+    if output_evalues:
+        args += ['--output-evalues', str(tmp_path / 'evalues.tsv')]
     for k, v in extra.items():
         args += [f'--{k}', str(v)]
     subprocess.run(args, check=True)
     matrix = pd.read_csv(tmp_path / 'matrix.tsv', sep='\t')
     cands = [c for c in (tmp_path / 'candidates.txt').read_text().splitlines() if c]
+    if output_evalues:
+        evalues = pd.read_csv(tmp_path / 'evalues.tsv', sep='\t', dtype=str, keep_default_na=False)
+        return matrix, cands, evalues
     return matrix, cands
 
 
@@ -106,3 +111,21 @@ def test_family_present_in_targets_absent_from_disc_out(tmp_path):
     assert row['D1'] == 0 and row['D2'] == 0
     # Should be a novelty candidate
     assert 'T1::pA1' in cands
+
+
+def test_output_evalues_sidecar_carries_family_hit_evalues(tmp_path):
+    # issue #44: the family-HMM hit's full-seq e-value survives into the sidecar for
+    # proteomes where the family was called present, and stays empty for the source
+    # proteome (presence there is definitional, not a hit) and for absent proteomes.
+    _setup(tmp_path)
+    dom_t1 = tmp_path / 'T1.domtblout'
+    dom_t2 = tmp_path / 'T2.domtblout'
+    _write_domtblout(dom_t1, [('pA1', 'pA1', 1e-10)])
+    _write_domtblout(dom_t2, [('pA2', 'pA1', 3.5e-8)])
+
+    matrix, cands, evalues = _run(tmp_path, family_domtblouts=[dom_t1, dom_t2],
+                                  output_evalues=True)
+    row = evalues[evalues['protein_id'] == 'pA1'].iloc[0]
+    assert row['T1'] == ''       # source proteome — not a hit
+    assert row['T2'] == '3.5e-08'
+    assert row['D1'] == '' and row['D2'] == ''  # absent — no hit

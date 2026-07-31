@@ -66,12 +66,14 @@ workflow SEARCH {
         params.ingroup_min_frac,
         0.0,
         'presence_matrix.tsv',
-        'candidates.txt'
+        'candidates.txt',
+        'presence_matrix.evalues.tsv'
     )
 
     emit:
     hits        = PARSE_HITS.out             // [meta_pair, parsed_tsv]
     matrix      = BUILD_PRESENCE_MATRIX.out.matrix
     candidates  = BUILD_PRESENCE_MATRIX.out.candidates
+    evalues     = BUILD_PRESENCE_MATRIX.out.evalues
     self_hits   = PARSE_SELF_HITS.out.tsv    // [meta, self_hits_tsv] — one per ingroup proteome
 }
