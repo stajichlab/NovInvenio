@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sordario — NovInvenio reports</title>
+<style>
+
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --wash: rgba(42, 120, 214, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --wash: rgba(57, 135, 229, 0.16);
+      --hover-wash: rgba(255, 255, 255, 0.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --wash: rgba(57, 135, 229, 0.16);
+    --hover-wash: rgba(255, 255, 255, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
+  header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+  header.top .titles { flex: 1; min-width: 0; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  button, select, input[type="search"] {
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover-wash); }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--series-1);
+    outline-offset: 2px;
+  }
+  .btn-ghost { background: transparent; }
+  section.card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card-title { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .card-note { margin: 0 0 16px; color: var(--text-secondary); font-size: 12px; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 28px; }
+  .tile-label { color: var(--text-secondary); font-size: 12px; }
+  .tile-value { font-size: 20px; font-weight: 600; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .filters input[type="search"] { min-width: 260px; }
+  .spacer { flex: 1; }
+  .count { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .explorer { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+  @media (max-width: 1180px) { .explorer { grid-template-columns: 1fr; } }
+  .tbl-scroll { overflow: auto; height: 560px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.data th, table.data td {
+    text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap;
+  }
+  table.data th {
+    position: sticky; top: 0; background: var(--surface-1); font-weight: 600; z-index: 1;
+    border-bottom: 1px solid var(--axis);
+  }
+  table.data td.num { font-variant-numeric: tabular-nums; }
+  /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
+  table.data td.wrap-cell, table.data th.wrap-cell {
+    white-space: normal; overflow-wrap: anywhere;
+    min-width: 200px; max-width: clamp(260px, 26vw, 640px);
+  }
+  table.data td.cell, table.data th.cell { padding: 6px 5px; text-align: center; }
+  table.data tbody tr:hover { background: var(--hover-wash); }
+  table.data tbody tr.sel { background: var(--wash); }
+  .empty { padding: 40px 8px; color: var(--text-secondary); font-size: 13px; }
+  .detail { position: sticky; top: 16px; }
+  .detail h3 { margin: 0 0 2px; font-size: 15px; font-weight: 600; word-break: break-all; }
+  .detail .species { color: var(--text-secondary); font-size: 12px; font-style: italic; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px; }
+  .field-value { font-size: 13px; word-break: break-word; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    display: inline-block; padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 11px; text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .chip:hover { border-color: var(--series-1); }
+  .links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .links a, .links button {
+    font-size: 12px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px;
+    text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .links a:hover, .links button:hover { border-color: var(--series-1); }
+  .placeholder { color: var(--text-secondary); font-size: 13px; }
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  .reports { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  a.report-card {
+    display: flex; flex-direction: column; gap: 6px; text-decoration: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+    color: var(--text-primary);
+  }
+  a.report-card:hover { border-color: var(--series-1); background: var(--hover-wash); }
+  .report-title { font-size: 15px; font-weight: 600; }
+  .report-desc { font-size: 12px; color: var(--text-secondary); }
+  .report-file { font-size: 11px; color: var(--muted); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .groups { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="titles">
+      <h1>sordario — NovInvenio reports</h1>
+      <p class="sub">Lineage-specific gene analysis · one folder, three interactive reports</p>
+    </div>
+    <button id="theme-toggle" class="btn-ghost" type="button" aria-label="Toggle colour theme">Theme</button>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">Reports</h2>
+    <p class="card-note">Each page is self-contained — open it directly, no network needed.</p>
+    <div class="reports">
+<a class="report-card" href="novelties.html"><span class="report-title">Novelty candidates</span><span class="report-desc">Lineage-specific genes: present across the ingroup, absent from every outgroup proteome.</span><span class="report-file mono">novelties.html</span></a>
+<a class="report-card" href="core.html"><span class="report-title">Core genes</span><span class="report-desc">Near-universally conserved genes shared by essentially every proteome, ingroup and outgroup.</span><span class="report-file mono">core.html</span></a>
+<a class="report-card" href="losses.html"><span class="report-title">Candidate gene losses</span><span class="report-desc">Gene families conserved across the outgroups but (nearly) absent from the ingroup.</span><span class="report-file mono">losses.html</span></a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Run summary</h2>
+    <p class="card-note">Parameters and proteomes used to generate these reports.</p>
+    <div class="tiles">
+<div><div class="tile-label">Ingroup proteomes</div><div class="tile-value">4</div></div>
+<div><div class="tile-label">Outgroup proteomes</div><div class="tile-value">8</div></div>
+<div><div class="tile-label">Search tool</div><div class="tile-value">phmmer</div></div>
+<div><div class="tile-label">Ingroup min fraction</div><div class="tile-value">0.75</div></div>
+<div><div class="tile-label">Outgroup min fraction</div><div class="tile-value">0.75</div></div>
+<div><div class="tile-label">Loss ingroup max fraction</div><div class="tile-value">0</div></div>
+<div><div class="tile-label">Core min fraction</div><div class="tile-value">0.95</div></div>
+    </div>
+  </section>
+
+  <div class="groups">
+    <section class="card">
+      <h2 class="card-title">Ingroup (4)</h2>
+      <p class="card-note">Genes are called lineage-specific relative to this clade.</p>
+      <table class="data">
+        <thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
+        <tbody>
+<tr><td class="mono">Ncra</td><td>Neurospora crassa OR74A</td><td>Sordariomycete</td></tr>
+<tr><td class="mono">Afum</td><td>Aspergillus fumigatus Af293</td><td>Eurotiomycete</td></tr>
+<tr><td class="mono">FgraPH1</td><td>Fusarium graminearum PH-1</td><td>Sordariomycete</td></tr>
+<tr><td class="mono">Cimm</td><td>Coccidioides immitis WA_211</td><td>Eurotiomycete</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card">
+      <h2 class="card-title">Outgroup (8)</h2>
+      <p class="card-note">Background proteomes used to exclude broadly conserved genes.</p>
+      <table class="data">
+        <thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
+        <tbody>
+<tr><td class="mono">Nirr</td><td>Neolecta irregularis DAH-3</td><td>Taphrinomycotina</td></tr>
+<tr><td class="mono">Spom</td><td>Schizosaccharomyces pombe 972h</td><td>Taphrinomycotina</td></tr>
+<tr><td class="mono">Scer</td><td>Saccharomyces cerevisiae S288c</td><td>Saccharomycotina</td></tr>
+<tr><td class="mono">Ylip</td><td>Yarrowia lipolytica CLIB122</td><td>Saccharomycotina</td></tr>
+<tr><td class="mono">Ztri</td><td>Zymoseptoria tritici</td><td>Dothideomycete</td></tr>
+<tr><td class="mono">CneoH99</td><td>Cryptococcus neoformans H99</td><td>Basidiomycota</td></tr>
+<tr><td class="mono">Ccin</td><td>Coprinus cinerea okyama 7-130</td><td>Basidiomycota</td></tr>
+<tr><td class="mono">Mcir</td><td>Mucor circinelloides 1006PhL</td><td>Mucoromycotina</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  var themeBtn = document.getElementById("theme-toggle");
+  themeBtn.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) {
+      cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  });
+
+})();
+</script>
+</body>
+</html>
