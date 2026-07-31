@@ -63,5 +63,8 @@ jobs:
       - name: Verify signature
         run: |
           IMAGE_DIGEST=$(docker inspect ghcr.io/${{ github.repository_owner }}/novinvenio:${{ github.ref_name }} --format='{{index .RepoDigests 0}}' | cut -d@ -f2)
-          cosign verify ghcr.io/${{ github.repository_owner }}/novinvenio@${IMAGE_DIGEST}
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/container.yml@refs/.*" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            ghcr.io/${{ github.repository_owner }}/novinvenio@${IMAGE_DIGEST}
           echo "✓ Image signed and verified: ghcr.io/${{ github.repository_owner }}/novinvenio@${IMAGE_DIGEST}"
