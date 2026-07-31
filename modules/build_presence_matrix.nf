@@ -12,10 +12,12 @@ process BUILD_PRESENCE_MATRIX {
     val(other_max_frac)       // max fraction of the other group a candidate may still be present in
     val(matrix_name)          // output matrix filename
     val(candidates_name)      // output candidates filename
+    val(evalues_name)         // output e-value sidecar filename (report evidence only)
 
     output:
     path("${matrix_name}"),     emit: matrix
     path("${candidates_name}"), emit: candidates
+    path("${evalues_name}"),    emit: evalues
 
     script:
     """
@@ -28,6 +30,7 @@ process BUILD_PRESENCE_MATRIX {
         --other-max-frac ${other_max_frac} \
         --paralog-competition-scope ${params.paralog_competition_scope} \
         --output-matrix ${matrix_name} \
-        --output-candidates ${candidates_name}
+        --output-candidates ${candidates_name} \
+        --output-evalues ${evalues_name}
     """
 }

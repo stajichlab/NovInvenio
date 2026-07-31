@@ -117,6 +117,11 @@ def main():
                     help='Fallback e-value cutoff for proteins with no detectable paralog')
     ap.add_argument('--output-matrix',     required=True)
     ap.add_argument('--output-candidates', required=True)
+    ap.add_argument('--output-evalues', default=None, dest='output_evalues',
+                    help='Optional sidecar TSV, same shape as --output-matrix, holding the '
+                         'best qualifying hit e-value per (protein, proteome) cell instead '
+                         'of 0/1 (empty when absent or self-sourced) — report-only evidence, '
+                         'does not affect candidate calling.')
     args = ap.parse_args()
 
     samples      = parse_config(args.config)
@@ -169,20 +174,35 @@ def main():
     for qp, qid, tp in zip(ing['query_proteome'], ing['query_id'], ing['target_proteome']):
         presence[(qp, qid)].add(tp)
 
+    # Best (lowest) qualifying-hit e-value per (query_proteome, query_id, target_proteome) —
+    # report-only evidence for the e-value sidecar; does not affect candidate calling.
+    hit_evalue: dict[tuple, float] = {}
+    if not ing.empty:
+        hit_evalue = (ing.groupby(['query_proteome', 'query_id', 'target_proteome'])
+                         ['evalue'].min().to_dict())
+
     # Build the full matrix (always emit the id columns + one column per proteome,
     # so an empty result still writes a well-formed header).
     sorted_ids = sorted(all_ids)
     columns = ['protein_id', 'source_proteome'] + sorted_ids
     rows = []
+    evalue_rows = []
     for (qp, pid), hit_proteomes in presence.items():
         all_present = hit_proteomes | {qp}
         row = {'protein_id': pid, 'source_proteome': qp}
+        ev_row = {'protein_id': pid, 'source_proteome': qp}
         for sp in sorted_ids:
             row[sp] = int(sp in all_present)
+            ev_row[sp] = '' if sp == qp else hit_evalue.get((qp, pid, sp), '')
         rows.append(row)
+        evalue_rows.append(ev_row)
 
     matrix = pd.DataFrame(rows, columns=columns)
     matrix.to_csv(args.output_matrix, sep='\t', index=False)
+
+    if args.output_evalues:
+        evalues_df = pd.DataFrame(evalue_rows, columns=columns)
+        evalues_df.to_csv(args.output_evalues, sep='\t', index=False)
 
     n_query     = len(query_ids)
     query_cols  = sorted(query_ids)

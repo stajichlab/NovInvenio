@@ -239,6 +239,7 @@ process NOVELTY_PRESENCE_MATRIX {
     output:
     path("presence_matrix.tsv"), emit: matrix
     path("candidates.txt"),      emit: candidates
+    path("presence_matrix.evalues.tsv"), emit: evalues
 
     script:
     // singleton_hits is [] when there were no singletons at all (extract_singletons.py
@@ -259,7 +260,8 @@ process NOVELTY_PRESENCE_MATRIX {
         --disc-out-max-frac ${disc_out_max_frac} \
         --singleton-evalue ${singleton_evalue} \
         --output-matrix presence_matrix.tsv \
-        --output-candidates candidates.txt
+        --output-candidates candidates.txt \
+        --output-evalues presence_matrix.evalues.tsv
     """
 }
 
@@ -371,6 +373,12 @@ workflow NOVELTY_DISCOVERY {
     emit:
     matrix             = NOVELTY_PRESENCE_MATRIX.out.matrix
     candidates         = NOVELTY_PRESENCE_MATRIX.out.candidates
+    // Report-only hit e-value evidence (issue #44). Phase 1-scoped: DISCOVERY_TARGET and
+    // DISCOVERY_OUT columns are populated; NEAR_INGROUP/BROAD_OUTGROUP columns stay empty
+    // since novelty_screen.py's phase-2 HMM search only tracks presence, not e-value (a
+    // follow-up if that evidence is wanted too). Keyed by protein_id/source_proteome, not
+    // row order, so NOVELTY_SCREEN carrying rows forward doesn't need to touch this.
+    evalues            = NOVELTY_PRESENCE_MATRIX.out.evalues
     summary            = SUMMARIZE_TBLASTN.out.tsv
     // Family clustering + reps + the concatenated seed group, for the family-as-cluster
     // path (ADR-0002 Q7): main.nf feeds these to PROFILE_CANDIDATE_CLUSTERS instead of

@@ -115,6 +115,11 @@ def main():
                     help='Max fraction of DISCOVERY_OUT proteomes a candidate may be present in')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
     ap.add_argument('--output-candidates', required=True, dest='output_candidates')
+    ap.add_argument('--output-evalues', default=None, dest='output_evalues',
+                    help='Optional sidecar TSV, same shape as --output-matrix, holding the '
+                         'family-HMM or singleton hit e-value per (protein, proteome) cell '
+                         '(empty for absent/self/unsearched-in-phase-1 columns) -- report-only '
+                         'evidence, does not affect candidate calling.')
     args = ap.parse_args()
 
     samples = parse_config(args.config)
@@ -134,7 +139,9 @@ def main():
         family_thresholds = load_family_thresholds(args.family_thresholds)
 
     # family_presence[proteome_short] = set of family rep IDs present
+    # family_evalue[(proteome_short, rep_id)] = the qualifying hit's full-seq e-value
     family_presence = defaultdict(set)
+    family_evalue = {}
 
     for dom_path in args.family_domtblout:
         short = Path(dom_path).name
@@ -147,10 +154,13 @@ def main():
             threshold = family_thresholds.get(query, args.default_family_evalue)
             if evalue < threshold and coverage >= args.min_coverage:
                 family_presence[short].add(query)
+                family_evalue[(short, query)] = evalue
 
     # --- Singleton pairwise presence ---
     # singleton_presence[proteome_short] = set of singleton protein IDs present
+    # singleton_evalue[(proteome_short, protein_id)] = best (lowest) qualifying hit e-value
     singleton_presence = defaultdict(set)
+    singleton_evalue = {}
 
     for hits_path in args.singleton_hits:
         name = Path(hits_path).name
@@ -165,6 +175,9 @@ def main():
         for query_id, target_id, evalue in parse_pairwise_tsv(hits_path):
             if evalue < args.singleton_evalue:
                 singleton_presence[short].add(query_id)
+                prev = singleton_evalue.get((short, query_id))
+                if prev is None or evalue < prev:
+                    singleton_evalue[(short, query_id)] = evalue
 
     # --- Build combined presence matrix ---
     # Collect all proteins: family members + singletons
@@ -180,7 +193,10 @@ def main():
         all_proteins.add(rep)
 
     # Build presence: protein_id -> {proteome_short: 0/1}
+    # Build evalues in parallel: protein_id -> {proteome_short: e-value or ''} (report-only
+    # evidence; the source proteome's own cell is always '' since presence there isn't a hit).
     presence = {p: {s: 0 for s in all_shorts} for p in all_proteins}
+    evalues = {p: {s: '' for s in all_shorts} for p in all_proteins}
 
     # Family members: present in proteomes where family HMM is present, plus source proteome
     for rep in multi_reps:
@@ -199,6 +215,8 @@ def main():
                 for sp in present_proteomes:
                     if sp in presence[member]:
                         presence[member][sp] = 1
+                        if sp != source:
+                            evalues[member][sp] = family_evalue.get((sp, rep), '')
 
     # Singletons: present in proteomes where pairwise hit was found, plus source proteome
     for rep in singleton_reps:
@@ -213,6 +231,8 @@ def main():
             for sp in present_proteomes:
                 if sp in presence[rep]:
                     presence[rep][sp] = 1
+                    if sp != source:
+                        evalues[rep][sp] = singleton_evalue.get((sp, rep), '')
 
     # --- Write presence matrix ---
     with open(args.output_matrix, 'w') as out:
@@ -221,6 +241,14 @@ def main():
             source = protein_to_proteome.get(protein, '')
             vals = '\t'.join(str(presence[protein][s]) for s in all_shorts)
             out.write(f'{protein}\t{source}\t{vals}\n')
+
+    if args.output_evalues:
+        with open(args.output_evalues, 'w') as out:
+            out.write('protein_id\tsource_proteome\t' + '\t'.join(all_shorts) + '\n')
+            for protein in sorted(all_proteins):
+                source = protein_to_proteome.get(protein, '')
+                vals = '\t'.join(str(evalues[protein][s]) for s in all_shorts)
+                out.write(f'{protein}\t{source}\t{vals}\n')
 
     # --- Filter to novelty candidates ---
     target_shorts = [s for s in all_shorts if short_to_group.get(s) == 'DISCOVERY_TARGET']

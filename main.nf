@@ -18,6 +18,7 @@ include { REPORT   } from './workflows/report'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
 include { NOVELTY_SCREEN } from './workflows/novelty_screen'
 include { EMPTY_LOSS_STUB } from './modules/empty_loss_stub'
+include { EMPTY_EVALUES_STUB } from './modules/empty_evalues_stub'
 
 // Original novelty_discovery/novelty_screen GROUP labels (issues #24-#29), renamed for
 // clarity (todo/rename-novelty-discovery-group-labels.md) -- still accepted in a config
@@ -114,6 +115,9 @@ workflow {
                        'IN', params.ingroup_min_frac, 0.0, '')
         novelty_matrix     = PROFILE_SEARCH.out.matrix
         novelty_candidates = PROFILE_SEARCH.out.candidates
+        // mmseqs/PROFILE_SEARCH doesn't track hit e-values yet (issue #44 follow-up).
+        EMPTY_EVALUES_STUB()
+        novelty_evalues    = EMPTY_EVALUES_STUB.out.evalues
 
         // Family-as-cluster (ADR-0002 Q7): reuse the profile pathway's gene families
         // (restricted to candidate-containing ones) instead of re-clustering candidates.
@@ -153,6 +157,8 @@ workflow {
         )
         novelty_matrix     = NOVELTY_SCREEN.out.matrix
         novelty_candidates = NOVELTY_SCREEN.out.candidates
+        // Phase-1-scoped e-value evidence (issue #44) -- see NOVELTY_DISCOVERY's emit: block.
+        novelty_evalues    = NOVELTY_DISCOVERY.out.evalues
 
         // Family-as-cluster (ADR-0002 Q7): reuse NOVELTY_DISCOVERY's own gene families
         // (restricted to candidate-containing ones) instead of re-clustering candidates.
@@ -187,6 +193,7 @@ workflow {
         SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
         novelty_matrix     = SEARCH.out.matrix
         novelty_candidates = SEARCH.out.candidates
+        novelty_evalues    = SEARCH.out.evalues
 
         CLUSTER(novelty_candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
         cand_fa          = CLUSTER.out.candidates_fa
@@ -263,6 +270,7 @@ workflow {
         SUMMARIZE.out.novelties,
         cand_fa,
         cand_cluster_tsv,
+        novelty_evalues,
         loss_annotated_matrix,
         loss_tblastn_summary,
         loss_cand_cluster_tsv,

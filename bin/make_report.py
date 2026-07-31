@@ -15,6 +15,7 @@ Example:
       --novelties results/pezio4_asco/novelties.*.tsv \
       --candidates_fa results/pezio4_asco/candidates.fa \
       --cluster_tsv results/pezio4_asco/clusters/clusters_cluster.tsv \
+      --evalues results/pezio4_asco/presence_matrix.evalues.tsv \
       --output results/pezio4_asco/novelties.html
 """
 import argparse
@@ -46,6 +47,11 @@ def main():
     ap.add_argument('--cluster_tsv',
                     help='mmseqs easy-cluster *_cluster.tsv (rep -> member), used to group '
                          'candidates into gene families across ingroup species (optional)')
+    ap.add_argument('--evalues',
+                    help='presence_matrix.evalues.tsv sidecar (optional; same shape as '
+                         '--matrix, e-value per proteome cell instead of 0/1) -- shown in the '
+                         'detail panel to help validate a presence call. Missing/empty file '
+                         'means no e-value evidence available for this run.')
     ap.add_argument('--project', default=None,
                     help='Project name shown in the report title (default: matrix parent dir)')
     ap.add_argument('--ingroup_min_frac', type=float, default=0.75,
@@ -85,6 +91,7 @@ def main():
         novelty_paths=novelty_paths,
         candidates_fa=args.candidates_fa,
         cluster_tsv=args.cluster_tsv,
+        evalues_path=args.evalues,
         ingroup_min_frac=args.ingroup_min_frac,
         project=project,
         sequences=args.sequences,
