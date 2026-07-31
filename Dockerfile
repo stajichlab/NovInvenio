@@ -12,16 +12,16 @@
 # runtime — see README.md "Running with Docker / Singularity".
 # =============================================================================
 
-ARG MAMBAFORGE_VERSION=24.11.2
-FROM mambaforge/mambaforge:${MAMBAFORGE_VERSION}
+ARG MINICONDA_VERSION=24.9.2-0
+FROM continuumio/miniconda3:${MINICONDA_VERSION}
 
 # Install all pipeline tools in one pass.
 # Channels: conda-forge (primary) + bioconda (bioinformatics tools).
 # Strict channel priority ensures deterministic solving.
+# Note: continuumio/miniconda3 ships conda (not mamba); use conda install.
 RUN conda config --add channels conda-forge && \
     conda config --add channels bioconda && \
-    conda config --set channel_priority strict && \
-    mamba install --yes --name base \
+    conda install --yes --name base \
         python=3.12 \
         hmmer=3.4 \
         famsa \
