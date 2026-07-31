@@ -180,6 +180,30 @@ def test_payload_presence_bitstring_follows_proteome_order(run_dir, samples):
     assert rows['lonely'][F['pres']] == '1000'
 
 
+def test_payload_evalues_align_with_presence_bitstring(run_dir, samples):
+    # issue #44: 'ev' is a comma-separated list aligned position-for-position with
+    # payload['proteomes'] / 'pres', empty where there's no e-value evidence.
+    (run_dir / 'evalues.tsv').write_text(
+        'protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\n'
+        'n1\tNcra\t\t3.2e-40\t\t\n'
+    )
+    payload = payload_for(run_dir, samples, evalues_path=run_dir / 'evalues.tsv')
+    assert payload['has_evalues'] is True
+    row = rows_by_id(payload)['n1']
+    ev_idx = payload['fields'].index('ev')
+    shorts = [p['short'] for p in payload['proteomes']]
+    assert row[ev_idx].split(',')[shorts.index('Afum')] == '3.2e-40'
+    assert row[ev_idx].split(',')[shorts.index('Ncra')] == ''
+
+
+def test_payload_has_evalues_false_without_evalues_path(run_dir, samples):
+    payload = payload_for(run_dir, samples)
+    assert payload['has_evalues'] is False
+    row = rows_by_id(payload)['n1']
+    ev_idx = payload['fields'].index('ev')
+    assert row[ev_idx] == ',' * (len(payload['proteomes']) - 1)
+
+
 def test_payload_tblastn_bitstring_follows_genome_order(run_dir, samples):
     payload = payload_for(run_dir, samples)
     F = {n: i for i, n in enumerate(payload['fields'])}

@@ -900,15 +900,29 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     // presence chips: colour + the short ID text, so identity is never colour-alone
+    var rowEv = row[F.ev] ? row[F.ev].split(",") : [];
     var mini = el("div", "presence-mini");
+    var evPairs = [];
     PROTEOMES.forEach(function (p, i) {
       var on = row[F.pres].charCodeAt(i) === 49;
+      var ev = rowEv[i] || "";
       var chip = el("span", "pm " + (on ? "on-pres" : "off"), p.short);
-      chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "absent");
+      chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "absent") +
+        (ev ? " (E=" + ev + ")" : "");
       mini.appendChild(chip);
+      if (on && ev) evPairs.push(p.short + ": " + ev);
     });
     detailEl.appendChild(field("Presence (protein search) · ingroup " + inN[ri] + "/" + N_IN +
       ", outgroup " + outN[ri] + "/" + (PROTEOMES.length - N_IN), mini));
+
+    // Hit e-values (issue #44) — report-only evidence for validating a presence call,
+    // e.g. distinguishing a strong ortholog hit from a marginal one. Only shown for
+    // proteomes where a qualifying hit's e-value survived through to the report; empty
+    // for runs whose pathway doesn't track e-values yet, or for the source proteome
+    // itself (never a search hit).
+    if (evPairs.length) {
+      detailEl.appendChild(field("Hit e-values (" + DATA.methods[0] + " search)", evPairs.join(" · ")));
+    }
 
     if (TB_GENOMES.length) {
       var tbm = el("div", "presence-mini");

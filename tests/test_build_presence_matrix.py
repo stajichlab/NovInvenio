@@ -133,3 +133,30 @@ def test_competition_target_scope_keeps_hexa_like_ortholog(run_dir):
     row = matrix[matrix['protein_id'] == 'hexA'].iloc[0]
     assert row['In1'] == 1 and row['In2'] == 1
     assert 'In1::hexA' in candidates
+
+
+def test_output_evalues_sidecar_matches_presence_calls(run_dir):
+    # issue #44: --output-evalues emits the qualifying hit's e-value alongside each
+    # presence=1 cell, empty for absence and for the protein's own source proteome.
+    hits_path = run_dir / 'hits.tsv'
+    hits_path.write_text(HIT_HEADER + 'g1\tg1_in2\t1e-10\t100\tIn1\tIn2\n')
+    matrix_out = run_dir / 'matrix.tsv'
+    candidates_out = run_dir / 'candidates.txt'
+    evalues_out = run_dir / 'evalues.tsv'
+    subprocess.run([
+        sys.executable, str(SCRIPT),
+        '--hits', str(hits_path),
+        '--config', str(run_dir / 'config.csv'),
+        '--ingroup-min-frac', '1.0',
+        '--query-group', 'IN',
+        '--other-max-frac', '0.0',
+        '--output-matrix', str(matrix_out),
+        '--output-candidates', str(candidates_out),
+        '--output-evalues', str(evalues_out),
+    ], check=True, capture_output=True, text=True)
+
+    evalues = pd.read_csv(evalues_out, sep='\t', dtype=str, keep_default_na=False)
+    row = evalues[evalues['protein_id'] == 'g1'].iloc[0]
+    assert row['In2'] == '1e-10'
+    assert row['In1'] == ''   # source proteome: presence is definitional, not a hit
+    assert row['Out1'] == ''  # absent: no qualifying hit
