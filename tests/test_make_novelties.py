@@ -95,3 +95,23 @@ def test_old_group_aliases_still_produce_novelties(tmp_path):
     rows = read_novelties(tmp_path / 'novelties.Ncra.tsv')
     assert len(rows) == 1
     assert rows[0]['protein_id'] == 'n1'
+
+
+# Regression test (issue #48): a --cluster_tool pairwise config may legitimately list
+# NEAR_INGROUP/BROAD_OUTGROUP rows now that CONTEXT_SEARCH exists to search them
+# separately -- bin/build_presence_matrix.py deliberately never gives them a matrix
+# column (see its own comment), so load_groups() must skip samples with no matching
+# column instead of hard-erroring "columns not found in matrix".
+CONTEXT_ROLE_CONFIG = CONFIG + (
+    'NEAR_INGROUP,Near species,,Near1.pep.fa,Near1.dna.fa,Near1,Pezizomycotina\n'
+    'BROAD_OUTGROUP,Broad species,,Broad1.pep.fa,Broad1.dna.fa,Broad1,Basidiomycota\n'
+)
+
+
+def test_near_ingroup_broad_outgroup_rows_without_a_matrix_column_are_skipped(tmp_path):
+    (tmp_path / 'config.csv').write_text(CONTEXT_ROLE_CONFIG)
+    (tmp_path / 'matrix.tsv').write_text(MATRIX)  # no Near1/Broad1 columns
+    run_make_novelties(tmp_path)
+    rows = read_novelties(tmp_path / 'novelties.Ncra.tsv')
+    assert len(rows) == 1
+    assert rows[0]['protein_id'] == 'n1'

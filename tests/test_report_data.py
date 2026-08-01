@@ -204,6 +204,50 @@ def test_payload_has_evalues_false_without_evalues_path(run_dir, samples):
     assert row[ev_idx] == ',' * (len(payload['proteomes']) - 1)
 
 
+def test_payload_appends_context_columns_without_affecting_novelty_stats(run_dir, samples):
+    # issue #48: NEAR_INGROUP/BROAD_OUTGROUP context columns are appended after the
+    # scored ingroup+outgroup columns, tagged {'context': True}, and 'pres'/'ev' extend
+    # to cover them -- but they must never be counted as novelty-determining evidence
+    # (that's still purely the strict IN/OUT matrix read_evalues/derive_novelties uses).
+    context_samples_csv = CONFIG + (
+        'NEAR_INGROUP,Near one,,Near1.pep.fa,Near1.dna.fa,Near1,Pezizomycotina\n'
+        'BROAD_OUTGROUP,Broad one,,Broad1.pep.fa,Broad1.dna.fa,Broad1,Basidiomycota\n'
+    )
+    (run_dir / 'config.csv').write_text(context_samples_csv)
+    context_samples = parse_config(run_dir / 'config.csv')
+    (run_dir / 'context_matrix.tsv').write_text(
+        'protein_id\tsource_proteome\tNear1\tBroad1\n'
+        'n1\tNcra\t1\t0\n'
+    )
+    (run_dir / 'context_evalues.tsv').write_text(
+        'protein_id\tsource_proteome\tNear1\tBroad1\n'
+        'n1\tNcra\t2.1e-30\t\n'
+    )
+    payload = build_payload(
+        run_dir / 'matrix.tsv', context_samples,
+        tblastn_path=run_dir / 'tblastn.tsv', candidates_fa=run_dir / 'candidates.fa',
+        context_matrix_path=run_dir / 'context_matrix.tsv',
+        context_evalues_path=run_dir / 'context_evalues.tsv',
+    )
+    assert payload['has_context'] is True
+    shorts = [p['short'] for p in payload['proteomes']]
+    assert shorts[-2:] == ['Near1', 'Broad1']
+    assert payload['proteomes'][-1]['context'] is True
+    assert 'context' not in payload['proteomes'][0]  # scored proteomes stay untagged
+
+    row = rows_by_id(payload)['n1']
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    # 4 scored columns (Ncra, Afum, Spom, Scer) + 2 context columns (Near1, Broad1)
+    assert row[F['pres']] == '1100' + '10'
+    assert row[F['ev']].split(',')[-2:] == ['2.1e-30', '']
+
+
+def test_payload_has_context_false_without_context_path(run_dir, samples):
+    payload = payload_for(run_dir, samples)
+    assert payload['has_context'] is False
+    assert all('context' not in p for p in payload['proteomes'])
+
+
 def test_payload_tblastn_bitstring_follows_genome_order(run_dir, samples):
     payload = payload_for(run_dir, samples)
     F = {n: i for i, n in enumerate(payload['fields'])}

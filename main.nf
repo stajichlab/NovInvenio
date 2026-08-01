@@ -2,6 +2,7 @@
 nextflow.enable.dsl=2
 
 include { SEARCH   } from './workflows/search'
+include { CONTEXT_SEARCH } from './workflows/context_search'
 include { PROFILE_SEARCH } from './workflows/profile_search'
 include { PROFILE_SEARCH as PROFILE_LOSS_SEARCH } from './workflows/profile_search'
 include { PROFILE_CANDIDATE_CLUSTERS } from './modules/profile_candidate_clusters'
@@ -19,6 +20,11 @@ include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
 include { NOVELTY_SCREEN } from './workflows/novelty_screen'
 include { EMPTY_LOSS_STUB } from './modules/empty_loss_stub'
 include { EMPTY_EVALUES_STUB } from './modules/empty_evalues_stub'
+// A process can only be invoked once per (mutually-exclusive if/else) branch, so the
+// context-search stub (issue #48) needs its own aliased imports alongside the e-value
+// stub (issue #44) -- both are the same trivial "touch an empty file" process.
+include { EMPTY_EVALUES_STUB as EMPTY_CONTEXT_MATRIX_STUB  } from './modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_CONTEXT_EVALUES_STUB } from './modules/empty_evalues_stub'
 
 // Original novelty_discovery/novelty_screen GROUP labels (issues #24-#29), renamed for
 // clarity (todo/rename-novelty-discovery-group-labels.md) -- still accepted in a config
@@ -118,6 +124,12 @@ workflow {
         // mmseqs/PROFILE_SEARCH doesn't track hit e-values yet (issue #44 follow-up).
         EMPTY_EVALUES_STUB()
         novelty_evalues    = EMPTY_EVALUES_STUB.out.evalues
+        // NEAR_INGROUP/BROAD_OUTGROUP context search (issue #48) is pairwise-only for now
+        // -- mmseqs/PROFILE_SEARCH has no self-vs-self paralog cutoffs to filter against.
+        EMPTY_CONTEXT_MATRIX_STUB()
+        context_matrix     = EMPTY_CONTEXT_MATRIX_STUB.out.evalues
+        EMPTY_CONTEXT_EVALUES_STUB()
+        context_evalues    = EMPTY_CONTEXT_EVALUES_STUB.out.evalues
 
         // Family-as-cluster (ADR-0002 Q7): reuse the profile pathway's gene families
         // (restricted to candidate-containing ones) instead of re-clustering candidates.
@@ -159,6 +171,12 @@ workflow {
         novelty_candidates = NOVELTY_SCREEN.out.candidates
         // Phase-1-scoped e-value evidence (issue #44) -- see NOVELTY_DISCOVERY's emit: block.
         novelty_evalues    = NOVELTY_DISCOVERY.out.evalues
+        // novelty_discovery already has its own NEAR_INGROUP/BROAD_OUTGROUP screen
+        // (NOVELTY_SCREEN) -- the pairwise-only context search (issue #48) doesn't apply.
+        EMPTY_CONTEXT_MATRIX_STUB()
+        context_matrix     = EMPTY_CONTEXT_MATRIX_STUB.out.evalues
+        EMPTY_CONTEXT_EVALUES_STUB()
+        context_evalues    = EMPTY_CONTEXT_EVALUES_STUB.out.evalues
 
         // Family-as-cluster (ADR-0002 Q7): reuse NOVELTY_DISCOVERY's own gene families
         // (restricted to candidate-containing ones) instead of re-clustering candidates.
@@ -199,6 +217,22 @@ workflow {
         cand_fa          = CLUSTER.out.candidates_fa
         cand_reps        = CLUSTER.out.representatives
         cand_cluster_tsv = CLUSTER.out.cluster_tsv
+
+        // NEAR_INGROUP/BROAD_OUTGROUP context (issue #48): report-only presence/e-value
+        // evidence for the already-fixed candidate list, never affecting novelty calling.
+        // Runs automatically -- when the config has no NEAR_INGROUP/BROAD_OUTGROUP rows,
+        // near_in_prot_ch/broad_out_prot_ch are simply empty and CONTEXT_SEARCH is a no-op
+        // (empty context columns in the report, not skipped entirely).
+        CONTEXT_SEARCH(
+            novelty_candidates,
+            SEARCH.out.self_hits,
+            ingroup_prot_ch,
+            near_in_prot_ch,
+            broad_out_prot_ch,
+            file(params.config)
+        )
+        context_matrix  = CONTEXT_SEARCH.out.matrix
+        context_evalues = CONTEXT_SEARCH.out.evalues
     }
 
     // novelty_discovery already produced its own TBLASTN summary (see above); the other two
@@ -271,6 +305,8 @@ workflow {
         cand_fa,
         cand_cluster_tsv,
         novelty_evalues,
+        context_matrix,
+        context_evalues,
         loss_annotated_matrix,
         loss_tblastn_summary,
         loss_cand_cluster_tsv,

@@ -421,6 +421,10 @@ HTML_TEMPLATE = r"""<!doctype html>
   var TB_GENOMES = DATA.tblastn_genomes;
   var FAMILIES = DATA.families || [];
   var N_IN = PROTEOMES.filter(function (p) { return p.group === "IN"; }).length;
+  // Context columns (issue #48: NEAR_INGROUP/BROAD_OUTGROUP, tagged {context:true}) are
+  // appended after the scored ingroup+outgroup columns -- shown in the heatmap/detail
+  // panel for pattern-checking, but never counted toward ingroup/outgroup novelty stats.
+  var N_SCORED = PROTEOMES.filter(function (p) { return !p.context; }).length;
 
   // Gene families group candidates recovered independently in several ingroup
   // species (via mmseqs clustering of the candidate set) — see lib/clusters.py.
@@ -448,7 +452,11 @@ HTML_TEMPLATE = r"""<!doctype html>
   var GROUP_LABEL = {
     IN: ["Ingroup proteomes", "Ingroup"],
     OUT: ["Outgroup proteomes", "Outgroup"],
-    TB: ["Outgroup genomes (TBLASTN)", "Genomes (TBLASTN)", "TBLASTN"]
+    TB: ["Outgroup genomes (TBLASTN)", "Genomes (TBLASTN)", "TBLASTN"],
+    // Context columns (issue #48) — shown for pattern-checking, never scored toward
+    // ingroup/outgroup novelty stats. See the "context" swatch in the legend.
+    NEAR_INGROUP: ["Near ingroup — context, not scored", "Near ingroup (context)", "Near ingroup"],
+    BROAD_OUTGROUP: ["Broad outgroup — context, not scored", "Broad outgroup (context)", "Broad outgroup"]
   };
 
   // Contiguous runs of the same group, for the header bands and separators.
@@ -472,7 +480,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     for (ci = 0; ci < N_IN; ci++) { if (pres.charCodeAt(ci) === 49) cn++; }
     inN[r] = cn;
     cn = 0;
-    for (ci = N_IN; ci < pres.length; ci++) { if (pres.charCodeAt(ci) === 49) cn++; }
+    for (ci = N_IN; ci < N_SCORED; ci++) { if (pres.charCodeAt(ci) === 49) cn++; }
     outN[r] = cn;
     var tb = ROWS[r][F.tb];
     cn = 0;
@@ -799,7 +807,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       r1.appendChild(el("span", null, name));
       tipEl.appendChild(r1);
       tipEl.appendChild(el("div", "tip-row", col.kind === "pres"
-        ? (col.group === "IN" ? "Ingroup proteome" : "Outgroup proteome")
+        ? (col.proteome && col.proteome.context
+            ? "Context proteome — not scored for novelty"
+            : (col.group === "IN" ? "Ingroup proteome" : "Outgroup proteome"))
         : "Outgroup genome"));
     }
 
@@ -807,7 +817,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     if (row[F.gene]) tipEl.appendChild(el("div", "tip-row", "Gene: " + row[F.gene]));
     if (row[F.prod]) tipEl.appendChild(el("div", "tip-row", row[F.prod]));
     tipEl.appendChild(el("div", "tip-row",
-      "Ingroup " + inN[ri] + "/" + N_IN + " · outgroup " + outN[ri] + "/" + (PROTEOMES.length - N_IN) +
+      "Ingroup " + inN[ri] + "/" + N_IN + " · outgroup " + outN[ri] + "/" + (N_SCORED - N_IN) +
       (TB_GENOMES.length ? " · TBLASTN " + tbN[ri] + "/" + TB_GENOMES.length : "")));
     if (row[F.nov]) tipEl.appendChild(el("div", "tip-row", "Novelty candidate"));
 
@@ -899,21 +909,31 @@ HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(field("Gene family — independently recovered in multiple ingroup species", famBox));
     }
 
-    // presence chips: colour + the short ID text, so identity is never colour-alone
+    // presence chips: colour + the short ID text, so identity is never colour-alone.
+    // Scored (ingroup+outgroup) and context (issue #48: NEAR_INGROUP/BROAD_OUTGROUP,
+    // {context:true}) columns get separate mini-grids -- context columns are always
+    // appended after N_SCORED, so a single split point covers both.
     var rowEv = row[F.ev] ? row[F.ev].split(",") : [];
     var mini = el("div", "presence-mini");
     var evPairs = [];
+    var ctxMini = el("div", "presence-mini");
+    var ctxEvPairs = [];
     PROTEOMES.forEach(function (p, i) {
       var on = row[F.pres].charCodeAt(i) === 49;
       var ev = rowEv[i] || "";
       var chip = el("span", "pm " + (on ? "on-pres" : "off"), p.short);
       chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "absent") +
-        (ev ? " (E=" + ev + ")" : "");
-      mini.appendChild(chip);
-      if (on && ev) evPairs.push(p.short + ": " + ev);
+        (p.context ? " (context, not scored)" : "") + (ev ? " (E=" + ev + ")" : "");
+      if (p.context) {
+        ctxMini.appendChild(chip);
+        if (on && ev) ctxEvPairs.push(p.short + ": " + ev);
+      } else {
+        mini.appendChild(chip);
+        if (on && ev) evPairs.push(p.short + ": " + ev);
+      }
     });
     detailEl.appendChild(field("Presence (protein search) · ingroup " + inN[ri] + "/" + N_IN +
-      ", outgroup " + outN[ri] + "/" + (PROTEOMES.length - N_IN), mini));
+      ", outgroup " + outN[ri] + "/" + (N_SCORED - N_IN), mini));
 
     // Hit e-values (issue #44) — report-only evidence for validating a presence call,
     // e.g. distinguishing a strong ortholog hit from a marginal one. Only shown for
@@ -922,6 +942,19 @@ HTML_TEMPLATE = r"""<!doctype html>
     // itself (never a search hit).
     if (evPairs.length) {
       detailEl.appendChild(field("Hit e-values (" + DATA.methods[0] + " search)", evPairs.join(" · ")));
+    }
+
+    // NEAR_INGROUP/BROAD_OUTGROUP context (issue #48) — searched only for candidates,
+    // shown for pattern-checking (e.g. "does a close relative also carry this?"), never
+    // counted toward the ingroup/outgroup stats above or toward novelty status.
+    if (DATA.has_context) {
+      var ctxCount = row[F.pres].slice(N_SCORED).split("").filter(function (c) { return c === "1"; }).length;
+      var ctxTotal = PROTEOMES.length - N_SCORED;
+      detailEl.appendChild(field("Context — near ingroup / broad outgroup (not scored) · " +
+        ctxCount + "/" + ctxTotal, ctxMini));
+      if (ctxEvPairs.length) {
+        detailEl.appendChild(field("Context hit e-values", ctxEvPairs.join(" · ")));
+      }
     }
 
     if (TB_GENOMES.length) {
@@ -1035,17 +1068,19 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
     },
     { label: "Ingroup", get: function (r) { return inN[r] + "/" + N_IN; }, cls: "num" },
-    { label: "Outgroup", get: function (r) { return outN[r] + "/" + (PROTEOMES.length - N_IN); }, cls: "num" },
+    { label: "Outgroup", get: function (r) { return outN[r] + "/" + (N_SCORED - N_IN); }, cls: "num" },
     { label: "TBLASTN", get: function (r) { return TB_GENOMES.length ? tbN[r] + "/" + TB_GENOMES.length : "—"; }, cls: "num" },
     { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
     { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
     { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
     { label: "Pfam domains", get: function (r) { return ROWS[r][F.pfam_n]; }, cls: "wrap-cell" }
   ];
-  // Per-proteome presence columns keep the table a true twin of the heatmap.
+  // Per-proteome presence columns keep the table a true twin of the heatmap. Context
+  // columns (issue #48) are labelled distinctly -- they're shown, never scored.
   PROTEOMES.forEach(function (p, i) {
+    var suffix = p.context ? " (context)" : (p.group === "IN" ? " (in)" : " (out)");
     TBL_COLS.push({
-      label: p.short + (p.group === "IN" ? " (in)" : " (out)"),
+      label: p.short + suffix,
       get: function (r) { return ROWS[r][F.pres].charCodeAt(i) === 49 ? "1" : "0"; },
       cls: "cell"
     });
@@ -1170,7 +1205,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       "% of the ingroup and absent from every outgroup proteome.";
     document.getElementById("t-total").textContent = nRows.toLocaleString();
     document.getElementById("t-in").textContent = N_IN + (N_IN === 1 ? " species" : " species");
-    document.getElementById("t-out").textContent = (PROTEOMES.length - N_IN) + " species";
+    document.getElementById("t-out").textContent = (N_SCORED - N_IN) + " species";
     document.getElementById("t-annot").textContent =
       nRows ? Math.round((annot / nRows) * 100) + "%" : "—";
 
@@ -1210,7 +1245,9 @@ HTML_TEMPLATE = r"""<!doctype html>
   function populateSelects() {
     var src = document.getElementById("f-src");
     src.appendChild(new Option("All source proteomes", ""));
-    PROTEOMES.forEach(function (p) {
+    // Context proteomes (issue #48) are never a row's source -- candidates always
+    // originate from the ingroup -- so they'd never match anything in this filter.
+    PROTEOMES.filter(function (p) { return !p.context; }).forEach(function (p) {
       src.appendChild(new Option(p.short + " — " + p.species + (p.group === "IN" ? " (in)" : " (out)"), p.short));
     });
     var fs = document.getElementById("f-fsrc");
