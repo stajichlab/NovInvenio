@@ -16,7 +16,6 @@ candidates.txt: source_proteome::protein_id, one per line, deduplicated.
 """
 import argparse
 import sys
-from pathlib import Path
 
 import pandas as pd
 

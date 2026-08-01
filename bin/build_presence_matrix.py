@@ -40,7 +40,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from config_parser import parse_config, short_to_group
+from config_parser import parse_config
 
 DEFAULT_EVALUE = 1e-5
 

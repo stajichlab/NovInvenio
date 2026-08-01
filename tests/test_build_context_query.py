@@ -20,7 +20,7 @@ def run(tmp_path, candidates_text, paralog_text=None):
         cmd += ['--paralog-cutoffs', str(paralog_path)]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
     out = tmp_path / 'context_query.txt'
-    return [l for l in out.read_text().splitlines() if l] if out.stat().st_size else []
+    return [line for line in out.read_text().splitlines() if line] if out.stat().st_size else []
 
 
 def test_candidate_with_no_paralog_passes_through_unchanged(tmp_path):

@@ -48,7 +48,7 @@ def test_negative_control_calibration(tmp_path):
 
     lines = out.read_text().strip().split('\n')
     # famA has a hit at 1e-5 → threshold = 1e-5, source = negative_control
-    famA_line = [l for l in lines if l.startswith('famA\t')][0]
+    famA_line = [ln for ln in lines if ln.startswith('famA\t')][0]
     parts = famA_line.split('\t')
     assert parts[2] == 'negative_control'
     assert float(parts[1]) == 1e-5
@@ -74,7 +74,7 @@ def test_global_default_for_no_hit(tmp_path):
     )
 
     lines = out.read_text().strip().split('\n')
-    famA_line = [l for l in lines if l.startswith('famA\t')][0]
+    famA_line = [ln for ln in lines if ln.startswith('famA\t')][0]
     parts = famA_line.split('\t')
     assert parts[2] == 'global_default'
     assert float(parts[1]) == 1e-3
@@ -102,6 +102,6 @@ def test_best_evalue_across_multiple_domtblouts(tmp_path):
     )
 
     lines = out.read_text().strip().split('\n')
-    famA_line = [l for l in lines if l.startswith('famA\t')][0]
+    famA_line = [ln for ln in lines if ln.startswith('famA\t')][0]
     parts = famA_line.split('\t')
     assert float(parts[1]) == 1e-8
