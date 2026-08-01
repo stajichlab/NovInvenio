@@ -26,7 +26,7 @@ The family MSAs from Phase 1 make it measurable at homologous positions.
 - Family set: matrix rows with high `ingroup_frac` AND high `outgroup_frac` (the "core").
 - Stat: ingroup vs outgroup member length (median ratio, Mann–Whitney / Cliff's delta)
   over the family MSA (aligned-column occupancy, not raw length).
-- "Domains maintained": require conserved Pfam architecture (reuse ANNOTATE hmmsearch);
+- "Domains maintained": require conserved Pfam architecture (reuse ANNOTATE hmmscan);
   rising domain-coverage fraction (domain AA / total AA) in the ingroup is the signal.
 - New `build_contractions_payload()` + `contractions.html` following the
   `losses.html`/`core.html` single-table pattern (`lib/report_common.py`).

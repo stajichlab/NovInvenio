@@ -4,7 +4,7 @@
 
 ### New workflows
 
-- **`workflows/annotate.nf`** — `ANNOTATE_MATRIX` process runs Pfam hmmsearch
+- **`workflows/annotate.nf`** — `ANNOTATE_MATRIX` process runs Pfam hmmscan
   and/or SwissProt diamond blastp against candidate proteins, then calls
   `annotate_presence_matrix.py` to merge results into a functional presence
   matrix (`presence_matrix.function.tsv`).  Both annotation steps are optional:

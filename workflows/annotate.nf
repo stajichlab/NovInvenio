@@ -1,7 +1,7 @@
 nextflow.enable.dsl=2
 
 // Functional annotation of candidate proteins:
-//   1. hmmsearch vs Pfam-A  (only when params.pfam_hmm is set)
+//   1. hmmscan vs Pfam-A  (only when params.pfam_hmm is set)
 //   2. diamond blastp vs SwissProt  (only when params.swissprot_dmnd is set)
 //   3. annotate_presence_matrix.py merges all hits into the presence matrix,
 //      using params.modelorgs_config YAML for gene name lookups
@@ -55,8 +55,15 @@ process ANNOTATE_MATRIX {
     def pfam_out        = "${output_prefix}candidates.pfam.tblout"
     def sprot_out        = "${output_prefix}candidates.swissprot.tsv"
 
+    // hmmscan, not hmmsearch: candidates.fa (thousands of query proteins) is scanned
+    // against the pressed Pfam-A DB (target). hmmsearch would instead treat each of
+    // Pfam's ~20,800 profiles as a query against a small candidate set — the wrong
+    // direction for multithreading (which parallelizes over the target), which is why
+    // this step was observed at ~2.8 real cores no matter how many were requested
+    // (issue: ANNOTATE_MATRIX runtime profiling). Pfam-A.hmm must be hmmpress'd (it is,
+    // see db/pfam/).
     def pfam_search = pfam_hmm ? """\
-        ${mpi_cmd} hmmsearch ${pfam_cpu} \\
+        ${mpi_cmd} hmmscan ${pfam_cpu} \\
             --tblout ${pfam_out} \\
             --noali \\
             ${pfam_hmm} \\

@@ -226,7 +226,7 @@ The subworkflow branches based on the number of `DISCOVERY_TARGET` genomes:
 
 After `novelty_screen`, annotate only the final surviving novelty candidates
 (option a). Same as the current pipeline's `ANNOTATE` step, but applied to the
-three-category refined set. Annotation is expensive (hmmsearch vs Pfam-A,
+three-category refined set. Annotation is expensive (hmmscan vs Pfam-A,
 diamond vs SwissProt), and there's no reason to annotate families that will be
 filtered out as false novelties in the screen phase.
 

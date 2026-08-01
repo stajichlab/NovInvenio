@@ -52,7 +52,7 @@ NovInvenio/
 │   ├── loss_search.nf             # LOSS_SEARCH — same, outgroup query (loss-search direction)
 │   ├── cluster.nf                 # CLUSTER — extract candidates + mmseqs2 clustering (reused as LOSS_CLUSTER)
 │   ├── validate.nf                # VALIDATE — TBLASTN + SUMMARIZE_TBLASTN (reused as LOSS_VALIDATE)
-│   ├── annotate.nf                # ANNOTATE — Pfam hmmsearch + SwissProt diamond + matrix merge (reused as LOSS_ANNOTATE)
+│   ├── annotate.nf                # ANNOTATE — Pfam hmmscan + SwissProt diamond + matrix merge (reused as LOSS_ANNOTATE)
 │   ├── summarize.nf               # SUMMARIZE — MAKE_NOVELTIES per ingroup species
 │   └── report.nf                  # REPORT — MAKE_REPORT (novelties.html), MAKE_CORE_REPORT (core.html),
 │                                   #   MAKE_LOSSES_REPORT (losses.html), COLLATE_REPORTS (view/<project>/report.html + copies)
@@ -152,7 +152,12 @@ view/                              # sibling of results/ — one shareable folde
 
 5. **ANNOTATE workflow** (`workflows/annotate.nf`):
    - Single `ANNOTATE_MATRIX` process runs (conditionally, based on whether paths are set):
-     - `hmmsearch` vs Pfam-A → `candidates.pfam.tblout` (MPI-capable via `--hmm_mpi`).
+     - `hmmscan` vs Pfam-A → `candidates.pfam.tblout` (MPI-capable via `--hmm_mpi`). Query is
+       candidates.fa, target is the hmmpress'd Pfam-A database — this orientation (not
+       hmmsearch) is what lets multithreading actually help: HMMER parallelizes over the
+       target, and candidates.fa is far smaller than Pfam-A's ~20,800 profiles, so
+       hmmsearch's threading barely engaged regardless of `--cpu` (observed ~2.8 real
+       cores no matter how many were requested).
      - `diamond blastp` vs SwissProt → `candidates.swissprot.tsv` (best hit, outfmt 6 with stitle).
    - `annotate_presence_matrix.py` merges hits into the matrix with annotation priority:
      1. Model organism gene names (via `--modelorgs_config` YAML).

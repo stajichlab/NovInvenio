@@ -17,7 +17,7 @@ Config CSV
     ├─► VALIDATE — TBLASTN of cluster reps vs outgroup genomes
     │               → tblastn_summary.tsv (protein × genome hit matrix)
     │
-    ├─► ANNOTATE — Pfam hmmsearch + SwissProt diamond + model organism gene names
+    ├─► ANNOTATE — Pfam hmmscan + SwissProt diamond + model organism gene names
     │               → presence_matrix.function.tsv
     │                 (adds gene_name, product_description, Best_Swissprot, Pfam_Names)
     │
@@ -444,7 +444,7 @@ All outputs are written to `results/<project>/`:
 | `clusters/` | mmseqs2 cluster output (TSV, rep FASTA, all-seqs FASTA) |
 | `tblastn/` | Per-outgroup TBLASTN TSVs |
 | `tblastn_summary.tsv` | Protein × outgroup genome hit matrix |
-| `candidates.pfam.tblout` | Pfam hmmsearch tblout (if `--pfam_hmm` set) |
+| `candidates.pfam.tblout` | Pfam hmmscan tblout (if `--pfam_hmm` set) |
 | `candidates.swissprot.tsv` | SwissProt diamond hits (if `--swissprot_dmnd` set) |
 | `presence_matrix.function.tsv` | Annotated matrix (gene_name, Best_Swissprot, Pfam_Names) |
 | `novelties.<SHORT>.tsv` | Per-species novelty candidates (one file per ingroup species) |

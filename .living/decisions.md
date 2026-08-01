@@ -98,7 +98,7 @@ before coding. Resolved answers accumulate here; consolidated into
   align each family, `hmmbuild` → family HMM. Keeps the dormant HMMER modules and HMMER's
   well-understood E-value model for the Q5 absence call. Rejected mmseqs `result2msa`
   (lower MSA quality weakens the profile) and native mmseqs profiles (drops HMMER / weaker
-  interop with the Pfam hmmsearch already in ANNOTATE). Dep is added at implementation time
+  interop with the Pfam hmmscan already in ANNOTATE). Dep is added at implementation time
   via the tickets→branch→PR flow, not during design.
 - **Q5 — presence rule from hmmsearch = accepted default**: `hmmsearch --domtblout`,
   **fixed `--Z`** (comparable E-values across all 209 targets of differing size), presence =
