@@ -25,6 +25,10 @@ include { FAMILY_HMMSEARCH      } from '../modules/family_hmmsearch'
 include { TBLASTN_MAKEDB        } from '../modules/tblastn'
 include { TBLASTN               } from '../modules/tblastn'
 include { SUMMARIZE_TBLASTN     } from '../modules/summarize_tblastn'
+include { PHMMER_SELF           } from '../modules/self_search'
+include { DIAMOND_SELF          } from '../modules/self_search'
+include { BLAST_SELF            } from '../modules/self_search'
+include { PARSE_SELF_HITS       } from '../modules/parse_self_hits'
 
 // ---------------------------------------------------------------------------
 // Per-seed-proteome protein_id → proteome Short map, merged into one TSV so
@@ -72,6 +76,34 @@ process EXTRACT_SINGLETONS {
         --cluster-tsv ${cluster_tsv} \
         --fasta ${seed_fa} \
         --output singletons.fa
+    """
+}
+
+// ---------------------------------------------------------------------------
+// Extend the singleton query with each singleton's own within-genome paralog (issue
+// #52), so the singleton search's paralog-competition filter has the paralog's own
+// hits to compare against. See bin/extend_singleton_query.py.
+// ---------------------------------------------------------------------------
+process EXTEND_SINGLETON_QUERY {
+    label 'low_cpu'
+    tag "extend_singleton_query"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(singletons_fa)
+    path(seed_fa)
+    path(paralog_cutoffs)
+
+    output:
+    path("singleton_query.fa"), emit: query_fa
+
+    script:
+    """
+    extend_singleton_query.py \
+        --singletons-fa ${singletons_fa} \
+        --seed-fasta ${seed_fa} \
+        --paralog-cutoffs ${paralog_cutoffs} \
+        --output singleton_query.fa
     """
 }
 
@@ -235,6 +267,8 @@ process NOVELTY_PRESENCE_MATRIX {
     val(target_min_frac)
     val(disc_out_max_frac)
     val(singleton_evalue)
+    path(paralog_cutoffs)
+    val(paralog_competition_scope)
 
     output:
     path("presence_matrix.tsv"), emit: matrix
@@ -242,10 +276,11 @@ process NOVELTY_PRESENCE_MATRIX {
     path("presence_matrix.evalues.tsv"), emit: evalues
 
     script:
-    // singleton_hits is [] when there were no singletons at all (extract_singletons.py
-    // produced an empty FASTA) -- omit the flag rather than pass an empty Groovy list
-    // literal ("[]") on the command line.
+    // singleton_hits/paralog_cutoffs are [] when there were no singletons / no paralogs
+    // detected at all -- omit the flag rather than pass an empty Groovy list literal
+    // ("[]") on the command line.
     def singleton_arg = singleton_hits ? "--singleton-hits ${singleton_hits}" : ''
+    def paralog_arg = paralog_cutoffs ? "--paralog-cutoffs ${paralog_cutoffs}" : ''
     """
     novelty_presence_matrix.py \
         --family-domtblout ${family_domtblouts} \
@@ -259,6 +294,8 @@ process NOVELTY_PRESENCE_MATRIX {
         --target-min-frac ${target_min_frac} \
         --disc-out-max-frac ${disc_out_max_frac} \
         --singleton-evalue ${singleton_evalue} \
+        ${paralog_arg} \
+        --paralog-competition-scope ${paralog_competition_scope} \
         --output-matrix presence_matrix.tsv \
         --output-candidates candidates.txt \
         --output-evalues presence_matrix.evalues.tsv
@@ -302,21 +339,49 @@ workflow NOVELTY_DISCOVERY {
     EXTRACT_SINGLETONS(MMSEQS_FAMILY_CLUSTER.out.cluster_tsv, seed_concat)
     singletons_fa = EXTRACT_SINGLETONS.out.singletons_fa.first()
 
+    // Self-vs-self search on DISCOVERY_TARGET proteomes (issue #52) -- captures each
+    // target protein's best within-proteome paralog, the same rank-2 calibration
+    // workflows/search.nf does for the classic pairwise pathway. Needed so the singleton
+    // search below can apply the same paralog-cutoff + paralog-competition filters
+    // bin/build_presence_matrix.py uses, instead of a flat --singleton-evalue threshold
+    // with no protection against cross-reactivity with a conserved paralog (the
+    // NCU08332/HEX-1-vs-eIF5A false positive found validating job 26997324).
+    if (params.run_tool == 'phmmer') {
+        raw_self_ch = PHMMER_SELF(target_ch)
+    }
+    else if (params.run_tool == 'diamond') {
+        raw_self_ch = DIAMOND_SELF(target_ch)
+    }
+    else if (params.run_tool == 'blast') {
+        raw_self_ch = BLAST_SELF(target_ch)
+    }
+    else {
+        error "Unknown --run_tool '${params.run_tool}': choose phmmer, diamond, or blast"
+    }
+    PARSE_SELF_HITS(raw_self_ch)
+    paralog_cutoffs_ch = PARSE_SELF_HITS.out.tsv.map { meta, tsv -> tsv }.collect().ifEmpty([])
+
+    // Extend the singleton query with each singleton's own paralog (issue #52) before
+    // searching, so the paralog-competition filter in bin/novelty_presence_matrix.py has
+    // the paralog's own hits to compare against.
+    EXTEND_SINGLETON_QUERY(singletons_fa, seed_concat, paralog_cutoffs_ch)
+    singleton_query_fa = EXTEND_SINGLETON_QUERY.out.query_fa.first()
+
     // Singleton pairwise search ("hybrid approach") against every TARGET+DISCOVERY_OUT
     // proteome -- see the SINGLETON_*_SEARCH process docs above for why mmseqs clustering
     // alone isn't enough.
     if (params.run_tool == 'phmmer') {
-        SINGLETON_PHMMER_SEARCH(singletons_fa, all_proteomes_ch)
+        SINGLETON_PHMMER_SEARCH(singleton_query_fa, all_proteomes_ch)
         singleton_raw_ch = SINGLETON_PHMMER_SEARCH.out
     }
     else if (params.run_tool == 'diamond') {
         singleton_db_ch = DIAMOND_MAKEDB(all_proteomes_ch)
-        SINGLETON_DIAMOND_SEARCH(singletons_fa, singleton_db_ch)
+        SINGLETON_DIAMOND_SEARCH(singleton_query_fa, singleton_db_ch)
         singleton_raw_ch = SINGLETON_DIAMOND_SEARCH.out
     }
     else if (params.run_tool == 'blast') {
         singleton_db_ch = BLAST_MAKEDB(all_proteomes_ch)
-        SINGLETON_BLAST_SEARCH(singletons_fa, singleton_db_ch)
+        SINGLETON_BLAST_SEARCH(singleton_query_fa, singleton_db_ch)
         singleton_raw_ch = SINGLETON_BLAST_SEARCH.out
     }
     else {
@@ -354,7 +419,9 @@ workflow NOVELTY_DISCOVERY {
         params.hmm_presence_cov,
         params.ingroup_min_frac,
         0.0,  // disc_out_max_frac: strictly absent from DISCOVERY_OUT
-        params.evalue  // singleton_evalue: flat threshold, no per-protein paralog calibration
+        params.evalue,  // singleton_evalue: fallback when a singleton has no detected paralog
+        paralog_cutoffs_ch,  // issue #52: DISCOVERY_TARGET self-search paralog cutoffs
+        params.paralog_competition_scope
     )
 
     // TBLASTN validation against DISCOVERY_OUT genomes — query is the family representative
@@ -392,4 +459,11 @@ workflow NOVELTY_DISCOVERY {
     // calling family presence against NEAR_INGROUP/BROAD_OUTGROUP, so a family's definition of
     // "present" stays consistent across both phases.
     family_thresholds  = CALIBRATE_FAMILY_HMMS.out.thresholds
+    // issue #52: the extended singleton query (singletons + their own paralogs) and the
+    // paralog cutoffs used to filter phase 1's singleton search -- NOVELTY_SCREEN reuses
+    // both to search+filter the SAME singletons against NEAR_INGROUP/BROAD_OUTGROUP with
+    // identical paralog-aware logic, closing the "singletons always default to
+    // target_specific" gap.
+    singleton_query_fa = singleton_query_fa
+    paralog_cutoffs    = paralog_cutoffs_ch
 }

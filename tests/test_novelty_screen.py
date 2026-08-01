@@ -65,7 +65,9 @@ def _setup(tmp_path):
     (tmp_path / 'cluster.tsv').write_text(CLUSTER_TSV)
 
 
-def _run(tmp_path, near_in_domtblouts=None, broad_out_domtblouts=None, **extra):
+def _run(tmp_path, near_in_domtblouts=None, broad_out_domtblouts=None,
+        near_in_singleton_hits=None, broad_out_singleton_hits=None,
+        paralog_cutoffs=None, **extra):
     args = [
         sys.executable, str(BIN),
         '--discovery-matrix', str(tmp_path / 'discovery_matrix.tsv'),
@@ -79,6 +81,12 @@ def _run(tmp_path, near_in_domtblouts=None, broad_out_domtblouts=None, **extra):
         args += ['--near-in-domtblout'] + [str(d) for d in near_in_domtblouts]
     if broad_out_domtblouts:
         args += ['--broad-out-domtblout'] + [str(d) for d in broad_out_domtblouts]
+    if near_in_singleton_hits:
+        args += ['--near-in-singleton-hits'] + [str(p) for p in near_in_singleton_hits]
+    if broad_out_singleton_hits:
+        args += ['--broad-out-singleton-hits'] + [str(p) for p in broad_out_singleton_hits]
+    if paralog_cutoffs:
+        args += ['--paralog-cutoffs'] + [str(p) for p in paralog_cutoffs]
     for k, v in extra.items():
         args += [f'--{k}', str(v)]
     subprocess.run(args, check=True, capture_output=True, text=True)
@@ -203,3 +211,76 @@ def test_family_threshold_gates_presence(tmp_path):
     assert row['B1'] == 0
     assert row['novelty_category'] == 'target_specific'
     assert 'T1::pA1' in cands
+
+
+# --- Singleton screening (issue #52) ----------------------------------------------
+# pC1 is a singleton in CLUSTER_TSV ('pC1\tpC1', no family) -- family HMM search can
+# never see it, so before this feature it always defaulted to target_specific
+# regardless of true NEAR_INGROUP/BROAD_OUTGROUP presence. These tests search it
+# directly, the same way the pairwise singleton search does.
+
+HIT_HEADER = 'query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\n'
+PARALOG_HEADER = 'protein_ID\tparalog_protein_ID\tbitscore\tevalue\n'
+
+
+def _write_hits(path, lines):
+    path.write_text(HIT_HEADER + lines)
+
+
+def test_singleton_hit_in_near_in_reclassifies_clade_specific(tmp_path):
+    _setup(tmp_path)
+    near_hits = tmp_path / 'singletons_vs_N1.parsed.tsv'
+    _write_hits(near_hits, 'pC1\tn1_x\t1e-10\t100\tT1\tN1\n')
+
+    matrix, cands = _run(tmp_path, near_in_singleton_hits=[near_hits])
+    row = matrix[matrix['protein_id'] == 'pC1'].iloc[0]
+    assert row['N1'] == 1
+    assert row['novelty_category'] == 'clade_specific'
+    assert 'T1::pC1' in cands
+
+
+def test_singleton_hit_in_broad_out_reclassifies_false_novelty(tmp_path):
+    _setup(tmp_path)
+    broad_hits = tmp_path / 'singletons_vs_B1.parsed.tsv'
+    _write_hits(broad_hits, 'pC1\tb1_x\t1e-10\t100\tT1\tB1\n')
+
+    matrix, cands = _run(tmp_path, broad_out_singleton_hits=[broad_hits])
+    row = matrix[matrix['protein_id'] == 'pC1'].iloc[0]
+    assert row['B1'] == 1
+    assert row['novelty_category'] == 'false_novelty'
+    assert 'T1::pC1' not in cands
+
+
+def test_singleton_paralog_competition_prevents_a_false_novelty_call(tmp_path):
+    # The NCU08332/HEX-1-vs-eIF5A pattern: pC1's own hit to a real (weak) ortholog
+    # target loses to its paralog's much stronger hit in the SAME broad-outgroup
+    # proteome -- 'proteome' scope disqualifies it, so pC1 is correctly NOT demoted to
+    # false_novelty by what is actually cross-reactivity with a conserved paralog.
+    _setup(tmp_path)
+    broad_hits = tmp_path / 'singletons_vs_B1.parsed.tsv'
+    _write_hits(broad_hits, (
+        'pC1\thex1\t5e-12\t45\tT1\tB1\n'
+        'pParalog\teif2\t1e-70\t233\tT1\tB1\n'
+    ))
+    paralog = tmp_path / 'paralog_cutoffs.tsv'
+    paralog.write_text(PARALOG_HEADER + 'pC1\tpParalog\t42\t4.2e-11\n')
+
+    matrix, cands = _run(tmp_path, broad_out_singleton_hits=[broad_hits],
+                         paralog_cutoffs=[paralog])
+    row = matrix[matrix['protein_id'] == 'pC1'].iloc[0]
+    assert row['B1'] == 0
+    assert row['novelty_category'] == 'target_specific'
+    assert 'T1::pC1' in cands
+
+
+def test_singleton_paralog_added_to_search_is_never_itself_a_row(tmp_path):
+    # pParalog is searched (as pC1's paralog, for the competition check) but is not
+    # itself a singleton in cluster.tsv, so it must never appear as a matrix row.
+    _setup(tmp_path)
+    broad_hits = tmp_path / 'singletons_vs_B1.parsed.tsv'
+    _write_hits(broad_hits, (
+        'pC1\thex1\t1e-69\t230\tT1\tB1\n'
+        'pParalog\teif2\t1e-70\t233\tT1\tB1\n'
+    ))
+    matrix, cands = _run(tmp_path, broad_out_singleton_hits=[broad_hits])
+    assert 'pParalog' not in set(matrix['protein_id'])

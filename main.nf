@@ -165,6 +165,8 @@ workflow {
             NOVELTY_DISCOVERY.out.family_cluster_tsv,
             NOVELTY_DISCOVERY.out.matrix,
             NOVELTY_DISCOVERY.out.candidates,
+            NOVELTY_DISCOVERY.out.singleton_query_fa,  // issue #52
+            NOVELTY_DISCOVERY.out.paralog_cutoffs,     // issue #52
             file(params.config)
         )
         novelty_matrix     = NOVELTY_SCREEN.out.matrix

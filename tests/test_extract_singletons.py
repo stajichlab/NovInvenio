@@ -43,3 +43,32 @@ def test_singleton_sequences_match_fasta(tmp_path):
     # repA should have its sequence MKL
     repa_idx = lines.index('>repA')
     assert lines[repa_idx + 1] == 'MKL'
+
+
+# Regression test (issue #52): real mmseqs cluster.tsv output lists the representative
+# as a member of its own cluster via a "rep\trep" line even for multi-member clusters
+# (rep\trep, rep\tmember2, ...) -- unlike CLUSTER_TSV above, which omits that
+# self-line for repB and so never exercised this path. Checking rep == member per line
+# in isolation (the old behaviour) wrongly extracted repD as a singleton even though
+# its cluster has 2 members.
+REALISTIC_CLUSTER_TSV = "repD\trepD\nrepD\tm3\nrepE\trepE\n"
+REALISTIC_FASTA = ">repD\nMKL\n>m3\nMNP\n>repE\nMST\n"
+
+
+def test_a_multi_member_clusters_own_self_line_is_not_a_singleton(tmp_path):
+    ctsv = tmp_path / 'cluster.tsv'
+    ctsv.write_text(REALISTIC_CLUSTER_TSV)
+    fa = tmp_path / 'seed.fa'
+    fa.write_text(REALISTIC_FASTA)
+    out = tmp_path / 'singletons.fa'
+    subprocess.run(
+        [sys.executable, str(BIN),
+         '--cluster-tsv', str(ctsv),
+         '--fasta', str(fa),
+         '--output', str(out)],
+        check=True,
+    )
+    result = out.read_text()
+    assert '>repD' not in result  # repD's cluster has 2 members -- not a singleton
+    assert '>m3' not in result
+    assert '>repE' in result     # repE's cluster has exactly 1 member -- a true singleton

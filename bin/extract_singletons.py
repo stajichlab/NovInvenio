@@ -29,7 +29,13 @@ def main():
 
     records = read_fasta(args.fasta)
 
-    singletons = []
+    # A cluster is a singleton when it has exactly one member overall, not merely when
+    # a given line's rep == member -- mmseqs' own cluster.tsv format lists the
+    # representative as a member of its own cluster via a "rep\trep" line even for
+    # multi-member clusters (rep\trep, rep\tmember2, rep\tmember3, ...), so checking
+    # rep == member per line alone wrongly counts a multi-member family's own
+    # representative as a singleton too (issue #52).
+    members_by_rep: dict[str, list[str]] = {}
     with open(args.cluster_tsv) as fh:
         for line in fh:
             line = line.rstrip('\n')
@@ -39,10 +45,16 @@ def main():
             if len(parts) < 2:
                 continue
             rep, member = parts[0], parts[1]
-            if rep == member:
-                if member not in records:
-                    sys.exit(f"ERROR: singleton '{member}' not found in {args.fasta}")
-                singletons.append(member)
+            members_by_rep.setdefault(rep, []).append(member)
+
+    singletons = []
+    for rep, members in members_by_rep.items():
+        if len(members) != 1:
+            continue
+        member = members[0]
+        if member not in records:
+            sys.exit(f"ERROR: singleton '{member}' not found in {args.fasta}")
+        singletons.append(member)
 
     with open(args.output, 'w') as out:
         for sid in singletons:
