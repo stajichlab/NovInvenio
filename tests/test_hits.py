@@ -1,7 +1,5 @@
 import gzip
 import io
-import tempfile
-from pathlib import Path
 
 from hits import (
     Hit,
