@@ -10,8 +10,11 @@
 2. Singleton pairwise search: singletons (target proteins not in any
    multi-member family) are searched via phmmer/diamond/blast against the
    DISCOVERY_OUT proteomes.  A singleton is "present" in a proteome if the
-   pairwise search reports a hit with E-value below the singleton
-   threshold.  The singleton's source proteome is always present.
+   pairwise search reports a qualifying hit -- the same paralog-cutoff +
+   paralog-competition filtering bin/build_presence_matrix.py uses (issue #52),
+   via --paralog-cutoffs from the DISCOVERY_TARGET self-vs-self search, falling
+   back to a flat --singleton-evalue for singletons with no detected paralog.
+   The singleton's source proteome is always present.
 
 The script merges both sources into a single presence_matrix.tsv with
 columns:
@@ -38,32 +41,17 @@ from family_presence import (  # noqa: E402
     load_family_thresholds,
     parse_domtblout,
 )
+from singleton_presence import (  # noqa: E402
+    load_paralog_info,
+    parse_pairwise_tsv,
+    proteome_short_from_hits_filename,
+    score_singleton_hits,
+)
 
 
 # ---------------------------------------------------------------------------
 # Parsing helpers
 # ---------------------------------------------------------------------------
-
-def parse_pairwise_tsv(path):
-    """Return list of (query_id, target_id, evalue) tuples from parsed hits TSV."""
-    hits = []
-    with open(path) as fh:
-        header = fh.readline()
-        del header
-        for line in fh:
-            line = line.rstrip('\n')
-            if not line:
-                continue
-            parts = line.split('\t')
-            if len(parts) < 3:
-                continue
-            try:
-                evalue = float(parts[2])
-            except ValueError:
-                continue
-            hits.append((parts[0], parts[1], evalue))
-    return hits
-
 
 def load_protein_map(path):
     """Return dict: protein_id -> proteome_short."""
@@ -103,7 +91,20 @@ def main():
                     help='Default E-value threshold for families without calibration')
     ap.add_argument('--singleton-evalue', type=float, default=1e-5,
                     dest='singleton_evalue',
-                    help='E-value threshold for singleton pairwise hits')
+                    help='Fallback e-value threshold for singleton pairwise hits when the '
+                         'query has no detected paralog (see --paralog-cutoffs)')
+    ap.add_argument('--paralog-cutoffs', nargs='+', default=[], dest='paralog_cutoffs',
+                    help='paralog_cutoffs.tsv files from the DISCOVERY_TARGET self-vs-self '
+                         'search (issue #52) -- enables the same paralog-cutoff + '
+                         'paralog-competition filtering bin/build_presence_matrix.py uses for '
+                         'singleton hits, instead of a flat --singleton-evalue for everyone.')
+    ap.add_argument('--paralog-competition-scope', choices=['proteome', 'target'],
+                    default='proteome', dest='paralog_competition_scope',
+                    help="Granularity of the paralog-competition filter, same semantics as "
+                         "bin/build_presence_matrix.py: 'proteome' (default) disqualifies a "
+                         "hit if the query's paralog out-scores it anywhere in the same "
+                         "target proteome; 'target' only if the paralog beats it on the same "
+                         "target protein.")
     ap.add_argument('--min-coverage', type=float, default=0.5,
                     dest='min_coverage',
                     help='Minimum profile coverage for family presence')
@@ -157,27 +158,25 @@ def main():
                 family_evalue[(short, query)] = evalue
 
     # --- Singleton pairwise presence ---
+    # The singleton query (see bin/extend_singleton_query.py) includes both true
+    # singletons and, where detected, their own within-genome paralog -- searched
+    # together so score_singleton_hits()'s paralog-competition filter has the paralog's
+    # own hits to compare against. Only true singletons (singleton_reps) are ever
+    # scored/emitted.
+    paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
+
+    all_singleton_hits = []  # (query_id, target_id, evalue, proteome_short)
+    for hits_path in args.singleton_hits:
+        short = proteome_short_from_hits_filename(hits_path)
+        for query_id, target_id, evalue in parse_pairwise_tsv(hits_path):
+            all_singleton_hits.append((query_id, target_id, evalue, short))
+
     # singleton_presence[proteome_short] = set of singleton protein IDs present
     # singleton_evalue[(proteome_short, protein_id)] = best (lowest) qualifying hit e-value
-    singleton_presence = defaultdict(set)
-    singleton_evalue = {}
-
-    for hits_path in args.singleton_hits:
-        name = Path(hits_path).name
-        for suffix in ('.parsed.tsv', '.tsv', '.parsed'):
-            if name.endswith(suffix):
-                name = name[:-len(suffix)]
-                break
-        # PARSE_HITS names its output '<query_id>_vs_<target_id>.parsed.tsv' (the same
-        # convention workflows/search.nf uses) -- the singleton search's query_id is always
-        # the literal 'singletons', so the proteome short is whatever follows '_vs_'.
-        short = name.rsplit('_vs_', 1)[1] if '_vs_' in name else name
-        for query_id, target_id, evalue in parse_pairwise_tsv(hits_path):
-            if evalue < args.singleton_evalue:
-                singleton_presence[short].add(query_id)
-                prev = singleton_evalue.get((short, query_id))
-                if prev is None or evalue < prev:
-                    singleton_evalue[(short, query_id)] = evalue
+    singleton_presence, singleton_evalue = score_singleton_hits(
+        all_singleton_hits, singleton_reps, paralog_cutoffs, paralog_of,
+        args.singleton_evalue, args.paralog_competition_scope,
+    )
 
     # --- Build combined presence matrix ---
     # Collect all proteins: family members + singletons

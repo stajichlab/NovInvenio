@@ -20,6 +20,15 @@ three categories:
 one proteome of that group -- the same presence rule bin/novelty_presence_matrix.py applies
 for the DISCOVERY_OUT panel (see lib/family_presence.py).
 
+Singleton candidates (targets with no multi-member family, issue #52) get the SAME
+screening: the extended singleton query phase 1 searched (singletons + their own
+paralogs, see bin/extend_singleton_query.py) is re-searched against NEAR_INGROUP/
+BROAD_OUTGROUP and filtered with the identical paralog-cutoff + paralog-competition
+logic (lib/singleton_presence.py), merged into the same near_in_presence/
+broad_out_presence sets classify() reads. Without this, a singleton candidate always
+defaulted to target_specific regardless of its true broader-set presence -- family
+HMM search structurally can't see it (it has no family).
+
 Every row from the discovery matrix is carried through -- extended with NEAR_INGROUP/BROAD_OUTGROUP
 presence columns and a novelty_category -- matching the established convention that the
 presence matrix holds every scored row while candidates.txt carries the filtered list (see
@@ -38,6 +47,12 @@ from family_presence import (  # noqa: E402
     family_presence_by_proteome,
     load_cluster_membership,
     load_family_thresholds,
+)
+from singleton_presence import (  # noqa: E402
+    load_paralog_info,
+    parse_pairwise_tsv,
+    proteome_short_from_hits_filename,
+    score_singleton_hits,
 )
 
 
@@ -99,6 +114,21 @@ def main():
                     help='Default E-value threshold for families without calibration')
     ap.add_argument('--min-coverage', type=float, default=0.5, dest='min_coverage',
                     help='Minimum profile coverage for family presence')
+    ap.add_argument('--near-in-singleton-hits', nargs='*', default=[],
+                    dest='near_in_singleton_hits',
+                    help='Parsed singleton-query pairwise hits vs NEAR_INGROUP proteomes')
+    ap.add_argument('--broad-out-singleton-hits', nargs='*', default=[],
+                    dest='broad_out_singleton_hits',
+                    help='Parsed singleton-query pairwise hits vs BROAD_OUTGROUP proteomes')
+    ap.add_argument('--paralog-cutoffs', nargs='+', default=[], dest='paralog_cutoffs',
+                    help='paralog_cutoffs.tsv files from the DISCOVERY_TARGET self-vs-self '
+                         'search (same ones novelty_presence_matrix.py used for phase 1)')
+    ap.add_argument('--singleton-evalue', type=float, default=1e-5, dest='singleton_evalue',
+                    help='Fallback e-value threshold for a singleton with no detected paralog')
+    ap.add_argument('--paralog-competition-scope', choices=['proteome', 'target'],
+                    default='proteome', dest='paralog_competition_scope',
+                    help='Same semantics as bin/build_presence_matrix.py / '
+                         'bin/novelty_presence_matrix.py')
     ap.add_argument('--config', required=True, help='Analysis description CSV')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
     ap.add_argument('--output-candidates', required=True, dest='output_candidates')
@@ -106,7 +136,8 @@ def main():
 
     header, rows = read_matrix(args.discovery_matrix)
     candidates = load_candidates(args.discovery_candidates)
-    _, member_to_rep = load_cluster_membership(args.cluster_tsv)
+    rep_to_members, member_to_rep = load_cluster_membership(args.cluster_tsv)
+    singleton_ids = {rep for rep, members in rep_to_members.items() if len(members) == 1}
 
     samples = parse_config(args.config)
     near_in_shorts = sorted(s.short for s in samples if s.group == 'NEAR_INGROUP')
@@ -122,6 +153,31 @@ def main():
     broad_out_presence = family_presence_by_proteome(
         args.broad_out_domtblout, family_thresholds, args.default_family_evalue,
         args.min_coverage)
+
+    # Singleton screening (issue #52): same paralog-aware filtering as phase 1, merged
+    # into the same presence dicts classify() reads -- a singleton and a family both
+    # just contribute "this rep is present in this proteome" evidence.
+    paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
+
+    def _singleton_hits(paths):
+        hits = []
+        for path in paths:
+            short = proteome_short_from_hits_filename(path)
+            for query_id, target_id, evalue in parse_pairwise_tsv(path):
+                hits.append((query_id, target_id, evalue, short))
+        return hits
+
+    near_in_singleton_presence, _ = score_singleton_hits(
+        _singleton_hits(args.near_in_singleton_hits), singleton_ids,
+        paralog_cutoffs, paralog_of, args.singleton_evalue, args.paralog_competition_scope)
+    broad_out_singleton_presence, _ = score_singleton_hits(
+        _singleton_hits(args.broad_out_singleton_hits), singleton_ids,
+        paralog_cutoffs, paralog_of, args.singleton_evalue, args.paralog_competition_scope)
+
+    for short, ids in near_in_singleton_presence.items():
+        near_in_presence.setdefault(short, set()).update(ids)
+    for short, ids in broad_out_singleton_presence.items():
+        broad_out_presence.setdefault(short, set()).update(ids)
 
     pid_idx = header.index('protein_id')
 

@@ -53,7 +53,8 @@ def _setup(tmp_path):
     )
 
 
-def _run(tmp_path, family_domtblouts=None, output_evalues=False, **extra):
+def _run(tmp_path, family_domtblouts=None, output_evalues=False,
+        singleton_hits=None, paralog_cutoffs=None, **extra):
     args = [
         sys.executable, str(BIN),
         '--cluster-tsv', str(tmp_path / 'cluster.tsv'),
@@ -66,6 +67,10 @@ def _run(tmp_path, family_domtblouts=None, output_evalues=False, **extra):
         args += ['--family-domtblout'] + [str(d) for d in family_domtblouts]
     if output_evalues:
         args += ['--output-evalues', str(tmp_path / 'evalues.tsv')]
+    if singleton_hits:
+        args += ['--singleton-hits'] + [str(p) for p in singleton_hits]
+    if paralog_cutoffs:
+        args += ['--paralog-cutoffs'] + [str(p) for p in paralog_cutoffs]
     for k, v in extra.items():
         args += [f'--{k}', str(v)]
     subprocess.run(args, check=True)
@@ -129,3 +134,81 @@ def test_output_evalues_sidecar_carries_family_hit_evalues(tmp_path):
     assert row['T1'] == ''       # source proteome — not a hit
     assert row['T2'] == '3.5e-08'
     assert row['D1'] == '' and row['D2'] == ''  # absent — no hit
+
+
+# --- Paralog-aware singleton filtering (issue #52) -------------------------------
+
+HIT_HEADER = 'query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\n'
+PARALOG_HEADER = 'protein_ID\tparalog_protein_ID\tbitscore\tevalue\n'
+
+
+def _write_hits(path, lines):
+    path.write_text(HIT_HEADER + lines)
+
+
+def test_singleton_present_via_flat_fallback_without_paralog_data(tmp_path):
+    # No --paralog-cutoffs at all: falls back to --singleton-evalue for everyone,
+    # identical to the pre-issue-#52 behaviour.
+    _setup(tmp_path)
+    hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(hits, 'pS1\td1_x\t1e-10\t100\tT1\tD1\n')
+    matrix, cands = _run(tmp_path, singleton_hits=[hits])
+    row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
+    assert row['D1'] == 1
+
+
+def test_singleton_paralog_cutoff_rejects_a_weak_hit(tmp_path):
+    _setup(tmp_path)
+    hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(hits, 'pS1\td1_x\t1e-3\t20\tT1\tD1\n')
+    paralog = tmp_path / 'paralog_cutoffs.tsv'
+    paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t1e-8\n')  # tighter than 1e-3
+    matrix, cands = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog])
+    row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
+    assert row['D1'] == 0
+
+
+def test_singleton_only_true_singletons_are_emitted_not_their_paralogs(tmp_path):
+    # pEif1 is searched (as pS1's paralog, for the competition check) but is not itself
+    # a singleton in cluster.tsv, so it must never appear as a matrix row.
+    _setup(tmp_path)
+    hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(hits, 'pS1\td1_x\t1e-10\t100\tT1\tD1\npEif1\td1_y\t1e-30\t150\tT1\tD1\n')
+    matrix, cands = _run(tmp_path, singleton_hits=[hits])
+    assert 'pEif1' not in set(matrix['protein_id'])
+
+
+def test_singleton_competition_target_scope_keeps_hexa_like_ortholog(tmp_path):
+    # Mirrors tests/test_build_presence_matrix.py's HEX-1/eIF5A case (and the real
+    # NCU08332 finding from job 26997324): pS1's own hit (1e-69) beats its paralog
+    # pEif1's hit to the *same* target (5e-12), so 'target' scope keeps the call even
+    # though pEif1 hits harder elsewhere in D1 (1e-70).
+    _setup(tmp_path)
+    hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(hits, (
+        'pS1\thex1\t1e-69\t230\tT1\tD1\n'
+        'pEif1\teif2\t1e-70\t233\tT1\tD1\n'
+        'pEif1\thex1\t5e-12\t45\tT1\tD1\n'
+    ))
+    paralog = tmp_path / 'paralog_cutoffs.tsv'
+    paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t4.2e-11\n')
+    matrix, cands = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog],
+                         **{'paralog-competition-scope': 'target'})
+    row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
+    assert row['D1'] == 1
+
+
+def test_singleton_competition_proteome_scope_drops_hexa_like_ortholog(tmp_path):
+    _setup(tmp_path)
+    hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(hits, (
+        'pS1\thex1\t1e-69\t230\tT1\tD1\n'
+        'pEif1\teif2\t1e-70\t233\tT1\tD1\n'
+        'pEif1\thex1\t5e-12\t45\tT1\tD1\n'
+    ))
+    paralog = tmp_path / 'paralog_cutoffs.tsv'
+    paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t4.2e-11\n')
+    matrix, cands = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog],
+                         **{'paralog-competition-scope': 'proteome'})
+    row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
+    assert row['D1'] == 0

@@ -22,6 +22,25 @@ include { TBLASTN_MAKEDB    } from '../modules/tblastn'
 include { TBLASTN           } from '../modules/tblastn'
 include { SUMMARIZE_TBLASTN } from '../modules/summarize_tblastn'
 
+// Singleton screening (issue #52): reuse NOVELTY_DISCOVERY's extended singleton query
+// (singletons + their own paralogs, see bin/extend_singleton_query.py) and search it
+// against NEAR_INGROUP/BROAD_OUTGROUP too, with the same paralog-aware filtering phase 1
+// applies -- closes the gap where singleton candidates got no phase-2 scrutiny at all
+// and always defaulted to target_specific. Aliased per proteome set (near/broad) since a
+// process can only be invoked once per execution path within one workflow scope.
+include { SINGLETON_PHMMER_SEARCH  as SCREEN_SINGLETON_PHMMER_SEARCH_NEAR   } from './novelty_discovery'
+include { SINGLETON_PHMMER_SEARCH  as SCREEN_SINGLETON_PHMMER_SEARCH_BROAD  } from './novelty_discovery'
+include { SINGLETON_DIAMOND_SEARCH as SCREEN_SINGLETON_DIAMOND_SEARCH_NEAR  } from './novelty_discovery'
+include { SINGLETON_DIAMOND_SEARCH as SCREEN_SINGLETON_DIAMOND_SEARCH_BROAD } from './novelty_discovery'
+include { SINGLETON_BLAST_SEARCH   as SCREEN_SINGLETON_BLAST_SEARCH_NEAR    } from './novelty_discovery'
+include { SINGLETON_BLAST_SEARCH   as SCREEN_SINGLETON_BLAST_SEARCH_BROAD   } from './novelty_discovery'
+include { DIAMOND_MAKEDB as SCREEN_NEAR_DIAMOND_MAKEDB  } from '../modules/diamond'
+include { DIAMOND_MAKEDB as SCREEN_BROAD_DIAMOND_MAKEDB } from '../modules/diamond'
+include { BLAST_MAKEDB   as SCREEN_NEAR_BLAST_MAKEDB    } from '../modules/blast'
+include { BLAST_MAKEDB   as SCREEN_BROAD_BLAST_MAKEDB   } from '../modules/blast'
+include { PARSE_HITS as SCREEN_PARSE_HITS_NEAR  } from '../modules/parse_hits'
+include { PARSE_HITS as SCREEN_PARSE_HITS_BROAD } from '../modules/parse_hits'
+
 // ---------------------------------------------------------------------------
 // Reclassify phase-1 candidates using NEAR_INGROUP/BROAD_OUTGROUP hmmsearch evidence.
 // ---------------------------------------------------------------------------
@@ -41,6 +60,11 @@ process NOVELTY_SCREEN_CLASSIFY {
     path(config_csv)
     val(default_family_evalue)
     val(min_coverage)
+    path(near_singleton_hits)
+    path(broad_singleton_hits)
+    path(paralog_cutoffs)
+    val(singleton_evalue)
+    val(paralog_competition_scope)
 
     output:
     path("screened_presence_matrix.tsv"), emit: matrix
@@ -49,6 +73,9 @@ process NOVELTY_SCREEN_CLASSIFY {
     script:
     def near_ingroup_arg = near_ingroup_domtblouts ? "--near-in-domtblout ${near_ingroup_domtblouts}" : ''
     def broad_outgroup_arg = broad_outgroup_domtblouts ? "--broad-out-domtblout ${broad_outgroup_domtblouts}" : ''
+    def near_singleton_arg = near_singleton_hits ? "--near-in-singleton-hits ${near_singleton_hits}" : ''
+    def broad_singleton_arg = broad_singleton_hits ? "--broad-out-singleton-hits ${broad_singleton_hits}" : ''
+    def paralog_arg = paralog_cutoffs ? "--paralog-cutoffs ${paralog_cutoffs}" : ''
     """
     novelty_screen.py \
         --discovery-matrix ${discovery_matrix} \
@@ -59,6 +86,11 @@ process NOVELTY_SCREEN_CLASSIFY {
         --family-thresholds ${family_thresholds} \
         --default-family-evalue ${default_family_evalue} \
         --min-coverage ${min_coverage} \
+        ${near_singleton_arg} \
+        ${broad_singleton_arg} \
+        ${paralog_arg} \
+        --singleton-evalue ${singleton_evalue} \
+        --paralog-competition-scope ${paralog_competition_scope} \
         --config ${config_csv} \
         --output-matrix screened_presence_matrix.tsv \
         --output-candidates screened_candidates.txt
@@ -79,6 +111,10 @@ workflow NOVELTY_SCREEN {
     cluster_tsv          // path: families_cluster.tsv from NOVELTY_DISCOVERY
     discovery_matrix      // path: presence_matrix.tsv from NOVELTY_DISCOVERY
     discovery_candidates  // path: candidates.txt from NOVELTY_DISCOVERY
+    singleton_query_fa    // path: singleton_query.fa from NOVELTY_DISCOVERY (issue #52) --
+                           //   singletons + their own paralogs, same query phase 1 searched
+    paralog_cutoffs       // path(s): paralog_cutoffs.tsv from NOVELTY_DISCOVERY's
+                           //   DISCOVERY_TARGET self-vs-self search
     config_csv            // path: analysis CSV
 
     main:
@@ -94,6 +130,41 @@ workflow NOVELTY_SCREEN {
     BROAD_OUTGROUP_HMMSEARCH(broad_outgroup_ch, calibrated_hmms, 'screen_broad_')
     broad_outgroup_domtblouts = BROAD_OUTGROUP_HMMSEARCH.out.domtblout
         .map { meta, dom -> dom }.collect().ifEmpty([])
+
+    // Singleton screening (issue #52): the SAME extended singleton query phase 1 searched
+    // (singletons + their own paralogs), searched against NEAR_INGROUP and BROAD_OUTGROUP
+    // separately so bin/novelty_screen.py can tell the two sets' hits apart. Degrades
+    // gracefully like the family HMM search above: empty proteome channels mean empty hit
+    // lists, so singletons simply stay target_specific with no phase-2 evidence to demote them.
+    if (params.run_tool == 'phmmer') {
+        SCREEN_SINGLETON_PHMMER_SEARCH_NEAR(singleton_query_fa, near_ingroup_ch)
+        near_singleton_raw_ch = SCREEN_SINGLETON_PHMMER_SEARCH_NEAR.out
+        SCREEN_SINGLETON_PHMMER_SEARCH_BROAD(singleton_query_fa, broad_outgroup_ch)
+        broad_singleton_raw_ch = SCREEN_SINGLETON_PHMMER_SEARCH_BROAD.out
+    }
+    else if (params.run_tool == 'diamond') {
+        near_singleton_db_ch = SCREEN_NEAR_DIAMOND_MAKEDB(near_ingroup_ch)
+        SCREEN_SINGLETON_DIAMOND_SEARCH_NEAR(singleton_query_fa, near_singleton_db_ch)
+        near_singleton_raw_ch = SCREEN_SINGLETON_DIAMOND_SEARCH_NEAR.out
+        broad_singleton_db_ch = SCREEN_BROAD_DIAMOND_MAKEDB(broad_outgroup_ch)
+        SCREEN_SINGLETON_DIAMOND_SEARCH_BROAD(singleton_query_fa, broad_singleton_db_ch)
+        broad_singleton_raw_ch = SCREEN_SINGLETON_DIAMOND_SEARCH_BROAD.out
+    }
+    else if (params.run_tool == 'blast') {
+        near_singleton_db_ch = SCREEN_NEAR_BLAST_MAKEDB(near_ingroup_ch)
+        SCREEN_SINGLETON_BLAST_SEARCH_NEAR(singleton_query_fa, near_singleton_db_ch)
+        near_singleton_raw_ch = SCREEN_SINGLETON_BLAST_SEARCH_NEAR.out
+        broad_singleton_db_ch = SCREEN_BROAD_BLAST_MAKEDB(broad_outgroup_ch)
+        SCREEN_SINGLETON_BLAST_SEARCH_BROAD(singleton_query_fa, broad_singleton_db_ch)
+        broad_singleton_raw_ch = SCREEN_SINGLETON_BLAST_SEARCH_BROAD.out
+    }
+    else {
+        error "Unknown --run_tool '${params.run_tool}': choose phmmer, diamond, or blast"
+    }
+    SCREEN_PARSE_HITS_NEAR(near_singleton_raw_ch)
+    near_singleton_hits_ch = SCREEN_PARSE_HITS_NEAR.out.map { meta_pair, tsv -> tsv }.collect().ifEmpty([])
+    SCREEN_PARSE_HITS_BROAD(broad_singleton_raw_ch)
+    broad_singleton_hits_ch = SCREEN_PARSE_HITS_BROAD.out.map { meta_pair, tsv -> tsv }.collect().ifEmpty([])
 
     // TBLASTN genomic validation against BROAD_OUTGROUP genomes (reporting-only, mirroring
     // NOVELTY_DISCOVERY's own DISCOVERY_OUT validation -- see bin/make_novelties.py's
@@ -117,7 +188,12 @@ workflow NOVELTY_SCREEN {
         family_thresholds,
         config_csv,
         params.hmm_presence_evalue,
-        params.hmm_presence_cov
+        params.hmm_presence_cov,
+        near_singleton_hits_ch,
+        broad_singleton_hits_ch,
+        paralog_cutoffs,
+        params.evalue,
+        params.paralog_competition_scope
     )
 
     emit:
