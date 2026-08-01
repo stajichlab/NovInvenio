@@ -110,9 +110,13 @@ process MAKE_REPORT {
     path(novelties)
     path(candidates_fa)
     path(cluster_tsv)
-    path(evalues)
-    path(context_matrix)
-    path(context_evalues)
+    // evalues/context_matrix/context_evalues can all be the same stub process's
+    // literal "empty_evalues.tsv" output when unused (EMPTY_EVALUES_STUB /
+    // EMPTY_CONTEXT_MATRIX_STUB / EMPTY_CONTEXT_EVALUES_STUB) -- stageAs disambiguates
+    // so Nextflow doesn't reject them as an input file name collision.
+    path(evalues, stageAs: 'evalues.tsv')
+    path(context_matrix, stageAs: 'context_matrix.tsv')
+    path(context_evalues, stageAs: 'context_evalues.tsv')
     path(config_csv)
 
     output:
