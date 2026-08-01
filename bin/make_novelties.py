@@ -31,7 +31,7 @@ from clusters import build_families, read_cluster_tsv
 from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config
 
 
-def load_groups(config_csv):
+def load_groups(config_csv, header=None):
     """Return (ingroup_ids, outgroup_ids) as lists of Short IDs.
 
     'IN'/'DISCOVERY_TARGET' are treated as the ingroup band, 'OUT'/'DISCOVERY_OUT'/
@@ -45,9 +45,18 @@ def load_groups(config_csv):
     every other consumer of the config gets -- a prior version of this function read
     row['GROUP'] directly and silently produced zero ingroup/outgroup matches for any
     config still using the pre-rename labels (todo/rename-novelty-discovery-group-labels.md).
+
+    header, if given, restricts the result to samples that actually have a matrix
+    column — matching lib/report_data.py's build_payload() convention. A
+    --cluster_tool pairwise matrix only ever has strict IN/OUT columns (see
+    bin/build_presence_matrix.py); NEAR_INGROUP/BROAD_OUTGROUP rows in that kind of
+    config are legitimately absent (issue #48's CONTEXT_SEARCH handles them
+    separately, report-only), not a bug to error out on.
     """
     ingroup, outgroup = [], []
     for sample in parse_config(config_csv):
+        if header is not None and sample.short not in header:
+            continue
         if sample.group in INGROUP_ROLES:
             ingroup.append(sample.short)
         elif sample.group in OUTGROUP_ROLES:
@@ -92,7 +101,6 @@ def main():
     if not (0.0 < args.ingroup_min <= 1.0):
         sys.exit('--ingroup_min must be in (0, 1]')
 
-    ingroup_ids, outgroup_ids = load_groups(args.config)
     tblastn = load_tblastn_summary(args.tblastn_summary)
 
     families = {}
@@ -112,10 +120,13 @@ def main():
         reader = csv.DictReader(fin, delimiter='\t')
         header = reader.fieldnames or []
 
-        # Validate expected columns
-        missing = [c for c in ingroup_ids + outgroup_ids if c not in header]
-        if missing:
-            sys.exit(f'ERROR: columns not found in matrix: {missing}\nMatrix columns: {header}')
+        # Config samples without a matrix column (e.g. NEAR_INGROUP/BROAD_OUTGROUP rows
+        # in a --cluster_tool pairwise config, issue #48) are legitimately absent, not
+        # an error -- see load_groups()'s header parameter.
+        ingroup_ids, outgroup_ids = load_groups(args.config, header)
+        if not ingroup_ids:
+            sys.exit(f'ERROR: no ingroup columns from the config are present in the matrix.\n'
+                     f'Matrix columns: {header}')
 
         rows = list(reader)
 

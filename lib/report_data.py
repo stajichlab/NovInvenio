@@ -43,6 +43,10 @@ ROW_FIELDS = [
                  # — comma-separated, one entry per payload['proteomes'] column, '' where
                  # there's no e-value evidence (absent, self-sourced, or the run's pathway
                  # doesn't track e-values). Report-only: never affects presence/novelty calls.
+                 # 'pres'/'ev' both extend to cover context columns too (issue #48) —
+                 # payload['proteomes'] entries tagged {'context': true} are appended after
+                 # the scored ingroup/outgroup columns, so 'pres'/'ev' stay one bit/entry per
+                 # payload['proteomes'] column throughout.
 ]
 
 # Trailing transcript/protein suffixes that separate a FungiDB gene ID from the
@@ -101,6 +105,32 @@ def read_evalues(path: str | Path | None) -> dict[str, dict[str, str]]:
                 continue
             out[pid] = {c: row.get(c, '') or '' for c in cols}
     return out
+
+
+def read_context(
+    matrix_path: str | Path | None, evalues_path: str | Path | None
+) -> tuple[list[str], dict[str, dict[str, str]], dict[str, dict[str, str]]]:
+    """Return (context_shorts, presence_by_pid, evalue_by_pid) from a context_presence.tsv
+    pair (issue #48) -- NEAR_INGROUP/BROAD_OUTGROUP presence for the candidate list only,
+    produced by bin/context_presence.py. Report-only: these columns never determine
+    novelty. Missing/empty/header-only input (e.g. --cluster_tool other than pairwise, or
+    a config with no NEAR_INGROUP/BROAD_OUTGROUP rows) returns ([], {}, {}) -- callers
+    treat that as "no context evidence for this run".
+    """
+    if not matrix_path or not Path(matrix_path).exists() or not Path(matrix_path).stat().st_size:
+        return [], {}, {}
+    with open(matrix_path, newline='') as fh:
+        reader = csv.DictReader(fh, delimiter='\t')
+        shorts = [c for c in (reader.fieldnames or []) if c not in ('protein_id', 'source_proteome')]
+        presence: dict[str, dict[str, str]] = {}
+        for row in reader:
+            pid = row.get('protein_id', '')
+            if not pid:
+                continue
+            presence[pid] = {s: row.get(s, '0') or '0' for s in shorts}
+    if not shorts:
+        return [], {}, {}
+    return shorts, presence, read_evalues(evalues_path)
 
 
 def read_novelties(paths: list[str | Path]) -> tuple[set[str], dict[str, str]]:
@@ -196,6 +226,8 @@ def build_payload(
     candidates_fa=None,
     cluster_tsv=None,
     evalues_path=None,
+    context_matrix_path=None,
+    context_evalues_path=None,
     ingroup_min_frac=0.75,
     project='NovInvenio',
     sequences='novelties',
@@ -228,6 +260,13 @@ def build_payload(
     report-only search-hit e-value evidence, surfaced in the detail panel to
     help judge whether a presence call is a strong or marginal hit. Missing or
     empty means no evidence available; never affects presence/novelty calls.
+
+    context_matrix_path / context_evalues_path (issue #48): optional
+    context_presence.tsv pair — NEAR_INGROUP/BROAD_OUTGROUP presence for the
+    candidate list only (bin/context_presence.py, --cluster_tool pairwise
+    only). Appended to payload['proteomes'] as extra columns tagged
+    {'context': True}, extending 'pres'/'ev' to cover them — but they are
+    never counted toward ingroup/outgroup novelty stats.
     """
     header, rows = read_matrix(matrix_path)
     evalue_lookup = read_evalues(evalues_path)
@@ -242,6 +281,17 @@ def build_payload(
     shorts = [s.short for s in proteomes]
     ingroup_ids = [s.short for s in ingroup]
     outgroup_ids = [s.short for s in outgroup]
+
+    # Context columns (issue #48): a NEAR_INGROUP/BROAD_OUTGROUP short that already has a
+    # *scored* column in the main matrix (e.g. another producer's fix broadened matrix
+    # columns via OUTGROUP_ROLES, even though it was never actually searched) must not be
+    # appended a second time -- that would double-count it in payload['proteomes'] and
+    # silently fold zero-only "context" evidence into the scored outgroup stats above.
+    context_shorts, context_presence, context_evalue_lookup = read_context(
+        context_matrix_path, context_evalues_path
+    )
+    context_samples = {s.short: s for s in config_samples if s.short in context_shorts}
+    context_shorts = [s for s in context_shorts if s in context_samples and s not in shorts]
 
     if not shorts:
         raise ValueError(
@@ -279,9 +329,17 @@ def build_payload(
     for row in rows:
         pid = row.get('protein_id', '')
         src = row.get('source_proteome', '')
-        pres = ''.join('1' if row.get(s, '0') == '1' else '0' for s in shorts)
+        row_context_pres = context_presence.get(pid, {})
+        row_context_ev = context_evalue_lookup.get(pid, {})
+        pres = ''.join(
+            ['1' if row.get(s, '0') == '1' else '0' for s in shorts] +
+            ['1' if row_context_pres.get(s, '0') == '1' else '0' for s in context_shorts]
+        )
         row_evalues = evalue_lookup.get(pid, {})
-        ev = ','.join(row_evalues.get(s, '') for s in shorts)
+        ev = ','.join(
+            [row_evalues.get(s, '') for s in shorts] +
+            [row_context_ev.get(s, '') for s in context_shorts]
+        )
         hit_genomes = tb_hits.get(pid, set())
         tb = ''.join('1' if g in hit_genomes else '0' for g in tb_genomes)
 
@@ -349,11 +407,22 @@ def build_payload(
                 'taxon': s.taxon_group,
             }
             for s in proteomes
+        ] + [
+            {
+                'short': context_samples[short].short,
+                'species': context_samples[short].species,
+                'strain': context_samples[short].strain,
+                'group': context_samples[short].group,
+                'taxon': context_samples[short].taxon_group,
+                'context': True,
+            }
+            for short in context_shorts
         ],
         'tblastn_genomes': tb_genomes,
         'fsources': fsources,
         'novelty_categories': sorted(categories),
         'has_evalues': bool(evalue_lookup),
+        'has_context': bool(context_shorts),
         'families': fam_index.payload(),
         'rows': out_rows,
     }

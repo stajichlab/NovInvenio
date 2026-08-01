@@ -52,6 +52,14 @@ def main():
                          '--matrix, e-value per proteome cell instead of 0/1) -- shown in the '
                          'detail panel to help validate a presence call. Missing/empty file '
                          'means no e-value evidence available for this run.')
+    ap.add_argument('--context_matrix',
+                    help='context_presence.tsv (optional; issue #48) -- NEAR_INGROUP/'
+                         'BROAD_OUTGROUP presence for the candidate list only, report-only, '
+                         'never affects novelty calling. Missing/empty means no context '
+                         'evidence available (e.g. --cluster_tool other than pairwise, or no '
+                         'NEAR_INGROUP/BROAD_OUTGROUP rows in the config).')
+    ap.add_argument('--context_evalues',
+                    help='context_presence.evalues.tsv sidecar for --context_matrix')
     ap.add_argument('--project', default=None,
                     help='Project name shown in the report title (default: matrix parent dir)')
     ap.add_argument('--ingroup_min_frac', type=float, default=0.75,
@@ -92,6 +100,8 @@ def main():
         candidates_fa=args.candidates_fa,
         cluster_tsv=args.cluster_tsv,
         evalues_path=args.evalues,
+        context_matrix_path=args.context_matrix,
+        context_evalues_path=args.context_evalues,
         ingroup_min_frac=args.ingroup_min_frac,
         project=project,
         sequences=args.sequences,

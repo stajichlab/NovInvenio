@@ -40,7 +40,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config, short_to_group
+from config_parser import parse_config, short_to_group
 
 DEFAULT_EVALUE = 1e-5
 
@@ -125,12 +125,17 @@ def main():
     args = ap.parse_args()
 
     samples      = parse_config(args.config)
-    # Coarse banding (see config_parser.INGROUP_ROLES/OUTGROUP_ROLES): NEAR_INGROUP/
-    # BROAD_OUTGROUP/DISCOVERY_OUT fold into the outgroup band here, same as
-    # make_novelties.py, so those samples still get a matrix column instead of being
-    # silently dropped.
-    ingroup_ids  = {s.short for s in samples if s.group in INGROUP_ROLES}
-    outgroup_ids = {s.short for s in samples if s.group in OUTGROUP_ROLES}
+    # Deliberately strict IN/OUT (not INGROUP_ROLES/OUTGROUP_ROLES): this is the
+    # --cluster_tool pairwise matrix builder, and main.nf's SEARCH/LOSS_SEARCH
+    # channels only ever feed it IN/OUT proteomes -- broadening this to the coarse
+    # bands (as bin/profile_to_matrix.py's mmseqs path does) would create
+    # NEAR_INGROUP/BROAD_OUTGROUP matrix columns that are always empty (never
+    # actually searched), which then silently shadows the real evidence issue #48's
+    # CONTEXT_SEARCH produces for those same proteomes. NEAR_INGROUP/BROAD_OUTGROUP
+    # rows in a pairwise config are handled by CONTEXT_SEARCH instead (report-only,
+    # candidates-only), not by this matrix.
+    ingroup_ids  = {s.short for s in samples if s.group == 'IN'}
+    outgroup_ids = {s.short for s in samples if s.group == 'OUT'}
     all_ids      = ingroup_ids | outgroup_ids
     query_ids    = ingroup_ids if args.query_group == 'IN' else outgroup_ids
     other_ids    = outgroup_ids if args.query_group == 'IN' else ingroup_ids
