@@ -15,6 +15,9 @@ class Sample:
     dna: str            # filename, resolved relative to dna_dir (may be empty)
     short: str          # unique ≤8-char ID used throughout as the proteome key
     taxon_group: str
+    gff3: str = ''      # optional filename, resolved relative to data_dir (also checked
+                         # under pep/, dna/, genome/, scaffolds/, and gff3/ subdirs) --
+                         # empty means no chrom/start data for this species' report rows
 
 
 # All recognised group labels. IN/OUT are the classic pairwise/mmseqs pathway roles;
@@ -58,6 +61,7 @@ def parse_config(config_path: Union[str, Path]) -> list[Sample]:
                 dna=row.get('DNA', '').strip(),
                 short=row['Short'].strip(),
                 taxon_group=row['TaxonGroup'].strip(),
+                gff3=(row.get('GFF3') or '').strip(),
             ))
     return samples
 
