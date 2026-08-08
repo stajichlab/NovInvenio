@@ -5,7 +5,7 @@ Pfam_Names columns to presence_matrix.tsv.
 
 Annotation priority per protein:
   1. Model organism gene names (via --modelorgs_config YAML)
-  2. Pfam-A hmmscan --tblout (all unique domain names per protein)
+  2. Pfam-A hmmsearch --tblout (all unique domain names per protein)
   3. SwissProt diamond blastp outfmt 6 with stitle (best hit)
 
 Model organism lookup is configured via a YAML file (--modelorgs_config).
@@ -23,11 +23,10 @@ from fasta import read_fasta  # noqa: E402
 
 
 def parse_pfam_tblout(tblout_path):
-    """Return {protein_id: [(name, accession, evalue), ...]} from hmmscan --tblout.
+    """Return {protein_id: [(name, accession, evalue), ...]} from hmmsearch --tblout.
 
-    Column layout (hmmscan format, target=Pfam-A HMM, query=candidate protein — reversed
-    from hmmsearch's target=sequence/query=HMM):
-      parts[0] = domain name, parts[1] = Pfam accession, parts[2] = protein ID, parts[4] = e-value
+    Column layout (hmmsearch format, target=sequence, query=HMM):
+      parts[0] = protein ID, parts[2] = domain name, parts[3] = Pfam accession, parts[4] = e-value
     """
     hits: dict[str, list[tuple]] = {}
     seen: dict[str, set] = {}
@@ -38,7 +37,7 @@ def parse_pfam_tblout(tblout_path):
             parts = line.split()
             if len(parts) < 19:
                 continue
-            domain_name, domain_acc, protein_id, evalue = parts[0], parts[1], parts[2], parts[4]
+            protein_id, domain_name, domain_acc, evalue = parts[0], parts[2], parts[3], parts[4]
             entry = hits.setdefault(protein_id, [])
             seen_names = seen.setdefault(protein_id, set())
             if domain_name not in seen_names:
@@ -78,7 +77,7 @@ def main():
                     help='Project root directory; relative paths in the modelorgs YAML '
                          'are resolved from here (defaults to the YAML file\'s directory)')
     ap.add_argument('--pfam_hits',
-                    help='hmmscan --tblout output (candidates vs Pfam-A)')
+                    help='hmmsearch --tblout output (candidates vs Pfam-A)')
     ap.add_argument('--swissprot_hits',
                     help='Diamond blastp outfmt "6 qseqid sseqid stitle" vs SwissProt')
     ap.add_argument('--candidates_fa',
