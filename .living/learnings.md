@@ -99,3 +99,121 @@ nextflow, node-placement
 **structural_mitigation_candidate**: A `withName` SLURM `clusterOptions` constraint on the
 famsa-running process, mirroring `MMSEQS_CLUSTER`'s `-C ryzen`. Not yet shipped — this is the
 concrete candidate, tracked for the Phase 2 resume.
+
+### [2026-08-06] mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9)
+
+**Category**: gotcha
+
+**What happened**: The mycelium health hook (`.claude/settings.json` SessionStart →
+`mycelium-health.sh`) regenerates `.living/INDEX.md` at every session start by calling
+`python3 generate_index.py --summary-heuristic` (directly, or falling back to
+`--counts-only`), then `|| true`s the error. On this cluster the bare `python3` is **3.9.18**,
+and `generate_index.py` uses PEP 604 union syntax (`-> str | None`) that only parses on
+3.10+. So every invocation raised `TypeError: unsupported operand type(s) for |` and was
+silently swallowed. Result: `INDEX.md` was frozen at "Last audit: 2026-07-21" even though 10
+sessions and a large body of work had accumulated through 08-07. Running the same command
+with `python3.12` (present in the pixi env and `/usr/bin/python3.12`) regenerates it cleanly.
+
+**Why it matters**: A "knowledge sync" that runs silently and never errors (forking the error,
+never surfacing it) is a silent failure — the index drifts from reality without any signal.
+It's not the agent's job to detect it; the hook must be robust to environment Python version.
+This is the specific mechanism behind the repo's stale living index.
+
+**Resolution**: Regenerated `INDEX.md` manually with `python3.12`:
+```bash
+/usr/bin/python3.12 /rhome/jstajich/.claude/plugins/marketplaces/mycelium/skills/core/scripts/generate_index.py \
+  --living-dir .living --summary-heuristic
+```
+Upstream fix (outside this repo): make the health hook choose a 3.10+ interpreter
+(`python3.10`/`python3.12`/pixi env) or stop using PEP-604-only syntax.
+
+**Tags**: mycelium, python, index, tooling, environment, silent-failure, version
+
+**mitigation_type**: ambient-awareness
+
+**structural_mitigation_candidate**: A session-start check that verifies INDEX.md's
+"Last audit" is current after the hook runs, or a health-hook change to invoke a 3.10+
+interpreter.
+
+### [2026-08-06] Session-log stubs vs substance: hooks create logs, agents must write the findings
+
+**Category**: gotcha
+
+**What happened**: The mycelium SessionStart/SessionStop hooks reliably create a new
+`.living/log/<date>-NNN-*.md` per session (the active-session-log + stop sequence works), and
+`LOG_REGISTRY.md` scaffolding exists — but 7 of 10 session logs through 08-07 contain only the
+front-matter + "Session started", with zero substance. Meanwhile the git history and
+`logs/`/`results/` show a dense 07-22→08-01 work window (novelty-discovery, singleton
+screening, context search, containerization, Pfam speedup + a half-dozen investigation runs)
+that is entirely absent from `learnings.md`/`decisions.md`/`findings/`.
+
+**Why it matters**: The hooks scaffold the container but do not (and cannot) capture the
+agent's reasoning or findings — only the agent itself, following the post-action protocol, can
+write learnings/decisions. Where sessions end abruptly or the protocol is skipped, the work
+lives only in git/logs and is invisible to the knowledge layer. `findings/` (the intended home
+for analysis-run findings) was completely empty.
+
+**Resolution**: Backfilled the window from `git log --all` + run logs + `results/*` counts
+(`decisions.md` reconciliation entry, `learnings.md` run-observations, `LOG_REGISTRY.md`
+rows). Going forward: the Stop hook is disabled (see `conventions.md`), so enforcement is
+manual — treat "wrap up the session in `.living/`" as an explicit closing step, and deposit
+per-run findings in `.living/findings/` rather than only in session logs.
+
+**Tags**: mycelium, sessions, logging, findings, knowledge-capture, process
+
+**mitigation_type**: convention
+
+**structural_mitigation_candidate**: A SessionStart "unwritten-findings" reminder (like the
+knowledge-audit message) that lists open session-log stubs and the empty `findings/` dir as a
+nudge, since the blocking Stop hook was removed.
+
+### [2026-08-06] Investigation-run observations (benchmarks & cross-method divergences)
+
+**Category**: insight
+
+**What happened**: Reconciling the late-July/early-Aug run logs (`logs/`, `results/*`)
+surfaced concrete, previously-unrecorded numbers:
+
+1. **mmseqs family-profile vs pairwise diverge on novelty counts**: pezizo5_mmseqs → 1,851
+   candidates / Afum 524, Amega 197, Cimm 453, Ncra 342, Ztri 335 vs pezizo5 pairwise → 2,544 /
+   Afum 604, Amega 375, Cimm 550, Ncra 447, Ztri 568. The form/identity presence call is not
+   a drop-in count — cross-method concordance (Phase 2) is warranted.
+2. **Singleton search roughly doubles recovered target genes**: with PR #52 the sordario
+   novelty_discovery run jumped Afum 422→907, Cimm 329→693, FgraPH1 419→1173, Ncra 429→956
+   (`target_specific` 1,599→3,729; screened_candidates 14,779→16,909). The singleton pathway
+   has a big, previously-invisible payoff — its earlier invisibility was the "known gap".
+3. **Antarctolithicomycotina** (2 ingroup genomes) is novelty-rich (772 / 758 novelties) and
+   has **loss_candidates (1,697) > novelty candidates (1,530)** — an unusually high loss
+   signal for a 2-genome ingroup; worth a closer look.
+4. **preempt did not stabilize mmseqs BUILD_CHUNK**: the 07-24 handoff
+   (`SLURM job 26715986`) finished `completed=5063 failed=45 cached=57` — 45 famsa 600s
+   timeouts (exit 140) across PROFILE_SEARCH + PROFILE_LOSS_SEARCH, 100 ABORTED + 28 FAILED
+   BUILD_CHUNK tasks in the trace, and a MERGE_PROFILES cache re-use collision
+   (`WARN: Unable to resume cached task`). Preempt shrank individual-task loss but the
+   famsa-on-`short` timeout/AVX2 issue was the real blocker.
+5. **Chaeto_subset** (21 ingroup + ~44 outgroup, mmseqs): 157,181 matrix rows, 666 novelty /
+   205 loss candidates; two ingroup species (Cimm, Herpsp) got **0** novelties.
+6. **Pfam hmmscan performance** (08-01): hmmscan's own `--cpu` threading under-utilizes
+   (~1.4 of 8 on a real ~5.7k-protein set, GPFS-bound re-scanning the full pressed DB per
+   query); concurrency from many low-cpu tasks beats internal threading. Only the pressed
+   index files `.h3f/.h3i/.h3m/.h3p` are read (not the 2.1 GB flat Pfam-A.hmm or `.dat`).
+   `scratch = true`: 94% CPU/14m55s (GPFS) vs 165% CPU/6m46s (node-local) on a 500-protein
+   subset ≈ **2.2× wall-clock**; per-chunk cpus=2 is the sweet spot; `maxForks=6` bounds the
+   ~2.5 GB staged DB copies on shared GPFS bandwidth.
+
+**Why it matters**: These are the scaffold for the cross-method concordance (Phase 2) and the
+singleton-pathway scale-up; also directly informs `todo/gene-contraction-analysis.md`
+(Antarctolithica high loss ratio) and the still-open Phase 2 validation battery. None was
+recorded before this reconciliation.
+
+**Resolution**: Captured here and mirrored in `decisions.md`; the run-observation evidence
+stays in `logs/` + `results/`.
+
+**Tags**: findings, mmseqs, pairwise, concordance, singleton, novelty, loss, pfam, hmmscan,
+perf, preempt, cluster, investigation
+
+**mitigation_type**: evidence
+
+**structural_mitigation_candidate**: A permanent per-run "findings card" under
+`.living/findings/<project>/` written at report time (few rows, key count deltas) so the
+knowledge layer carries each investigation without needing a full agent session.

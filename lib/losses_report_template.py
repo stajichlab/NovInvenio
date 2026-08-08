@@ -89,6 +89,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       <option value="frac">Sort: outgroup presence fraction</option>
       <option value="id">Sort: protein ID</option>
       <option value="src">Sort: source proteome</option>
+      <option value="pos">Sort: genomic position (chrom, start)</option>
     </select>
     <button id="f-reset" type="button">Reset</button>
     <div class="spacer"></div>
@@ -191,6 +192,15 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     else if (s === "src") cmp = function (a, b) { return (ROWS[a][F.src] - ROWS[b][F.src]) || cmpId(a, b); };
     else if (s === "frac") cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
     else if (s === "breadth") cmp = function (a, b) { return (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) || cmpId(a, b); };
+    else if (s === "pos") cmp = function (a, b) {
+      var ca = ROWS[a][F.chrom] || "", cb = ROWS[b][F.chrom] || "";
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      var sa = ROWS[a][F.start], sb = ROWS[b][F.start];
+      if (sa == null && sb == null) return cmpId(a, b);
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return (sa - sb) || cmpId(a, b);
+    };
     // priority: the strongest loss call is a gene family retained in the fewest ingroup
     // species (cleanest loss), conserved across the most outgroup species (broadest
     // ortholog set), with no ingroup TBLASTN hit — a genomic hit means "might just be a
@@ -205,11 +215,13 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
 
   // ---- table --------------------------------------------------------------
   var TBL_COLS = [
-    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
-    { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
-    { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num" },
+    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono", sortKey: "id" },
+    { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; }, sortKey: "src" },
+    { label: "Chrom", get: function (r) { return ROWS[r][F.chrom] || ""; }, cls: "mono", sortKey: "pos" },
+    { label: "Start", get: function (r) { return ROWS[r][F.start] != null ? ROWS[r][F.start] : ""; }, cls: "num", sortKey: "pos" },
+    { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num", sortKey: "breadth" },
     { label: "Ingroup retained", get: function (r) { return ROWS[r][F.in_retained] + " / " + N_IN + " species"; }, cls: "num" },
-    { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num" },
+    { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num", sortKey: "frac" },
     { label: "Ingroup TBLASTN", get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; }, cls: "wrap-cell" },
     {
       label: "Gene family", cls: "wrap-cell",
@@ -221,7 +233,11 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
     { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
     { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
-    { label: "Pfam domains", get: function (r) { return ROWS[r][F.pfam_n]; }, cls: "wrap-cell" }
+    {
+      label: "Pfam domains", cls: "wrap-cell",
+      get: function (r) { return ROWS[r][F.pfam_n]; },
+      render: function (td, r) { td.appendChild(pfamLinksInline(ROWS[r][F.pfam_n], ROWS[r][F.pfam_a])); }
+    }
   ];
 
   var TBL_PAGE = 300;
@@ -236,9 +252,33 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     TBL_COLS.forEach(function (c) {
       var th = el("th", c.cls || null, c.label);
       th.scope = "col";
+      if (c.sortKey) {
+        th.classList.add("sortable");
+        th.tabIndex = 0;
+        th.setAttribute("role", "button");
+        th.setAttribute("aria-label", "Sort by " + c.label);
+        (function (key) {
+          th.addEventListener("click", function () {
+            state.sort = key;
+            document.getElementById("f-sort").value = key;
+            refresh(true);
+          });
+        })(c.sortKey);
+        th.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.click(); }
+        });
+      }
       tr.appendChild(th);
     });
     thead.appendChild(tr);
+    markSortHeader();
+  }
+
+  function markSortHeader() {
+    var ths = document.querySelectorAll("#tbl-head th");
+    TBL_COLS.forEach(function (c, i) {
+      if (ths[i]) ths[i].classList.toggle("sort-active", !!c.sortKey && c.sortKey === state.sort);
+    });
   }
 
   function renderTable(reset) {
@@ -252,7 +292,8 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       tr.dataset.ri = ri;
       if (ri === state.selected) tr.className = "sel";
       TBL_COLS.forEach(function (c) {
-        var td = el("td", c.cls || null, c.get(ri) || "");
+        var td = el("td", c.cls || null, c.render ? null : (c.get(ri) || ""));
+        if (c.render) c.render(td, ri);
         tr.appendChild(td);
       });
       frag.appendChild(tr);
@@ -306,6 +347,11 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
         sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short + " · outgroup"));
     }
 
+    if (row[F.chrom]) {
+      detailEl.appendChild(field("Location",
+        row[F.chrom] + (row[F.start] != null ? ":" + row[F.start] : "")));
+    }
+
     var retained = row[F.in_retained];
     var statusText = (retained === 0
         ? "Absent from every ingroup proteome"
@@ -343,27 +389,12 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     if (row[F.gene]) detailEl.appendChild(field("Gene name (outgroup)", row[F.gene]));
     if (row[F.prod]) detailEl.appendChild(field("Product", row[F.prod]));
     if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
-    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", row[F.sprot]));
+    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", uniprotLinkNode(row[F.sprot])));
 
     if (row[F.pfam_n]) {
-      var names = row[F.pfam_n].split(",");
-      var accs = row[F.pfam_a] ? row[F.pfam_a].split(",") : [];
-      var chips = el("div", "chips");
-      names.forEach(function (n, i) {
-        var acc = (accs[i] || "").split(".")[0];
-        var node;
-        if (/^PF\d+$/.test(acc)) {
-          node = el("a", "chip", n);
-          node.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
-          node.target = "_blank";
-          node.rel = "noopener noreferrer";
-          node.title = acc;
-        } else {
-          node = el("span", "chip", n);
-        }
-        chips.appendChild(node);
-      });
-      detailEl.appendChild(field("Pfam domains (" + names.length + ")", chips));
+      var pfamCount = row[F.pfam_n].split(",").length;
+      detailEl.appendChild(field("Pfam domains (" + pfamCount + ")",
+        pfamChipsNode(row[F.pfam_n], row[F.pfam_a])));
     }
 
     // external links — resolved against the *outgroup* protein, since that is
@@ -437,6 +468,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   // ---- wiring -------------------------------------------------------------
   function refresh(resetScroll) {
     applyFilters();
+    markSortHeader();
     if (state.selected >= 0 && view.indexOf(state.selected) === -1) {
       state.selected = -1;
       renderDetail();

@@ -68,6 +68,11 @@ workflow {
     def morgs_abs = params.modelorgs_config
         ? file(params.modelorgs_config).toAbsolutePath().toString()
         : ''
+    // Report-only: resolves each species' optional GFF3 config-CSV column (chrom/start
+    // columns in novelties.html/core.html/losses.html) -- not staged/channeled like the
+    // Protein/DNA FASTAs, just passed through as an absolute path val for bin/make_*.py
+    // to re-resolve GFF3 filenames against directly (see lib/gff3_genes.py).
+    def data_dir_abs = file(params.data_dir).toAbsolutePath().toString()
 
     // Parse the analysis description CSV into a channel of [meta, protein_fa, dna_fa]
     samples_ch = Channel
@@ -312,6 +317,7 @@ workflow {
         loss_annotated_matrix,
         loss_tblastn_summary,
         loss_cand_cluster_tsv,
-        file(params.config)
+        file(params.config),
+        data_dir_abs
     )
 }

@@ -9,11 +9,15 @@ triples the embedded JSON size.
 No I/O happens at import time.
 """
 import csv
-import re
 from pathlib import Path
 
 from clusters import FamilyIndex
 from config_parser import INGROUP_ROLES, OUTGROUP_ROLES  # noqa: F401 (re-exported)
+from gff3_genes import (  # noqa: F401 (gene_id_from_protein_id re-exported for
+    gene_id_from_protein_id,                              # backward compatibility --
+    load_gff3_index,                                       # see gff3_genes.py's
+    lookup_gene_position,                                  # docstring for why it moved)
+)
 
 # Order of the per-protein arrays in payload['rows'].  The browser reads these
 # positionally via the same names exported in payload['fields'].
@@ -47,18 +51,19 @@ ROW_FIELDS = [
                  # payload['proteomes'] entries tagged {'context': true} are appended after
                  # the scored ingroup/outgroup columns, so 'pres'/'ev' stay one bit/entry per
                  # payload['proteomes'] column throughout.
+    'chrom',     # GFF3-derived chromosome/scaffold/contig name for this row's source
+                 # protein, '' when the source species has no --config GFF3 column value,
+                 # the file can't be resolved/parsed, or the protein ID has no match in it.
+    'start',     # GFF3-derived 1-based gene/mRNA start coordinate (int), or null/None when
+                 # unknown (same conditions as 'chrom'). Per-protein-record as currently
+                 # modeled -- see CLAUDE.md's GFF3 chrom/start note on splice isoforms.
 ]
 
-# Trailing transcript/protein suffixes that separate a FungiDB gene ID from the
-# per-transcript protein ID used in the proteome FASTAs.
-#   Afu1g01620-T-p1      -> Afu1g01620
-#   NCU00499-t26_1-p1    -> NCU00499
-_GENE_ID_SUFFIX = re.compile(r'-[Tt][^-]*(-p\d+)?$|-p\d+$')
-
-
-def gene_id_from_protein_id(protein_id: str) -> str:
-    """Strip transcript/protein suffixes to recover a likely source gene ID."""
-    return _GENE_ID_SUFFIX.sub('', protein_id)
+# gene_id_from_protein_id() / _GENE_ID_SUFFIX moved to lib/gff3_genes.py --
+# lookup_gene_position() (gff3_genes.py) needs it, and this module needs
+# lookup_gene_position(), so it lives on the side that doesn't import back.
+# Imported above and re-exported for any external caller still importing it
+# from here (e.g. tests/test_report_data.py).
 
 
 def read_matrix(path: str | Path) -> tuple[list[str], list[dict]]:
@@ -218,6 +223,28 @@ def read_support_novelties(
     return derive_novelties(rows, ingroup_ids, outgroup_ids, ingroup_min_frac)
 
 
+def _chrom_start(
+    protein_id: str,
+    source_short: str,
+    gff3_paths: dict[str, str],
+    gff3_cache: dict[str, dict],
+) -> tuple[str, int | None]:
+    """('' , None) unless source_short has a resolved GFF3 that yields a hit.
+
+    gff3_cache is shared across every row in one payload build so each
+    species' GFF3 file is parsed at most once (see gff3_genes.load_gff3_index).
+    """
+    path = gff3_paths.get(source_short)
+    if not path:
+        return '', None
+    index = load_gff3_index(path, gff3_cache)
+    hit = lookup_gene_position(protein_id, index)
+    if hit is None:
+        return '', None
+    chrom, start = hit
+    return chrom, start
+
+
 def build_payload(
     matrix_path,
     config_samples,
@@ -234,6 +261,7 @@ def build_payload(
     method='pairwise',
     support_matrix=None,
     support_method=None,
+    gff3_paths=None,
 ) -> dict:
     """Build the embedded report payload.
 
@@ -267,9 +295,17 @@ def build_payload(
     only). Appended to payload['proteomes'] as extra columns tagged
     {'context': True}, extending 'pres'/'ev' to cover them — but they are
     never counted toward ingroup/outgroup novelty stats.
+
+    gff3_paths: optional {short: resolved GFF3 file path} (see
+    lib/gff3_genes.resolve_gff3_paths) — supplies each row's 'chrom'/'start'
+    from the source proteome's GFF3. A short with no entry (no --config GFF3
+    value, or it didn't resolve under --data_dir) just leaves those rows'
+    chrom/start blank; never an error.
     """
     header, rows = read_matrix(matrix_path)
     evalue_lookup = read_evalues(evalues_path)
+    gff3_paths = gff3_paths or {}
+    gff3_cache: dict[str, dict] = {}
 
     fam_index = FamilyIndex(cluster_tsv)
 
@@ -372,6 +408,8 @@ def build_payload(
         if category:
             categories.add(category)
 
+        chrom, start = _chrom_start(pid, src, gff3_paths, gff3_cache)
+
         out_rows.append([
             pid,
             shorts.index(src) if src in shorts else -1,
@@ -390,6 +428,8 @@ def build_payload(
             support,
             category,
             ev,
+            chrom,
+            start,
         ])
 
     return {
@@ -440,6 +480,8 @@ CORE_ROW_FIELDS = [
     'pfam_n',    # Pfam_Names (comma-separated)
     'pfam_a',    # Pfam_Accessions (comma-separated)
     'fam',       # index into payload['families'], or -1 if not part of a multi-member cluster
+    'chrom',     # GFF3-derived chromosome/scaffold/contig name (see ROW_FIELDS' 'chrom')
+    'start',     # GFF3-derived 1-based start coordinate, int or null (see ROW_FIELDS' 'start')
 ]
 
 
@@ -449,6 +491,7 @@ def build_core_payload(
     cluster_tsv=None,
     core_min_frac=0.95,
     project='NovInvenio',
+    gff3_paths=None,
 ) -> dict:
     """Build the embedded payload for the CORE (near-universal genes) report.
 
@@ -464,10 +507,16 @@ def build_core_payload(
     species that independently recovered it as a qualifying hit, so rows are
     grouped into families via the same mmseqs clustering used for novelty
     candidates (cluster_tsv), for a fuller picture of the redundancy.
+
+    gff3_paths: optional {short: resolved GFF3 file path} — see build_payload()'s
+    docstring; supplies each row's 'chrom'/'start' from its (always ingroup)
+    source proteome's GFF3.
     """
     header, rows = read_matrix(matrix_path)
 
     fam_index = FamilyIndex(cluster_tsv)
+    gff3_paths = gff3_paths or {}
+    gff3_cache: dict[str, dict] = {}
 
     ingroup = [s for s in config_samples if s.group in INGROUP_ROLES and s.short in header]
     outgroup = [s for s in config_samples if s.group in OUTGROUP_ROLES and s.short in header]
@@ -507,6 +556,7 @@ def build_core_payload(
             fsrc_i = -1
 
         fam_i = fam_index.index_of(pid, src)
+        chrom, start = _chrom_start(pid, src, gff3_paths, gff3_cache)
 
         out_rows.append([
             pid,
@@ -519,6 +569,8 @@ def build_core_payload(
             row.get('Pfam_Names', '') or '',
             row.get('Pfam_Accessions', '') or '',
             fam_i,
+            chrom,
+            start,
         ])
 
     return {
@@ -560,6 +612,9 @@ LOSSES_ROW_FIELDS = [
     'tb_hit',      # 1 if TBLASTN found this outgroup protein in an ingroup genome
     'tb_genomes',  # comma-separated ingroup genome IDs with a TBLASTN hit
     'fam',         # index into payload['families'], or -1 if not part of a multi-member cluster
+    'chrom',       # GFF3-derived chromosome/scaffold/contig name, resolved against the
+                   # *outgroup* protein's GFF3 (that's where the gene is) — see ROW_FIELDS
+    'start',       # GFF3-derived 1-based start coordinate, int or null — see ROW_FIELDS
 ]
 
 
@@ -571,6 +626,7 @@ def build_losses_payload(
     outgroup_min_frac=0.75,
     loss_ingroup_max_frac=0.0,
     project='NovInvenio',
+    gff3_paths=None,
 ) -> dict:
     """Build the embedded payload for the LOSSES (candidate gene-loss) report.
 
@@ -610,10 +666,18 @@ def build_losses_payload(
     here does not remove the row (this is reporting-only, mirroring
     make_novelties.py's --skip_tblastn_filter default) — it downgrades the
     row's priority instead, surfaced via tb_hit/tb_genomes.
+
+    gff3_paths: optional {short: resolved GFF3 file path} — see build_payload()'s
+    docstring. Rows here are sourced from outgroup proteins, so 'chrom'/'start'
+    are resolved against the row's own (outgroup) source proteome's GFF3 — the
+    same field used everywhere else in this module, since that's already where
+    the loss-candidate gene actually lives.
     """
     header, rows = read_matrix(matrix_path)
 
     fam_index = FamilyIndex(cluster_tsv)
+    gff3_paths = gff3_paths or {}
+    gff3_cache: dict[str, dict] = {}
 
     ingroup = [s for s in config_samples if s.group in INGROUP_ROLES and s.short in header]
     outgroup = [s for s in config_samples if s.group in OUTGROUP_ROLES and s.short in header]
@@ -677,6 +741,7 @@ def build_losses_payload(
             in_retained = len(in_present)
 
         hit_genomes = sorted(tb_hits.get(pid, set()))
+        chrom, start = _chrom_start(pid, src, gff3_paths, gff3_cache)
 
         out_rows.append([
             pid,
@@ -693,6 +758,8 @@ def build_losses_payload(
             1 if hit_genomes else 0,
             ','.join(hit_genomes),
             fam_i,
+            chrom,
+            start,
         ])
 
     return {

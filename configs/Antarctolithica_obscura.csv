@@ -1,14 +1,14 @@
-GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
-IN,Antarctolithica obscura,MARS-82_9,Antarctolithica_obscura_FM_MARS-82_9.pep.fa,Antarctolithica_obscura_FM_MARS-82_9.scaffolds.fa,AOBS82_9,Antarctolithicomycotina
-IN,Antarctolithica obscura,MARS-17_30,Antarctolithica_obscura_FM_MARS-17_30.pep.fa,Antarctolithica_obscura_FM_MARS-17_30.scaffolds.fa,AOBS17_30,Antarctolithicomycotina
-OUT,Neolecta irregularis,DAH-3,Neolecta_irregularis_DAH-3.proteins.fa,Neolecta_irregularis_DAH-3.scaffolds.fa,Nirr,Taphrinomycotina
-OUT,Schizosaccharomyces pombe,972h,Schizosaccharomyces_pombe_972h.pep.fa,Schizosaccharomyces_pombe_972h-.scaffolds.fa,Spom,Taphrinomycotina
-OUT,Saccharomyces cerevisiae,S288c,Saccharomyces_cerevisiae_S288C.pep.fa,Saccharomyces_cerevisiae_S288c.scaffolds.fa,Scer,Saccharomycotina
-OUT,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.pep.fa,Neurospora_crassa_OR74A.scaffolds.fa,Ncra,Pezizomycotina
-OUT,Aspergillus fumigatus,Af293,Aspergillus_fumigatus_Af293.pep.fa,Aspergillus_fumigatus_Af293.dna.fa,Afum,Pezizomycotina
-OUT,Zymoseptoria tritici,,Zymoseptoria_tritici.proteins.fa,Zymoseptoria_tritici.scaffolds.fa,Ztri,Pezizomycotina
-OUT,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidioides_immitis_WA_211.scaffolds.fa,Cimm,Pezizomycotina
-OUT,Cryptococcus neoformans,H99,Cryptococcus_neoformans_H99.pep.fa,Cryptococcus_neoformans_H99.scaffolds.fa,CneoH99,Basidiomycota
-OUT,Coprinus cinerea,okyama 7-130,Coprinus_cinerea.pep.fa,Coprinus_cinerea.scaffolds.fa,Ccin,Basidiomycota
-OUT,Mucor circinelloides,1006PhL,Mucor_circinelloides.pep.fa,Mucor_circinelloides.scaffolds.fa,Mcir,Mucoromycotina
-OUT,Arthrobotrys megalospora,TWF281,Arthrobotrys_megalospora_TWF281.proteins.fa,Arthrobotrys_megalospora_TWF281.scaffolds.fa,Amega,Pezizomycotina
+GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup
+IN,Antarctolithica obscura,MARS-82_9,Antarctolithica_obscura_FM_MARS-82_9.pep.fa,Antarctolithica_obscura_FM_MARS-82_9.scaffolds.fa,,AOBS82_9,Antarctolithicomycotina
+IN,Antarctolithica obscura,MARS-17_30,Antarctolithica_obscura_FM_MARS-17_30.pep.fa,Antarctolithica_obscura_FM_MARS-17_30.scaffolds.fa,,AOBS17_30,Antarctolithicomycotina
+OUT,Neolecta irregularis,DAH-3,Neolecta_irregularis_DAH-3.proteins.fa,Neolecta_irregularis_DAH-3.scaffolds.fa,Neolecta_irregularis_DAH-3.gff3,Nirr,Taphrinomycotina
+OUT,Schizosaccharomyces pombe,972h,Schizosaccharomyces_pombe_972h.pep.fa,Schizosaccharomyces_pombe_972h-.scaffolds.fa,,Spom,Taphrinomycotina
+OUT,Saccharomyces cerevisiae,S288c,Saccharomyces_cerevisiae_S288C.pep.fa,Saccharomyces_cerevisiae_S288c.scaffolds.fa,,Scer,Saccharomycotina
+OUT,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.pep.fa,Neurospora_crassa_OR74A.scaffolds.fa,,Ncra,Pezizomycotina
+OUT,Aspergillus fumigatus,Af293,Aspergillus_fumigatus_Af293.pep.fa,Aspergillus_fumigatus_Af293.dna.fa,,Afum,Pezizomycotina
+OUT,Zymoseptoria tritici,,Zymoseptoria_tritici.proteins.fa,Zymoseptoria_tritici.scaffolds.fa,Zymoseptoria_tritici.gff3,Ztri,Pezizomycotina
+OUT,Coccidioides immitis,WA_211,Coccidioides_immitis_WA_211.proteins.fa,Coccidioides_immitis_WA_211.scaffolds.fa,Coccidioides_immitis_WA_211.gff3,Cimm,Pezizomycotina
+OUT,Cryptococcus neoformans,H99,Cryptococcus_neoformans_H99.pep.fa,Cryptococcus_neoformans_H99.scaffolds.fa,,CneoH99,Basidiomycota
+OUT,Coprinus cinerea,okyama 7-130,Coprinus_cinerea.pep.fa,Coprinus_cinerea.scaffolds.fa,,Ccin,Basidiomycota
+OUT,Mucor circinelloides,1006PhL,Mucor_circinelloides.pep.fa,Mucor_circinelloides.scaffolds.fa,,Mcir,Mucoromycotina
+OUT,Arthrobotrys megalospora,TWF281,Arthrobotrys_megalospora_TWF281.proteins.fa,Arthrobotrys_megalospora_TWF281.scaffolds.fa,Arthrobotrys_megalospora_TWF281.gff3,Amega,Pezizomycotina

@@ -217,3 +217,86 @@ session-end write.
 **Tags**: adr-0002, gene-family, grilling, mmseqs, hmmer, in-progress
 
 **Tags**: architecture, scaling, nextflow, mmseqs, hmmer, orthofinder, novelty, loss, contraction, adr-0002
+
+## [2026-08-06] Reconciled the 2026-07-22 → 08-01 investigation window into the living layer
+
+**Context**: A reconciliation pass (issue: "living repo initialize / repopulate") found that
+none of the substantial analysis and engineering work 2026-07-22 → 2026-08-01 had been
+disseminated into `.living/decisions.md` / `learnings.md` / `findings/`. The session logs
+(`.living/log/`) were mostly bare "Session started" stubs (except 07-24), the
+`LOG_REGISTRY.md` had a single row, and `INDEX.md` had not been regenerated since 07-21.
+Root cause of the silent INDEX staleness: the mycelium health hook invokes **bare `python3`
+(Python 3.9 on this cluster)** to run `generate_index.py`, which uses `str | None` union
+syntax (3.10+), so it crashes and is swallowed by the hook's `|| true`. Regenerating with
+`python3.12` works. The substance below was reconstructed from `git log --all` (per-branch,
+per-commit), the run logs in `logs/`, and `results/*` counts.
+
+**Decision / actions**: Reconcile the window now so future sessions see the full picture.
+Capture the engineering decisions and the quantitative investigation findings here and in
+`learnings.md`, backfill `LOG_REGISTRY.md`, and rebuild `INDEX.md`.
+
+**Findings — per-thread (07-22 → 08-01)**:
+
+1. **Novelty-discovery two-phase pipeline (issues #24–#29, #31–#42; merged)** — third
+   `--cluster_tool novelty_discovery` pathway; four config GROUP roles
+   (`DISCOVERY_TARGET`/`DISCOVERY_OUT`/`NEAR_INGROUP`/`BROAD_OUTGROUP`, with aliases
+   `TARGET`/`DISC_OUT`/`NEAR_IN`/`BROAD_OUT` normalized on both the Python (`GROUP_ALIASES`)
+   and Groovy (`normalizeGroup()`) sides). `NOVELTY_DISCOVERY` (phase 1: family cluster →
+   HMM → hmmsearch → singleton extract → negative-control calibration → TBLASTN) and
+   `NOVELTY_SCREEN` (phase 2: three-category re-classification
+   `target_specific`/`clade_specific`/`false_novelty`; `false_novelty` removed before
+   expensive ANNOTATE). Also surfacing `novelty_category` in the report.
+2. **#33 wiring class-bug** — the discovery workflow "ran to completion but never rendered":
+   `Channel.empty().collect()` silently produces nothing and starves every downstream
+   process; made value channels correctly. Also TBLASTN was queried with the HMM DB instead
+   of family-representative protein FASTA; `make_novelties.py`/`report_data.py` only
+   recognized strict IN/OUT.
+3. **Singleton screening (PR #52/#53; merged)** — closed two gaps: (a) singleton search
+   lacked a paralog-competition guard (`NCU08332`/HEX-1-vs-eIF5A false positive); fixed by
+   self-vs-self paralog calibration + extended singleton query; (b) phase-2 screen had no
+   singleton evidence, so singletons always defaulted `target_specific`; re-search fixed it.
+   Bonus: `extract_singletons.py` mis-counted reps (`rep\trep` self-line) as singletons.
+4. **Context search (PR #48–#51; merged)** — NEAR_INGROUP/BROAD_OUTGROUP as **report-only**
+   context for `--cluster_tool pairwise` (candidate + paralog searched, never affects strict
+   IN/OUT novelty filtering). Reverted #47's empty-placeholder matrix columns that shadowed
+   it. `stageAs` fix for stub-file input filename collisions.
+5. **Roles fix (PR #47; merged)** — presence-matrix columns + control scoring moved from
+   strict `group == 'IN'/'OUT'` to coarse `INGROUP_ROLES`/`OUTGROUP_ROLES` banding.
+6. **Hit e-values (PR #44/#46; merged)** — `build_presence_matrix.py` now emits an e-value
+   **sidecar** (`--output-evalues`, phase-1 novelty-discovery only) surfaced as `'ev'` in the
+   report detail panel. **Gap:** mmseqs/PROFILE_SEARCH still lacks e-values (stubbed
+   `EMPTY_EVALUES_STUB`).
+7. **Containerization + HPCC (PR #41–#43, #45; merged)** — Dockerfile + `novinvenio.def`
+   singularity def, container/directive on all 38 processes, refactored `nextflow.config`
+   process.container, OIDC keyless cosign build+sign workflow, `conf/ucr_hpcc_slurm.config`.
+   Simpler/faster local runs no longer activate pixi `beforeScript` per process.
+8. **Pfam annotation speedup (07-31 → 08-01; committed direct to `main`)** —
+   `hmmsearch`→`hmmscan` orientation swap (large DB on the parallelized target side; ~2.8→real
+   threading), then moved Pfam out of `ANNOTATE_MATRIX` into a chunked scatter-gather
+   `ANNOTATE_PFAM` (`SPLIT_CANDIDATES` → `PFAM_HMMSCAN_CHUNK` → `MERGE_PFAM_TBLOUT`), with
+   `scratch = true` (2.2× wall-clock from staging pressed DB on node-local disk), and
+   `SLURM_CPU_BIND=none` for MPI in `modules/hmmsearch.nf`.
+
+**Findings — run/investigation evidence (`logs/`, `results/*`)**: see `learnings.md`
+"investigation-run observations" for the full list; the headline numbers were:
+- **mmseqs family-profile yields FEWER novelty candidates than pairwise on identical data**
+  (pezizo5: 1851 vs 2544). Form/identity presence-calling diverges — cross-method concordance
+  (Phase 2 todo) is warranted.
+- **Singleton search roughly doubles recovered target genes** (PR #52): sordario per-species
+  novelties ~422→907 (Afum), 329→693 (Cimm), 419→1173 (FgraPH1), 429→956 (Ncra);
+  `target_specific` 1,599→3,729. The singleton pathway has a large, previously-invisible
+  payoff.
+- **Antarctolithicomycotina is novelty-rich** and shows an unusual **loss_candidates (1,697)
+  > novelty candidates (1,530)** from just 2 ingroup genomes.
+- **`preempt` did NOT rescue the mmseqs BUILD_CHUNK work** — the 07-24 handoff ("wait for
+  SLURM job 26715986") outcome was `completed=5063 failed=45 cached=57` from famsa 600s
+  timeouts (exit 140), 100 ABORTED + 28 FAILED BUILD_CHUNK tasks, plus a MERGE_PROFILES cache
+  collision. The outcome was never recorded in `.living/` — now captured.
+
+**Consequences**: The living layer now reflects the 07-22→08-01 window. The `INDEX.md`
+regeneration still fails under system `python3` (3.9) — see `learnings.md` "mycelium
+generate_index.py needs Python 3.10+"; use `python3.12` (present in the pixi env and
+`/usr/bin`) until the hook is fixed upstream.
+
+**Tags**: mycelium, reconciliation, decisions, novelty-discovery, singleton, context-search,
+roles, ev-score, docker, pfam, perf, findings, in-progress

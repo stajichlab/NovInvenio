@@ -94,6 +94,18 @@ GGWT
 MPPQQ
 """
 
+# GFF3 fixtures for the chrom/start payload tests: n1 (Ncra-sourced) and n2
+# (Afum-sourced) each get a matching gene feature; 'shared'/'lonely' (also
+# Ncra-sourced) are deliberately absent from Ncra's GFF3 to exercise the
+# no-match-leaves-it-blank path.
+GFF3_NCRA = """\
+scaffold_1\tsrc\tgene\t100\t500\t.\t+\t.\tID=n1
+"""
+
+GFF3_AFUM = """\
+scaffold_9\tsrc\tgene\t50\t80\t.\t+\t.\tID=n2
+"""
+
 # A second pathway's (mmseqs) presence matrix for the cross-method support column.
 # n1 stays a novelty (concordant with the pairwise MATRIX); n2 gains an outgroup
 # hit (Spom) so mmseqs does NOT call it novel → pairwise-only support.
@@ -257,6 +269,30 @@ def test_payload_tblastn_bitstring_follows_genome_order(run_dir, samples):
     assert rows['n1'][F['tb']] == '00'
     # A protein absent from tblastn_summary still gets a zero-filled bitstring.
     assert rows['shared'][F['tb']] == '00'
+
+
+def test_payload_chrom_start_from_gff3_paths(run_dir, samples):
+    (run_dir / 'Ncra.gff3').write_text(GFF3_NCRA)
+    (run_dir / 'Afum.gff3').write_text(GFF3_AFUM)
+    payload = payload_for(run_dir, samples, gff3_paths={
+        'Ncra': str(run_dir / 'Ncra.gff3'),
+        'Afum': str(run_dir / 'Afum.gff3'),
+    })
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = rows_by_id(payload)
+    assert (rows['n1'][F['chrom']], rows['n1'][F['start']]) == ('scaffold_1', 100)
+    assert (rows['n2'][F['chrom']], rows['n2'][F['start']]) == ('scaffold_9', 50)
+    # 'shared'/'lonely' are Ncra-sourced but absent from Ncra's GFF3 -- no match,
+    # never an error.
+    assert (rows['shared'][F['chrom']], rows['shared'][F['start']]) == ('', None)
+    assert (rows['lonely'][F['chrom']], rows['lonely'][F['start']]) == ('', None)
+
+
+def test_payload_chrom_start_blank_without_gff3_paths(run_dir, samples):
+    payload = payload_for(run_dir, samples)
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = rows_by_id(payload)
+    assert (rows['n1'][F['chrom']], rows['n1'][F['start']]) == ('', None)
 
 
 def test_payload_marks_novelties_when_no_novelty_tables_given(run_dir, samples):
@@ -442,6 +478,21 @@ def test_core_payload_carries_annotation_columns(core_run_dir, samples):
     assert rows['core1'][F['pfam_n']] == 'PF00001.1'
 
 
+def test_core_payload_chrom_start_from_gff3_paths(core_run_dir, samples):
+    (core_run_dir / 'Ncra.gff3').write_text(
+        'scaffold_1\tsrc\tgene\t100\t500\t.\t+\t.\tID=core1\n'
+    )
+    payload = build_core_payload(
+        core_run_dir / 'core_matrix.tsv', samples,
+        gff3_paths={'Ncra': str(core_run_dir / 'Ncra.gff3')},
+    )
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = core_rows_by_id(payload)
+    assert (rows['core1'][F['chrom']], rows['core1'][F['start']]) == ('scaffold_1', 100)
+    # core1b is Afum-sourced -- no GFF3 supplied for Afum, so no match.
+    assert (rows['core1b'][F['chrom']], rows['core1b'][F['start']]) == ('', None)
+
+
 def test_core_payload_rejects_a_matrix_with_no_config_columns(run_dir, samples):
     (run_dir / 'other.tsv').write_text('protein_id\tsource_proteome\tXxxx\nfoo\tXxxx\t1\n')
     with pytest.raises(ValueError, match='No proteome columns'):
@@ -529,6 +580,23 @@ def test_losses_payload_flags_but_keeps_tblastn_hits(losses_run_dir, samples):
     assert rows['loss1'][F['tb_genomes']] == ''
     assert rows['loss1b'][F['tb_hit']] == 1
     assert rows['loss1b'][F['tb_genomes']] == 'Ncra'
+
+
+def test_losses_payload_chrom_start_resolved_against_outgroup_source(losses_run_dir, samples):
+    # Losses are sourced from outgroup proteins (loss1 -> Spom), so chrom/start must
+    # resolve against Spom's GFF3, not any ingroup species'.
+    (losses_run_dir / 'Spom.gff3').write_text(
+        'scaffold_7\tsrc\tgene\t250\t900\t.\t+\t.\tID=loss1\n'
+    )
+    payload = build_losses_payload(
+        losses_run_dir / 'losses_matrix.tsv', samples,
+        gff3_paths={'Spom': str(losses_run_dir / 'Spom.gff3')},
+    )
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    rows = losses_rows_by_id(payload)
+    assert (rows['loss1'][F['chrom']], rows['loss1'][F['start']]) == ('scaffold_7', 250)
+    # loss1b is Scer-sourced -- no GFF3 supplied for Scer, so no match.
+    assert (rows['loss1b'][F['chrom']], rows['loss1b'][F['start']]) == ('', None)
 
 
 def test_losses_payload_without_tblastn_path_has_no_hits(losses_run_dir, samples):
