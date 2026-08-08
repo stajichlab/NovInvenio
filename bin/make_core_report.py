@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
 from core_report_template import CORE_HTML_TEMPLATE  # noqa: E402
+from gff3_genes import resolve_gff3_paths  # noqa: E402
 from report_data import build_core_payload  # noqa: E402
 
 
@@ -42,6 +43,10 @@ def main():
                          'for a gene to count as core (default: 0.95)')
     ap.add_argument('--project', default=None,
                     help='Project name shown in the report title (default: matrix parent dir)')
+    ap.add_argument('--data_dir',
+                    help='Directory containing the FASTA/GFF3 files referenced by --config '
+                         '(optional; used only to resolve each species\' GFF3 column value '
+                         'for the report\'s chrom/start columns).')
     ap.add_argument('--output', required=True, help='Output HTML file')
     args = ap.parse_args()
 
@@ -57,6 +62,7 @@ def main():
         cluster_tsv=args.cluster_tsv,
         core_min_frac=args.core_min_frac,
         project=project,
+        gff3_paths=resolve_gff3_paths(samples, args.data_dir),
     )
 
     # separators: drop the whitespace json.dumps adds after every delimiter.

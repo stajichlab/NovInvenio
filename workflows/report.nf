@@ -32,12 +32,17 @@ workflow REPORT {
     loss_tblastn_summary     // path: loss_tblastn_summary.tsv
     loss_cluster_tsv         // path: loss mmseqs *_cluster.tsv
     config_csv               // path: analysis CSV
+    data_dir                  // val: absolute path to --data_dir -- report-only, used to
+                               //   resolve each species' optional GFF3 config-CSV column for
+                               //   the reports' chrom/start columns (not staged/channeled like
+                               //   the FASTAs; the standalone bin/make_*.py scripts re-resolve
+                               //   it themselves, see lib/gff3_genes.resolve_gff3_paths)
 
     main:
     MAKE_REPORT(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
-               evalues, context_matrix, context_evalues, config_csv)
-    MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv)
-    MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv)
+               evalues, context_matrix, context_evalues, config_csv, data_dir)
+    MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv, data_dir)
+    MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
 
     // Publication-quality PDF summary (static figures) alongside the interactive HTML.
     MAKE_PDF_REPORT(annotated_matrix, tblastn_summary, cluster_tsv,
@@ -118,6 +123,7 @@ process MAKE_REPORT {
     path(context_matrix, stageAs: 'context_matrix.tsv')
     path(context_evalues, stageAs: 'context_evalues.tsv')
     path(config_csv)
+    val(data_dir)
 
     output:
     path("novelties.html"), emit: report
@@ -140,6 +146,7 @@ process MAKE_REPORT {
         --project ${Helpers.projectName(params)} \
         --ingroup_min_frac ${params.ingroup_min_frac} \
         --sequences ${params.report_sequences} \
+        --data_dir ${data_dir} \
         --output novelties.html
     """
 }
@@ -153,6 +160,7 @@ process MAKE_CORE_REPORT {
     path(annotated_matrix)
     path(cluster_tsv)
     path(config_csv)
+    val(data_dir)
 
     output:
     path("core.html"), emit: report
@@ -165,6 +173,7 @@ process MAKE_CORE_REPORT {
         --cluster_tsv ${cluster_tsv} \
         --project ${Helpers.projectName(params)} \
         --core_min_frac ${params.core_min_frac} \
+        --data_dir ${data_dir} \
         --output core.html
     """
 }
@@ -179,6 +188,7 @@ process MAKE_LOSSES_REPORT {
     path(loss_tblastn_summary)
     path(loss_cluster_tsv)
     path(config_csv)
+    val(data_dir)
 
     output:
     path("losses.html"), emit: report
@@ -190,6 +200,7 @@ process MAKE_LOSSES_REPORT {
         --config ${config_csv} \
         --tblastn_summary ${loss_tblastn_summary} \
         --cluster_tsv ${loss_cluster_tsv} \
+        --data_dir ${data_dir} \
         --project ${Helpers.projectName(params)} \
         --outgroup_min_frac ${params.outgroup_min_frac} \
         --loss_ingroup_max_frac ${params.loss_ingroup_max_frac} \

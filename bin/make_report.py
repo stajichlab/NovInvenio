@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
+from gff3_genes import resolve_gff3_paths  # noqa: E402
 from report_data import build_payload  # noqa: E402
 from report_template import HTML_TEMPLATE  # noqa: E402
 
@@ -76,6 +77,11 @@ def main():
                          'cross-method concordance check (ADR-0002 Phase 2)')
     ap.add_argument('--support_method', default=None,
                     help='Label for --support_matrix\'s pathway (default: mmseqs)')
+    ap.add_argument('--data_dir',
+                    help='Directory containing the FASTA/GFF3 files referenced by --config '
+                         '(optional; used only to resolve each species\' GFF3 column value '
+                         'for the report\'s chrom/start columns). Omit or leave a row\'s GFF3 '
+                         'column empty/unresolvable and that row just has no chrom/start.')
     ap.add_argument('--output', required=True, help='Output HTML file')
     args = ap.parse_args()
 
@@ -108,6 +114,7 @@ def main():
         method=args.method,
         support_matrix=args.support_matrix,
         support_method=args.support_method,
+        gff3_paths=resolve_gff3_paths(samples, args.data_dir),
     )
 
     # separators: drop the whitespace json.dumps adds after every delimiter —
