@@ -221,6 +221,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--page);
   }
   .chip:hover { border-color: var(--series-1); }
+  a.pfam-link { color: var(--series-1); text-decoration: none; }
+  a.pfam-link:hover { text-decoration: underline; }
   .links { display: flex; flex-wrap: wrap; gap: 6px; }
   .links a, .links button {
     font-size: 12px;
@@ -275,6 +277,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     z-index: 1;
     border-bottom: 1px solid var(--axis);
   }
+  table.data th.sortable { cursor: pointer; user-select: none; }
+  table.data th.sortable:hover { color: var(--series-1); }
+  table.data th.sortable::after { content: ""; margin-left: 4px; color: var(--series-1); }
+  table.data th.sortable.sort-active::after { content: "\25BE"; }
   table.data td.num { font-variant-numeric: tabular-nums; }
   /* Text columns (annotation, Pfam, gene family, model-org name): grow with the viewport,
      floored readable so many 0/1 columns can't crush them, ceiling so one can't dominate. */
@@ -356,6 +362,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       <option value="outgroup">Sort: fewest outgroup hits</option>
       <option value="tb">Sort: fewest TBLASTN hits</option>
       <option value="pfam">Sort: annotated first</option>
+      <option value="pos">Sort: genomic position (chrom, start)</option>
     </select>
     <button id="f-reset" type="button">Reset</button>
     <div class="spacer"></div>
@@ -603,6 +610,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     else if (s === "outgroup") cmp = function (a, b) { return (outN[a] - outN[b]) || (inN[b] - inN[a]) || cmpId(a, b); };
     else if (s === "tb") cmp = function (a, b) { return (tbN[a] - tbN[b]) || (inN[b] - inN[a]) || cmpId(a, b); };
     else if (s === "pfam") cmp = function (a, b) { return (hasPfam[b] - hasPfam[a]) || (inN[b] - inN[a]) || cmpId(a, b); };
+    else if (s === "pos") cmp = function (a, b) {
+      var ca = ROWS[a][F.chrom] || "", cb = ROWS[b][F.chrom] || "";
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      var sa = ROWS[a][F.start], sb = ROWS[b][F.start];
+      if (sa == null && sb == null) return cmpId(a, b);
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return (sa - sb) || cmpId(a, b);
+    };
     else cmp = function (a, b) { return (inN[b] - inN[a]) || (outN[a] - outN[b]) || cmpId(a, b); };
     view.sort(cmp);
   }
@@ -842,6 +858,38 @@ HTML_TEMPLATE = r"""<!doctype html>
     var m = /(?:^|\|)([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:\||\s|$)/.exec(sprot);
     return m ? m[1] : "";
   }
+  // Best SwissProt hit as a UniProt hyperlink -- falls back to plain text when
+  // the accession can't be parsed out of the hit string.
+  function uniprotLinkNode(sprot) {
+    var acc = uniprotAcc(sprot);
+    if (!acc) return document.createTextNode(sprot || "");
+    var a = el("a", "pfam-link", sprot);
+    a.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
+    a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.title = "UniProt " + acc;
+    return a;
+  }
+  // Compact comma-separated Pfam links for a table cell -- same PF#### accession
+  // rule as the detail panel's chip list above, without the chip styling.
+  function pfamLinksInline(pfamNames, pfamAccs) {
+    var frag = document.createDocumentFragment();
+    var names = pfamNames ? pfamNames.split(",") : [];
+    var accs = pfamAccs ? pfamAccs.split(",") : [];
+    names.forEach(function (n, i) {
+      if (i > 0) frag.appendChild(document.createTextNode(", "));
+      var acc = (accs[i] || "").split(".")[0];
+      if (/^PF\d+$/.test(acc)) {
+        var a = el("a", "pfam-link", n);
+        a.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
+        a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.title = acc;
+        frag.appendChild(a);
+      } else {
+        frag.appendChild(document.createTextNode(n));
+      }
+    });
+    return frag;
+  }
   function field(label, valueNode) {
     var f = el("div", "field");
     f.appendChild(el("div", "field-label", label));
@@ -866,6 +914,11 @@ HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(el("div", "species",
         sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short +
         " · " + (sp.group === "IN" ? "ingroup" : "outgroup")));
+    }
+
+    if (row[F.chrom]) {
+      detailEl.appendChild(field("Location",
+        row[F.chrom] + (row[F.start] != null ? ":" + row[F.start] : "")));
     }
 
     if (row[F.nov]) {
@@ -969,7 +1022,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     if (row[F.gene]) detailEl.appendChild(field("Gene name", row[F.gene]));
     if (row[F.prod]) detailEl.appendChild(field("Product", row[F.prod]));
     if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
-    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", row[F.sprot]));
+    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", uniprotLinkNode(row[F.sprot])));
 
     if (row[F.pfam_n]) {
       var names = row[F.pfam_n].split(",");
@@ -1055,8 +1108,10 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   // ---- table view ---------------------------------------------------------
   var TBL_COLS = [
-    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
-    { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
+    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono", sortKey: "id" },
+    { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; }, sortKey: "src" },
+    { label: "Chrom", get: function (r) { return ROWS[r][F.chrom] || ""; }, cls: "mono", sortKey: "pos" },
+    { label: "Start", get: function (r) { return ROWS[r][F.start] != null ? ROWS[r][F.start] : ""; }, cls: "num", sortKey: "pos" },
     { label: "Novelty", get: function (r) { return ROWS[r][F.nov] ? "yes" : "no"; } },
     { label: "Support", get: function (r) { return ROWS[r][F.support] || ""; } },
     { label: "Category", get: function (r) { return ROWS[r][F.category] ? categoryLabel(ROWS[r][F.category]) : ""; } },
@@ -1067,13 +1122,17 @@ HTML_TEMPLATE = r"""<!doctype html>
         return fi >= 0 ? FAMILIES[fi].rep + " (" + FAMILIES[fi].size + ")" : "";
       }
     },
-    { label: "Ingroup", get: function (r) { return inN[r] + "/" + N_IN; }, cls: "num" },
-    { label: "Outgroup", get: function (r) { return outN[r] + "/" + (N_SCORED - N_IN); }, cls: "num" },
-    { label: "TBLASTN", get: function (r) { return TB_GENOMES.length ? tbN[r] + "/" + TB_GENOMES.length : "—"; }, cls: "num" },
+    { label: "Ingroup", get: function (r) { return inN[r] + "/" + N_IN; }, cls: "num", sortKey: "ingroup" },
+    { label: "Outgroup", get: function (r) { return outN[r] + "/" + (N_SCORED - N_IN); }, cls: "num", sortKey: "outgroup" },
+    { label: "TBLASTN", get: function (r) { return TB_GENOMES.length ? tbN[r] + "/" + TB_GENOMES.length : "—"; }, cls: "num", sortKey: "tb" },
     { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
     { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
     { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
-    { label: "Pfam domains", get: function (r) { return ROWS[r][F.pfam_n]; }, cls: "wrap-cell" }
+    {
+      label: "Pfam domains", cls: "wrap-cell", sortKey: "pfam",
+      get: function (r) { return ROWS[r][F.pfam_n]; },
+      render: function (td, r) { td.appendChild(pfamLinksInline(ROWS[r][F.pfam_n], ROWS[r][F.pfam_a])); }
+    }
   ];
   // Per-proteome presence columns keep the table a true twin of the heatmap. Context
   // columns (issue #48) are labelled distinctly -- they're shown, never scored.
@@ -1107,9 +1166,33 @@ HTML_TEMPLATE = r"""<!doctype html>
       // `cell`, responsive `wrap-cell`) size the whole column, header included.
       var th = el("th", c.cls || null, c.label);
       th.scope = "col";
+      if (c.sortKey) {
+        th.classList.add("sortable");
+        th.tabIndex = 0;
+        th.setAttribute("role", "button");
+        th.setAttribute("aria-label", "Sort by " + c.label);
+        (function (key) {
+          th.addEventListener("click", function () {
+            state.sort = key;
+            document.getElementById("f-sort").value = key;
+            refresh(true);
+          });
+        })(c.sortKey);
+        th.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.click(); }
+        });
+      }
       tr.appendChild(th);
     });
     thead.appendChild(tr);
+    markSortHeader();
+  }
+
+  function markSortHeader() {
+    var ths = document.querySelectorAll("#tbl-head th");
+    TBL_COLS.forEach(function (c, i) {
+      if (ths[i]) ths[i].classList.toggle("sort-active", !!c.sortKey && c.sortKey === state.sort);
+    });
   }
 
   function renderTable(reset) {
@@ -1123,7 +1206,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       tr.dataset.ri = ri;
       if (ri === state.selected) tr.style.background = "var(--wash)";
       TBL_COLS.forEach(function (c) {
-        var td = el("td", c.cls || null, c.get(ri) || "");
+        var td = el("td", c.cls || null, c.render ? null : (c.get(ri) || ""));
+        if (c.render) c.render(td, ri);
         tr.appendChild(td);
       });
       frag.appendChild(tr);
@@ -1229,6 +1313,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   // ---- wiring -------------------------------------------------------------
   function refresh(resetScroll) {
     applyFilters();
+    markSortHeader();
     if (state.selected >= 0 && view.indexOf(state.selected) === -1) {
       state.selected = -1;
       renderDetail();

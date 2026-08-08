@@ -125,6 +125,10 @@ BASE_PAGE_CSS = r"""
     position: sticky; top: 0; background: var(--surface-1); font-weight: 600; z-index: 1;
     border-bottom: 1px solid var(--axis);
   }
+  table.data th.sortable { cursor: pointer; user-select: none; }
+  table.data th.sortable:hover { color: var(--series-1); }
+  table.data th.sortable::after { content: ""; margin-left: 4px; color: var(--series-1); }
+  table.data th.sortable.sort-active::after { content: "\25BE"; }
   table.data td.num { font-variant-numeric: tabular-nums; }
   /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
   table.data td.wrap-cell, table.data th.wrap-cell {
@@ -147,6 +151,8 @@ BASE_PAGE_CSS = r"""
     font-size: 11px; text-decoration: none; color: var(--text-primary); background: var(--page);
   }
   .chip:hover { border-color: var(--series-1); }
+  a.pfam-link { color: var(--series-1); text-decoration: none; }
+  a.pfam-link:hover { text-decoration: underline; }
   .links { display: flex; flex-wrap: wrap; gap: 6px; }
   .links a, .links button {
     font-size: 12px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px;
@@ -188,6 +194,61 @@ LINKOUT_HELPERS_JS = r"""
     if (!sprot) return "";
     var m = /(?:^|\|)([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:\||\s|$)/.exec(sprot);
     return m ? m[1] : "";
+  }
+  // Best SwissProt hit as a UniProt hyperlink -- falls back to plain text when
+  // the accession can't be parsed out of the hit string.
+  function uniprotLinkNode(sprot) {
+    var acc = uniprotAcc(sprot);
+    if (!acc) return document.createTextNode(sprot || "");
+    var a = el("a", "pfam-link", sprot);
+    a.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
+    a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.title = "UniProt " + acc;
+    return a;
+  }
+  // Pfam names as a chip row (detail panel) -- accession + optional E-value in the
+  // link title, same InterPro/Pfam target used by every report's "Pfam domains" field.
+  function pfamChipsNode(pfamNames, pfamAccs, pfamEvs) {
+    var chips = el("div", "chips");
+    var names = pfamNames ? pfamNames.split(",") : [];
+    var accs = pfamAccs ? pfamAccs.split(",") : [];
+    var evs = pfamEvs ? pfamEvs.split(",") : [];
+    names.forEach(function (n, i) {
+      var acc = (accs[i] || "").split(".")[0];
+      var ev = evs[i];
+      var node;
+      if (/^PF\d+$/.test(acc)) {
+        node = el("a", "chip", n + (ev ? " · " + ev : ""));
+        node.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
+        node.target = "_blank"; node.rel = "noopener noreferrer";
+        node.title = acc + (ev ? " — hmmsearch E-value " + ev : "");
+      } else {
+        node = el("span", "chip", n);
+      }
+      chips.appendChild(node);
+    });
+    return chips;
+  }
+  // Compact comma-separated Pfam links for a table cell (same accession rule as
+  // pfamChipsNode, without the chip styling -- a table row is dense already).
+  function pfamLinksInline(pfamNames, pfamAccs) {
+    var frag = document.createDocumentFragment();
+    var names = pfamNames ? pfamNames.split(",") : [];
+    var accs = pfamAccs ? pfamAccs.split(",") : [];
+    names.forEach(function (n, i) {
+      if (i > 0) frag.appendChild(document.createTextNode(", "));
+      var acc = (accs[i] || "").split(".")[0];
+      if (/^PF\d+$/.test(acc)) {
+        var a = el("a", "pfam-link", n);
+        a.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
+        a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.title = acc;
+        frag.appendChild(a);
+      } else {
+        frag.appendChild(document.createTextNode(n));
+      }
+    });
+    return frag;
   }
 """
 
