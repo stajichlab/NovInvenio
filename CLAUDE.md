@@ -620,20 +620,38 @@ Access global parameters via `params.*` in the `script:` block. Only pass per-sa
 ## Analysis Config CSV Format
 
 ```csv
-GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
-OUT,Neolecta irregularis,,Neolecta_irregularis.proteins.fa,Neolecta_irregularis.scaffolds.fa,Nirr,Taphrinomycotina
-OUT,Schizosaccharomyces pombe,,Schizosaccharomyces_pombe.proteins.fa,Schizosaccharomyces_pombe.scaffolds.fa,Spom,Taphrinomycotina
-OUT,Saccharomyces cerevisiae,S288C,Saccharomyces_cerevisiae.aa.fa,Saccharomyces_cerevisiae.dna.fa,Scer,Saccharomycotina
-IN,Neurospora crassa,OR74A,Ncrassa.pep.fa,Ncrassa.dna.fa,Ncra,Pezizomycotina
-IN,Aspergillus fumigatus,Af239,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
-IN,Pyronema omphalodes,CBS 144459,Pomp.pep.fa,Pomp.dna.fa,Pomp,Pezizomycotina
-IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,Cimm,Pezizomycotina
+GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup
+OUT,Neolecta irregularis,,Neolecta_irregularis.proteins.fa,Neolecta_irregularis.scaffolds.fa,Neolecta_irregularis.gff3,Nirr,Taphrinomycotina
+OUT,Schizosaccharomyces pombe,,Schizosaccharomyces_pombe.proteins.fa,Schizosaccharomyces_pombe.scaffolds.fa,Schizosaccharomyces_pombe.gff3,Spom,Taphrinomycotina
+OUT,Saccharomyces cerevisiae,S288C,Saccharomyces_cerevisiae.aa.fa,Saccharomyces_cerevisiae.dna.fa,,Scer,Saccharomycotina
+IN,Neurospora crassa,OR74A,Ncrassa.pep.fa,Ncrassa.dna.fa,,Ncra,Pezizomycotina
+IN,Aspergillus fumigatus,Af239,Afum.pep.fa,Afum.dna.fa,,Afum,Pezizomycotina
+IN,Pyronema omphalodes,CBS 144459,Pomp.pep.fa,Pomp.dna.fa,,Pomp,Pezizomycotina
+IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,,Cimm,Pezizomycotina
 ```
 
 - `Short` is a ≤8-char unique ID used in filenames and output tables throughout.
 - `Strain` may be empty.
 - The config CSV filename (without `.csv`) becomes the results output subdirectory name.
 - `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs).
+- `GFF3` is optional (may be an empty cell, or the column may be omitted entirely from
+  older config CSVs — `lib/config_parser.py`'s `parse_config()` defaults it to `''`).
+  When present, it's a basename resolved relative to `--data_dir` the same way as
+  `Protein`/`DNA` (also checked under `gff3/`, in addition to `pep/`, `dna/`, `genome/`,
+  `scaffolds/` — see `lib/gff3_genes.py`'s `GFF3_SEARCH_SUBDIRS`). It supplies the
+  Chromosome/Start columns in `novelties.html`/`core.html`/`losses.html`
+  (`lib/gff3_genes.py`, wired through `lib/report_data.py`'s payload builders). A missing
+  or unresolvable `GFF3` value is never an error — that species' report rows simply carry
+  no chrom/start.
+
+### GFF3 chrom/start is per-protein-record, not per-gene
+
+The chrom/start columns are resolved per protein/transcript ID (`lib/gff3_genes.py`'s
+`lookup_gene_position()`), and the pipeline does not currently deduplicate or filter
+alternative splice isoforms. A single gene with multiple annotated transcripts shows up
+as multiple report rows — one per protein/transcript ID — each pointing to the same or
+very similar chrom/start. A dedup/filtering pass may be worth adding later; see
+`todo/TODO_REGISTRY.md`.
 
 ## Two-Phase Targeted Novelty Pipeline (`--cluster_tool novelty_discovery`)
 

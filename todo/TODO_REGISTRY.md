@@ -31,5 +31,6 @@ All future work items, ideas, and planned improvements for this project are trac
 | Phase 3 — Gene-contraction analysis | medium | open | analysis | 2026-07-20 | Jason Stajich | [gene-contraction-analysis.md](gene-contraction-analysis.md) |
 | Phase 4 — OrthoFinder pathway + phylostrata | low | open | feature | 2026-07-20 | Jason Stajich | [orthofinder-pathway-phylostrata.md](orthofinder-pathway-phylostrata.md) |
 | Rename novelty_discovery/novelty_screen GROUP labels for clarity | low | complete | chore | 2026-07-28 | Jason Stajich | [rename-novelty-discovery-group-labels.md](rename-novelty-discovery-group-labels.md) |
+| Dedup/filter alternative splice isoforms in GFF3-derived chrom/start rows | low | open | chore | 2026-08-07 | Jason Stajich | [gff3-isoform-dedup.md](gff3-isoform-dedup.md) |
 
 <!-- Add new entries above this line -->
