@@ -2,10 +2,18 @@ name: Tag Release on Version Bump
 
 # Watches pixi.toml's [workspace] version on every push to main. When it
 # changes (and no `vX.Y.Z` tag for that version exists yet), creates and
-# pushes the tag plus a GitHub Release. Pushing the tag is what triggers
-# docker-build.yml to build, push, and cosign-sign the versioned image —
-# so bumping pixi.toml's version and merging to main is the entire release
-# process; no manual `git tag` / `docker push` step needed.
+# pushes the tag plus a GitHub Release, then explicitly dispatches
+# docker-build.yml against that tag to build, push, and cosign-sign the
+# versioned image — so bumping pixi.toml's version and merging to main is
+# the entire release process; no manual `git tag` / `docker push` step
+# needed.
+#
+# Note: a tag pushed using the workflow's own GITHUB_TOKEN does NOT trigger
+# other workflows' `on: push: tags:` triggers — GitHub suppresses events
+# caused by GITHUB_TOKEN to prevent recursive runs. So this workflow can't
+# rely on the tag push itself to kick off docker-build.yml; it dispatches it
+# directly instead (an explicit `gh workflow run` call is exempt from that
+# restriction).
 
 on:
   push:
@@ -16,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  actions: write  # to dispatch docker-build.yml (see note below)
 
 jobs:
   tag-release:
@@ -62,3 +71,13 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes
+
+      # Runs whenever a new tag was just created, and also on a manual
+      # re-run against an existing tag (handy if a previous dispatch of
+      # docker-build.yml failed or was skipped).
+      - name: Trigger versioned image build
+        if: steps.check.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run docker-build.yml --ref "${{ steps.version.outputs.tag }}"
