@@ -1,0 +1,125 @@
+name: Build and Publish Container Image
+
+# Builds ghcr.io/<owner>/novinvenio.
+#
+# - Pull requests touching the Dockerfile/pixi.toml: build only, never push —
+#   catches a broken image before merge. Runs unauthenticated, no registry
+#   credentials involved.
+# - Push to main touching the Dockerfile or pixi.toml, push of a `vX.Y.Z` tag
+#   (created automatically by release-tag.yml on a version bump, or pushed
+#   manually), or workflow_dispatch: build and push. Tag pushes additionally
+#   get cosign-signed. Runs under the `release` environment, which scopes
+#   `packages: write` to a reviewable, protectable gate.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+    paths:
+      - 'Dockerfile'
+      - 'pixi.toml'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'pixi.toml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Extra tag to push alongside the automatic ones (e.g. 0.5.0-debug)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Pull requests: build only, no registry access, no environment gate.
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build (no push)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # main / tag / manual dispatch: build, push, and (on a version tag) sign.
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/novinvenio
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=${{ github.event.inputs.image_tag }},enable=${{ github.event.inputs.image_tag != '' }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with OIDC
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          cosign sign --yes "ghcr.io/${{ github.repository_owner }}/novinvenio@${{ steps.build.outputs.digest }}"
+
+      - name: Verify signature
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/docker-build.yml@refs/.*" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "ghcr.io/${{ github.repository_owner }}/novinvenio@${{ steps.build.outputs.digest }}"
+          echo "Signed and verified: ghcr.io/${{ github.repository_owner }}/novinvenio@${{ steps.build.outputs.digest }}"
