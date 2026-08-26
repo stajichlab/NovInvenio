@@ -279,6 +279,74 @@ to demote it with.
   extension) — `main.nf` stubs a valid empty `losses.html` purely so the
   landing-page report can still assemble.
 
+### Defining groups vs. verifying groups
+
+The four `novelty_discovery` roles split along two independent axes, and it
+is easy to conflate them. Keeping them separate is the point of the design.
+
+**Axis 1 — which side of the presence/absence line a role sits on.**
+`lib/config_parser.py` encodes this structurally:
+
+```
+INGROUP_ROLES  = {IN, DISCOVERY_TARGET}
+OUTGROUP_ROLES = {OUT, DISCOVERY_OUT, NEAR_INGROUP, BROAD_OUTGROUP}
+```
+
+`NEAR_INGROUP` and `BROAD_OUTGROUP` are both "outgroup-like" by this axis —
+neither can ever contribute to the target lineage's own presence fraction,
+regardless of how phylogenetically close `NEAR_INGROUP` is. Biological
+closeness is not license to blur who a candidate gene actually belongs to.
+
+**Axis 2 — which phase gets to *define* the candidate set vs. which phase
+only gets to *react* to it.** This axis is not in the type system; it comes
+from which workflow searches against which group, and it is the axis this
+section is actually about:
+
+- **`DISCOVERY_TARGET` + `DISCOVERY_OUT` (phase 1) define the candidate
+  list.** A family HMM is built from `DISCOVERY_TARGET` membership,
+  calibrated against `DISCOVERY_OUT` as a negative control
+  (`bin/calibrate_family_hmms.py`), and a family only becomes a phase-1
+  candidate if it clears `ingroup_min_frac` in `DISCOVERY_TARGET` and has
+  zero hits in `DISCOVERY_OUT`. `DISCOVERY_OUT` is kept small (5–6 species)
+  deliberately: a bigger or more phylogenetically diverse negative control
+  would dilute the sensitivity of this definitional call, which is supposed
+  to stay cheap and tight.
+
+- **`NEAR_INGROUP` + `BROAD_OUTGROUP` (phase 2) only reclassify candidates
+  phase 1 already produced**, using the *same* calibrated HMM thresholds —
+  phase 2 never recalibrates and never adds or removes a family from
+  nothing. Concretely:
+  - A `NEAR_INGROUP` hit **cannot make something present** in the phase-1
+    sense. It cannot add to, or otherwise affect, the target's own presence
+    fraction — it only demotes a candidate's `novelty_category` from
+    `target_specific` to `clade_specific`. `NEAR_INGROUP` verifies *how
+    tightly restricted* a novelty is; it never gets to decide *whether* the
+    gene is present in the target lineage.
+  - A `BROAD_OUTGROUP` hit **cannot make something missing** in the phase-1
+    sense either. It does not reopen or override the absence call phase 1
+    already made against `DISCOVERY_OUT` — that call stands. A
+    `BROAD_OUTGROUP` hit means "this family is not clade-restricted, it's
+    ancestral or broadly conserved," which is a claim about the *breadth of
+    conservation*, not a retraction of the phase-1 absence finding. That is
+    why the resulting label is `false_novelty` (a claim about how
+    interesting the family is) rather than the row being deleted — the
+    phase-1 evidence is retained in the matrix, just marked as
+    superseded-in-context.
+
+**Why split it this way instead of one big `IN`/`OUT`.** In the `pairwise`/
+`mmseqs` pathways, every proteome added to the outgroup makes the absence
+call itself both more expensive and more exposed to one distant lineage's
+noise. Splitting definition from verification means: (1) the definitional
+absence call stays cheap and precise against a small, curated negative
+control, so phase 1 is fast and sensitive; (2) the expensive broad
+conservation survey (`NEAR_INGROUP` + `BROAD_OUTGROUP`, potentially
+40–150 proteomes) is only ever paid for on the candidates that already
+survived phase 1, not on the whole gene set; and (3) the pathway reports a
+three-way answer (`target_specific` / `clade_specific` / `false_novelty`)
+instead of a single present/absent bit — strictly more information about
+*how* lineage-restricted a gene is than either of the other two pathways
+gives.
+
 ---
 
 ## Cross-pathway summary

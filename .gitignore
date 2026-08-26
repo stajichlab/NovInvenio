@@ -28,6 +28,9 @@ tests/data/logs/
 # Claude Code session-local state
 .claude/*.tmp
 .claude/*.log
+
+# Sphinx build output
+docs/_build/
 .claude/settings.local.json
 .claude/last-session.md
 .claude/active-session-log.tmp
