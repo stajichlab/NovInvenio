@@ -30,11 +30,15 @@ Knee selection is a transparent, documented rule — not a black box:
      the shipped default params). Pick that point's parameters as the recommended default.
 If no point is admissible, fall back to the best composite overall and flag it.
 
-NOTE: presence_recovery is left blank (and so scored at its worst value, 0.0) for any
-sweep row where bin/run_param_sweep.sh had no BUSCO_OUTGROUP_TABLES to work with -- it is
-mathematically incapable of being 0 for a healthy run under those conditions, so a whole
-column of 0.0 here almost always means "not measured", not "every point failed"; check
-the raw metrics TSV before trusting an admissibility verdict driven by this column.
+NOTE: presence_recovery, recall, and fp_rate are each left blank when their optional
+input is missing (BUSCO_OUTGROUP_TABLES, or a controls CSV) rather than genuinely
+measured -- this script tracks which metrics were actually measured anywhere in the
+sweep and skips that metric's admissibility gate and composite contribution entirely
+when it wasn't, printing a NOTE to say so. Earlier versions defaulted a blank cell to
+its "worst" value (fp_rate=1.0, recall=0.0) and gated on it like a real measurement,
+which made "no BUSCO_OUTGROUP_TABLES / no controls csv" look identical to "every grid
+point has a 100% false-novelty rate" -- always check the raw metrics TSV and this
+script's stderr NOTEs before trusting an admissibility verdict.
 """
 import argparse
 import csv
@@ -50,6 +54,11 @@ METRICS = {
     'recall': (True, 0.0),
     'fp_rate': (False, 1.0),
     'tblastn_removed': (None, 0),
+    # run_ok (1/0, default 1 for older metrics files without this column -- see
+    # bin/run_param_sweep.sh) marks whether the grid point's pipeline run actually
+    # completed; a failed run's other metrics are partial/unreliable and must never be
+    # admissible regardless of what they happen to read.
+    'run_ok': (None, 1),
 }
 # Shipped default (nextflow.config) — the tie-break anchor when scores are equal.
 DEFAULT_PARAMS = {'min_seq_id': 0.3, 'cov': 0.8, 'hmm_evalue': 1e-3,
@@ -87,16 +96,28 @@ def read_metrics(path):
 
 
 def score_points(rows, min_busco_recovery, min_presence_recovery, max_fp, available_metrics):
+    # Each of these is optional infrastructure (curated controls, BUSCO outgroup tables)
+    # that may simply not exist for a given clade/run -- an unmeasured metric must never
+    # silently default to its "worst" value and drive a false rejection (or, for recall,
+    # a false zero-credit) the way a genuinely-measured-and-bad value would. Only
+    # busco_recovery is unconditional: it needs nothing but the run's own cluster_tsv/
+    # families.tsv, so a missing value there really does mean the run failed, not that
+    # an optional input was omitted.
     check_presence_recovery = 'presence_recovery' in available_metrics
+    check_recall = 'recall' in available_metrics
+    check_fp = 'fp_rate' in available_metrics
     for p in rows:
-        admissible = p['busco_recovery'] >= min_busco_recovery and p['fp_rate'] <= max_fp
+        admissible = p['run_ok'] >= 1 and p['busco_recovery'] >= min_busco_recovery
+        if check_fp:
+            admissible = admissible and p['fp_rate'] <= max_fp
         if check_presence_recovery:
             admissible = admissible and p['presence_recovery'] >= min_presence_recovery
         p['admissible'] = int(admissible)
         p['composite'] = round(
-            p['recall'] + p['busco_recovery']
+            p['busco_recovery']
+            + (p['recall'] if check_recall else 0.0)
             + (p['presence_recovery'] if check_presence_recovery else 0.0)
-            - p['fp_rate'], 6)
+            - (p['fp_rate'] if check_fp else 0.0), 6)
     return rows
 
 
@@ -145,12 +166,22 @@ def main():
     rows, available_metrics = read_metrics(args.metrics)
     if not rows:
         sys.exit(f'no grid points in {args.metrics}')
-    if 'presence_recovery' not in available_metrics:
-        print('NOTE: presence_recovery was not measured in any grid point (no '
-              'BUSCO_OUTGROUP_TABLES?) -- skipping its admissibility gate and composite '
-              'contribution. hmm_cov/hmm_residues will be ranked on n_novelties/recall/fp '
-              'alone, which is a weak signal for THIS parameter -- see collate_sweep.py '
-              'module docstring.', file=sys.stderr)
+    for metric, why in (
+        ('presence_recovery', 'no BUSCO_OUTGROUP_TABLES?'),
+        ('recall', 'no CONTROLS csv?'),
+        ('fp_rate', 'no CONTROLS csv?'),
+    ):
+        if metric not in available_metrics:
+            print(f'NOTE: {metric} was not measured in any grid point ({why}) -- '
+                  'skipping its admissibility gate and composite contribution.',
+                  file=sys.stderr)
+    if not {'presence_recovery', 'recall', 'fp_rate'} & available_metrics:
+        print('WARNING: presence_recovery, recall, and fp_rate are ALL unmeasured -- '
+              'ranking rests entirely on busco_recovery (clustering quality, insensitive '
+              'to hmm_cov/hmm_residues) plus the fewer-novelties tie-break. That is a weak '
+              'signal for tuning hmm_cov/hmm_residues specifically -- see collate_sweep.py '
+              'module docstring and consider running with BUSCO_OUTGROUP_TABLES and/or a '
+              'controls CSV before trusting this recommendation.', file=sys.stderr)
     score_points(rows, args.min_busco_recovery, args.min_presence_recovery, args.max_fp,
                 available_metrics)
     chosen, used_fallback = select_knee(rows)
@@ -162,25 +193,31 @@ def main():
 
     cols = list(PARAM_COLS) + list(METRICS) + ['composite', 'admissible', 'chosen']
     with open(args.output, 'w', newline='') as fh:
-        w = csv.DictWriter(fh, fieldnames=cols, delimiter='\t')
+        w = csv.DictWriter(fh, fieldnames=cols, delimiter='\t', lineterminator='\n')
         w.writeheader()
         for p in ordered:
             w.writerow({c: p.get(c, '') for c in cols})
 
     if used_fallback:
-        gates = f'busco_recovery >= {args.min_busco_recovery}'
+        gates = ['run_ok', f'busco_recovery >= {args.min_busco_recovery}']
         if 'presence_recovery' in available_metrics:
-            gates += f', presence_recovery >= {args.min_presence_recovery}'
-        gates += f', fp_rate <= {args.max_fp}'
-        print(f'WARNING: no grid point met the admissibility gates ({gates}); '
+            gates.append(f'presence_recovery >= {args.min_presence_recovery}')
+        if 'fp_rate' in available_metrics:
+            gates.append(f'fp_rate <= {args.max_fp}')
+        print(f"WARNING: no grid point met the admissibility gates ({', '.join(gates)}); "
               'reporting the best composite overall.', file=sys.stderr)
+    def _fmt(metric):
+        if metric not in available_metrics:
+            return 'n/a'
+        return f"{chosen[metric]:.3f}"
+
     print(f"Recommended default: --family_min_seq_id {chosen['min_seq_id']} "
           f"--family_cov {chosen['cov']} --hmm_presence_evalue {chosen['hmm_evalue']:g} "
           f"--hmm_presence_cov {chosen['hmm_cov']:g} "
           f"--hmm_presence_min_residues {int(chosen['hmm_residues'])} "
-          f"(composite {chosen['composite']:.3f}, recall {chosen['recall']:.3f}, "
+          f"(composite {chosen['composite']:.3f}, recall {_fmt('recall')}, "
           f"busco {chosen['busco_recovery']:.3f}, "
-          f"presence {chosen['presence_recovery']:.3f}, fp {chosen['fp_rate']:.3f}, "
+          f"presence {_fmt('presence_recovery')}, fp {_fmt('fp_rate')}, "
           f"novelties {int(chosen['n_novelties'])})", file=sys.stderr)
 
 

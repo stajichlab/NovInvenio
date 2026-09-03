@@ -59,17 +59,20 @@ BUSCO_OUTGROUP_TABLES=${BUSCO_OUTGROUP_TABLES:-}
 REFERENCE_DOMTBLOUT=${REFERENCE_DOMTBLOUT:-}
 
 # Sweep grid (ADR-0002 Q8 + 2026-09-03 coverage-floor extension).
-MIN_SEQ_IDS=(0.2 0.3 0.4 0.5)
-COVS=(0.5 0.7)
-HMM_EVALUES=(1e-3 1e-5)
-HMM_COVS=(0.5 0.3)
-MIN_RESIDUES=(0 100)
+# Each dimension can be scoped down via a space-separated env var (e.g.
+# MIN_SEQ_IDS_LIST="0.3" to hold clustering identity fixed while sweeping only the
+# presence-calling dimensions below) -- see the grid-size NOTE above.
+read -ra MIN_SEQ_IDS <<< "${MIN_SEQ_IDS_LIST:-0.2 0.3 0.4 0.5}"
+read -ra COVS <<< "${COVS_LIST:-0.5 0.7}"
+read -ra HMM_EVALUES <<< "${HMM_EVALUES_LIST:-1e-3 1e-5}"
+read -ra HMM_COVS <<< "${HMM_COVS_LIST:-0.5 0.3}"
+read -ra MIN_RESIDUES <<< "${MIN_RESIDUES_LIST:-0 100}"
 
 # ---------------------------------------------------------------------------- setup
 BIN=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$SWEEP_DIR"
 METRICS="$SWEEP_DIR/sweep_metrics.tsv"
-printf 'min_seq_id\tcov\thmm_evalue\thmm_cov\thmm_residues\tn_families\tn_novelties\tbusco_recovery\tpresence_recovery\trecall\tfp_rate\ttblastn_removed\n' > "$METRICS"
+printf 'min_seq_id\tcov\thmm_evalue\thmm_cov\thmm_residues\tn_families\tn_novelties\tbusco_recovery\tpresence_recovery\trecall\tfp_rate\ttblastn_removed\trun_ok\n' > "$METRICS"
 
 count_lines() { [ -s "$1" ] && grep -cve '^\s*$' "$1" || echo 0; }
 
@@ -84,13 +87,31 @@ for id in "${MIN_SEQ_IDS[@]}"; do
           rundir="$OUTDIR/$project"
           echo ">>> grid point $tag  (project $project)"
 
+          # Annotation (Pfam/SwissProt) is skipped by default (ANNOTATE_SWEEP=0): none of
+          # the sweep metrics below need it (matrix falls back to the un-annotated
+          # presence_matrix.tsv), it is the most expensive step, and its MPI hmmsearch has
+          # failed with SLURM slot-allocation errors independent of any parameter under
+          # test here. Set ANNOTATE_SWEEP=1 to include it (e.g. to also inspect annotated
+          # output by eye), at the cost of exposing the sweep to that failure mode.
+          annotate_args=()
+          if [ "${ANNOTATE_SWEEP:-0}" = "1" ]; then
+            annotate_args=(--pfam_hmm "$PFAM" --swissprot_dmnd "$SWISSPROT" --modelorgs_config "$MODELORGS")
+          fi
+
+          # A single grid point's pipeline failure must not abort the whole sweep (the
+          # script runs under `set -e`) -- record it (blank/worst-value metrics) and move
+          # on to the next point instead.
+          run_ok=1
           nextflow run main.nf -resume $PROFILE \
             --config "$CONFIG" --data_dir "$DATA_DIR" \
             --run_tool phmmer --cluster_tool mmseqs \
             --family_min_seq_id "$id" --family_cov "$cov" --hmm_presence_evalue "$ev" \
             --hmm_presence_cov "$hcov" --hmm_presence_min_residues "$res" \
-            --pfam_hmm "$PFAM" --swissprot_dmnd "$SWISSPROT" --modelorgs_config "$MODELORGS" \
-            --outdir "$OUTDIR" --project "$project"
+            "${annotate_args[@]}" \
+            --outdir "$OUTDIR" --project "$project" || run_ok=0
+          if [ "$run_ok" = "0" ]; then
+            echo ">>> grid point $tag FAILED -- recording partial/blank metrics and continuing" >&2
+          fi
 
           cluster_tsv="$rundir/families/families_cluster.tsv"
           families_tsv="$rundir/families/families.tsv"
@@ -108,7 +129,7 @@ for id in "${MIN_SEQ_IDS[@]}"; do
               --cluster-tsv "$cluster_tsv" --families "$families_tsv" \
               --output "$SWEEP_DIR/busco_${tag}.tsv" || true
             busco_recovery=$(awk -F'\t' '$1=="recovery_rate"{print $2}' \
-              "$SWEEP_DIR/busco_${tag}.summary.tsv" 2>/dev/null || true)
+              "$SWEEP_DIR/busco_${tag}.summary.tsv" 2>/dev/null | tr -d '\r' || true)
           fi
 
           # BUSCO PRESENCE recovery (curation-free, 2026-09-03): the metric that is
@@ -128,7 +149,7 @@ for id in "${MIN_SEQ_IDS[@]}"; do
               $ref_arg \
               --output "$SWEEP_DIR/presence_${tag}.tsv" || true
             presence_recovery=$(awk -F'\t' '$1=="presence_recovery_rate"{print $2}' \
-              "$SWEEP_DIR/presence_${tag}.summary.tsv" 2>/dev/null || true)
+              "$SWEEP_DIR/presence_${tag}.summary.tsv" 2>/dev/null | tr -d '\r' || true)
           fi
 
           # Control recall / false-novelty rate.
@@ -139,9 +160,9 @@ for id in "${MIN_SEQ_IDS[@]}"; do
               --profiles "$rundir/families/family_profiles.hmm" \
               --output "$SWEEP_DIR/controls_${tag}.tsv" || true
             recall=$(awk -F'\t' '$1=="recall"{print $2}' \
-              "$SWEEP_DIR/controls_${tag}.summary.tsv" 2>/dev/null || true)
+              "$SWEEP_DIR/controls_${tag}.summary.tsv" 2>/dev/null | tr -d '\r' || true)
             fp_rate=$(awk -F'\t' '$1=="fp_rate"{print $2}' \
-              "$SWEEP_DIR/controls_${tag}.summary.tsv" 2>/dev/null || true)
+              "$SWEEP_DIR/controls_${tag}.summary.tsv" 2>/dev/null | tr -d '\r' || true)
           fi
 
           # TBLASTN-removal count (annotation-artifact rate): candidates with any outgroup
@@ -152,9 +173,10 @@ for id in "${MIN_SEQ_IDS[@]}"; do
             tblastn_removed=$(awk -F'\t' 'NR>1{for(i=2;i<=NF;i++) if($i==1){c++;break}} END{print c+0}' "$tbsum")
           fi
 
-          printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+          printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "$id" "$cov" "$ev" "$hcov" "$res" "$n_families" "$n_novelties" \
-            "$busco_recovery" "$presence_recovery" "$recall" "$fp_rate" "$tblastn_removed" >> "$METRICS"
+            "$busco_recovery" "$presence_recovery" "$recall" "$fp_rate" "$tblastn_removed" \
+            "$run_ok" >> "$METRICS"
         done
       done
     done

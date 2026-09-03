@@ -469,3 +469,67 @@ paralog-competition-scope, documentation, fable-review
 
 **Tags**: novelty-discovery, coverage-floor, hmm-presence, sweep, busco, adr-0002,
 parameter-tuning
+
+13. **Ran the pezizo5 coverage-floor sweep (scoped, 4 points); found and fixed two
+    real bugs surfaced by the real run (2026-09-03)** — launched
+    `run_sweep_pezizo5_coverage.sh` on the UCR HPCC `batch` partition (job 28051317),
+    sweeping `--hmm_presence_cov` {0.5, 0.3} × `--hmm_presence_min_residues` {0, 100}
+    against `configs/pezizo5.csv`, clustering params held at shipped defaults.
+    - **Bug found and fixed before trusting results:** `bin/collate_sweep.py` treated an
+      entirely-unmeasured optional metric (`fp_rate`/`recall`, no `configs/controls/
+      pezizo5.controls.csv` exists) the same as a genuinely-measured worst value
+      (`fp_rate=1.0`), which failed every grid point's admissibility gate and printed a
+      misleading "no grid point met the gates" warning implying a 100% false-novelty
+      rate rather than "not measured." Generalized the same guard already built for
+      `presence_recovery` (decision #12) to `recall`/`fp_rate` too, added a `run_ok`
+      gate/column so a failed pipeline run's partial metrics can never be admissible,
+      and added regression tests for both — one of them (`test_recall_and_fp_rate_gates
+      _skipped_when_never_measured`) directly encodes the real numbers from this sweep.
+    - **Second bug found and fixed, also before trusting results:** the metrics TSV
+      itself was silently corrupted — Python's `csv` module always writes `\r\n` line
+      endings unless `lineterminator='\n'` is set explicitly (`newline=''` on `open()`
+      does NOT prevent this, a common gotcha), so `bin/busco_family_recovery.py`'s
+      `*.summary.tsv` had `\r\n` endings; `awk`'s `$2` extraction in
+      `bin/run_param_sweep.sh` left a trailing `\r` baked into the shell variable; and
+      Python's `csv.DictReader`, run on the resulting metrics TSV, treats a bare `\r`
+      as its own row boundary (regardless of the file's declared dialect) — silently
+      splitting every 1 real row into 2 corrupt ones with fields shifted into the wrong
+      columns. Fixed at both ends: `lineterminator='\n'` added to every `csv.writer`/
+      `csv.DictWriter` call in `busco_family_recovery.py`, `busco_presence_recovery.py`,
+      `score_controls.py`, and `collate_sweep.py` itself; `tr -d '\r'` added defensively
+      to every `awk`-based field extraction in `run_param_sweep.sh` as a second line of
+      defense. The already-collected `sweep_metrics.tsv` was cleaned in place (`tr -d
+      '\r'`) rather than re-running the (now-fixed-at-the-source) pipeline jobs.
+    - **A separate, unrelated infrastructure failure** (not a bug in this session's code)
+      also hit the first launch attempt: the Pfam annotation step's `mpirun -np 32
+      hmmsearch --mpi` requested more MPI slots than the SLURM allocation had. Fixed
+      pragmatically by adding an `ANNOTATE_SWEEP` toggle (default off) to skip Pfam/
+      SwissProt annotation for the sweep entirely — none of the sweep's metrics need it,
+      it is the single most expensive step, and it was what broke.
+    - **Real (if partial) result, from `tblastn_removed`** — candidates with a
+      *contradicting* outgroup TBLASTN genomic hit despite being called protein-level
+      absent, the same red flag the original H1/H2 bug reports were built from:
+      current shipped default (`hmm_cov=0.5, hmm_residues=0`): 1961 novelty candidates,
+      **554 contradicted (28.2%)**. Loosest tested setting (`hmm_cov=0.3,
+      hmm_residues=100`): 1107 candidates, **21 contradicted (1.9%)** — a 15-fold drop
+      in the contradiction rate for a 44% drop in raw candidate count, i.e. the
+      candidates being removed are disproportionately the low-quality (contradicted)
+      ones, not a uniform thinning. `busco_recovery` (0.753) was identical across all
+      4 points as expected (it measures clustering, not presence-calling, so it can't
+      discriminate between these settings — confirming decision #12's design rationale
+      for needing `presence_recovery` instead).
+    - **What this run does NOT establish**: no outgroup BUSCO tables exist for pezizo5
+      (only the 5 IN-group species have been BUSCO-run, under `busco_pezizo5/`) and no
+      controls CSV exists either, so `presence_recovery`/`recall`/`fp_rate` are all
+      unmeasured this round — ranking rests on `busco_recovery` (insensitive to the
+      parameters under test) plus `tblastn_removed` read by eye, not a rigorous
+      composite score. Running BUSCO against an outgroup proteome (e.g. Spom, Scer) and
+      re-running with `BUSCO_OUTGROUP_TABLES` set is the natural next step before
+      actually changing `nextflow.config`'s shipped defaults.
+    221/221 tests pass, ruff lint clean. `nextflow.config`'s defaults were NOT changed
+    by this decision — `hmm_presence_cov=0.5`/`hmm_presence_min_residues=100` remain as
+    set in decision #12; this entry documents the sweep run and what it found, not a
+    new shipped default.
+
+**Tags**: novelty-discovery, coverage-floor, hmm-presence, sweep, busco, slurm, mpi,
+csv-crlf, bug-fix

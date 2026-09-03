@@ -101,6 +101,23 @@ def test_presence_recovery_gate_skipped_when_never_measured(tmp_path):
     assert rows[0]['composite'] == round(1.0 + 0.95 - 0.0, 6)  # no presence term added
 
 
+def test_recall_and_fp_rate_gates_skipped_when_never_measured(tmp_path):
+    # Regression test: no controls CSV configured (recall/fp_rate blank for every row)
+    # must NOT make every point inadmissible via a defaulted fp_rate=1.0 -- this was a
+    # real bug hit on a real sweep run (pezizo5_coverage, 2026-09-03): busco_recovery
+    # alone was a real, measured 0.75, but every point was rejected because fp_rate
+    # silently defaulted to its "worst" value (1.0) with no controls CSV to blame.
+    rows = _score(tmp_path, [
+        [0.3, 0.5, '1e-3', 0.5, 0, 7445, 1961, 0.7531, '', '', '', 554],
+        [0.3, 0.3, '1e-3', 0.3, 100, 7445, 1107, 0.7531, '', '', '', 21],
+    ], min_busco_recovery=0.5)
+    assert [p['admissible'] for p in rows] == [1, 1]
+    assert rows[0]['composite'] == round(0.7531, 6)  # busco_recovery only
+    chosen, fallback = cs.select_knee(rows)
+    assert not fallback
+    assert chosen['n_novelties'] == 1107  # composite ties -> fewer-novelties knee
+
+
 def test_presence_recovery_gate_applied_when_measured(tmp_path):
     # Once ANY row has a real presence_recovery value, the gate (and composite term)
     # applies to every row -- a point that never measured it (still blank/0.0) fails.
@@ -110,6 +127,36 @@ def test_presence_recovery_gate_applied_when_measured(tmp_path):
     ], min_presence_recovery=0.9)
     assert [p['admissible'] for p in rows] == [0, 1]
     assert rows[1]['composite'] == round(1.0 + 0.95 + 0.95 - 0.0, 6)
+
+
+def test_run_ok_gate_disqualifies_a_failed_grid_point(tmp_path):
+    # A grid point whose pipeline run failed (bin/run_param_sweep.sh's run_ok=0) must
+    # never be admissible, even if its (partial/unreliable) other metrics look good --
+    # a failed nextflow run must not silently poison the recommended default.
+    p = tmp_path / 'm.tsv'
+    p.write_text(
+        HEADER.rstrip('\n') + '\trun_ok\n'
+        + "0.3\t0.5\t1e-3\t0.5\t0\t500\t100\t0.99\t\t1.0\t0.0\t3\t0\n"   # run_ok=0, looks great
+        + "0.2\t0.5\t1e-3\t0.5\t0\t400\t90\t0.91\t\t0.9\t0.0\t2\t1\n"    # run_ok=1, weaker
+    )
+    rows, available = cs.read_metrics(p)
+    cs.score_points(rows, 0.9, 0.9, 0.05, available)
+    assert rows[0]['admissible'] == 0
+    assert rows[1]['admissible'] == 1
+    chosen, fallback = cs.select_knee(rows)
+    assert not fallback
+    assert chosen['min_seq_id'] == 0.2
+
+
+def test_missing_run_ok_column_defaults_to_ok(tmp_path):
+    # Older metrics files (no run_ok column, pre-2026-09-03) must not be retroactively
+    # disqualified -- missing means "not tracked", defaults to ok (matches the HEADER
+    # fixture used throughout this file, which omits run_ok).
+    rows = _score(tmp_path, [
+        [0.3, 0.5, '1e-3', 0.5, 0, 500, 100, 0.95, '', 1.0, 0.0, 3],
+    ])
+    assert rows[0]['run_ok'] == 1
+    assert rows[0]['admissible'] == 1
 
 
 def test_end_to_end_writes_scored_table(tmp_path):

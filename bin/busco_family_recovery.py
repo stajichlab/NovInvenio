@@ -120,13 +120,13 @@ def main():
 
     fields = ['busco_id', 'n_species', 'n_families', 'n_unmapped', 'verdict', 'families']
     with open(args.output, 'w', newline='') as fh:
-        w = csv.DictWriter(fh, fieldnames=fields, delimiter='\t')
+        w = csv.DictWriter(fh, fieldnames=fields, delimiter='\t', lineterminator='\n')
         w.writeheader()
         w.writerows(per_busco)
 
     summary_path = args.summary or (str(Path(args.output).with_suffix('')) + '.summary.tsv')
     with open(summary_path, 'w', newline='') as fh:
-        w = csv.writer(fh, delimiter='\t')
+        w = csv.writer(fh, delimiter='\t', lineterminator='\n')
         w.writerow(['metric', 'value'])
         for k, v in summary.items():
             w.writerow([k, '' if v is None else v])
