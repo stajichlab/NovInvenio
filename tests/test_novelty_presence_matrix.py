@@ -155,6 +155,37 @@ def test_family_thresholds_flag_is_accepted_but_ignored(tmp_path):
     assert row['D1'] == 1
 
 
+def test_min_covered_residues_rescues_a_long_partial_hit(tmp_path):
+    # Regression test for the min_covered_residues fix: a long (2000 aa) family HMM with
+    # only a 150-residue conserved-domain match to DISCOVERY_OUT is 7.5% coverage --
+    # fails the default 0.5 fraction floor, but --min-covered-residues 100 rescues it as
+    # a real (if partial) ortholog, correctly removing candidacy.
+    _setup(tmp_path)
+    dom_t1 = tmp_path / 'T1.domtblout'
+    dom_t2 = tmp_path / 'T2.domtblout'
+    dom_d1 = tmp_path / 'D1.domtblout'
+    _write_domtblout(dom_t1, [('pA1', 'pA1', 1e-200)])
+    _write_domtblout(dom_t2, [('pA2', 'pA1', 1e-190)])
+    with open(dom_d1, 'w') as fh:
+        fh.write("# hmmsearch domtblout\n")
+        fh.write(_domtblout_line('d1_x', 'pA1', full_e=1e-30, qlen=2000,
+                                 hmm_from=1, hmm_to=150) + "\n")
+
+    # Without the residue floor: 150/2000 = 7.5% fails 0.5 -> still a (wrong) candidate.
+    matrix, cands = _run(tmp_path, family_domtblouts=[dom_t1, dom_t2, dom_d1])
+    row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    assert row['D1'] == 0
+    assert 'T1::pA1' in cands
+
+    # With --min-covered-residues 100: 150 aligned residues qualifies -> correctly absent
+    # from candidates.
+    matrix, cands = _run(tmp_path, family_domtblouts=[dom_t1, dom_t2, dom_d1],
+                         **{'min-covered-residues': 100})
+    row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    assert row['D1'] == 1
+    assert 'T1::pA1' not in cands
+
+
 def test_output_evalues_sidecar_carries_family_hit_evalues(tmp_path):
     # issue #44: the family-HMM hit's full-seq e-value survives into the sidecar for
     # proteomes where the family was called present, and stays empty for the source

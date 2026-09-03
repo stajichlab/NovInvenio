@@ -5,7 +5,8 @@
    hmmbuild) and searched via hmmsearch against all proteomes (target +
    DISCOVERY_OUT).  A family is "present" in a proteome if the domtblout has a
    hit with full-sequence E-value below the flat --default-family-evalue AND
-   profile coverage >= --min-coverage, both from the same target sequence.
+   (profile coverage >= --min-coverage OR aligned span >=
+   --min-covered-residues), both from the same target sequence.
    (NOT gated by --family-thresholds's per-family calibration -- that
    threshold is derived from the very DISCOVERY_OUT hits it would be used to
    judge, which made the outgroup-absence filter a no-op; see
@@ -115,7 +116,14 @@ def main():
                          "target proteome.")
     ap.add_argument('--min-coverage', type=float, default=0.5,
                     dest='min_coverage',
-                    help='Minimum profile coverage for family presence')
+                    help='Minimum profile coverage fraction for family presence')
+    ap.add_argument('--min-covered-residues', type=int, default=0,
+                    dest='min_covered_residues',
+                    help='Alternative to --min-coverage for long, multi-domain HMMs: a '
+                         'target qualifies if its merged aligned span is at least this '
+                         'many residues, even if that is below --min-coverage as a '
+                         'fraction (0 = no effect, fraction-only). See '
+                         'lib/family_presence.py\'s module docstring.')
     ap.add_argument('--target-min-frac', type=float, default=0.75,
                     dest='target_min_frac',
                     help='Minimum fraction of target proteomes a family/protein must be present in')
@@ -162,7 +170,8 @@ def main():
             if short.endswith(suffix):
                 short = short[:-len(suffix)]
                 break
-        hits = parse_domtblout(dom_path, args.default_family_evalue, args.min_coverage)
+        hits = parse_domtblout(dom_path, args.default_family_evalue, args.min_coverage,
+                               args.min_covered_residues)
         for query, evalue in hits.items():
             family_presence[short].add(query)
             family_evalue[(short, query)] = evalue

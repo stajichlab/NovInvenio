@@ -60,13 +60,13 @@ def _setup(tmp_path):
 def test_parse_busco_full_table_keeps_only_complete_and_strips_coords(tmp_path):
     (tmp_path / 't.tsv').write_text(AFUM_TABLE)
     rows = list(bfr.parse_busco_full_table(tmp_path / 't.tsv', 'Afum'))
-    assert ('B1', 'Afum', 'pA2') in rows           # :10-500 stripped
+    assert ('B1', 'Afum', 'pA2', 100) in rows      # :10-500 stripped, length=100 kept
     assert all(r[0] != 'B6' for r in rows)         # Missing dropped
 
 
 def test_score_recovery_verdicts_and_overmerge(tmp_path):
     _setup(tmp_path)
-    busco_map = bfr.load_busco_map(
+    busco_map, _lengths = bfr.load_busco_map(
         tables=[f'Ncra={tmp_path/"Ncra.full_table.tsv"}',
                 f'Afum={tmp_path/"Afum.full_table.tsv"}'])
     reps = bfr.load_profiled_reps(tmp_path / 'families.tsv')
@@ -117,6 +117,6 @@ def test_end_to_end_and_busco_map_input(tmp_path):
         "B2\tNcra\tpB1\tComplete\nB2\tAfum\tpB2\tComplete\n"
         "B4\tNcra\tpA1b\tComplete\nB4\tAfum\tpA2b\tComplete\n"
     )
-    bmap = bfr.load_busco_map(map_path=tmp_path / 'map.tsv')
+    bmap, _lengths = bfr.load_busco_map(map_path=tmp_path / 'map.tsv')
     assert set(bmap['B1']) == {'Ncra', 'Afum'}
     assert bmap['B1']['Afum'] == 'pA2'

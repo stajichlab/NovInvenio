@@ -13,10 +13,13 @@ those per-proteome domtblout files, plus the cluster membership, into the SAME a
 
 Presence is uniform and alignment-based (ADR-0002 Q1/Q5): a family is present in a
 proteome iff some target sequence there has a hit for the family HMM with full-sequence
-`E < --evalue` AND profile-coverage ≥ --min-coverage (merged HMM-coordinate span across
-that target's domains, divided by the HMM length -- never mixing one target's E-value
-with another's coverage, nor pooling coverage across different targets; see
-lib/family_presence.py's parse_domtblout, shared with the novelty_discovery pathway).
+`E < --evalue` AND (profile-coverage ≥ --min-coverage OR aligned span ≥
+--min-covered-residues) -- coverage is merged HMM-coordinate span across that target's
+domains divided by the HMM length, never mixing one target's E-value with another's
+coverage, nor pooling coverage across different targets; see lib/family_presence.py's
+parse_domtblout, shared with the novelty_discovery pathway. --min-covered-residues
+(default 0 = no effect) rescues real partial orthologs of long, multi-domain proteins
+that a fraction-only floor structurally penalizes -- see that module's docstring.
 Cluster membership only seeds the family; the member's own source proteome is always
 marked present (it is a member by construction, mirroring build_presence_matrix.py's
 "source proteome present by definition").
@@ -105,7 +108,11 @@ def main():
     ap.add_argument('--evalue', type=float, default=1e-3,
                     help='Full-sequence E-value ceiling for presence (default 1e-3)')
     ap.add_argument('--min-coverage', type=float, default=0.5, dest='min_coverage',
-                    help='Minimum profile coverage for presence (default 0.5)')
+                    help='Minimum profile coverage fraction for presence (default 0.5)')
+    ap.add_argument('--min-covered-residues', type=int, default=0,
+                    dest='min_covered_residues',
+                    help='Alternative to --min-coverage for long, multi-domain HMMs -- see '
+                         'lib/family_presence.py\'s module docstring (default 0 = no effect)')
     ap.add_argument('--ingroup-min-frac', type=float, default=0.75,
                     dest='ingroup_min_frac',
                     help="Presence threshold within --query-group")
@@ -138,7 +145,8 @@ def main():
     family_presence: dict[str, set] = defaultdict(set)
     for dom_path in args.domtblout:
         short = short_from_domtblout_name(dom_path)
-        for rep in parse_domtblout(dom_path, args.evalue, args.min_coverage):
+        for rep in parse_domtblout(dom_path, args.evalue, args.min_coverage,
+                                   args.min_covered_residues):
             family_presence[rep].add(short)
 
     sorted_ids = sorted(all_ids)

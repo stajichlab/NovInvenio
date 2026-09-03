@@ -131,3 +131,21 @@ def test_coverage_filter_excludes_short_hits(tmp_path):
             fh.write(_domtblout_line(f'{member}b', 'pB1') + "\n")
     _, cands = _run(tmp_path)
     assert cands == []
+
+
+def test_min_covered_residues_rescues_a_long_partial_hit(tmp_path):
+    # Same 30%-coverage scenario as above, but on a long (2000 aa) HMM where the aligned
+    # span (600 residues) is substantial in absolute terms despite the low fraction --
+    # --min-covered-residues rescues it as real ingroup presence.
+    _setup(tmp_path)
+    for short, member in (('In1', 'pA1'), ('In2', 'pA2')):
+        with open(tmp_path / f'{short}.family.domtblout', 'w') as fh:
+            fh.write("# hmmsearch domtblout\n")
+            fh.write(_domtblout_line(member, 'pA1', qlen=2000, hmm_from=1, hmm_to=600) + "\n")
+            fh.write(_domtblout_line(f'{member}b', 'pB1') + "\n")
+
+    _, cands = _run(tmp_path)
+    assert cands == []  # fraction-only (30%): family A absent from ingroup, no candidates
+
+    _, cands = _run(tmp_path, **{'min-covered-residues': 100})
+    assert set(cands) == {'In1::pA1', 'In2::pA2'}

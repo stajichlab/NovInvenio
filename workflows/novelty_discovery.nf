@@ -264,6 +264,7 @@ process NOVELTY_PRESENCE_MATRIX {
     path(family_thresholds)
     val(default_family_evalue)
     val(min_coverage)
+    val(min_covered_residues)
     val(target_min_frac)
     val(disc_out_max_frac)
     val(singleton_evalue)
@@ -291,6 +292,7 @@ process NOVELTY_PRESENCE_MATRIX {
         --family-thresholds ${family_thresholds} \
         --default-family-evalue ${default_family_evalue} \
         --min-coverage ${min_coverage} \
+        --min-covered-residues ${min_covered_residues} \
         --target-min-frac ${target_min_frac} \
         --disc-out-max-frac ${disc_out_max_frac} \
         --singleton-evalue ${singleton_evalue} \
@@ -417,6 +419,7 @@ workflow NOVELTY_DISCOVERY {
         CALIBRATE_FAMILY_HMMS.out.thresholds,
         params.hmm_presence_evalue,
         params.hmm_presence_cov,
+        params.hmm_presence_min_residues,
         params.ingroup_min_frac,
         0.0,  // disc_out_max_frac: strictly absent from DISCOVERY_OUT
         params.evalue,  // singleton_evalue: flat significance cutoff for every singleton hit

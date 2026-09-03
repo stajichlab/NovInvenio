@@ -115,7 +115,11 @@ def main():
                     dest='default_family_evalue',
                     help='Default E-value threshold for families without calibration')
     ap.add_argument('--min-coverage', type=float, default=0.5, dest='min_coverage',
-                    help='Minimum profile coverage for family presence')
+                    help='Minimum profile coverage fraction for family presence')
+    ap.add_argument('--min-covered-residues', type=int, default=0,
+                    dest='min_covered_residues',
+                    help='Alternative to --min-coverage for long, multi-domain HMMs -- see '
+                         'bin/novelty_presence_matrix.py / lib/family_presence.py')
     ap.add_argument('--near-in-singleton-hits', nargs='*', default=[],
                     dest='near_in_singleton_hits',
                     help='Parsed singleton-query pairwise hits vs NEAR_INGROUP proteomes')
@@ -150,9 +154,11 @@ def main():
     broad_out_shorts = sorted(s.short for s in samples if s.group == 'BROAD_OUTGROUP')
 
     near_in_presence = family_presence_by_proteome(
-        args.near_in_domtblout, args.default_family_evalue, args.min_coverage)
+        args.near_in_domtblout, args.default_family_evalue, args.min_coverage,
+        args.min_covered_residues)
     broad_out_presence = family_presence_by_proteome(
-        args.broad_out_domtblout, args.default_family_evalue, args.min_coverage)
+        args.broad_out_domtblout, args.default_family_evalue, args.min_coverage,
+        args.min_covered_residues)
 
     # Singleton screening (issue #52): same paralog-aware filtering as phase 1, merged
     # into the same presence dicts classify() reads -- a singleton and a family both

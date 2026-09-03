@@ -405,3 +405,67 @@ build-presence-matrix
 
 **Tags**: novelty-discovery, bug-fix, correctness, family-hmm, coverage, profile-to-matrix,
 paralog-competition-scope, documentation, fable-review
+
+12. **Added an absolute-residue alternative to the family-HMM coverage floor, and sweep
+    infrastructure to actually validate it (2026-09-03)** — following decision #11's
+    finding that `--hmm_presence_cov 0.5` (a flat coverage *fraction*) rejects 83% of
+    otherwise-significant hits on HMMs >600aa (vs 7% for HMMs <150aa) as a structural
+    side-effect of requiring coverage over the *whole* profile length, regardless of how
+    much of a multi-domain protein's ortholog could realistically align:
+    - Added `--hmm_presence_min_residues` (default 100, data-informed from a real-run
+      sensitivity table but not yet swept/validated): a target now qualifies if EITHER
+      the coverage fraction clears `--hmm_presence_cov` OR its merged aligned span is at
+      least this many absolute residues — targeting the floor's actual stated purpose
+      (reject a hit explained by one small, promiscuous shared domain) without penalizing
+      long proteins purely for being long. Wired through `lib/family_presence.py`,
+      `bin/novelty_presence_matrix.py`, `bin/novelty_screen.py`, `bin/profile_to_matrix.py`
+      (whose own independent, buggy coverage-double-counting implementation was deleted
+      and replaced with `lib/family_presence.py`'s shared, tested one), the corresponding
+      Nextflow process/workflow wiring, and `nextflow.config`. A real bug was caught before
+      landing: the naive `covered >= min_residues` with default `min_residues=0` is
+      trivially always true, silently disabling the coverage floor entirely — guarded
+      explicitly (`min_residues > 0 and ...`) and now covered by a dedicated regression
+      test in every consuming file.
+    - `--hmm_presence_cov` was previously never swept at all (unlike `--hmm_presence_evalue`)
+      — its 0.5 default was a design-doc guess (ADR-0002 Q5), not empirically validated the
+      way `--family_min_seq_id`/`--family_cov` were. `bin/run_param_sweep.sh` now includes
+      `--hmm_presence_cov`/`--hmm_presence_min_residues` as swept dimensions, but the
+      existing sweep quality metrics couldn't actually test them: `busco_recovery`
+      (`bin/busco_family_recovery.py`) measures mmseqs *clustering* quality and is
+      insensitive to presence-calling parameters entirely (they act downstream, after
+      clustering); `score_controls.py`'s recall/fp_rate needs curated per-clade controls
+      that may not exist. Added `bin/busco_presence_recovery.py`: a curation-free metric
+      that checks, for each BUSCO ortholog recovered as one clean family, whether OUTGROUP
+      (non-cluster-member) species BUSCO independently confirms carry a Complete copy are
+      actually marked present in `presence_matrix.tsv` — the thing `hmm_presence_cov`/
+      `hmm_presence_min_residues` directly control. A real implementation bug was caught
+      before landing: the first draft required zero "unmapped" species among a BUSCO's
+      copies to count it as scorable, but an unmapped copy (never fed to clustering) is
+      *exactly* the outgroup case this script exists to test — smoke-testing against real
+      sordario data (0 scorable pairs) surfaced this immediately; fixed by only requiring
+      the *mapped* (cluster-member) copies to agree on one family, which unmapped/outgroup
+      copies don't disqualify.
+    - Addressed the user's methodological concern (are BUSCO genes systematically longer
+      than the whole proteome, biasing any BUSCO-based tuning toward long genes only?)
+      empirically with real *N. crassa* data (`busco_pezizo5/Ncra.busco/` vs its
+      `family_hmmsearch` domtblout-derived protein lengths): BUSCO Complete gene lengths
+      (median 460 aa, IQR 304–702, 32.9% >600aa) closely track the whole proteome's
+      (median 462 aa, IQR 302–686, 32.7% >600aa) — BUSCO modestly *underrepresents* the
+      shortest bucket (<150aa: 3.8% vs 6.7%), the one bucket that was already unaffected by
+      the coverage floor, so low-risk for this specific use. Built this check into the tool
+      itself (`--reference-domtblout`) rather than treating it as a one-off, so every future
+      sweep run reports its own representativeness rather than assuming BUSCO generalizes.
+    - `bin/collate_sweep.py`'s scoring extended with a `presence_recovery` admissibility
+      gate + composite term, but only when the metric was actually measured (an
+      all-missing column, e.g. no `BUSCO_OUTGROUP_TABLES` configured, is distinguished from
+      a genuinely-measured-and-worst column and its gate is skipped rather than silently
+      failing every grid point).
+    - Extracted `bin/busco_family_recovery.py`'s BUSCO-loading helpers into `lib/busco.py`
+      (shared with the new script) per this repo's shared-logic-goes-in-lib convention.
+    218/218 tests pass, ruff lint clean. **No sweep has actually been executed** (needs
+    real cluster time, BUSCO runs for outgroup species, and possibly curated controls) —
+    this is infrastructure only; running it and wiring the recommended defaults back into
+    `nextflow.config` is separate future work requiring the user's go-ahead to launch.
+
+**Tags**: novelty-discovery, coverage-floor, hmm-presence, sweep, busco, adr-0002,
+parameter-tuning

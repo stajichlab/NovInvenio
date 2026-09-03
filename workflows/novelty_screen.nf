@@ -60,6 +60,7 @@ process NOVELTY_SCREEN_CLASSIFY {
     path(config_csv)
     val(default_family_evalue)
     val(min_coverage)
+    val(min_covered_residues)
     path(near_singleton_hits)
     path(broad_singleton_hits)
     path(paralog_cutoffs)
@@ -86,6 +87,7 @@ process NOVELTY_SCREEN_CLASSIFY {
         --family-thresholds ${family_thresholds} \
         --default-family-evalue ${default_family_evalue} \
         --min-coverage ${min_coverage} \
+        --min-covered-residues ${min_covered_residues} \
         ${near_singleton_arg} \
         ${broad_singleton_arg} \
         ${paralog_arg} \
@@ -192,6 +194,7 @@ workflow NOVELTY_SCREEN {
         config_csv,
         params.hmm_presence_evalue,
         params.hmm_presence_cov,
+        params.hmm_presence_min_residues,
         near_singleton_hits_ch,
         broad_singleton_hits_ch,
         paralog_cutoffs,

@@ -98,3 +98,42 @@ def test_family_presence_by_proteome_any_target_qualifies(tmp_path):
     ])
     presence = family_presence_by_proteome([dom], default_evalue=1e-5, min_coverage=0.5)
     assert 'famX' in presence['D1']
+
+
+# --- min_covered_residues: absolute-residue alternative to the fraction floor ------
+
+def test_min_residues_rescues_a_long_hmm_with_low_fraction_but_real_coverage(tmp_path):
+    # A 2000-aa HMM (long, multi-domain) with a real 150-residue conserved domain match
+    # is only 7.5% coverage -- fails a 0.5 fraction floor by a wide margin, but 150
+    # aligned residues is a substantial, real domain match. min_residues=100 rescues it.
+    dom = tmp_path / 'x.domtblout'
+    _write_domtblout(dom, [('targetA', 'famLong', 1e-30, 2000, 1, 150)])
+    assert 'famLong' not in parse_domtblout(dom, default_evalue=1e-5, min_coverage=0.5)
+    result = parse_domtblout(dom, default_evalue=1e-5, min_coverage=0.5, min_residues=100)
+    assert result['famLong'] == 1e-30
+
+
+def test_min_residues_does_not_rescue_a_small_promiscuous_domain_hit(tmp_path):
+    # The floor's actual purpose: a short, promiscuous shared-domain hit (30 residues) on
+    # an unrelated protein must still fail even with min_residues in effect, since 30 is
+    # below the residue floor too -- min_residues=100 doesn't just disable protection.
+    dom = tmp_path / 'x.domtblout'
+    _write_domtblout(dom, [('targetA', 'famLong', 1e-10, 2000, 1, 30)])
+    result = parse_domtblout(dom, default_evalue=1e-5, min_coverage=0.5, min_residues=100)
+    assert 'famLong' not in result
+
+
+def test_min_residues_zero_means_fraction_only_no_effect(tmp_path):
+    # Default 0 must be a true no-op, preserving pre-existing fraction-only behaviour.
+    dom = tmp_path / 'x.domtblout'
+    _write_domtblout(dom, [('targetA', 'famX', 1e-10, 500, 1, 100)])  # 20% coverage
+    result = parse_domtblout(dom, default_evalue=1e-5, min_coverage=0.5, min_residues=0)
+    assert 'famX' not in result
+
+
+def test_family_presence_by_proteome_min_residues(tmp_path):
+    dom = tmp_path / 'D1.domtblout'
+    _write_domtblout(dom, [('d1_x', 'famLong', 1e-30, 2000, 1, 150)])
+    presence = family_presence_by_proteome([dom], default_evalue=1e-5, min_coverage=0.5,
+                                           min_residues=100)
+    assert 'famLong' in presence['D1']

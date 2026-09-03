@@ -286,8 +286,9 @@ reports and a `report.html` landing page (run summary + links).
 | `--run_tool` | `phmmer` | `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog lookup) |
 | `--family_min_seq_id` | `0.3` | mmseqs family-clustering identity (`--cluster_tool mmseqs`) |
 | `--family_cov` | `0.8` | mmseqs family-clustering coverage (`--cluster_tool mmseqs`) |
-| `--hmm_presence_evalue` | `1e-3` | Family-HMM presence E-value ceiling (`--cluster_tool mmseqs`) |
-| `--hmm_presence_cov` | `0.5` | Family-HMM min profile coverage for presence (`--cluster_tool mmseqs`) |
+| `--hmm_presence_evalue` | `1e-3` | Family-HMM presence E-value ceiling (`--cluster_tool mmseqs` and `novelty_discovery`); swept by `bin/run_param_sweep.sh` |
+| `--hmm_presence_cov` | `0.5` | Family-HMM min profile coverage *fraction* for presence (`--cluster_tool mmseqs` and `novelty_discovery`); `bin/run_param_sweep.sh` now includes it as a swept dimension (2026-09-03) but no sweep has actually been run against it yet — the shipped 0.5 is still a guess. See `--hmm_presence_min_residues` below and the 2026-09-03 finding that this floor rejects 83% of otherwise-significant hits on HMMs >600aa (expected biology for multi-domain proteins, not promiscuous-domain false positives) |
+| `--hmm_presence_min_residues` | `100` | Alternative to `--hmm_presence_cov`: a target qualifies if its aligned span is at least this many residues, even below the coverage fraction (`0` = disabled, fraction-only). Targets the coverage floor's actual purpose (reject a hit explained by one small, promiscuous shared domain) without penalizing long proteins purely for length; the `100` default is data-informed (real-run sensitivity analysis) but not yet swept/validated the way `--family_min_seq_id` etc. are. See `lib/family_presence.py` |
 | `--family_chunk_size` | `200` | Families per parallel `BUILD_CHUNK` task (`--cluster_tool mmseqs`) |
 | `--evalue` | `1e-5` | Flat significance cutoff applied to every hit in `BUILD_PRESENCE_MATRIX`/`novelty_discovery`'s singleton path (not per-query paralog-derived, see the SEARCH workflow notes above); also TBLASTN significance cutoff |
 | `--parse_evalue` | `0.01` | Loose noise ceiling passed to `parse_hits.py`; final filtering applies the flat `--evalue` significance cutoff plus the paralog-competition filter |

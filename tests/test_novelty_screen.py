@@ -233,6 +233,30 @@ def test_hit_weaker_than_default_evalue_is_absent(tmp_path):
     assert 'T1::pA1' in cands
 
 
+def test_min_covered_residues_rescues_a_long_partial_hit(tmp_path):
+    # Same fix, phase-2 entry point: a long HMM's partial-but-substantial match in
+    # BROAD_OUTGROUP is rescued by --min-covered-residues even though it fails the
+    # default 0.5 coverage fraction.
+    _setup(tmp_path)
+    broad_dom = tmp_path / 'B1.family.domtblout'
+    with open(broad_dom, 'w') as fh:
+        fh.write("# hmmsearch domtblout\n")
+        fh.write(_domtblout_line('protB1', 'pA1', full_e=1e-30, qlen=2000,
+                                 hmm_from=1, hmm_to=150) + "\n")
+
+    matrix, cands = _run(tmp_path, broad_out_domtblouts=[broad_dom])
+    row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    assert row['B1'] == 0
+    assert row['novelty_category'] == 'target_specific'
+
+    matrix, cands = _run(tmp_path, broad_out_domtblouts=[broad_dom],
+                         **{'min-covered-residues': 100})
+    row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    assert row['B1'] == 1
+    assert row['novelty_category'] == 'false_novelty'
+    assert 'T1::pA1' not in cands
+
+
 # --- Singleton screening (issue #52) ----------------------------------------------
 # pC1 is a singleton in CLUSTER_TSV ('pC1\tpC1', no family) -- family HMM search can
 # never see it, so before this feature it always defaulted to target_specific
