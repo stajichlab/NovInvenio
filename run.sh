@@ -1,3 +1,6 @@
+#!/usr/bin/bash -l
+#SBATCH -p stajichlab -c 8 --mem 24gb --out log/run_nirr.log
+
 module load nextflow singularity
 
 # Shared SIF cache so concurrent SLURM array tasks reuse one pulled/converted
