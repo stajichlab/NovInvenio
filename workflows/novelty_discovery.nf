@@ -340,12 +340,12 @@ workflow NOVELTY_DISCOVERY {
     singletons_fa = EXTRACT_SINGLETONS.out.singletons_fa.first()
 
     // Self-vs-self search on DISCOVERY_TARGET proteomes (issue #52) -- captures each
-    // target protein's best within-proteome paralog, the same rank-2 calibration
+    // target protein's best within-proteome paralog, the same rank-2 lookup
     // workflows/search.nf does for the classic pairwise pathway. Needed so the singleton
-    // search below can apply the same paralog-cutoff + paralog-competition filters
-    // bin/build_presence_matrix.py uses, instead of a flat --singleton-evalue threshold
-    // with no protection against cross-reactivity with a conserved paralog (the
-    // NCU08332/HEX-1-vs-eIF5A false positive found validating job 26997324).
+    // search below can apply the same paralog-competition filter bin/build_presence_matrix.py
+    // uses (on top of the flat --singleton-evalue significance cutoff), for protection
+    // against cross-reactivity with a conserved paralog (the NCU08332/HEX-1-vs-eIF5A false
+    // positive found validating job 26997324).
     if (params.run_tool == 'phmmer') {
         raw_self_ch = PHMMER_SELF(target_ch)
     }
@@ -419,8 +419,8 @@ workflow NOVELTY_DISCOVERY {
         params.hmm_presence_cov,
         params.ingroup_min_frac,
         0.0,  // disc_out_max_frac: strictly absent from DISCOVERY_OUT
-        params.evalue,  // singleton_evalue: fallback when a singleton has no detected paralog
-        paralog_cutoffs_ch,  // issue #52: DISCOVERY_TARGET self-search paralog cutoffs
+        params.evalue,  // singleton_evalue: flat significance cutoff for every singleton hit
+        paralog_cutoffs_ch,  // issue #52: DISCOVERY_TARGET self-search paralogs (for filter 2)
         params.paralog_competition_scope
     )
 
@@ -454,10 +454,11 @@ workflow NOVELTY_DISCOVERY {
     family_reps        = family_reps_fa
     seed_concat        = seed_concat
     calibrated_hmms    = family_profiles
-    // Per-family E-value thresholds (rep_id -> threshold), calibrated against DISCOVERY_OUT as a
-    // negative control -- novelty_screen (issue #27) reuses these same thresholds when
-    // calling family presence against NEAR_INGROUP/BROAD_OUTGROUP, so a family's definition of
-    // "present" stays consistent across both phases.
+    // Per-family E-value thresholds (rep_id -> threshold), calibrated against DISCOVERY_OUT
+    // as a negative control. NOT used to gate presence (bin/novelty_presence_matrix.py /
+    // bin/novelty_screen.py both ignore it -- the calibration is circular, see
+    // lib/family_presence.py's module docstring) -- carried through only for Nextflow
+    // process interface stability with NOVELTY_SCREEN.
     family_thresholds  = CALIBRATE_FAMILY_HMMS.out.thresholds
     // issue #52: the extended singleton query (singletons + their own paralogs) and the
     // paralog cutoffs used to filter phase 1's singleton search -- NOVELTY_SCREEN reuses

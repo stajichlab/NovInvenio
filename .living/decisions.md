@@ -300,3 +300,108 @@ generate_index.py needs Python 3.10+"; use `python3.12` (present in the pixi env
 
 **Tags**: mycelium, reconciliation, decisions, novelty-discovery, singleton, context-search,
 roles, ev-score, docker, pfam, perf, findings, in-progress
+
+9. **Fixed circular per-family presence threshold in `novelty_discovery` (2026-09-03)** —
+   `bin/calibrate_family_hmms.py` set each family's presence E-value threshold to the best
+   (lowest) E-value that family's HMM scored against DISCOVERY_OUT, then
+   `bin/novelty_presence_matrix.py`/`bin/novelty_screen.py` required `evalue < threshold` to
+   call presence. Since the threshold *is* the minimum observed DISCOVERY_OUT E-value, no
+   DISCOVERY_OUT proteome could ever satisfy `E < min(E)` against itself — the
+   outgroup-absence filter was a structural no-op. Confirmed against a real run
+   (`results/sordario/`): all matrix rows had zero DISCOVERY_OUT presence, 83.8% of 14,779
+   "candidates" had a contradicting TBLASTN hit. Flagged by a collaborator manually
+   re-BLASTing three "novel" N. crassa genes (NCU00765, NCU00411, NCU01935) against S. pombe
+   and finding highly significant (down to 3e-160) annotated hits. Independently verified by
+   an agent code review before the fix landed.
+   Fix: presence is now gated purely by the flat `--default-family-evalue` /
+   `--hmm_presence_evalue` for every proteome (both discovery and screen phases); per-family
+   calibration (`--family-thresholds`) is still computed and piped through for Nextflow
+   process interface stability but is no longer consumed for gating. Also fixed a related bug
+   in `lib/family_presence.py`'s `parse_domtblout()`: HMM-coverage was pooled across *all*
+   target sequences in a proteome instead of per-target, letting several unrelated weak
+   partial hits fake a passing coverage score — coverage is now computed per (query, target)
+   and paired with whichever target gave the best E-value.
+   **All prior `--cluster_tool novelty_discovery` run results (including `results/sordario/`)
+   should be considered invalid for outgroup-absence and re-run.** The known-but-separate
+   over-strict singleton paralog-cutoff filter (`lib/singleton_presence.py`, filter 1 — cutoff
+   derived from a within-genome self-vs-self search, can become unreachable when a close
+   in-paralog exists) was reviewed but left unfixed — it did not cause the three reported
+   genes (they are family members, not singletons) and is out of scope for this fix.
+
+**Tags**: novelty-discovery, bug-fix, correctness, family-hmm, calibration, presence-matrix
+
+10. **Fixed H2: paralog-cutoff filter (filter 1) replaced with a flat significance floor,
+    project-wide (2026-09-03)** — `lib/singleton_presence.py`, `bin/build_presence_matrix.py`,
+    and `bin/context_presence.py` each independently implemented the same "paralog-cutoff"
+    filter 1: hit e-value must beat the query's own within-genome paralog e-value (from a
+    self-vs-self search reported down to E=100), falling back to a flat default otherwise.
+    Measured on real N. crassa self-search data (`results/pezizo4/self_hits/Ncra.paralog_cutoffs.tsv`,
+    8,293 proteins): 28.2% of cutoffs were looser than the intended default (1e-5) —
+    self-search noise standing in for "no real paralog" — and 40.0% were tighter than 1e-50,
+    an unreachable bar for any real cross-species ortholog. Confirmed concretely against real
+    Ncra-vs-Spom phmmer AND diamond hits: **actin (NCU04173/Act1) and a P-type ATPase
+    (NCU07966)** — both near-universally conserved — would have been wrongly called ABSENT
+    from S. pombe under the old filter (their own near-identical in-genome paralog e-value
+    was tighter than the real ortholog hit), in both tool outputs. All three genes from the
+    original H1 report (NCU00765/00411/01935) were unaffected by this specific filter in
+    this data (their own paralog cutoffs happened to be loose enough) — consistent with H1
+    (family-HMM calibration circularity, decision #9) being the sole explanation for those.
+    Fix: filter 1 is now a flat `--default-evalue`/`--singleton-evalue` applied to every hit
+    (no per-query paralog derivation); filter 2 (paralog-competition, a direct head-to-head
+    comparison) is unchanged and remains the real paralogy test. `load_paralog_info()` now
+    returns only `paralog_of` (the e-value column is unused) in all three files.
+    `bin/calibrate_family_hmms.py`-style self-referential calibration does not appear reused
+    elsewhere (the general `--cluster_tool mmseqs` pathway already uses a flat
+    `--hmm_presence_evalue`, not per-family calibration, per CLAUDE.md) -- a whole-project
+    Fable consistency review was dispatched after this fix landed to verify that
+    independently; see the follow-up entry once it returns.
+
+**Tags**: novelty-discovery, bug-fix, correctness, paralog-cutoff, singleton, context-search,
+build-presence-matrix
+
+11. **Follow-up: Fable consistency review found and fixed a real gap in fix #9 (coverage
+    gated on wrong target) (2026-09-03)** — a dispatched Fable review verified fixes #9/#10
+    and audited the whole project for other pockets of either bug class. Findings:
+    - **Confirmed correct and complete:** H2's flat-significance-filter fix (decision #10) in
+      all three files; the general `--cluster_tool mmseqs` pathway (`bin/profile_to_matrix.py`)
+      already used a flat threshold with no calibration step; TBLASTN thresholding is flat;
+      the loss-search direction reuses the same (fixed) `build_presence_matrix.py`, no separate
+      logic; the paralog-competition filter (filter 2) itself is sound and unaffected by either
+      fix, in all four implementations.
+    - **Real gap found in fix #9:** `lib/family_presence.py`'s `parse_domtblout()` (from
+      decision #9) fixed the coverage-pooled-across-targets bug but introduced a narrower one --
+      it evaluated the coverage gate only on whichever single target gave the BEST E-value,
+      so a family whose best-E hit happened to be a coverage fragment (but a different,
+      slightly-worse-E target had full coverage) was still wrongly called absent. Confirmed
+      against real `results/sordario/` data: NCU00411 (ATG43) and part of NCU01935's
+      DISCOVERY_OUT presence were still miscalled post-fix #9, not due to circularity anymore
+      but due to this best-target-only coverage gate. Also found: `bin/profile_to_matrix.py`
+      (the general `mmseqs` pathway) had its own, INDEPENDENT coverage bug -- summed raw
+      domain spans without merging overlaps, so overlapping domains on the same target could
+      double-count coverage past 1.0.
+    - **Fix:** `parse_domtblout(path, default_evalue, min_coverage)` now returns, per query,
+      the best E-value among targets where THAT SAME target independently clears both the
+      E-value and coverage gates (present if ANY target qualifies -- matching
+      `bin/profile_to_matrix.py`'s original "any target" semantics, just with correct merged-
+      interval coverage). `bin/profile_to_matrix.py`'s own duplicate `parse_domtblout` was
+      deleted entirely and replaced with an import of `lib/family_presence.py`'s version --
+      the two family-presence pathways now share one implementation instead of two
+      independently-maintained (and previously divergent) copies. Re-verified against real
+      sordario data: NCU00765/00411/01935 are now all correctly present in at least one
+      DISCOVERY_OUT proteome (so correctly excluded as novelty candidates); NCU00411 remains
+      genuinely absent from S. pombe specifically (its only Spom hit has intrinsically low
+      HMM coverage, ~26% -- a real biological/parameter-tuning question about a short protein,
+      not a code bug) but is now correctly caught via its Ylip hit.
+    - Also fixed for consistency: `--paralog-competition-scope`'s Python argparse default was
+      `'proteome'` in all four scripts while `nextflow.config`'s pipeline default is `'target'`
+      -- silently divergent for any standalone/manual script invocation (pipeline runs were
+      unaffected, since Nextflow always passes the flag explicitly). Argparse defaults changed
+      to `'target'` to match.
+    - Updated stale documentation describing the removed paralog-cutoff/calibration logic as
+      current: CLAUDE.md, README.md, METHOD_DESCRIPTION.md, nextflow.config comments,
+      `bin/parse_self_hits.py`, `workflows/novelty_discovery.nf`, `workflows/search.nf`.
+    202/202 tests pass (added regression tests for the any-target coverage fix and the
+    scope-default change), ruff lint clean.
+
+**Tags**: novelty-discovery, bug-fix, correctness, family-hmm, coverage, profile-to-matrix,
+paralog-competition-scope, documentation, fable-review

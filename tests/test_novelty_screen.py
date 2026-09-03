@@ -196,17 +196,37 @@ def test_preexisting_near_in_broad_out_columns_are_updated_not_duplicated(tmp_pa
     assert 'T1::pA1' not in cands
 
 
-def test_family_threshold_gates_presence(tmp_path):
+def test_family_thresholds_file_is_accepted_but_ignored_for_gating(tmp_path):
+    # Regression test for the 2026-09-03 fix: --family-thresholds used to gate presence
+    # with a per-family calibrated E-value, which is circular (the threshold is derived
+    # from the very hit it would be compared against) and made real hits disappear. It is
+    # now accepted (for Nextflow process interface stability) but NOT used -- presence is
+    # decided purely by the flat --default-family-evalue. A hit at 1e-10 clears the
+    # default (1e-3) and must count as present, even though a much tighter (bogus, in
+    # practice self-referential) calibrated threshold of 1e-20 is supplied.
     _setup(tmp_path)
     (tmp_path / 'thresholds.tsv').write_text(
         "rep_id\tthreshold_evalue\npA1\t1e-20\n"
     )
-    # Hit E-value (1e-10) is worse (higher) than the calibrated threshold (1e-20) -> not present.
     broad_dom = tmp_path / 'B1.family.domtblout'
     _write_domtblout(broad_dom, [('protB1', 'pA1', 1e-10)])
 
     matrix, cands = _run(tmp_path, broad_out_domtblouts=[broad_dom],
                          **{'family-thresholds': tmp_path / 'thresholds.tsv'})
+    row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    assert row['B1'] == 1
+    assert row['novelty_category'] == 'false_novelty'
+    assert 'T1::pA1' not in cands
+
+
+def test_hit_weaker_than_default_evalue_is_absent(tmp_path):
+    # Sanity check that the flat --default-family-evalue still gates presence at all: a
+    # hit weaker (higher E-value) than the default does not count as present.
+    _setup(tmp_path)
+    broad_dom = tmp_path / 'B1.family.domtblout'
+    _write_domtblout(broad_dom, [('protB1', 'pA1', 5.0)])
+
+    matrix, cands = _run(tmp_path, broad_out_domtblouts=[broad_dom])
     row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
     assert row['B1'] == 0
     assert row['novelty_category'] == 'target_specific'
@@ -256,6 +276,34 @@ def test_singleton_paralog_competition_prevents_a_false_novelty_call(tmp_path):
     # target loses to its paralog's much stronger hit in the SAME broad-outgroup
     # proteome -- 'proteome' scope disqualifies it, so pC1 is correctly NOT demoted to
     # false_novelty by what is actually cross-reactivity with a conserved paralog.
+    # Explicit 'proteome' scope: the pipeline default (nextflow.config, and this
+    # script's own argparse default) is 'target', under which this same data would NOT
+    # disqualify (the paralog only wins on a different target gene) -- see
+    # test_singleton_competition_target_scope_keeps_hexa_like_ortholog-style cases.
+    _setup(tmp_path)
+    broad_hits = tmp_path / 'singletons_vs_B1.parsed.tsv'
+    _write_hits(broad_hits, (
+        'pC1\thex1\t5e-12\t45\tT1\tB1\n'
+        'pParalog\teif2\t1e-70\t233\tT1\tB1\n'
+    ))
+    paralog = tmp_path / 'paralog_cutoffs.tsv'
+    paralog.write_text(PARALOG_HEADER + 'pC1\tpParalog\t42\t4.2e-11\n')
+
+    matrix, cands = _run(tmp_path, broad_out_singleton_hits=[broad_hits],
+                         paralog_cutoffs=[paralog],
+                         **{'paralog-competition-scope': 'proteome'})
+    row = matrix[matrix['protein_id'] == 'pC1'].iloc[0]
+    assert row['B1'] == 0
+    assert row['novelty_category'] == 'target_specific'
+    assert 'T1::pC1' in cands
+
+
+def test_singleton_paralog_competition_default_scope_is_target(tmp_path):
+    # Regression test for the 2026-09-03 default-scope fix: with no
+    # --paralog-competition-scope passed, the default is now 'target' (matching
+    # nextflow.config's pipeline default), not 'proteome'. Same data as above, but
+    # since the paralog only out-scores pC1 on a *different* target gene (eif2, not
+    # hex1), 'target' scope does NOT disqualify -- pC1's own hit survives.
     _setup(tmp_path)
     broad_hits = tmp_path / 'singletons_vs_B1.parsed.tsv'
     _write_hits(broad_hits, (
@@ -268,9 +316,7 @@ def test_singleton_paralog_competition_prevents_a_false_novelty_call(tmp_path):
     matrix, cands = _run(tmp_path, broad_out_singleton_hits=[broad_hits],
                          paralog_cutoffs=[paralog])
     row = matrix[matrix['protein_id'] == 'pC1'].iloc[0]
-    assert row['B1'] == 0
-    assert row['novelty_category'] == 'target_specific'
-    assert 'T1::pC1' in cands
+    assert row['B1'] == 1
 
 
 def test_singleton_paralog_added_to_search_is_never_itself_a_row(tmp_path):

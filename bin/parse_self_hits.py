@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Extract per-gene paralog e-value cutoffs from a self-vs-self search.
+Extract each protein's within-proteome paralog from a self-vs-self search.
 
 For each query protein the rank-2 hit (first hit where target_id != query_id)
-is the best within-proteome paralog.  Its e-value becomes the cutoff used by
-build_presence_matrix.py: a cross-species hit is only counted as a homolog if
-its e-value is strictly less than this cutoff.  Proteins with no detectable
-within-proteome paralog are omitted; build_presence_matrix.py falls back to
-the global default (1e-5) for those.
+is the best within-proteome paralog.  build_presence_matrix.py (and the
+novelty_discovery/context_search equivalents) use paralog_protein_ID for the
+paralog-competition filter: a cross-species hit is disqualified if the query's
+paralog scores better against the same target.  The evalue column here is
+informational only (report-only, e.g. for debugging) and is NOT used as a
+presence-calling significance cutoff -- see lib/singleton_presence.py's module
+docstring for why a per-query self-search-derived cutoff was tried and
+dropped.  Proteins with no detectable within-proteome paralog are omitted.
 
 Output TSV columns (one row per protein that has a detectable paralog):
   protein_ID, paralog_protein_ID, bitscore, evalue

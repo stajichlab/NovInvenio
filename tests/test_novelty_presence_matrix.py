@@ -118,6 +118,43 @@ def test_family_present_in_targets_absent_from_disc_out(tmp_path):
     assert 'T1::pA1' in cands
 
 
+def test_strong_disc_out_hit_is_present_and_removes_candidacy(tmp_path):
+    # Regression test for the 2026-09-03 fix: a family with a strong, significant hit in a
+    # DISCOVERY_OUT proteome must be called present there (and so dropped from
+    # candidates.txt), even though that very hit is the best (lowest) E-value observed
+    # against DISCOVERY_OUT -- previously, per-family calibration set the presence
+    # threshold to exactly that best E-value, so `evalue < threshold` could never be true
+    # for the hit that defined it, making outgroup-absence a structural no-op. Mirrors the
+    # real NCU00765/NCU00411/NCU01935 false-novelty findings.
+    _setup(tmp_path)
+    dom_t1 = tmp_path / 'T1.domtblout'
+    dom_t2 = tmp_path / 'T2.domtblout'
+    dom_d1 = tmp_path / 'D1.domtblout'
+    _write_domtblout(dom_t1, [('pA1', 'pA1', 1e-200)])
+    _write_domtblout(dom_t2, [('pA2', 'pA1', 1e-190)])
+    _write_domtblout(dom_d1, [('d1_x', 'pA1', 3e-160)])  # strong, annotated outgroup hit
+
+    matrix, cands = _run(tmp_path, family_domtblouts=[dom_t1, dom_t2, dom_d1])
+    row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    assert row['D1'] == 1
+    assert 'T1::pA1' not in cands
+
+
+def test_family_thresholds_flag_is_accepted_but_ignored(tmp_path):
+    # --family-thresholds is kept only for Nextflow process interface stability; passing a
+    # calibrated threshold tighter than the actual hit must not suppress presence.
+    _setup(tmp_path)
+    thresholds = tmp_path / 'thresholds.tsv'
+    thresholds.write_text("rep_id\tthreshold_evalue\npA1\t1e-300\n")
+    dom_d1 = tmp_path / 'D1.domtblout'
+    _write_domtblout(dom_d1, [('d1_x', 'pA1', 3e-160)])
+
+    matrix, cands = _run(tmp_path, family_domtblouts=[dom_d1],
+                         **{'family-thresholds': thresholds})
+    row = matrix[matrix['protein_id'] == 'pA1'].iloc[0]
+    assert row['D1'] == 1
+
+
 def test_output_evalues_sidecar_carries_family_hit_evalues(tmp_path):
     # issue #44: the family-HMM hit's full-seq e-value survives into the sidecar for
     # proteomes where the family was called present, and stays empty for the source
@@ -157,15 +194,33 @@ def test_singleton_present_via_flat_fallback_without_paralog_data(tmp_path):
     assert row['D1'] == 1
 
 
-def test_singleton_paralog_cutoff_rejects_a_weak_hit(tmp_path):
+def test_flat_default_evalue_rejects_a_weak_hit(tmp_path):
+    # Filter 1 is a flat significance floor (--singleton-evalue, default 1e-5), not a
+    # per-query paralog-derived one -- rejected regardless of the supplied paralog data.
     _setup(tmp_path)
     hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
     _write_hits(hits, 'pS1\td1_x\t1e-3\t20\tT1\tD1\n')
     paralog = tmp_path / 'paralog_cutoffs.tsv'
-    paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t1e-8\n')  # tighter than 1e-3
+    paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t1e-8\n')
     matrix, cands = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog])
     row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
     assert row['D1'] == 0
+
+
+def test_supplied_paralog_cutoff_no_longer_rejects_a_strong_hit(tmp_path):
+    # Regression test for the 2026-09-03 fix: a strong hit (7e-10, well within the flat
+    # default 1e-5 -- picked to mirror the real ATG43/NCU00411 finding) used to be
+    # rejected outright whenever the query's own in-genome paralog e-value (here 1e-20)
+    # was tighter than the hit. Filter 2 (paralog competition) doesn't fire here since
+    # pEif1 was never itself searched against D1.
+    _setup(tmp_path)
+    hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(hits, 'pS1\td1_x\t7e-10\t100\tT1\tD1\n')
+    paralog = tmp_path / 'paralog_cutoffs.tsv'
+    paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t1e-20\n')
+    matrix, cands = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog])
+    row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
+    assert row['D1'] == 1
 
 
 def test_singleton_only_true_singletons_are_emitted_not_their_paralogs(tmp_path):

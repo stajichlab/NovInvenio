@@ -25,7 +25,8 @@ workflow SEARCH {
     // once (storeDir-cached) and reuse it across every query, rather than
     // rebuilding the target DB for each of the |IN|×(N-1) pairwise jobs.
     // phmmer searches the target FASTA directly, so no DB step is needed.
-    // Self-vs-self searches (rank-2 = best within-proteome paralog) calibrate cutoffs.
+    // Self-vs-self searches (rank-2 = best within-proteome paralog) feed the
+    // paralog-competition filter in build_presence_matrix.py.
     if (params.run_tool == 'phmmer') {
         pairs_ch = ingroup_ch
             .combine(all_proteomes_ch)

@@ -3,10 +3,9 @@
 Phase 2 of the two-phase targeted novelty pipeline (todo/novelty-discovery-screen.md):
 refine novelty_discovery's candidate list against a broader phylogenetic screen.
 
-novelty_discovery (phase 1) calls a family "in-group specific" if its calibrated HMM has no
-hit in the small DISCOVERY_OUT reference panel. This phase re-searches the SAME calibrated family
-HMMs against two broader proteome sets and reclassifies each phase-1 candidate into one of
-three categories:
+novelty_discovery (phase 1) calls a family "in-group specific" if its HMM has no hit in the
+small DISCOVERY_OUT reference panel. This phase re-searches the SAME family HMMs against two
+broader proteome sets and reclassifies each phase-1 candidate into one of three categories:
 
     target_specific  -- not found in NEAR_INGROUP or BROAD_OUTGROUP.  Unique to the target genome(s).
     clade_specific   -- found in NEAR_INGROUP, not found in BROAD_OUTGROUP.  Shared with close
@@ -15,19 +14,21 @@ three categories:
                         removed from the screened candidate list (but kept, labelled, in the
                         screened matrix for visibility).
 
-"Found in" a group means at least one hit clears that family's calibrated E-value threshold
-(falling back to --default-family-evalue when uncalibrated) and --min-coverage, in at least
-one proteome of that group -- the same presence rule bin/novelty_presence_matrix.py applies
-for the DISCOVERY_OUT panel (see lib/family_presence.py).
+"Found in" a group means at least one hit clears the flat --default-family-evalue and
+--min-coverage, both from the same target sequence, in at least one proteome of that group --
+the same presence rule bin/novelty_presence_matrix.py applies for the DISCOVERY_OUT panel
+(see lib/family_presence.py). Per-family calibration (--family-thresholds) is accepted for
+Nextflow process interface compatibility but is NOT used to gate presence -- it is circular
+(derived from the very hits it would judge); see lib/family_presence.py's module docstring.
 
 Singleton candidates (targets with no multi-member family, issue #52) get the SAME
 screening: the extended singleton query phase 1 searched (singletons + their own
 paralogs, see bin/extend_singleton_query.py) is re-searched against NEAR_INGROUP/
-BROAD_OUTGROUP and filtered with the identical paralog-cutoff + paralog-competition
-logic (lib/singleton_presence.py), merged into the same near_in_presence/
-broad_out_presence sets classify() reads. Without this, a singleton candidate always
-defaulted to target_specific regardless of its true broader-set presence -- family
-HMM search structurally can't see it (it has no family).
+BROAD_OUTGROUP and filtered with the identical significance + paralog-competition logic
+(lib/singleton_presence.py), merged into the same near_in_presence/broad_out_presence sets
+classify() reads. Without this, a singleton candidate always defaulted to target_specific
+regardless of its true broader-set presence -- family HMM search structurally can't see it
+(it has no family).
 
 Every row from the discovery matrix is carried through -- extended with NEAR_INGROUP/BROAD_OUTGROUP
 presence columns and a novelty_category -- matching the established convention that the
@@ -46,7 +47,6 @@ from config_parser import parse_config  # noqa: E402
 from family_presence import (  # noqa: E402
     family_presence_by_proteome,
     load_cluster_membership,
-    load_family_thresholds,
 )
 from singleton_presence import (  # noqa: E402
     load_paralog_info,
@@ -107,8 +107,10 @@ def main():
     ap.add_argument('--broad-out-domtblout', nargs='*', default=[], dest='broad_out_domtblout',
                     help='hmmsearch domtblout files, family HMMs vs BROAD_OUTGROUP proteomes')
     ap.add_argument('--family-thresholds', default=None, dest='family_thresholds',
-                    help='Calibrated family thresholds TSV (rep_id<TAB>threshold), from '
-                         'novelty_discovery\'s CALIBRATE_FAMILY_HMMS')
+                    help='Accepted for interface compatibility with the Nextflow process '
+                         '(novelty_discovery\'s CALIBRATE_FAMILY_HMMS output) but NOT used '
+                         'to gate presence -- see lib/family_presence.py\'s module '
+                         'docstring. Presence always uses the flat --default-family-evalue.')
     ap.add_argument('--default-family-evalue', type=float, default=1e-3,
                     dest='default_family_evalue',
                     help='Default E-value threshold for families without calibration')
@@ -122,13 +124,17 @@ def main():
                     help='Parsed singleton-query pairwise hits vs BROAD_OUTGROUP proteomes')
     ap.add_argument('--paralog-cutoffs', nargs='+', default=[], dest='paralog_cutoffs',
                     help='paralog_cutoffs.tsv files from the DISCOVERY_TARGET self-vs-self '
-                         'search (same ones novelty_presence_matrix.py used for phase 1)')
+                         'search (same ones novelty_presence_matrix.py used for phase 1) -- '
+                         'supplies the paralog_protein_ID column for the paralog-competition '
+                         'filter; the e-value column is not used (see --singleton-evalue).')
     ap.add_argument('--singleton-evalue', type=float, default=1e-5, dest='singleton_evalue',
-                    help='Fallback e-value threshold for a singleton with no detected paralog')
+                    help='Flat e-value significance cutoff for singleton hits, applied to '
+                         'every hit (not per-query paralog-derived)')
     ap.add_argument('--paralog-competition-scope', choices=['proteome', 'target'],
-                    default='proteome', dest='paralog_competition_scope',
+                    default='target', dest='paralog_competition_scope',
                     help='Same semantics as bin/build_presence_matrix.py / '
-                         'bin/novelty_presence_matrix.py')
+                         "bin/novelty_presence_matrix.py (default: 'target', matches "
+                         "nextflow.config's pipeline default)")
     ap.add_argument('--config', required=True, help='Analysis description CSV')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
     ap.add_argument('--output-candidates', required=True, dest='output_candidates')
@@ -143,21 +149,15 @@ def main():
     near_in_shorts = sorted(s.short for s in samples if s.group == 'NEAR_INGROUP')
     broad_out_shorts = sorted(s.short for s in samples if s.group == 'BROAD_OUTGROUP')
 
-    family_thresholds = {}
-    if args.family_thresholds:
-        family_thresholds = load_family_thresholds(args.family_thresholds)
-
     near_in_presence = family_presence_by_proteome(
-        args.near_in_domtblout, family_thresholds, args.default_family_evalue,
-        args.min_coverage)
+        args.near_in_domtblout, args.default_family_evalue, args.min_coverage)
     broad_out_presence = family_presence_by_proteome(
-        args.broad_out_domtblout, family_thresholds, args.default_family_evalue,
-        args.min_coverage)
+        args.broad_out_domtblout, args.default_family_evalue, args.min_coverage)
 
     # Singleton screening (issue #52): same paralog-aware filtering as phase 1, merged
     # into the same presence dicts classify() reads -- a singleton and a family both
     # just contribute "this rep is present in this proteome" evidence.
-    paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
+    paralog_of = load_paralog_info(args.paralog_cutoffs)
 
     def _singleton_hits(paths):
         hits = []
@@ -169,10 +169,10 @@ def main():
 
     near_in_singleton_presence, _ = score_singleton_hits(
         _singleton_hits(args.near_in_singleton_hits), singleton_ids,
-        paralog_cutoffs, paralog_of, args.singleton_evalue, args.paralog_competition_scope)
+        paralog_of, args.singleton_evalue, args.paralog_competition_scope)
     broad_out_singleton_presence, _ = score_singleton_hits(
         _singleton_hits(args.broad_out_singleton_hits), singleton_ids,
-        paralog_cutoffs, paralog_of, args.singleton_evalue, args.paralog_competition_scope)
+        paralog_of, args.singleton_evalue, args.paralog_competition_scope)
 
     for short, ids in near_in_singleton_presence.items():
         near_in_presence.setdefault(short, set()).update(ids)

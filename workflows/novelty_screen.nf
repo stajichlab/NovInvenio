@@ -106,7 +106,10 @@ workflow NOVELTY_SCREEN {
     broad_outgroup_ch         // [meta, protein_fa] — BROAD_OUTGROUP proteomes (20-100 species)
     broad_outgroup_dna        // [meta, dna_fa] — BROAD_OUTGROUP genomes (for TBLASTN)
     calibrated_hmms      // path: family_profiles.hmm from NOVELTY_DISCOVERY
-    family_thresholds    // path: family_thresholds.tsv from NOVELTY_DISCOVERY
+    family_thresholds    // path: family_thresholds.tsv from NOVELTY_DISCOVERY -- passed
+                          //   through for process interface stability only; presence is
+                          //   gated by the flat --default-family-evalue, not this file (see
+                          //   lib/family_presence.py's module docstring)
     family_reps          // path: families_rep_seq.fasta from NOVELTY_DISCOVERY
     cluster_tsv          // path: families_cluster.tsv from NOVELTY_DISCOVERY
     discovery_matrix      // path: presence_matrix.tsv from NOVELTY_DISCOVERY

@@ -72,11 +72,27 @@ def test_only_candidates_are_emitted_not_their_paralogs(run_dir):
     assert list(matrix['protein_id']) == ['hexA']
 
 
-def test_paralog_cutoff_filter_rejects_a_weak_hit(run_dir):
+def test_flat_default_evalue_rejects_a_weak_hit(run_dir):
+    # Filter 1 is now a flat significance floor (--default-evalue, 1e-5), not a
+    # per-query paralog-derived one -- a weak hit (1e-3) is rejected regardless of
+    # whether paralog data is supplied at all.
     matrix, _ = run(run_dir, 'g1\tg1_near\t1e-3\t20\tIn1\tNear1\n', 'In1::g1\n',
-                    paralog_text='g1\tg1p\t42\t1e-8\n')  # cutoff tighter than the 1e-3 hit
+                    paralog_text='g1\tg1p\t42\t1e-8\n')
     row = matrix[matrix['protein_id'] == 'g1'].iloc[0]
     assert row['Near1'] == 0
+
+
+def test_supplied_paralog_cutoff_no_longer_rejects_a_strong_hit(run_dir):
+    # Regression test for the 2026-09-03 fix: a strong hit (1e-10, well within the flat
+    # default 1e-5) used to be rejected outright whenever the candidate's own in-genome
+    # paralog e-value (here 1e-20) was tighter than the hit -- an absolute-magnitude
+    # proxy, not an actual test of whether the paralog explains this hit. The
+    # paralog-competition filter (filter 2) is the real test for that, and it doesn't
+    # fire here because the paralog (g1p) was never itself searched against Near1.
+    matrix, _ = run(run_dir, 'g1\tg1_near\t1e-10\t100\tIn1\tNear1\n', 'In1::g1\n',
+                    paralog_text='g1\tg1p\t42\t1e-20\n')
+    row = matrix[matrix['protein_id'] == 'g1'].iloc[0]
+    assert row['Near1'] == 1
 
 
 def test_competition_target_scope_keeps_hexa_like_ortholog(run_dir):

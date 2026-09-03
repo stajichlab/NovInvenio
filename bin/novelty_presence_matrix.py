@@ -4,17 +4,22 @@
 1. Family HMM search: multi-member target families are profiled (famsa +
    hmmbuild) and searched via hmmsearch against all proteomes (target +
    DISCOVERY_OUT).  A family is "present" in a proteome if the domtblout has a
-   hit with full-sequence E-value below the (optionally calibrated)
-   per-family threshold AND profile coverage >= --min-coverage.
+   hit with full-sequence E-value below the flat --default-family-evalue AND
+   profile coverage >= --min-coverage, both from the same target sequence.
+   (NOT gated by --family-thresholds's per-family calibration -- that
+   threshold is derived from the very DISCOVERY_OUT hits it would be used to
+   judge, which made the outgroup-absence filter a no-op; see
+   lib/family_presence.py.)
 
 2. Singleton pairwise search: singletons (target proteins not in any
    multi-member family) are searched via phmmer/diamond/blast against the
    DISCOVERY_OUT proteomes.  A singleton is "present" in a proteome if the
-   pairwise search reports a qualifying hit -- the same paralog-cutoff +
-   paralog-competition filtering bin/build_presence_matrix.py uses (issue #52),
-   via --paralog-cutoffs from the DISCOVERY_TARGET self-vs-self search, falling
-   back to a flat --singleton-evalue for singletons with no detected paralog.
-   The singleton's source proteome is always present.
+   pairwise search reports a qualifying hit: e-value below the flat
+   --singleton-evalue (applied to every hit -- NOT per-query paralog-derived,
+   see lib/singleton_presence.py for why) AND not disqualified by the
+   paralog-competition filter bin/build_presence_matrix.py also uses (issue
+   #52), via --paralog-cutoffs's paralog_protein_ID column (its e-value column
+   is unused).  The singleton's source proteome is always present.
 
 The script merges both sources into a single presence_matrix.tsv with
 columns:
@@ -38,7 +43,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
 from family_presence import (  # noqa: E402
     load_cluster_membership,
-    load_family_thresholds,
     parse_domtblout,
 )
 from singleton_presence import (  # noqa: E402
@@ -85,26 +89,30 @@ def main():
                     help='protein_id<TAB>proteome_short TSV')
     ap.add_argument('--config', required=True, help='Analysis description CSV')
     ap.add_argument('--family-thresholds', default=None, dest='family_thresholds',
-                    help='Calibrated family thresholds TSV (rep_id<TAB>threshold)')
+                    help='Accepted for interface compatibility with the Nextflow process '
+                         '(CALIBRATE_FAMILY_HMMS output) but NOT used to gate presence -- '
+                         'it is circular, see lib/family_presence.py\'s module docstring. '
+                         'Presence always uses the flat --default-family-evalue.')
     ap.add_argument('--default-family-evalue', type=float, default=1e-3,
                     dest='default_family_evalue',
                     help='Default E-value threshold for families without calibration')
     ap.add_argument('--singleton-evalue', type=float, default=1e-5,
                     dest='singleton_evalue',
-                    help='Fallback e-value threshold for singleton pairwise hits when the '
-                         'query has no detected paralog (see --paralog-cutoffs)')
+                    help='Flat e-value significance cutoff for singleton pairwise hits, '
+                         'applied to every hit (not per-query paralog-derived)')
     ap.add_argument('--paralog-cutoffs', nargs='+', default=[], dest='paralog_cutoffs',
                     help='paralog_cutoffs.tsv files from the DISCOVERY_TARGET self-vs-self '
-                         'search (issue #52) -- enables the same paralog-cutoff + '
-                         'paralog-competition filtering bin/build_presence_matrix.py uses for '
-                         'singleton hits, instead of a flat --singleton-evalue for everyone.')
+                         'search (issue #52) -- supplies the paralog_protein_ID column for '
+                         'the paralog-competition filter bin/build_presence_matrix.py also '
+                         'uses; the e-value column is not used (see --singleton-evalue).')
     ap.add_argument('--paralog-competition-scope', choices=['proteome', 'target'],
-                    default='proteome', dest='paralog_competition_scope',
+                    default='target', dest='paralog_competition_scope',
                     help="Granularity of the paralog-competition filter, same semantics as "
-                         "bin/build_presence_matrix.py: 'proteome' (default) disqualifies a "
-                         "hit if the query's paralog out-scores it anywhere in the same "
-                         "target proteome; 'target' only if the paralog beats it on the same "
-                         "target protein.")
+                         "bin/build_presence_matrix.py: 'target' (default, matches "
+                         "nextflow.config's pipeline default) disqualifies only if the "
+                         "paralog beats it on the same target protein; 'proteome' "
+                         "disqualifies if the paralog out-scores it anywhere in the same "
+                         "target proteome.")
     ap.add_argument('--min-coverage', type=float, default=0.5,
                     dest='min_coverage',
                     help='Minimum profile coverage for family presence')
@@ -135,9 +143,13 @@ def main():
     singleton_reps = {rep for rep, members in rep_to_members.items() if len(members) == 1}
 
     # --- Family HMM presence ---
-    family_thresholds = {}
-    if args.family_thresholds:
-        family_thresholds = load_family_thresholds(args.family_thresholds)
+    # NOTE: --family-thresholds (bin/calibrate_family_hmms.py's per-family calibration) is
+    # accepted but deliberately NOT used to gate presence -- it is circular: the threshold
+    # is derived from the best E-value a family scores against DISCOVERY_OUT, so no
+    # DISCOVERY_OUT proteome could ever satisfy `evalue < threshold` against itself. That
+    # made the outgroup-absence filter a structural no-op (confirmed against a real run --
+    # see lib/family_presence.py's module docstring). Presence uses the flat
+    # --default-family-evalue for every proteome instead.
 
     # family_presence[proteome_short] = set of family rep IDs present
     # family_evalue[(proteome_short, rep_id)] = the qualifying hit's full-seq e-value
@@ -150,12 +162,10 @@ def main():
             if short.endswith(suffix):
                 short = short[:-len(suffix)]
                 break
-        hits = parse_domtblout(dom_path)
-        for query, (evalue, coverage) in hits.items():
-            threshold = family_thresholds.get(query, args.default_family_evalue)
-            if evalue < threshold and coverage >= args.min_coverage:
-                family_presence[short].add(query)
-                family_evalue[(short, query)] = evalue
+        hits = parse_domtblout(dom_path, args.default_family_evalue, args.min_coverage)
+        for query, evalue in hits.items():
+            family_presence[short].add(query)
+            family_evalue[(short, query)] = evalue
 
     # --- Singleton pairwise presence ---
     # The singleton query (see bin/extend_singleton_query.py) includes both true
@@ -163,7 +173,7 @@ def main():
     # together so score_singleton_hits()'s paralog-competition filter has the paralog's
     # own hits to compare against. Only true singletons (singleton_reps) are ever
     # scored/emitted.
-    paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
+    paralog_of = load_paralog_info(args.paralog_cutoffs)
 
     all_singleton_hits = []  # (query_id, target_id, evalue, proteome_short)
     for hits_path in args.singleton_hits:
@@ -174,7 +184,7 @@ def main():
     # singleton_presence[proteome_short] = set of singleton protein IDs present
     # singleton_evalue[(proteome_short, protein_id)] = best (lowest) qualifying hit e-value
     singleton_presence, singleton_evalue = score_singleton_hits(
-        all_singleton_hits, singleton_reps, paralog_cutoffs, paralog_of,
+        all_singleton_hits, singleton_reps, paralog_of,
         args.singleton_evalue, args.paralog_competition_scope,
     )
 

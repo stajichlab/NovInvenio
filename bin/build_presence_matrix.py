@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Build a protein × proteome presence/absence matrix and emit candidate IDs.
 
-Presence scoring uses two paralog-aware filters (both must pass):
+Presence scoring uses one flat significance filter plus one paralog-aware filter:
 
-  1. Paralog-cutoff filter: hit e-value < query protein's within-proteome
-     paralog e-value (from self-vs-self search).  Proteins with no detectable
-     paralog fall back to --default-evalue (1e-5).
+  1. Significance filter: hit e-value < --default-evalue (flat, 1e-5).
 
   2. Paralog-competition filter: if the query's paralog hits the same target
      with a *better* (lower) e-value than the query does, the hit is
@@ -20,6 +18,19 @@ Presence scoring uses two paralog-aware filters (both must pass):
        target — the paralog out-scores the query on the *same target protein*.
          Preserves a hit when the paralog wins only on a different gene, so the
          HEX-1 ortholog call survives.
+
+  (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value
+  must beat the query's own within-proteome paralog e-value, falling back to
+  --default-evalue when no paralog was detected. Dropped: deriving an absolute
+  significance ceiling from a self-vs-self search (reported down to E=100, not
+  the usual significance floor) swung both too tight -- any protein with a
+  close in-genome paralog got an unreachable cutoff, rejecting real orthologs
+  regardless of relevance -- and too loose -- a protein with no real paralog
+  still picked up self-search noise as its "cutoff", looser than the intended
+  default. Filter 2 already does the actual paralogy test, as a direct
+  head-to-head comparison instead of an absolute-magnitude proxy; filter 1 was
+  redundant on top of it, not protective. See lib/singleton_presence.py's
+  module docstring for the mirrored fix and empirical evidence.)
 
 A candidate protein (from a --query-group proteome, default IN) must be:
   - present in >= --ingroup-min-frac of all --query-group proteomes
@@ -46,20 +57,16 @@ DEFAULT_EVALUE = 1e-5
 
 
 def load_paralog_info(cutoff_files):
-    """Return (cutoffs, paralog_of) from all paralog_cutoffs.tsv files.
-
-    cutoffs:    protein_id -> float evalue threshold
-    paralog_of: protein_id -> paralog_protein_id
-    """
-    cutoffs    = {}
+    """Return paralog_of: protein_id -> paralog_protein_id, from all paralog_cutoffs.tsv
+    files -- feeds filter 2 (paralog-competition) only; see module docstring for why the
+    per-query e-value column is no longer used as a significance cutoff (filter 1)."""
     paralog_of = {}
     for path in cutoff_files:
         df = pd.read_csv(path, sep='\t')
         if df.empty:
             continue
-        cutoffs.update(dict(zip(df['protein_ID'], df['evalue'].astype(float))))
         paralog_of.update(dict(zip(df['protein_ID'], df['paralog_protein_ID'])))
-    return cutoffs, paralog_of
+    return paralog_of
 
 
 HIT_COLUMNS = ['query_id', 'target_id', 'evalue', 'bitscore',
@@ -105,16 +112,17 @@ def main():
                          'that survive in a small fraction of the ingroup — genes nearly, '
                          'but not entirely, lost.')
     ap.add_argument('--paralog-competition-scope', choices=['proteome', 'target'],
-                    default='proteome', dest='paralog_competition_scope',
-                    help="Granularity of filter 2 (paralog-competition). 'proteome' "
-                         "(default, original behaviour): disqualify a hit if the query's "
-                         "paralog out-scores the query anywhere in the same target proteome. "
-                         "'target': disqualify only if the paralog beats the query on the "
-                         "*same target protein* — keeps calls where the paralog wins on a "
-                         "different gene (e.g. HEX-1 vs its ancestral eIF5A).")
+                    default='target', dest='paralog_competition_scope',
+                    help="Granularity of filter 2 (paralog-competition). 'target' "
+                         "(default, matches nextflow.config's pipeline default): disqualify "
+                         "only if the paralog beats the query on the *same target protein* — "
+                         "keeps calls where the paralog wins on a different gene (e.g. HEX-1 "
+                         "vs its ancestral eIF5A). 'proteome' (original behaviour, stricter): "
+                         "disqualify a hit if the query's paralog out-scores the query "
+                         "anywhere in the same target proteome.")
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue',
-                    help='Fallback e-value cutoff for proteins with no detectable paralog')
+                    help='Flat e-value significance cutoff (filter 1), applied to every hit')
     ap.add_argument('--output-matrix',     required=True)
     ap.add_argument('--output-candidates', required=True)
     ap.add_argument('--output-evalues', default=None, dest='output_evalues',
@@ -140,7 +148,7 @@ def main():
     query_ids    = ingroup_ids if args.query_group == 'IN' else outgroup_ids
     other_ids    = outgroup_ids if args.query_group == 'IN' else ingroup_ids
 
-    paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
+    paralog_of = load_paralog_info(args.paralog_cutoffs)
 
     hits = load_hits(args.hits)
 
@@ -160,9 +168,8 @@ def main():
     ing = hits[hits['query_proteome'].isin(query_ids)].copy()
 
     if not ing.empty:
-        # Filter 1: hit evalue must beat the query's paralog cutoff (fallback default).
-        cutoff = ing['query_id'].map(paralog_cutoffs).fillna(args.default_evalue)
-        ing = ing[ing['evalue'] < cutoff]
+        # Filter 1: flat significance floor (no longer per-query paralog-derived).
+        ing = ing[ing['evalue'] < args.default_evalue]
 
     if not ing.empty:
         # Filter 2: disqualify if the query's paralog beats it. The key is the target
