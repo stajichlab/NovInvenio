@@ -1,20 +1,20 @@
 <!-- BEGIN QUICK REFERENCE -->
 # .living/ Index
-Last audit: 2026-08-07
+Last audit: 2026-09-04
 
 | File | Entries | Last updated | Key topics |
 |------|---------|--------------|------------|
 | conventions.md | 2 sections | 2026-07-20 | Implementation workflow: tickets → branch → PR, mycelium Stop hook (`mycelium-stop-check.sh`) is disabled |
-| decisions.md | 1 entry | 2026-08-07 | ADR-0002 grilling resolutions (running — folds into the ADR when complete) |
-| learnings.md | 6 entries | 2026-08-07 | Claude Code owns settings.local.json — put hooks in settings.json, mycelium Stop hook false-blocks interactive (grilling) sessions, famsa (bioconda) requires AVX2 — SIGILLs on the cluster's Abu Dhabi nodes, mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9), Session-log stubs vs substance: hooks create logs, agents must write the findings |
-| log/ | 10 sessions | 2026-08-07 | novinvenio (10) |
+| decisions.md | 1 entry (large — read selectively) | 2026-09-04 | ADR-0002 grilling resolutions (running — folds into the ADR when complete) |
+| learnings.md | 7 entries | 2026-09-04 | Claude Code owns settings.local.json — put hooks in settings.json, mycelium Stop hook false-blocks interactive (grilling) sessions, famsa (bioconda) requires AVX2 — SIGILLs on the cluster's Abu Dhabi nodes, mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9), Session-log stubs vs substance: hooks create logs, agents must write the findings |
+| log/ | 21 sessions | 2026-09-04 | novinvenio (21) |
 
 ## Local skills
 See `.living/skills/` for project-specific skill packs.
 <!-- END QUICK REFERENCE -->
 
 <!-- BEGIN KNOWLEDGE SUMMARY -->
-Last summarized: 2026-08-07 (heuristic)
+Last summarized: 2026-09-04 (heuristic)
 
 ## Tag clusters
 
@@ -27,6 +27,7 @@ Last summarized: 2026-08-07 (heuristic)
 
 ## Most recent (10)
 
+- [2026-09-04] L-7: Fixing a bin/ script doesn't bust Nextflow's `-resume` cache by itself
 - [2026-08-06] L-4: mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9)
 - [2026-08-06] L-5: Session-log stubs vs substance: hooks create logs, agents must write the findings
 - [2026-08-06] L-6: Investigation-run observations (benchmarks & cross-method divergences)
@@ -45,7 +46,9 @@ Last summarized: 2026-08-07 (heuristic)
 - `mmseqs`: L-6, D-1
 - `adr-0002`: D-1
 - `avx2`: L-3
+- `bin-scripts`: L-7
 - `bioconda`: L-3
+- `caching`: L-7
 - `claude-code`: L-1
 - `cluster`: L-3
 - `concordance`: L-6
@@ -54,6 +57,7 @@ Last summarized: 2026-08-07 (heuristic)
 - `environment`: L-4
 - `famsa`: L-3
 - `gene-family`: D-1
+- `gotcha`: L-7
 - `hardware-compatibility`: L-3
 - `hmmer`: D-1
 - `hmmscan`: L-6
@@ -63,12 +67,15 @@ Last summarized: 2026-08-07 (heuristic)
 - `knowledge-capture`: L-5
 - `logging`: L-5
 - `loss`: L-6
+- `nextflow`: L-7
 - `novelty`: L-6
 - `pairwise`: L-6
 - `pfam`: L-6
 - `pixi`: L-3
+- `presence-calling`: L-7
 - `process`: L-5
 - `python`: L-4
+- `resume`: L-7
 - `sessions`: L-5
 - `settings`: L-1
 - `silent-failure`: L-4
@@ -76,7 +83,8 @@ Last summarized: 2026-08-07 (heuristic)
 - `singleton`: L-6
 - `slurm`: L-3
 - `stop-hook`: L-2
+- `task-hash`: L-7
 - `version`: L-4
 
-_Heuristic clustering: tags with ≥2 entries, top 6 by count. To fetch matching entries: `python3 skills/core/scripts/recall_lessons.py --living-dir <path> --tag <tag>` or `--id L-N`._
+_Heuristic clustering: tags with ≥2 entries, top 6 by count. To fetch matching entries: `python3 "$(cat .mycelium/plugin-root)/skills/core/scripts/recall_lessons.py" --living-dir <path> --tag <tag>` or `--id L-N`._
 <!-- END KNOWLEDGE SUMMARY -->

@@ -217,3 +217,49 @@ perf, preempt, cluster, investigation
 **structural_mitigation_candidate**: A permanent per-run "findings card" under
 `.living/findings/<project>/` written at report time (few rows, key count deltas) so the
 knowledge layer carries each investigation without needing a full agent session.
+
+---
+
+### [2026-09-04] Fixing a bin/ script doesn't bust Nextflow's `-resume` cache by itself
+
+**Category**: gotcha
+
+**What happened**: After the H1/H2 presence-calling bugfix (`a49ee0c`), the pezizo5
+coverage-floor sweep (`c704d72`) was launched with `-resume` against a repo `work/` dir that
+also held an old (2026-07-22) pre-fix `pezizo5_mmseqs` run. Nextflow's task cache hash is
+derived from the process's rendered *script text* plus its declared input files — it does
+**not** track the content of a `bin/*.py` script that a process invokes by bare command
+(e.g. `profile_to_matrix.py --hmm-cov ...`) unless that script is itself declared as a
+`path` input. So editing `lib/family_presence.py`/`bin/profile_to_matrix.py` to fix the
+circular-calibration bug does not, by itself, invalidate any previously-cached completed
+task for the process that calls it — a `-resume` could silently reuse the stale, buggy-logic
+output instead of recomputing with the fix. Verified this did *not* actually happen to
+pezizo5 only by chance: the same fix commit series (`7e29f12`) also added a brand-new
+`--min-covered-residues ${params.hmm_presence_min_residues}` flag directly into
+`modules/profile_presence_matrix.nf`'s process script, which changed the rendered script
+text for every post-fix invocation (regardless of grid-point param values) and forced
+genuine re-execution rather than a cache hit. Had the fix been purely internal to the
+Python logic (same CLI flags, same values), `-resume` could have reused the pre-fix
+cached matrix-building task undetected.
+
+**Why it matters**: Any bugfix confined to a `bin/*.py` file's internals — with no change to
+the CLI flags/values the calling process's script block renders — is invisible to Nextflow's
+cache invalidation. A `-resume`'d sweep or reprocessing run could silently keep serving
+pre-fix results for exactly the step that was just fixed, with no error or warning.
+
+**Resolution**: Traced the specific commit ordering and script diffs to confirm pezizo5's
+sweep was unaffected in this instance (see `.living/decisions.md`). No repo-wide fix applied
+yet — this is a general Nextflow caching hazard, not specific to one process.
+
+**Tags**: nextflow, resume, caching, bin-scripts, task-hash, presence-calling, gotcha,
+mmseqs, sweep
+
+**mitigation_type**: ambient-awareness
+
+**structural_mitigation_candidate**: After any bugfix to a `bin/*.py`/`lib/*.py` file, check
+whether the calling process's `.nf` script block renders different text for the fix (e.g. a
+changed/added flag) — if not, deliberately clear the affected `work/`/`.nf_launch/*/work`
+task dirs (or bump a cache-busting param/comment in the process script) rather than trusting
+`-resume` to pick up the fix. Consider a repo convention: every `bin/`-called script that is
+`storeDir`/`-resume`-sensitive should be declared as an explicit `path` input to its process
+so Nextflow's hash tracks its content automatically.
