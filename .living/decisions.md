@@ -533,3 +533,101 @@ parameter-tuning
 
 **Tags**: novelty-discovery, coverage-floor, hmm-presence, sweep, busco, slurm, mpi,
 csv-crlf, bug-fix
+
+14. **Built the broader-grid validation infrastructure for the coverage-floor sweep
+    (2026-09-03)** — following decision #12/#13's finding that the pezizo5 sweep was
+    only 4 points on one clade, added the machinery for real divergence-depth diversity
+    per `todo/validate-hmm-presence-coverage-broader-sweep.md`:
+    - `bin/convert_1kfg_samples.py` (new, parallels `bin/convert_bfd_samples.py`): joins
+      1KFG's (1000 Fungal Genomes, JGI MycoCosm) 345 flat-directory proteomes under
+      `/bigdata/stajichlab/shared/projects/1KFG/genomes/final_combine/` against
+      Fungi_BFD's `samples.csv` (23,684 assemblies, ~12,401 annotated) by genus+species
+      epithet to recover taxonomy 1KFG doesn't carry on its own (~70% match rate, the
+      rest skipped and reported, not guessed) — `config_support/1KFG_samples.csv`, 241
+      species with full semicolon-delimited Lineage strings, ready for
+      `bin/make_config.py`'s existing `--max-per-outgroup-taxon`/`--random`/`--seed`
+      stratified sampling.
+    - Two new configs drafted from that pool: `configs/sordariales_shallow_1kfg.csv`
+      (shallow divergence — ingroup Sordariales: Chaetomium/Neurospora/Podospora/
+      Sordaria, 4 species one order; outgroup sibling Sordariomycetes orders, capped
+      3/order, seed 42 — 14 proteomes) and `configs/deep_broad_1kfg.csv` (deep + large —
+      ingroup 105 species across 7 filamentous-Ascomycota classes, since BFD doesn't
+      populate SUBPHYLUM for most rows so "Pezizomycotina" isn't a matchable token and
+      the ingroup was built via explicit `--ingroup-short` pins instead; outgroup a
+      stratified random sample, 5/phylum seed 42, across 11 other fungal phyla,
+      excluding Microsporidia as a reduced-genome outlier — 130 proteomes total, real
+      ADR-0002/Chaetothyriales scale, requires `--cluster_tool mmseqs`).
+    - `run_busco_1kfg_array.sbatch`: a SLURM array job (130 tasks, `%25` throttle) running
+      BUSCO fungi_odb12 once for the full union of both new configs' species (config 1's
+      14 species turned out to be entirely a subset of config 3's 105 ingroup, so one
+      130-species BUSCO batch covers both configs' `BUSCO_TABLES`/`BUSCO_OUTGROUP_TABLES`
+      needs) — output under `busco_1kfg/<Short>.busco/`.
+    - `run_sweep_sordariales_shallow.sh` / `run_sweep_deep_broad_1kfg.sh`: new sweep
+      launchers mirroring `run_sweep_pezizo5_coverage.sh` (same scoped 2×2
+      `hmm_presence_cov`×`hmm_presence_min_residues` grid, clustering params held at
+      shipped defaults, annotation skipped) but building `BUSCO_TABLES`/
+      `BUSCO_OUTGROUP_TABLES` dynamically from each config CSV via `awk` rather than
+      hand-transcribing 105+25 `SHORT=path` entries. `deep_broad_1kfg`'s launcher sets an
+      explicit `--time=14-00:00:00` (`batch` partition default is 7 days, max 30) since
+      it is an order of magnitude larger than pezizo5 (130 vs 11 proteomes) and the
+      driver's own SLURM job must stay alive for the entire nested `nextflow -profile
+      slurm` orchestration, not just its own work.
+    All three sweeps (pezizo5/medium, sordariales_shallow/shallow, deep_broad_1kfg/deep+
+    large) launched together to compare how the recommended `hmm_cov`/`hmm_residues`
+    setting shifts (or doesn't) across divergence depth and panel size — results to be
+    logged in a follow-up decision once they complete.
+
+**Tags**: novelty-discovery, coverage-floor, sweep, busco, 1kfg, bfd, taxonomy,
+broader-grid, slurm-array
+
+15. **Excluded Penicillium chrysogenum from configs/deep_broad_1kfg.csv: a genuine
+    duplicate-ID ambiguity in its own 1KFG proteome FASTA (2026-09-03)** — discovered when
+    it broke both its own BUSCO run (`Duplicate of sequence >Pchr|PCH_Pc18g05710.1`) and
+    then the deep_broad_1kfg sweep's `EXTRACT_FAMILY_SEQS` step
+    (`bin/extract_family_seqs.py` -> `lib/fasta.py`'s `read_fasta()` -> `Bio.SeqIO.to_dict()`,
+    which raises `ValueError: Duplicate key` on any repeated FASTA header). Checked before
+    "fixing" it by deduping: `Pchr|PCH_Pc18g05710.1` has 2 exact-duplicate records (would
+    have been safe to collapse), but `Pchr|PCH_Pc17g01280` has 4 records under the same ID
+    that are NOT sequence-identical (same length, different residues) -- a genuine upstream
+    annotation-export ambiguity, not a harmless duplicate. Rather than guess which variant
+    is "correct" or edit the shared `/bigdata/stajichlab/shared/projects/1KFG/` resource
+    (used by other projects), removed the one species (105 -> 104 ingroup species)
+    from `configs/deep_broad_1kfg.csv` and let the already-running sweep self-heal via
+    `-resume` (Nextflow re-reads the CSV fresh each grid-point invocation within the bash
+    loop, so the content change is picked up without restarting the job).
+
+**Tags**: novelty-discovery, data-quality, 1kfg, duplicate-id, bug-fix
+
+14. **Two real infrastructure bugs found and fixed via the broader-grid sweep runs
+    (2026-09-04)** — running `sordariales_shallow_1kfg`/`deep_broad_1kfg` at real scale
+    (14 and 130 proteomes respectively, from 1KFG genomes) surfaced two genuine,
+    previously-latent bugs, distinct from the presence-calling logic bugs (#9-#13):
+    - **`lib/fasta.py`'s `read_fasta()` crashed on duplicate sequence IDs** (used
+      `Bio.SeqIO.to_dict()`, which requires global uniqueness) when concatenating
+      proteomes from independently-sourced genome collections — confirmed real:
+      `deep_broad_1kfg`'s loss-direction family building hit `ValueError: Duplicate key
+      'Pchr|PCH_Pc18g05710.1'` from two different genomes reusing the same short internal
+      locus tag as their protein ID, killing the whole `PROFILE_LOSS_SEARCH` run. Fixed to
+      keep the first occurrence and warn to stderr instead of crashing — a real
+      possibility whenever proteomes come from heterogeneous sources (JGI/1KFG genomes in
+      particular), not just a one-off oddity of this test set.
+    - **`conf/ucr_hpcc_slurm.config`'s `hmmsearch` label had a flat `memory = '8.GB'`**,
+      not scaled by `task.attempt` like `queue`/`time` already are — so `errorStrategy`'s
+      retry (up to `maxRetries: 2`) was a structural no-op for a genuinely memory-hungry
+      chunk: all 3 attempts hit the identical 8GB OOM wall (exit 137), confirmed on
+      `sordariales_shallow_1kfg`'s `HMMSEARCH_CHUNK`. Fixed to `{ 8.GB * task.attempt }`
+      (8/16/24GB across attempts), the standard Nextflow retry-scaling pattern. The
+      `high_cpu` label (`memory = '32.GB'` flat) has the same latent risk and wasn't
+      touched — no confirmed failure there yet, flagging for awareness rather than
+      preemptively changing an untested path.
+    Both fixes are infrastructure-only; no test coverage exists (or is practical) for the
+    SLURM config scaling behavior itself, but `lib/fasta.py` has new unit tests
+    (`tests/test_fasta.py`) for the duplicate-ID tolerance. 223/223 tests pass, lint clean.
+    Both already-failed grid points (deep_broad_1kfg gp1, sordariales_shallow_1kfg gp2)
+    will be manually resumed with `-resume` once their sweep driver's current pass
+    finishes and its launch directory is free (avoids a concurrent Nextflow session-lock
+    collision within the same sweep, mirroring the earlier per-CLADE `LAUNCH_DIR`
+    isolation fix's rationale).
+
+**Tags**: bug-fix, infrastructure, fasta, slurm, oom, retry, hmmsearch, novelty-discovery,
+sweep
