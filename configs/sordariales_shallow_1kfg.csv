@@ -1,0 +1,15 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
+IN,Chaetomium globosum,CBS_148,Chaetomium_globosum_CBS_148.51.aa.fasta,Chaetomium_globosum_CBS_148.51.fasta,Chaeglob,Sordariales
+IN,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.aa.fasta,Neurospora_crassa_OR74A.fasta,Neurcras,Sordariales
+IN,Podospora anserina,S_mat+,Podospora_anserina_S_mat+.Podan2.aa.fasta,Podospora_anserina_S_mat+.Podan2.fasta,Podoanse,Sordariales
+IN,Sordaria macrospora,k-hell,Sordaria_macrospora_k-hell.aa.fasta,Sordaria_macrospora_k-hell.fasta,Sordmacr,Sordariales
+OUT,Clonostachys rosea,CBS_125111,Clonostachys_rosea_CBS_125111.Cloro1.v1.aa.fasta,Clonostachys_rosea_CBS_125111.Cloro1.v1.fasta,Clonrose,Hypocreales
+OUT,Colletotrichum graminicola,M1,Colletotrichum_graminicola_M1.001.v1.aa.fasta,Colletotrichum_graminicola_M1.001.v1.fasta,Collgram,Glomerellales
+OUT,Colletotrichum higginsianum,IMI_349063,Colletotrichum_higginsianum_IMI_349063.v1.aa.fasta,Colletotrichum_higginsianum_IMI_349063.v1.fasta,Collhigg,Glomerellales
+OUT,Coniochaeta ligniaria,CBS_111746,Coniochaeta_ligniaria_CBS_111746.aa.fasta,Coniochaeta_ligniaria_CBS_111746.fasta,Conilign,Coniochaetales
+OUT,Cordyceps militaris,CM01,Cordyceps_militaris_CM01.Cormi1.aa.fasta,Cordyceps_militaris_CM01.Cormi1.fasta,Cordmili,Hypocreales
+OUT,Cryphonectria parasitica,EP155,Cryphonectria_parasitica_EP155.Crypa2.v2.aa.fasta,Cryphonectria_parasitica_EP155.Crypa2.v2.fasta,Cryppara,Diaporthales
+OUT,Eutypa lata,UCREL1,Eutypa_lata_UCREL1.v1.aa.fasta,Eutypa_lata_UCREL1.v1.fasta,Eutylata,Xylariales
+OUT,Metarhizium anisopliae,ARSEF_23,Metarhizium_anisopliae_ARSEF_23.aa.fasta,Metarhizium_anisopliae_ARSEF_23.fasta,Metaanis,Hypocreales
+OUT,Ophiostoma piceae,UAMH_11346,Ophiostoma_piceae_UAMH_11346.aa.fasta,Ophiostoma_piceae_UAMH_11346.fasta,Ophipice,Ophiostomatales
+OUT,Verticillium dahliae,JR2,Verticillium_dahliae_JR2.Verda1.v1.aa.fasta,Verticillium_dahliae_JR2.Verda1.v1.fasta,Vertdahl,Glomerellales

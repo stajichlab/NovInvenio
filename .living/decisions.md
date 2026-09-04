@@ -631,3 +631,47 @@ broader-grid, slurm-array
 
 **Tags**: bug-fix, infrastructure, fasta, slurm, oom, retry, hmmsearch, novelty-discovery,
 sweep
+
+16. **Sweep-launcher isolation fixes: per-CLADE Nextflow launch dirs and actually loading
+    the site SLURM config (2026-09-04)** — resuming the broader-grid sweep work after a
+    session crash/restart surfaced a cluster of related launcher-level bugs, distinct from
+    both the presence-calling logic bugs (#9-#13) and the infrastructure bugs already
+    logged in #14:
+    - **`conf/ucr_hpcc_slurm.config` was never actually loaded by any sweep launcher.**
+      `bin/run_param_sweep.sh` invoked `nextflow run main.nf -profile slurm ...` but never
+      passed `-c conf/ucr_hpcc_slurm.config`, so none of the site-specific tuning in that
+      file (queue routing to `short`/`epyc`, the `hmmsearch` memory-scaling fix from #14,
+      AVX2 node constraints for mmseqs/famsa, `BUILD_CHUNK`'s `preempt`-queue placement)
+      was ever active during any of the sweeps run this session — `-profile slurm` alone
+      only sets `process.executor = 'slurm'` from `nextflow.config` itself. Fixed by adding
+      an `NXF_SITE_CONFIG` env var (default `conf/ucr_hpcc_slurm.config`) and passing
+      `-c "$NXF_SITE_CONFIG"` whenever it's non-empty. This was the single biggest
+      root-cause finding of the session: several already-diagnosed-and-"fixed" problems
+      (OOM retries never actually recovering, mmseqs SIGILLs on incompatible nodes) had
+      their real fix sitting unused in a file nobody was loading.
+    - **Nextflow session-lock collisions between concurrently-running sweeps.** `-resume`
+      with no explicit run name resumes "most recent run" keyed to the launch (current
+      working) directory, not `--project`/`--outdir` — two sweeps launched from the same
+      repo root raced for the same `.nextflow/history` entry, and one's `-resume` tried to
+      attach to the other's actively-running session. Fixed by isolating each CLADE's
+      launch into its own `.nf_launch/${CLADE}/` subdirectory (all path-bearing variables
+      resolved to absolute paths first via new `abspath`/`abspath_tables` bash helpers,
+      then `cd` into the isolated dir before invoking `nextflow run "$REPO_ROOT/main.nf"
+      ...`). `.nf_launch/` added to `.gitignore`.
+    - **Stale/parallel session found mid-recovery.** While resubmitting sweeps after the
+      launcher fixes above, discovered evidence of a second, uncoordinated Claude Code
+      session having independently touched some of the same files (a divergent
+      `run_sweep_deep_broad_1kfg.sh`, a `conf/ucr_hpcc_slurm.config` dated ahead of this
+      session's own edits) and a duplicate SLURM submission 9 seconds after this session's
+      own resubmission. Confirmed via `ps aux` (3 `claude` processes); user identified and
+      stopped the dormant/orphaned one. Take-away for future sessions on this project:
+      check `ps aux | grep claude` and `squeue` for pre-existing jobs/processes before
+      relaunching a sweep after any session restart, since `.nf_launch/` isolation
+      prevents Nextflow-level lock collisions but not duplicate `sbatch` submissions from
+      independent sessions.
+    Both `sordariales_shallow_1kfg` (job 28100809) and `deep_broad_1kfg` (job 28096310)
+    are now running cleanly with the fixed launcher, confirmed via `.nextflow.log` to be
+    loading `-c conf/ucr_hpcc_slurm.config`.
+
+**Tags**: novelty-discovery, infrastructure, nextflow, slurm, session-lock, sweep,
+site-config, bug-fix
