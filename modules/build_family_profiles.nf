@@ -73,11 +73,15 @@ process BUILD_CHUNK {
         # (e.g. one unusually long/low-complexity sequence) could still stall. Bound each
         # family's alignment+build so one bad family can't cost the whole chunk a SLURM
         # walltime kill — skip it (logged) and keep going instead.
-        if ! timeout !{params.family_align_timeout} famsa -t !{task.cpus} "$fa" "${fa}.aln" 2>/dev/null; then
+        if [ -s "${fa}.aln" ]; then
+            echo "SKIP: ${fa}.aln already exists — reusing" >&2
+        elif ! timeout !{params.family_align_timeout} famsa -t !{task.cpus} "$fa" "${fa}.aln" 2>/dev/null; then
             echo "WARN: famsa exceeded !{params.family_align_timeout}s or failed for $base ($rep) — skipping family" >&2
             continue
         fi
-        if ! timeout !{params.family_align_timeout} hmmbuild --cpu !{task.cpus} -n "$rep" "${fa}.hmm" "${fa}.aln" > /dev/null; then
+        if [ -s "${fa}.hmm" ]; then
+            echo "SKIP: ${fa}.hmm already exists — reusing" >&2
+        elif ! timeout !{params.family_align_timeout} hmmbuild --cpu !{task.cpus} -n "$rep" "${fa}.hmm" "${fa}.aln" > /dev/null; then
             echo "WARN: hmmbuild exceeded !{params.family_align_timeout}s or failed for $base ($rep) — skipping family" >&2
             continue
         fi
