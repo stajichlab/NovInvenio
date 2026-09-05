@@ -47,9 +47,9 @@ validation, annotation, and the reports are byte-for-byte the same pipeline down
 ### `--cluster_tool pairwise` (default) — exact, best for small clades
 
 Searches every ingroup proteome against every other proteome (phmmer/diamond/blast),
-calibrating each gene against a self-vs-self paralog search. Exact and well-calibrated,
-but the job count grows as `|ingroup| × (N−1)` — great up to a few dozen proteomes, slow
-beyond.
+disqualifying a hit that a gene's own within-proteome paralog explains better via a
+self-vs-self search. Exact, but the job count grows as `|ingroup| × (N−1)` — great up to
+a few dozen proteomes, slow beyond.
 
 ```bash
 nextflow run main.nf \
@@ -74,7 +74,7 @@ nextflow run main.nf \
     --config configs/pezizo5.csv \
     --data_dir data \
     --cluster_tool mmseqs \              # ← the only change from the pairwise run
-    --run_tool phmmer \                  # still used for the self-search paralog calibration
+    --run_tool phmmer \                  # still used for the self-search paralog lookup
     --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
     --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
     --modelorgs_config configs/modelorgs.yaml
@@ -91,7 +91,7 @@ Family-definition knobs (sensible defaults ship; sweep them for a new clade with
 |---|---|---|
 | **Best for** | small, well-defined clades | order-scale configs (many proteomes) |
 | **Cost** | `|ingroup| × (N−1)` searches | ~`N` hmmsearch jobs |
-| **Presence call** | per-gene paralog-calibrated | family profile HMM |
+| **Presence call** | flat significance cutoff + paralog-competition filter | family profile HMM |
 | **Scales to ~200 proteomes** | slow | yes |
 
 They produce the same matrix contract, so you can run both and compare — `novelties.html`
@@ -318,14 +318,14 @@ need to bake it into the image.
 | `--config` | *(required)* | Analysis config CSV (see format below) |
 | `--data_dir` | *(required)* | Directory containing FASTA files listed in the CSV |
 | `--cluster_tool` | `pairwise` | Presence-matrix producer: `pairwise` (exact N² search) or `mmseqs` (scalable family-profile). See [Two analysis approaches](#two-analysis-approaches-pairwise-vs-family-profile-clustering) |
-| `--run_tool` | `phmmer` | Search tool: `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog calibration) |
+| `--run_tool` | `phmmer` | Search tool: `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog lookup) |
 | `--family_min_seq_id` | `0.3` | mmseqs family-clustering identity threshold (`mmseqs` pathway) |
 | `--family_cov` | `0.8` | mmseqs family-clustering coverage (`mmseqs` pathway) |
 | `--hmm_presence_evalue` | `1e-3` | Family-HMM full-sequence E-value ceiling for presence (`mmseqs` pathway) |
 | `--hmm_presence_cov` | `0.5` | Family-HMM minimum profile coverage for presence (`mmseqs` pathway) |
 | `--family_chunk_size` | `200` | Families per parallel profile-build task (`mmseqs` pathway) |
-| `--evalue` | `1e-5` | Fallback e-value for proteins with no detectable within-proteome paralog |
-| `--parse_evalue` | `0.01` | Noise ceiling applied when parsing raw pairwise hits; the authoritative per-gene cutoff comes from the self-vs-self paralog search |
+| `--evalue` | `1e-5` | Flat significance cutoff applied to every hit (`pairwise` pathway + novelty_discovery singletons) |
+| `--parse_evalue` | `0.01` | Loose noise ceiling applied when parsing raw pairwise hits; final filtering applies `--evalue` plus the paralog-competition filter |
 | `--ingroup_min_frac` | `0.75` | Min fraction of ingroup proteomes that must contain a hit |
 | `--outgroup_min_frac` | `0.75` | Min fraction of outgroup proteomes that must contain a hit, for the loss-search direction (`loss_presence_matrix.tsv`) |
 | `--loss_ingroup_max_frac` | `0.0` | Max fraction of the ingroup a loss candidate may still be present in. `0.0` = strictly absent from the ingroup; raise it (e.g. `0.1`) to allow genes *nearly*, but not entirely, lost — retained in a few ingroup species |
@@ -456,8 +456,8 @@ All outputs are written to `results/<project>/`:
 
 | File | Description |
 |---|---|
-| `self_hits/<SHORT>.paralog_cutoffs.tsv` | Per-gene paralog e-value cutoffs from self-vs-self search (columns: `protein_ID`, `paralog_protein_ID`, `bitscore`, `evalue`) |
-| `presence_matrix.tsv` | Gene × proteome presence/absence matrix (presence scored against paralog cutoffs) |
+| `self_hits/<SHORT>.paralog_cutoffs.tsv` | Per-gene within-proteome paralog from self-vs-self search, for the paralog-competition filter (columns: `protein_ID`, `paralog_protein_ID`, `bitscore`, `evalue` -- the `evalue` column is informational only) |
+| `presence_matrix.tsv` | Gene × proteome presence/absence matrix (flat significance cutoff + paralog-competition filter) |
 | `candidates.txt` | Protein IDs meeting ingroup/outgroup criteria |
 | `candidates.fa` | FASTA of all candidate proteins |
 | `clusters/` | mmseqs2 cluster output (TSV, rep FASTA, all-seqs FASTA) |

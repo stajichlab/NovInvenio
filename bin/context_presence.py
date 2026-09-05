@@ -5,12 +5,21 @@
 These proteomes never determine novelty -- candidates.txt is already fixed by the
 strict IN/OUT search (bin/build_presence_matrix.py) by the time this runs. This just
 answers "does this candidate also show up in a close relative, or a distant lineage?"
-for the report's benefit, using the *same* paralog-aware filtering:
+for the report's benefit, using the *same* filtering:
 
-  1. Paralog-cutoff filter: hit e-value < the candidate's own within-proteome paralog
-     e-value (fallback --default-evalue).
+  1. Significance filter: hit e-value < --default-evalue (flat, applied to every hit).
   2. Paralog-competition filter (--paralog-competition-scope, mirrors
      build_presence_matrix.py): disqualify a hit the candidate's paralog out-scores.
+
+(2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value must beat
+the candidate's own within-proteome paralog e-value, falling back to --default-evalue
+when no paralog was detected. Dropped for the same reason as
+bin/build_presence_matrix.py/lib/singleton_presence.py: it swung both too tight (an
+unreachable cutoff whenever the candidate has a close in-genome paralog, regardless of
+whether that paralog is actually relevant to the hit being judged) and too loose (self-
+search noise as the "cutoff" for candidates with no real paralog). Filter 2 already does
+the real paralogy test as a direct comparison; see lib/singleton_presence.py's module
+docstring for the empirical evidence.)
 
 Filter 2 needs the paralog's own hits against the same context proteomes, which is
 why --hits also includes hits from bin/build_context_query.py's extended query list
@@ -48,14 +57,15 @@ def load_candidates(path):
 
 
 def load_paralog_info(cutoff_files):
-    cutoffs, paralog_of = {}, {}
+    """Return paralog_of: protein_id -> paralog_protein_id, for the paralog-competition
+    filter only; the e-value column is not used (see --default-evalue)."""
+    paralog_of = {}
     for path in cutoff_files:
         df = pd.read_csv(path, sep='\t')
         if df.empty:
             continue
-        cutoffs.update(dict(zip(df['protein_ID'], df['evalue'].astype(float))))
         paralog_of.update(dict(zip(df['protein_ID'], df['paralog_protein_ID'])))
-    return cutoffs, paralog_of
+    return paralog_of
 
 
 HIT_COLUMNS = ['query_id', 'target_id', 'evalue', 'bitscore',
@@ -84,11 +94,14 @@ def main():
     ap.add_argument('--candidates', required=True,
                     help='candidates.txt -- only these protein_ids are scored/emitted')
     ap.add_argument('--paralog-cutoffs', nargs='+', default=[], dest='paralog_cutoffs',
-                    help='paralog_cutoffs.tsv files from the ingroup self-vs-self search')
+                    help='paralog_cutoffs.tsv files from the ingroup self-vs-self search -- '
+                         'supplies the paralog_protein_ID column for the paralog-competition '
+                         'filter; the e-value column is not used (see --default-evalue).')
     ap.add_argument('--config', required=True, help='Analysis description CSV')
     ap.add_argument('--paralog-competition-scope', choices=['proteome', 'target'],
-                    default='proteome', dest='paralog_competition_scope',
-                    help='Same semantics as build_presence_matrix.py (default: proteome)')
+                    default='target', dest='paralog_competition_scope',
+                    help='Same semantics as build_presence_matrix.py '
+                         "(default: 'target', matches nextflow.config's pipeline default)")
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
@@ -101,7 +114,7 @@ def main():
     )
 
     candidates = load_candidates(args.candidates)
-    paralog_cutoffs, paralog_of = load_paralog_info(args.paralog_cutoffs)
+    paralog_of = load_paralog_info(args.paralog_cutoffs)
     hits = load_hits(args.hits)
 
     if hits.empty or not context_ids:
@@ -126,8 +139,7 @@ def main():
     cand = hits[hits['query_id'].isin(candidates)].copy()
 
     if not cand.empty:
-        cutoff = cand['query_id'].map(paralog_cutoffs).fillna(args.default_evalue)
-        cand = cand[cand['evalue'] < cutoff]
+        cand = cand[cand['evalue'] < args.default_evalue]
 
     if not cand.empty:
         paralog_ids = cand['query_id'].map(paralog_of)

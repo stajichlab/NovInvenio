@@ -220,6 +220,106 @@ knowledge layer carries each investigation without needing a full agent session.
 
 ---
 
+### [2026-09-04] Fixing a bin/ script doesn't bust Nextflow's `-resume` cache by itself
+
+**Category**: gotcha
+
+**What happened**: After the H1/H2 presence-calling bugfix (`a49ee0c`), the pezizo5
+coverage-floor sweep (`c704d72`) was launched with `-resume` against a repo `work/` dir that
+also held an old (2026-07-22) pre-fix `pezizo5_mmseqs` run. Nextflow's task cache hash is
+derived from the process's rendered *script text* plus its declared input files — it does
+**not** track the content of a `bin/*.py` script that a process invokes by bare command
+(e.g. `profile_to_matrix.py --hmm-cov ...`) unless that script is itself declared as a
+`path` input. So editing `lib/family_presence.py`/`bin/profile_to_matrix.py` to fix the
+circular-calibration bug does not, by itself, invalidate any previously-cached completed
+task for the process that calls it — a `-resume` could silently reuse the stale, buggy-logic
+output instead of recomputing with the fix. Verified this did *not* actually happen to
+pezizo5 only by chance: the same fix commit series (`7e29f12`) also added a brand-new
+`--min-covered-residues ${params.hmm_presence_min_residues}` flag directly into
+`modules/profile_presence_matrix.nf`'s process script, which changed the rendered script
+text for every post-fix invocation (regardless of grid-point param values) and forced
+genuine re-execution rather than a cache hit. Had the fix been purely internal to the
+Python logic (same CLI flags, same values), `-resume` could have reused the pre-fix
+cached matrix-building task undetected.
+
+**Why it matters**: Any bugfix confined to a `bin/*.py` file's internals — with no change to
+the CLI flags/values the calling process's script block renders — is invisible to Nextflow's
+cache invalidation. A `-resume`'d sweep or reprocessing run could silently keep serving
+pre-fix results for exactly the step that was just fixed, with no error or warning.
+
+**Resolution**: Traced the specific commit ordering and script diffs to confirm pezizo5's
+sweep was unaffected in this instance (see `.living/decisions.md`). No repo-wide fix applied
+yet — this is a general Nextflow caching hazard, not specific to one process.
+
+**Tags**: nextflow, resume, caching, bin-scripts, task-hash, presence-calling, gotcha,
+mmseqs, sweep
+
+**mitigation_type**: ambient-awareness
+
+**structural_mitigation_candidate**: After any bugfix to a `bin/*.py`/`lib/*.py` file, check
+whether the calling process's `.nf` script block renders different text for the fix (e.g. a
+changed/added flag) — if not, deliberately clear the affected `work/`/`.nf_launch/*/work`
+task dirs (or bump a cache-busting param/comment in the process script) rather than trusting
+`-resume` to pick up the fix. Consider a repo convention: every `bin/`-called script that is
+`storeDir`/`-resume`-sensitive should be declared as an explicit `path` input to its process
+so Nextflow's hash tracks its content automatically.
+
+---
+
+### [2026-09-05] Two distinct BUILD_CHUNK "failure" signatures on the broader-grid sweeps — one benign, one from manual queue intervention
+
+**Category**: gotcha
+
+**What happened**: Both `deep_broad_1kfg` and `sordariales_shallow` sweeps lost their
+`hc0.5/r0` grid point to bursts of ~300-400 `BUILD_CHUNK` "failures" each. Verified by
+sampling failed work dirs directly: `.exitcode` was `0` and `sacct` showed `COMPLETED`
+for the sampled SLURM job IDs — the tasks actually succeeded. The log showed
+`Failed to get exit status for process ... exitStatusReadTimeoutMillis: 270000` —
+Nextflow's default 270s wait for the `.exitcode` file to appear on shared GPFS storage
+was too short when many chunks finished within the same window and contended for
+filesystem metadata. A second, distinct signature was also present in earlier logs:
+`Process ... terminated for an unknown reason -- Likely it has been terminated by the
+external system` — this is what Nextflow reports when a job it submitted disappears or
+restarts outside its control (e.g. `scontrol requeue`, cancel+resubmit, or genuine SLURM
+preemption on the `preempt` partition, which is deliberately preemptible). The user was
+separately using `scontrol update JobId=X Partition=Y` to move *pending* jobs to a less
+congested partition during this run — confirmed that does NOT reproduce this signature,
+since it keeps the same job ID and only affects scheduling of a job that hasn't started
+yet, so Nextflow's tracking is unaffected. The two failure signatures are easy to
+conflate since both surface as a failed `BUILD_CHUNK`, but only the exit-timeout one is
+a timing artifact from this incident; the "terminated by external system" one (seen
+earlier, chunk_200) was most likely ordinary `preempt`-partition preemption, not any
+manual action.
+
+**Why it matters**: An entire sweep grid point's presence/recovery metrics were silently
+recorded as blank/partial rather than the run being flagged for a hard rerun, because
+`bin/run_param_sweep.sh` catches a failed grid point and continues (`recording
+partial/blank metrics and continuing`) — see that script's error handling. Without
+checking `.exitcode`/`sacct` directly, both failure classes look identical from the
+sweep's own summary line.
+
+**Resolution**: Raised `executor.exitReadTimeout` from Nextflow's 270sec default to
+900sec in both `conf/ucr_hpcc_slurm.config` and `nextflow.config`'s `slurm` profile
+block (kept in sync — the latter is the profile default, the former is what
+`bin/run_param_sweep.sh` actually loads via `-c`). This addresses the first failure mode
+only. The second (external termination) is not something this run's failures were
+actually attributed to once checked — `scontrol update JobId=X Partition=Y` on a
+still-pending job is confirmed safe (same job ID, no restart); avoid `scontrol
+requeue`/cancel+resubmit on a job Nextflow is actively tracking, which would not be.
+
+**Tags**: nextflow, slurm, exitReadTimeout, gpfs, false-failure, queue-management,
+sweep, preempt, gotcha
+
+**mitigation_type**: structural
+
+**structural_mitigation_candidate**: The `exitReadTimeout` fix has shipped (see
+Resolution). No structural mitigation exists yet for the second failure mode beyond the
+operational guidance above — a candidate would be a wrapper around manual SLURM
+job manipulation that first checks whether the job ID is currently tracked by a live
+Nextflow session (e.g. grepping `.nextflow.log` for the job ID) and warns before acting.
+
+---
+
 ## The report pages' colour duplication was hiding two real defects (2026-09-05)
 
 **What surprised us**: consolidating four copies of the colour tokens was framed as a

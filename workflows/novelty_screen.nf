@@ -60,6 +60,7 @@ process NOVELTY_SCREEN_CLASSIFY {
     path(config_csv)
     val(default_family_evalue)
     val(min_coverage)
+    val(min_covered_residues)
     path(near_singleton_hits)
     path(broad_singleton_hits)
     path(paralog_cutoffs)
@@ -86,6 +87,7 @@ process NOVELTY_SCREEN_CLASSIFY {
         --family-thresholds ${family_thresholds} \
         --default-family-evalue ${default_family_evalue} \
         --min-coverage ${min_coverage} \
+        --min-covered-residues ${min_covered_residues} \
         ${near_singleton_arg} \
         ${broad_singleton_arg} \
         ${paralog_arg} \
@@ -106,7 +108,10 @@ workflow NOVELTY_SCREEN {
     broad_outgroup_ch         // [meta, protein_fa] — BROAD_OUTGROUP proteomes (20-100 species)
     broad_outgroup_dna        // [meta, dna_fa] — BROAD_OUTGROUP genomes (for TBLASTN)
     calibrated_hmms      // path: family_profiles.hmm from NOVELTY_DISCOVERY
-    family_thresholds    // path: family_thresholds.tsv from NOVELTY_DISCOVERY
+    family_thresholds    // path: family_thresholds.tsv from NOVELTY_DISCOVERY -- passed
+                          //   through for process interface stability only; presence is
+                          //   gated by the flat --default-family-evalue, not this file (see
+                          //   lib/family_presence.py's module docstring)
     family_reps          // path: families_rep_seq.fasta from NOVELTY_DISCOVERY
     cluster_tsv          // path: families_cluster.tsv from NOVELTY_DISCOVERY
     discovery_matrix      // path: presence_matrix.tsv from NOVELTY_DISCOVERY
@@ -189,6 +194,7 @@ workflow NOVELTY_SCREEN {
         config_csv,
         params.hmm_presence_evalue,
         params.hmm_presence_cov,
+        params.hmm_presence_min_residues,
         near_singleton_hits_ch,
         broad_singleton_hits_ch,
         paralog_cutoffs,

@@ -301,6 +301,381 @@ generate_index.py needs Python 3.10+"; use `python3.12` (present in the pixi env
 **Tags**: mycelium, reconciliation, decisions, novelty-discovery, singleton, context-search,
 roles, ev-score, docker, pfam, perf, findings, in-progress
 
+9. **Fixed circular per-family presence threshold in `novelty_discovery` (2026-09-03)** —
+   `bin/calibrate_family_hmms.py` set each family's presence E-value threshold to the best
+   (lowest) E-value that family's HMM scored against DISCOVERY_OUT, then
+   `bin/novelty_presence_matrix.py`/`bin/novelty_screen.py` required `evalue < threshold` to
+   call presence. Since the threshold *is* the minimum observed DISCOVERY_OUT E-value, no
+   DISCOVERY_OUT proteome could ever satisfy `E < min(E)` against itself — the
+   outgroup-absence filter was a structural no-op. Confirmed against a real run
+   (`results/sordario/`): all matrix rows had zero DISCOVERY_OUT presence, 83.8% of 14,779
+   "candidates" had a contradicting TBLASTN hit. Flagged by a collaborator manually
+   re-BLASTing three "novel" N. crassa genes (NCU00765, NCU00411, NCU01935) against S. pombe
+   and finding highly significant (down to 3e-160) annotated hits. Independently verified by
+   an agent code review before the fix landed.
+   Fix: presence is now gated purely by the flat `--default-family-evalue` /
+   `--hmm_presence_evalue` for every proteome (both discovery and screen phases); per-family
+   calibration (`--family-thresholds`) is still computed and piped through for Nextflow
+   process interface stability but is no longer consumed for gating. Also fixed a related bug
+   in `lib/family_presence.py`'s `parse_domtblout()`: HMM-coverage was pooled across *all*
+   target sequences in a proteome instead of per-target, letting several unrelated weak
+   partial hits fake a passing coverage score — coverage is now computed per (query, target)
+   and paired with whichever target gave the best E-value.
+   **All prior `--cluster_tool novelty_discovery` run results (including `results/sordario/`)
+   should be considered invalid for outgroup-absence and re-run.** The known-but-separate
+   over-strict singleton paralog-cutoff filter (`lib/singleton_presence.py`, filter 1 — cutoff
+   derived from a within-genome self-vs-self search, can become unreachable when a close
+   in-paralog exists) was reviewed but left unfixed — it did not cause the three reported
+   genes (they are family members, not singletons) and is out of scope for this fix.
+
+**Tags**: novelty-discovery, bug-fix, correctness, family-hmm, calibration, presence-matrix
+
+10. **Fixed H2: paralog-cutoff filter (filter 1) replaced with a flat significance floor,
+    project-wide (2026-09-03)** — `lib/singleton_presence.py`, `bin/build_presence_matrix.py`,
+    and `bin/context_presence.py` each independently implemented the same "paralog-cutoff"
+    filter 1: hit e-value must beat the query's own within-genome paralog e-value (from a
+    self-vs-self search reported down to E=100), falling back to a flat default otherwise.
+    Measured on real N. crassa self-search data (`results/pezizo4/self_hits/Ncra.paralog_cutoffs.tsv`,
+    8,293 proteins): 28.2% of cutoffs were looser than the intended default (1e-5) —
+    self-search noise standing in for "no real paralog" — and 40.0% were tighter than 1e-50,
+    an unreachable bar for any real cross-species ortholog. Confirmed concretely against real
+    Ncra-vs-Spom phmmer AND diamond hits: **actin (NCU04173/Act1) and a P-type ATPase
+    (NCU07966)** — both near-universally conserved — would have been wrongly called ABSENT
+    from S. pombe under the old filter (their own near-identical in-genome paralog e-value
+    was tighter than the real ortholog hit), in both tool outputs. All three genes from the
+    original H1 report (NCU00765/00411/01935) were unaffected by this specific filter in
+    this data (their own paralog cutoffs happened to be loose enough) — consistent with H1
+    (family-HMM calibration circularity, decision #9) being the sole explanation for those.
+    Fix: filter 1 is now a flat `--default-evalue`/`--singleton-evalue` applied to every hit
+    (no per-query paralog derivation); filter 2 (paralog-competition, a direct head-to-head
+    comparison) is unchanged and remains the real paralogy test. `load_paralog_info()` now
+    returns only `paralog_of` (the e-value column is unused) in all three files.
+    `bin/calibrate_family_hmms.py`-style self-referential calibration does not appear reused
+    elsewhere (the general `--cluster_tool mmseqs` pathway already uses a flat
+    `--hmm_presence_evalue`, not per-family calibration, per CLAUDE.md) -- a whole-project
+    Fable consistency review was dispatched after this fix landed to verify that
+    independently; see the follow-up entry once it returns.
+
+**Tags**: novelty-discovery, bug-fix, correctness, paralog-cutoff, singleton, context-search,
+build-presence-matrix
+
+11. **Follow-up: Fable consistency review found and fixed a real gap in fix #9 (coverage
+    gated on wrong target) (2026-09-03)** — a dispatched Fable review verified fixes #9/#10
+    and audited the whole project for other pockets of either bug class. Findings:
+    - **Confirmed correct and complete:** H2's flat-significance-filter fix (decision #10) in
+      all three files; the general `--cluster_tool mmseqs` pathway (`bin/profile_to_matrix.py`)
+      already used a flat threshold with no calibration step; TBLASTN thresholding is flat;
+      the loss-search direction reuses the same (fixed) `build_presence_matrix.py`, no separate
+      logic; the paralog-competition filter (filter 2) itself is sound and unaffected by either
+      fix, in all four implementations.
+    - **Real gap found in fix #9:** `lib/family_presence.py`'s `parse_domtblout()` (from
+      decision #9) fixed the coverage-pooled-across-targets bug but introduced a narrower one --
+      it evaluated the coverage gate only on whichever single target gave the BEST E-value,
+      so a family whose best-E hit happened to be a coverage fragment (but a different,
+      slightly-worse-E target had full coverage) was still wrongly called absent. Confirmed
+      against real `results/sordario/` data: NCU00411 (ATG43) and part of NCU01935's
+      DISCOVERY_OUT presence were still miscalled post-fix #9, not due to circularity anymore
+      but due to this best-target-only coverage gate. Also found: `bin/profile_to_matrix.py`
+      (the general `mmseqs` pathway) had its own, INDEPENDENT coverage bug -- summed raw
+      domain spans without merging overlaps, so overlapping domains on the same target could
+      double-count coverage past 1.0.
+    - **Fix:** `parse_domtblout(path, default_evalue, min_coverage)` now returns, per query,
+      the best E-value among targets where THAT SAME target independently clears both the
+      E-value and coverage gates (present if ANY target qualifies -- matching
+      `bin/profile_to_matrix.py`'s original "any target" semantics, just with correct merged-
+      interval coverage). `bin/profile_to_matrix.py`'s own duplicate `parse_domtblout` was
+      deleted entirely and replaced with an import of `lib/family_presence.py`'s version --
+      the two family-presence pathways now share one implementation instead of two
+      independently-maintained (and previously divergent) copies. Re-verified against real
+      sordario data: NCU00765/00411/01935 are now all correctly present in at least one
+      DISCOVERY_OUT proteome (so correctly excluded as novelty candidates); NCU00411 remains
+      genuinely absent from S. pombe specifically (its only Spom hit has intrinsically low
+      HMM coverage, ~26% -- a real biological/parameter-tuning question about a short protein,
+      not a code bug) but is now correctly caught via its Ylip hit.
+    - Also fixed for consistency: `--paralog-competition-scope`'s Python argparse default was
+      `'proteome'` in all four scripts while `nextflow.config`'s pipeline default is `'target'`
+      -- silently divergent for any standalone/manual script invocation (pipeline runs were
+      unaffected, since Nextflow always passes the flag explicitly). Argparse defaults changed
+      to `'target'` to match.
+    - Updated stale documentation describing the removed paralog-cutoff/calibration logic as
+      current: CLAUDE.md, README.md, METHOD_DESCRIPTION.md, nextflow.config comments,
+      `bin/parse_self_hits.py`, `workflows/novelty_discovery.nf`, `workflows/search.nf`.
+    202/202 tests pass (added regression tests for the any-target coverage fix and the
+    scope-default change), ruff lint clean.
+
+**Tags**: novelty-discovery, bug-fix, correctness, family-hmm, coverage, profile-to-matrix,
+paralog-competition-scope, documentation, fable-review
+
+12. **Added an absolute-residue alternative to the family-HMM coverage floor, and sweep
+    infrastructure to actually validate it (2026-09-03)** — following decision #11's
+    finding that `--hmm_presence_cov 0.5` (a flat coverage *fraction*) rejects 83% of
+    otherwise-significant hits on HMMs >600aa (vs 7% for HMMs <150aa) as a structural
+    side-effect of requiring coverage over the *whole* profile length, regardless of how
+    much of a multi-domain protein's ortholog could realistically align:
+    - Added `--hmm_presence_min_residues` (default 100, data-informed from a real-run
+      sensitivity table but not yet swept/validated): a target now qualifies if EITHER
+      the coverage fraction clears `--hmm_presence_cov` OR its merged aligned span is at
+      least this many absolute residues — targeting the floor's actual stated purpose
+      (reject a hit explained by one small, promiscuous shared domain) without penalizing
+      long proteins purely for being long. Wired through `lib/family_presence.py`,
+      `bin/novelty_presence_matrix.py`, `bin/novelty_screen.py`, `bin/profile_to_matrix.py`
+      (whose own independent, buggy coverage-double-counting implementation was deleted
+      and replaced with `lib/family_presence.py`'s shared, tested one), the corresponding
+      Nextflow process/workflow wiring, and `nextflow.config`. A real bug was caught before
+      landing: the naive `covered >= min_residues` with default `min_residues=0` is
+      trivially always true, silently disabling the coverage floor entirely — guarded
+      explicitly (`min_residues > 0 and ...`) and now covered by a dedicated regression
+      test in every consuming file.
+    - `--hmm_presence_cov` was previously never swept at all (unlike `--hmm_presence_evalue`)
+      — its 0.5 default was a design-doc guess (ADR-0002 Q5), not empirically validated the
+      way `--family_min_seq_id`/`--family_cov` were. `bin/run_param_sweep.sh` now includes
+      `--hmm_presence_cov`/`--hmm_presence_min_residues` as swept dimensions, but the
+      existing sweep quality metrics couldn't actually test them: `busco_recovery`
+      (`bin/busco_family_recovery.py`) measures mmseqs *clustering* quality and is
+      insensitive to presence-calling parameters entirely (they act downstream, after
+      clustering); `score_controls.py`'s recall/fp_rate needs curated per-clade controls
+      that may not exist. Added `bin/busco_presence_recovery.py`: a curation-free metric
+      that checks, for each BUSCO ortholog recovered as one clean family, whether OUTGROUP
+      (non-cluster-member) species BUSCO independently confirms carry a Complete copy are
+      actually marked present in `presence_matrix.tsv` — the thing `hmm_presence_cov`/
+      `hmm_presence_min_residues` directly control. A real implementation bug was caught
+      before landing: the first draft required zero "unmapped" species among a BUSCO's
+      copies to count it as scorable, but an unmapped copy (never fed to clustering) is
+      *exactly* the outgroup case this script exists to test — smoke-testing against real
+      sordario data (0 scorable pairs) surfaced this immediately; fixed by only requiring
+      the *mapped* (cluster-member) copies to agree on one family, which unmapped/outgroup
+      copies don't disqualify.
+    - Addressed the user's methodological concern (are BUSCO genes systematically longer
+      than the whole proteome, biasing any BUSCO-based tuning toward long genes only?)
+      empirically with real *N. crassa* data (`busco_pezizo5/Ncra.busco/` vs its
+      `family_hmmsearch` domtblout-derived protein lengths): BUSCO Complete gene lengths
+      (median 460 aa, IQR 304–702, 32.9% >600aa) closely track the whole proteome's
+      (median 462 aa, IQR 302–686, 32.7% >600aa) — BUSCO modestly *underrepresents* the
+      shortest bucket (<150aa: 3.8% vs 6.7%), the one bucket that was already unaffected by
+      the coverage floor, so low-risk for this specific use. Built this check into the tool
+      itself (`--reference-domtblout`) rather than treating it as a one-off, so every future
+      sweep run reports its own representativeness rather than assuming BUSCO generalizes.
+    - `bin/collate_sweep.py`'s scoring extended with a `presence_recovery` admissibility
+      gate + composite term, but only when the metric was actually measured (an
+      all-missing column, e.g. no `BUSCO_OUTGROUP_TABLES` configured, is distinguished from
+      a genuinely-measured-and-worst column and its gate is skipped rather than silently
+      failing every grid point).
+    - Extracted `bin/busco_family_recovery.py`'s BUSCO-loading helpers into `lib/busco.py`
+      (shared with the new script) per this repo's shared-logic-goes-in-lib convention.
+    218/218 tests pass, ruff lint clean. **No sweep has actually been executed** (needs
+    real cluster time, BUSCO runs for outgroup species, and possibly curated controls) —
+    this is infrastructure only; running it and wiring the recommended defaults back into
+    `nextflow.config` is separate future work requiring the user's go-ahead to launch.
+
+**Tags**: novelty-discovery, coverage-floor, hmm-presence, sweep, busco, adr-0002,
+parameter-tuning
+
+13. **Ran the pezizo5 coverage-floor sweep (scoped, 4 points); found and fixed two
+    real bugs surfaced by the real run (2026-09-03)** — launched
+    `run_sweep_pezizo5_coverage.sh` on the UCR HPCC `batch` partition (job 28051317),
+    sweeping `--hmm_presence_cov` {0.5, 0.3} × `--hmm_presence_min_residues` {0, 100}
+    against `configs/pezizo5.csv`, clustering params held at shipped defaults.
+    - **Bug found and fixed before trusting results:** `bin/collate_sweep.py` treated an
+      entirely-unmeasured optional metric (`fp_rate`/`recall`, no `configs/controls/
+      pezizo5.controls.csv` exists) the same as a genuinely-measured worst value
+      (`fp_rate=1.0`), which failed every grid point's admissibility gate and printed a
+      misleading "no grid point met the gates" warning implying a 100% false-novelty
+      rate rather than "not measured." Generalized the same guard already built for
+      `presence_recovery` (decision #12) to `recall`/`fp_rate` too, added a `run_ok`
+      gate/column so a failed pipeline run's partial metrics can never be admissible,
+      and added regression tests for both — one of them (`test_recall_and_fp_rate_gates
+      _skipped_when_never_measured`) directly encodes the real numbers from this sweep.
+    - **Second bug found and fixed, also before trusting results:** the metrics TSV
+      itself was silently corrupted — Python's `csv` module always writes `\r\n` line
+      endings unless `lineterminator='\n'` is set explicitly (`newline=''` on `open()`
+      does NOT prevent this, a common gotcha), so `bin/busco_family_recovery.py`'s
+      `*.summary.tsv` had `\r\n` endings; `awk`'s `$2` extraction in
+      `bin/run_param_sweep.sh` left a trailing `\r` baked into the shell variable; and
+      Python's `csv.DictReader`, run on the resulting metrics TSV, treats a bare `\r`
+      as its own row boundary (regardless of the file's declared dialect) — silently
+      splitting every 1 real row into 2 corrupt ones with fields shifted into the wrong
+      columns. Fixed at both ends: `lineterminator='\n'` added to every `csv.writer`/
+      `csv.DictWriter` call in `busco_family_recovery.py`, `busco_presence_recovery.py`,
+      `score_controls.py`, and `collate_sweep.py` itself; `tr -d '\r'` added defensively
+      to every `awk`-based field extraction in `run_param_sweep.sh` as a second line of
+      defense. The already-collected `sweep_metrics.tsv` was cleaned in place (`tr -d
+      '\r'`) rather than re-running the (now-fixed-at-the-source) pipeline jobs.
+    - **A separate, unrelated infrastructure failure** (not a bug in this session's code)
+      also hit the first launch attempt: the Pfam annotation step's `mpirun -np 32
+      hmmsearch --mpi` requested more MPI slots than the SLURM allocation had. Fixed
+      pragmatically by adding an `ANNOTATE_SWEEP` toggle (default off) to skip Pfam/
+      SwissProt annotation for the sweep entirely — none of the sweep's metrics need it,
+      it is the single most expensive step, and it was what broke.
+    - **Real (if partial) result, from `tblastn_removed`** — candidates with a
+      *contradicting* outgroup TBLASTN genomic hit despite being called protein-level
+      absent, the same red flag the original H1/H2 bug reports were built from:
+      current shipped default (`hmm_cov=0.5, hmm_residues=0`): 1961 novelty candidates,
+      **554 contradicted (28.2%)**. Loosest tested setting (`hmm_cov=0.3,
+      hmm_residues=100`): 1107 candidates, **21 contradicted (1.9%)** — a 15-fold drop
+      in the contradiction rate for a 44% drop in raw candidate count, i.e. the
+      candidates being removed are disproportionately the low-quality (contradicted)
+      ones, not a uniform thinning. `busco_recovery` (0.753) was identical across all
+      4 points as expected (it measures clustering, not presence-calling, so it can't
+      discriminate between these settings — confirming decision #12's design rationale
+      for needing `presence_recovery` instead).
+    - **What this run does NOT establish**: no outgroup BUSCO tables exist for pezizo5
+      (only the 5 IN-group species have been BUSCO-run, under `busco_pezizo5/`) and no
+      controls CSV exists either, so `presence_recovery`/`recall`/`fp_rate` are all
+      unmeasured this round — ranking rests on `busco_recovery` (insensitive to the
+      parameters under test) plus `tblastn_removed` read by eye, not a rigorous
+      composite score. Running BUSCO against an outgroup proteome (e.g. Spom, Scer) and
+      re-running with `BUSCO_OUTGROUP_TABLES` set is the natural next step before
+      actually changing `nextflow.config`'s shipped defaults.
+    221/221 tests pass, ruff lint clean. `nextflow.config`'s defaults were NOT changed
+    by this decision — `hmm_presence_cov=0.5`/`hmm_presence_min_residues=100` remain as
+    set in decision #12; this entry documents the sweep run and what it found, not a
+    new shipped default.
+
+**Tags**: novelty-discovery, coverage-floor, hmm-presence, sweep, busco, slurm, mpi,
+csv-crlf, bug-fix
+
+14. **Built the broader-grid validation infrastructure for the coverage-floor sweep
+    (2026-09-03)** — following decision #12/#13's finding that the pezizo5 sweep was
+    only 4 points on one clade, added the machinery for real divergence-depth diversity
+    per `todo/validate-hmm-presence-coverage-broader-sweep.md`:
+    - `bin/convert_1kfg_samples.py` (new, parallels `bin/convert_bfd_samples.py`): joins
+      1KFG's (1000 Fungal Genomes, JGI MycoCosm) 345 flat-directory proteomes under
+      `/bigdata/stajichlab/shared/projects/1KFG/genomes/final_combine/` against
+      Fungi_BFD's `samples.csv` (23,684 assemblies, ~12,401 annotated) by genus+species
+      epithet to recover taxonomy 1KFG doesn't carry on its own (~70% match rate, the
+      rest skipped and reported, not guessed) — `config_support/1KFG_samples.csv`, 241
+      species with full semicolon-delimited Lineage strings, ready for
+      `bin/make_config.py`'s existing `--max-per-outgroup-taxon`/`--random`/`--seed`
+      stratified sampling.
+    - Two new configs drafted from that pool: `configs/sordariales_shallow_1kfg.csv`
+      (shallow divergence — ingroup Sordariales: Chaetomium/Neurospora/Podospora/
+      Sordaria, 4 species one order; outgroup sibling Sordariomycetes orders, capped
+      3/order, seed 42 — 14 proteomes) and `configs/deep_broad_1kfg.csv` (deep + large —
+      ingroup 105 species across 7 filamentous-Ascomycota classes, since BFD doesn't
+      populate SUBPHYLUM for most rows so "Pezizomycotina" isn't a matchable token and
+      the ingroup was built via explicit `--ingroup-short` pins instead; outgroup a
+      stratified random sample, 5/phylum seed 42, across 11 other fungal phyla,
+      excluding Microsporidia as a reduced-genome outlier — 130 proteomes total, real
+      ADR-0002/Chaetothyriales scale, requires `--cluster_tool mmseqs`).
+    - `run_busco_1kfg_array.sbatch`: a SLURM array job (130 tasks, `%25` throttle) running
+      BUSCO fungi_odb12 once for the full union of both new configs' species (config 1's
+      14 species turned out to be entirely a subset of config 3's 105 ingroup, so one
+      130-species BUSCO batch covers both configs' `BUSCO_TABLES`/`BUSCO_OUTGROUP_TABLES`
+      needs) — output under `busco_1kfg/<Short>.busco/`.
+    - `run_sweep_sordariales_shallow.sh` / `run_sweep_deep_broad_1kfg.sh`: new sweep
+      launchers mirroring `run_sweep_pezizo5_coverage.sh` (same scoped 2×2
+      `hmm_presence_cov`×`hmm_presence_min_residues` grid, clustering params held at
+      shipped defaults, annotation skipped) but building `BUSCO_TABLES`/
+      `BUSCO_OUTGROUP_TABLES` dynamically from each config CSV via `awk` rather than
+      hand-transcribing 105+25 `SHORT=path` entries. `deep_broad_1kfg`'s launcher sets an
+      explicit `--time=14-00:00:00` (`batch` partition default is 7 days, max 30) since
+      it is an order of magnitude larger than pezizo5 (130 vs 11 proteomes) and the
+      driver's own SLURM job must stay alive for the entire nested `nextflow -profile
+      slurm` orchestration, not just its own work.
+    All three sweeps (pezizo5/medium, sordariales_shallow/shallow, deep_broad_1kfg/deep+
+    large) launched together to compare how the recommended `hmm_cov`/`hmm_residues`
+    setting shifts (or doesn't) across divergence depth and panel size — results to be
+    logged in a follow-up decision once they complete.
+
+**Tags**: novelty-discovery, coverage-floor, sweep, busco, 1kfg, bfd, taxonomy,
+broader-grid, slurm-array
+
+15. **Excluded Penicillium chrysogenum from configs/deep_broad_1kfg.csv: a genuine
+    duplicate-ID ambiguity in its own 1KFG proteome FASTA (2026-09-03)** — discovered when
+    it broke both its own BUSCO run (`Duplicate of sequence >Pchr|PCH_Pc18g05710.1`) and
+    then the deep_broad_1kfg sweep's `EXTRACT_FAMILY_SEQS` step
+    (`bin/extract_family_seqs.py` -> `lib/fasta.py`'s `read_fasta()` -> `Bio.SeqIO.to_dict()`,
+    which raises `ValueError: Duplicate key` on any repeated FASTA header). Checked before
+    "fixing" it by deduping: `Pchr|PCH_Pc18g05710.1` has 2 exact-duplicate records (would
+    have been safe to collapse), but `Pchr|PCH_Pc17g01280` has 4 records under the same ID
+    that are NOT sequence-identical (same length, different residues) -- a genuine upstream
+    annotation-export ambiguity, not a harmless duplicate. Rather than guess which variant
+    is "correct" or edit the shared `/bigdata/stajichlab/shared/projects/1KFG/` resource
+    (used by other projects), removed the one species (105 -> 104 ingroup species)
+    from `configs/deep_broad_1kfg.csv` and let the already-running sweep self-heal via
+    `-resume` (Nextflow re-reads the CSV fresh each grid-point invocation within the bash
+    loop, so the content change is picked up without restarting the job).
+
+**Tags**: novelty-discovery, data-quality, 1kfg, duplicate-id, bug-fix
+
+14. **Two real infrastructure bugs found and fixed via the broader-grid sweep runs
+    (2026-09-04)** — running `sordariales_shallow_1kfg`/`deep_broad_1kfg` at real scale
+    (14 and 130 proteomes respectively, from 1KFG genomes) surfaced two genuine,
+    previously-latent bugs, distinct from the presence-calling logic bugs (#9-#13):
+    - **`lib/fasta.py`'s `read_fasta()` crashed on duplicate sequence IDs** (used
+      `Bio.SeqIO.to_dict()`, which requires global uniqueness) when concatenating
+      proteomes from independently-sourced genome collections — confirmed real:
+      `deep_broad_1kfg`'s loss-direction family building hit `ValueError: Duplicate key
+      'Pchr|PCH_Pc18g05710.1'` from two different genomes reusing the same short internal
+      locus tag as their protein ID, killing the whole `PROFILE_LOSS_SEARCH` run. Fixed to
+      keep the first occurrence and warn to stderr instead of crashing — a real
+      possibility whenever proteomes come from heterogeneous sources (JGI/1KFG genomes in
+      particular), not just a one-off oddity of this test set.
+    - **`conf/ucr_hpcc_slurm.config`'s `hmmsearch` label had a flat `memory = '8.GB'`**,
+      not scaled by `task.attempt` like `queue`/`time` already are — so `errorStrategy`'s
+      retry (up to `maxRetries: 2`) was a structural no-op for a genuinely memory-hungry
+      chunk: all 3 attempts hit the identical 8GB OOM wall (exit 137), confirmed on
+      `sordariales_shallow_1kfg`'s `HMMSEARCH_CHUNK`. Fixed to `{ 8.GB * task.attempt }`
+      (8/16/24GB across attempts), the standard Nextflow retry-scaling pattern. The
+      `high_cpu` label (`memory = '32.GB'` flat) has the same latent risk and wasn't
+      touched — no confirmed failure there yet, flagging for awareness rather than
+      preemptively changing an untested path.
+    Both fixes are infrastructure-only; no test coverage exists (or is practical) for the
+    SLURM config scaling behavior itself, but `lib/fasta.py` has new unit tests
+    (`tests/test_fasta.py`) for the duplicate-ID tolerance. 223/223 tests pass, lint clean.
+    Both already-failed grid points (deep_broad_1kfg gp1, sordariales_shallow_1kfg gp2)
+    will be manually resumed with `-resume` once their sweep driver's current pass
+    finishes and its launch directory is free (avoids a concurrent Nextflow session-lock
+    collision within the same sweep, mirroring the earlier per-CLADE `LAUNCH_DIR`
+    isolation fix's rationale).
+
+**Tags**: bug-fix, infrastructure, fasta, slurm, oom, retry, hmmsearch, novelty-discovery,
+sweep
+
+16. **Sweep-launcher isolation fixes: per-CLADE Nextflow launch dirs and actually loading
+    the site SLURM config (2026-09-04)** — resuming the broader-grid sweep work after a
+    session crash/restart surfaced a cluster of related launcher-level bugs, distinct from
+    both the presence-calling logic bugs (#9-#13) and the infrastructure bugs already
+    logged in #14:
+    - **`conf/ucr_hpcc_slurm.config` was never actually loaded by any sweep launcher.**
+      `bin/run_param_sweep.sh` invoked `nextflow run main.nf -profile slurm ...` but never
+      passed `-c conf/ucr_hpcc_slurm.config`, so none of the site-specific tuning in that
+      file (queue routing to `short`/`epyc`, the `hmmsearch` memory-scaling fix from #14,
+      AVX2 node constraints for mmseqs/famsa, `BUILD_CHUNK`'s `preempt`-queue placement)
+      was ever active during any of the sweeps run this session — `-profile slurm` alone
+      only sets `process.executor = 'slurm'` from `nextflow.config` itself. Fixed by adding
+      an `NXF_SITE_CONFIG` env var (default `conf/ucr_hpcc_slurm.config`) and passing
+      `-c "$NXF_SITE_CONFIG"` whenever it's non-empty. This was the single biggest
+      root-cause finding of the session: several already-diagnosed-and-"fixed" problems
+      (OOM retries never actually recovering, mmseqs SIGILLs on incompatible nodes) had
+      their real fix sitting unused in a file nobody was loading.
+    - **Nextflow session-lock collisions between concurrently-running sweeps.** `-resume`
+      with no explicit run name resumes "most recent run" keyed to the launch (current
+      working) directory, not `--project`/`--outdir` — two sweeps launched from the same
+      repo root raced for the same `.nextflow/history` entry, and one's `-resume` tried to
+      attach to the other's actively-running session. Fixed by isolating each CLADE's
+      launch into its own `.nf_launch/${CLADE}/` subdirectory (all path-bearing variables
+      resolved to absolute paths first via new `abspath`/`abspath_tables` bash helpers,
+      then `cd` into the isolated dir before invoking `nextflow run "$REPO_ROOT/main.nf"
+      ...`). `.nf_launch/` added to `.gitignore`.
+    - **Stale/parallel session found mid-recovery.** While resubmitting sweeps after the
+      launcher fixes above, discovered evidence of a second, uncoordinated Claude Code
+      session having independently touched some of the same files (a divergent
+      `run_sweep_deep_broad_1kfg.sh`, a `conf/ucr_hpcc_slurm.config` dated ahead of this
+      session's own edits) and a duplicate SLURM submission 9 seconds after this session's
+      own resubmission. Confirmed via `ps aux` (3 `claude` processes); user identified and
+      stopped the dormant/orphaned one. Take-away for future sessions on this project:
+      check `ps aux | grep claude` and `squeue` for pre-existing jobs/processes before
+      relaunching a sweep after any session restart, since `.nf_launch/` isolation
+      prevents Nextflow-level lock collisions but not duplicate `sbatch` submissions from
+      independent sessions.
+    Both `sordariales_shallow_1kfg` (job 28100809) and `deep_broad_1kfg` (job 28096310)
+    are now running cleanly with the fixed launcher, confirmed via `.nextflow.log` to be
+    loading `-c conf/ucr_hpcc_slurm.config`.
+
+**Tags**: novelty-discovery, infrastructure, nextflow, slurm, session-lock, sweep,
+site-config, bug-fix
+
 ---
 
 ## Report presentation: one skin registry, one linkout builder, one landing-page design (2026-09-05)

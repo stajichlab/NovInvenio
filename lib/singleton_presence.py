@@ -1,10 +1,9 @@
 """Shared paralog-aware singleton hit scoring (issue #52).
 
-Applies the same two-filter logic bin/build_presence_matrix.py uses for the classic
-pairwise pathway to a singleton pairwise search's hits:
+Applies the same filter logic bin/build_presence_matrix.py uses for the classic pairwise
+pathway to a singleton pairwise search's hits:
 
-  1. Paralog-cutoff filter: hit e-value < the query's own within-proteome paralog
-     e-value (fallback default_evalue when no paralog was detected).
+  1. Significance filter: hit e-value < default_evalue (flat, applied to every hit).
   2. Paralog-competition filter: disqualify a hit the query's paralog beats -- scope is
      'proteome' (the paralog's best hit anywhere in the target proteome) or 'target'
      (only on the same target protein), matching build_presence_matrix.py's
@@ -12,9 +11,22 @@ pairwise pathway to a singleton pairwise search's hits:
 
 Used by bin/novelty_presence_matrix.py (phase 1, vs DISCOVERY_OUT) and
 bin/novelty_screen.py (phase 2, vs NEAR_INGROUP/BROAD_OUTGROUP) so a singleton's
-definition of "present" stays identical across both phases -- this is what catches
+definition of "present" stays identical across both phases -- filter 2 is what catches
 cross-reactivity with a conserved paralog (e.g. NCU08332/HEX-1 vs eIF5A) that a flat
 e-value threshold alone can't tell apart from a real ortholog.
+
+(2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value must beat the
+query's own within-proteome paralog e-value (from a self-vs-self search reported down to
+E=100, not the usual significance floor), falling back to default_evalue when no paralog
+was detected. Dropped: this swung both too tight -- any protein with a close in-genome
+paralog got an unreachable cutoff (measured on real N. crassa self-search data: 28-48% of
+proteins had a "cutoff" tighter than 1e-50, rejecting real orthologs regardless of whether
+the paralog was actually relevant to that hit -- e.g. the reported NCU00765/NCU00411/
+NCU01935 false-absence findings) -- and too loose -- 12-28% of proteins with no real
+paralog still picked up self-search noise (E up to 100) as their "cutoff", looser than the
+intended default. Filter 2 already does the actual paralogy test as a direct head-to-head
+comparison instead of an absolute-magnitude proxy, so filter 1 was redundant on top of it,
+not protective.)
 """
 import csv
 from collections import defaultdict
@@ -62,24 +74,22 @@ def proteome_short_from_hits_filename(path):
 
 
 def load_paralog_info(cutoff_files):
-    """Return (cutoffs, paralog_of) from paralog_cutoffs.tsv files.
-
-    cutoffs:    protein_id -> float evalue threshold
-    paralog_of: protein_id -> paralog_protein_id, or None if not detected
-    """
-    cutoffs, paralog_of = {}, {}
+    """Return paralog_of: protein_id -> paralog_protein_id (or None if not detected), from
+    paralog_cutoffs.tsv files -- feeds filter 2 (paralog-competition) only; see module
+    docstring for why the per-query e-value column is no longer used as a significance
+    cutoff (filter 1)."""
+    paralog_of = {}
     for path in cutoff_files:
         with open(path, newline='') as fh:
             for row in csv.DictReader(fh, delimiter='\t'):
                 pid = row.get('protein_ID')
                 if not pid:
                     continue
-                cutoffs[pid] = float(row['evalue'])
                 paralog_of[pid] = row.get('paralog_protein_ID') or None
-    return cutoffs, paralog_of
+    return paralog_of
 
 
-def score_singleton_hits(hits, singleton_ids, paralog_cutoffs, paralog_of,
+def score_singleton_hits(hits, singleton_ids, paralog_of,
                          default_evalue, competition_scope='proteome'):
     """Filter a singleton search's hits down to qualifying presence calls.
 
@@ -91,6 +101,9 @@ def score_singleton_hits(hits, singleton_ids, paralog_cutoffs, paralog_of,
     singleton_ids: set of query_ids that are true singletons. Only these are ever
     scored/returned -- a paralog present in `hits` purely to support the comparison is
     never itself emitted unless it independently is also in singleton_ids.
+
+    default_evalue: flat significance cutoff (filter 1), applied to every hit regardless
+    of query -- see module docstring for why this is no longer per-query paralog-derived.
 
     Returns (presence, evalue):
       presence[proteome_short] = set of singleton_ids present
@@ -110,8 +123,7 @@ def score_singleton_hits(hits, singleton_ids, paralog_cutoffs, paralog_of,
         if query_id not in singleton_ids:
             continue
 
-        cutoff = paralog_cutoffs.get(query_id, default_evalue)
-        if not (ev < cutoff):
+        if not (ev < default_evalue):
             continue
 
         paralog_id = paralog_of.get(query_id)

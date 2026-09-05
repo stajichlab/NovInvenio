@@ -32,6 +32,7 @@ process PROFILE_PRESENCE_MATRIX {
         --config ${config_csv} \
         --evalue ${params.hmm_presence_evalue} \
         --min-coverage ${params.hmm_presence_cov} \
+        --min-covered-residues ${params.hmm_presence_min_residues} \
         --ingroup-min-frac ${query_min_frac} \
         --query-group ${query_group} \
         --other-max-frac ${other_max_frac} \

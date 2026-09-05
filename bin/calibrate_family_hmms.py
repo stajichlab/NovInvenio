@@ -10,6 +10,17 @@ strong as the best false-positive observed in the negative control.
 If a family HMM has no hit in any DISCOVERY_OUT proteome, the threshold falls back
 to the global E-value parameter (--default-evalue).
 
+NOTE (2026-09-03): this threshold is NOT used to gate presence calls in
+bin/novelty_presence_matrix.py or bin/novelty_screen.py -- it is circular: the
+threshold is set to the best (lowest) E-value a family scores against
+DISCOVERY_OUT, then presence-in-a-DISCOVERY_OUT-proteome was checked with
+`evalue < threshold`, which no DISCOVERY_OUT hit could ever satisfy against
+itself. That made the outgroup-absence filter a structural no-op. This script
+is still run (Nextflow process interface stability) and its output is still
+piped through, but only as unused, informational evidence -- see
+lib/family_presence.py's module docstring for the fix and the confirmed-bug
+writeup.
+
 Input:
   --domtblout  Per-proteome hmmsearch domtblout files (DISCOVERY_OUT proteomes)
   --families   families.tsv from extract_family_seqs.py (family_index, rep_id, n_members)

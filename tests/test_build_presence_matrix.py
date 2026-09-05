@@ -98,6 +98,29 @@ def test_query_group_out_allows_nearly_missing_with_other_max_frac(run_dir):
     assert candidates == ['Out1::h2']
 
 
+def test_flat_default_evalue_rejects_a_weak_hit(run_dir):
+    # Filter 1 is a flat significance floor (--default-evalue, 1e-5 by default), not a
+    # per-query paralog-derived one.
+    matrix, candidates = run(run_dir, 'g1\tg1_in2\t1e-3\t20\tIn1\tIn2\n',
+                             paralog_text='g1\tg1p\t42\t1e-8\n')
+    assert (matrix['protein_id'] == 'g1').sum() == 0
+    assert candidates == []
+
+
+def test_supplied_paralog_cutoff_no_longer_rejects_a_strong_hit(run_dir):
+    # Regression test for the 2026-09-03 fix: a strong hit (1e-10, well within the flat
+    # default 1e-5) used to be rejected outright whenever the query's own in-genome
+    # paralog e-value (here 1e-20) was tighter than the hit -- an absolute-magnitude
+    # proxy, not an actual test of whether the paralog explains this hit. Filter 2 (the
+    # real paralog-competition test) doesn't fire here since g1p was never itself
+    # searched against In2.
+    matrix, candidates = run(run_dir, 'g1\tg1_in2\t1e-10\t100\tIn1\tIn2\n',
+                             paralog_text='g1\tg1p\t42\t1e-20\n')
+    row = matrix[matrix['protein_id'] == 'g1'].iloc[0]
+    assert row['In2'] == 1
+    assert 'In1::g1' in candidates
+
+
 # --- Filter 2 (paralog competition) scope -----------------------------------
 #
 # Mirrors the pezizo5_fungi hexA/hex-1 case (see docs/hexA_filtering.md): hexA
@@ -110,8 +133,9 @@ HEXA_HITS = (
     'eif1\teif2\t1e-70\t233\tIn1\tIn2\n'   # eIF5A paralog -> In2's eIF5A: wins proteome-wide
     'eif1\thex1\t5e-12\t45\tIn1\tIn2\n'    # eIF5A paralog -> hex1: loses on this target
 )
-# hexA's within-genome paralog is eif1 (cutoff loose enough that filter 1 keeps
-# the 1e-69 hit); eif1's paralog is hexA.
+# hexA's within-genome paralog is eif1; eif1's paralog is hexA. Only filter 2 (paralog
+# competition) is exercised here -- filter 1 is the flat default and both hits (1e-69,
+# 1e-70) easily clear it.
 HEXA_PARALOGS = 'hexA\teif1\t42\t4.2e-11\neif1\thexA\t42\t4.2e-11\n'
 
 

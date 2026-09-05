@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NovInvenio identifies lineage-specific genes: proteins present in a defined ingroup (≥N% of members) but absent from all outgroup proteomes. It uses pairwise protein searches (phmmer/diamond/blast), self-vs-self paralog calibration, mmseqs2 clustering, TBLASTN validation against outgroup genomes, functional annotation (Pfam + SwissProt), and model-organism gene-name lookup to produce per-species novelty candidate tables.
+NovInvenio identifies lineage-specific genes: proteins present in a defined ingroup (≥N% of members) but absent from all outgroup proteomes. It uses pairwise protein searches (phmmer/diamond/blast), self-vs-self paralog lookup, mmseqs2 clustering, TBLASTN validation against outgroup genomes, functional annotation (Pfam + SwissProt), and model-organism gene-name lookup to produce per-species novelty candidate tables.
 
 ## Commands
 
@@ -139,10 +139,10 @@ view/                              # sibling of results/ — one shareable folde
    - Runs the selected tool (`PHMMER_SEARCH` / `DIAMOND_SEARCH` / `BLAST_SEARCH`), output cached in `search_cache/` via `storeDir`.
    - `PARSE_HITS` normalises each raw result into a TSV with columns `query_id, target_id, evalue, bitscore, query_proteome, target_proteome`.
    - Also runs self-vs-self searches (`PHMMER_SELF` / `DIAMOND_SELF` / `BLAST_SELF`, `-E 100 --max-target-seqs 2`) to capture the rank-2 (best paralog) hit per protein. Outputs also `storeDir`-cached.
-   - `PARSE_SELF_HITS` → `<Short>.paralog_cutoffs.tsv` (columns: `protein_ID, paralog_protein_ID, bitscore, evalue`). Proteins with no within-proteome paralog are omitted; `build_presence_matrix.py` falls back to `--default-evalue` for them.
-   - `BUILD_PRESENCE_MATRIX` applies two paralog-aware filters:
-     1. **Paralog-cutoff filter**: hit evalue must be < the query's paralog evalue (falls back to `--default-evalue` 1e-5 if no paralog detected).
-     2. **Paralog-competition filter**: if the query's paralog hits the same target proteome with a better evalue, the hit is disqualified.
+   - `PARSE_SELF_HITS` → `<Short>.paralog_cutoffs.tsv` (columns: `protein_ID, paralog_protein_ID, bitscore, evalue`). Proteins with no within-proteome paralog are omitted. Only the `paralog_protein_ID` column is consumed downstream (by the paralog-competition filter); the `evalue` column is not used for gating (see the SEARCH workflow notes above).
+   - `BUILD_PRESENCE_MATRIX` applies two filters:
+     1. **Significance filter**: hit evalue must be < `--default-evalue` (flat, 1e-5), applied to every hit. (2026-09-03: this was previously a per-query "paralog-cutoff" — hit evalue < the query's own within-proteome paralog evalue — dropped as unsound: it swung both too tight, an unreachable bar whenever the query happened to have a close in-genome paralog regardless of relevance, and too loose, since the self-search that produces the paralog evalue is reported down to E=100 rather than a real significance floor, so a protein with no genuine paralog still got a noise-derived "cutoff" looser than the intended default. See `lib/singleton_presence.py`'s module docstring for the empirical writeup.)
+     2. **Paralog-competition filter**: if the query's paralog hits the same target proteome with a better evalue, the hit is disqualified — this is the actual paralogy test (a direct head-to-head comparison), unaffected by the change above.
    - The `candidates.txt` keep filter is `query_frac >= min_frac AND other_frac <= --other-max-frac` (`other_frac` = fraction of the *other* group the protein is present in). `--other-max-frac` defaults to `0.0` — absent from every other-group proteome, the strict novelty/loss rule. The loss direction passes `params.loss_ingroup_max_frac` here to allow "nearly missing" candidates; the novelty direction always passes `0.0`. Note: this filter shapes only `candidates.txt`, not the matrix — the matrix always holds every scored row.
    - Produces `presence_matrix.tsv` (protein × proteome 0/1 matrix with `protein_id` and `source_proteome` columns) and `candidates.txt` (lines of `source_proteome::protein_id`).
 
@@ -199,7 +199,7 @@ view/                              # sibling of results/ — one shareable folde
    - `workflows/loss_search.nf`'s `LOSS_SEARCH` runs outgroup proteomes as the *query*
      (`workflows/search.nf` only ever queries with the ingroup — see that file's module
      docstring for why this needs its own search direction rather than reusing SEARCH's
-     output). Same tool selection, same self-search-based paralog calibration, same
+     output). Same tool selection, same self-search-based paralog lookup, same
      `BUILD_PRESENCE_MATRIX` process — called with `--query-group OUT` and
      `outgroup_min_frac` instead of `IN`/`ingroup_min_frac`. Produces
      `loss_presence_matrix.tsv` / `loss_candidates.txt`: a row exists only when that
@@ -288,14 +288,15 @@ reports and a `report.html` landing page (run summary + links).
 | `--project` | CSV basename | Results subdirectory under `--outdir` |
 | `--outdir` | `results` | Root output directory |
 | `--cluster_tool` | `pairwise` | Presence-matrix producer: `pairwise` (O(N²) SEARCH) or `mmseqs` (family-profile pathway, ADR-0002). Applies to both novelty and loss directions |
-| `--run_tool` | `phmmer` | `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog calibration) |
+| `--run_tool` | `phmmer` | `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog lookup) |
 | `--family_min_seq_id` | `0.3` | mmseqs family-clustering identity (`--cluster_tool mmseqs`) |
 | `--family_cov` | `0.8` | mmseqs family-clustering coverage (`--cluster_tool mmseqs`) |
-| `--hmm_presence_evalue` | `1e-3` | Family-HMM presence E-value ceiling (`--cluster_tool mmseqs`) |
-| `--hmm_presence_cov` | `0.5` | Family-HMM min profile coverage for presence (`--cluster_tool mmseqs`) |
+| `--hmm_presence_evalue` | `1e-3` | Family-HMM presence E-value ceiling (`--cluster_tool mmseqs` and `novelty_discovery`); swept by `bin/run_param_sweep.sh` |
+| `--hmm_presence_cov` | `0.5` | Family-HMM min profile coverage *fraction* for presence (`--cluster_tool mmseqs` and `novelty_discovery`); `bin/run_param_sweep.sh` now includes it as a swept dimension (2026-09-03) but no sweep has actually been run against it yet — the shipped 0.5 is still a guess. See `--hmm_presence_min_residues` below and the 2026-09-03 finding that this floor rejects 83% of otherwise-significant hits on HMMs >600aa (expected biology for multi-domain proteins, not promiscuous-domain false positives) |
+| `--hmm_presence_min_residues` | `100` | Alternative to `--hmm_presence_cov`: a target qualifies if its aligned span is at least this many residues, even below the coverage fraction (`0` = disabled, fraction-only). Targets the coverage floor's actual purpose (reject a hit explained by one small, promiscuous shared domain) without penalizing long proteins purely for length; the `100` default is data-informed (real-run sensitivity analysis) but not yet swept/validated the way `--family_min_seq_id` etc. are. See `lib/family_presence.py` |
 | `--family_chunk_size` | `200` | Families per parallel `BUILD_CHUNK` task (`--cluster_tool mmseqs`) |
-| `--evalue` | `1e-5` | Fallback e-value for proteins with no detectable paralog; also TBLASTN significance cutoff |
-| `--parse_evalue` | `0.01` | Loose noise ceiling passed to `parse_hits.py`; final filtering uses paralog cutoffs |
+| `--evalue` | `1e-5` | Flat significance cutoff applied to every hit in `BUILD_PRESENCE_MATRIX`/`novelty_discovery`'s singleton path (not per-query paralog-derived, see the SEARCH workflow notes above); also TBLASTN significance cutoff |
+| `--parse_evalue` | `0.01` | Loose noise ceiling passed to `parse_hits.py`; final filtering applies the flat `--evalue` significance cutoff plus the paralog-competition filter |
 | `--ingroup_min_frac` | `0.75` | Fraction of ingroup proteomes that must contain a hit |
 | `--outgroup_min_frac` | `0.75` | Fraction of outgroup proteomes that must contain a hit, for `LOSS_SEARCH` (the loss-search direction's own presence threshold) |
 | `--loss_ingroup_max_frac` | `0.0` | Max fraction of the ingroup a loss candidate may still be present in (loss-search direction). `0.0` = strictly absent from the ingroup; raise for "nearly missing" losses. Wired through to `build_presence_matrix.py --other-max-frac` and `make_losses_report.py --loss_ingroup_max_frac` |
@@ -376,7 +377,7 @@ Pass `--run_tool phmmer|diamond|blast`. Results are keyed by tool name in the ca
 HMMs (famsa + hmmbuild, parallelised across `BUILD_CHUNK` tasks), scan every proteome. Both
 emit the same `presence_matrix.tsv`/`candidates.txt` (and `loss_` equivalents) contract, so
 CLUSTER/VALIDATE/ANNOTATE/REPORT are unchanged. `--run_tool` is still used under `mmseqs`
-for the self-search paralog calibration. See `README.md` "Two analysis approaches" for the
+for the self-search paralog lookup. See `README.md` "Two analysis approaches" for the
 user-facing comparison and copy-paste launch examples.
 
 `--cluster_tool novelty_discovery` runs a third, target-focused pathway (`NOVELTY_DISCOVERY`
@@ -747,20 +748,28 @@ are recognized and how they band into "ingroup-like" (`IN`, `DISCOVERY_TARGET`) 
    `BUILD_FAMILY_PROFILES` — the same module `--cluster_tool mmseqs` uses).
 3. `hmmsearch` every family HMM against `DISCOVERY_TARGET` + `DISCOVERY_OUT` proteomes
    (`FAMILY_HMMSEARCH`).
-4. Calibrate a per-family E-value threshold against `DISCOVERY_OUT` as a negative control
-   (`CALIBRATE_FAMILY_HMMS`): if a family hits any `DISCOVERY_OUT` proteome, the threshold is set
-   tighter than that hit's E-value; otherwise it falls back to `--hmm_presence_evalue`.
+4. `CALIBRATE_FAMILY_HMMS` still runs (Nextflow process interface stability) but its output
+   is **not** used to gate presence (2026-09-03 fix): it used to set a family's presence
+   threshold to the best E-value that family's own HMM scored against `DISCOVERY_OUT`, which
+   is circular — no `DISCOVERY_OUT` proteome could ever satisfy `E < threshold` against
+   itself, making the outgroup-absence filter a structural no-op (confirmed against a real
+   run: three genes with highly significant, annotated `DISCOVERY_OUT` hits down to 3e-160
+   were all called outgroup-absent). See `lib/family_presence.py`'s module docstring.
 5. Build the phase-1 presence matrix and candidate list (`NOVELTY_PRESENCE_MATRIX` /
-   `bin/novelty_presence_matrix.py`): a family/protein is a candidate when present in
+   `bin/novelty_presence_matrix.py`): presence uses the flat `--hmm_presence_evalue` /
+   `--hmm_presence_cov` for every proteome (families) and the flat `--evalue` plus the
+   paralog-competition filter (singletons) — a family/protein is a candidate when present in
    `>= --ingroup_min_frac` of `DISCOVERY_TARGET` and absent from every `DISCOVERY_OUT` proteome.
 6. TBLASTN family representatives against `DISCOVERY_OUT` genomes for genomic validation
    (reporting-only, same rationale as `make_novelties.py --skip_tblastn_filter`).
 
-**Known gap:** step 5's presence matrix only reflects multi-member family HMM hits.
-Singleton target proteins (no family) are extracted (`EXTRACT_SINGLETONS`) but never
-searched — the "hybrid" pairwise-vs-DISCOVERY_OUT branch for singletons described in the design
-doc is not implemented, so single-copy target-specific genes are currently invisible to this
-pathway. The design doc's single-`DISCOVERY_TARGET`-genome pairwise-search branch (skip clustering
+Singleton target proteins (no multi-member family) are extracted (`EXTRACT_SINGLETONS`) and
+searched with the "hybrid" pairwise-vs-DISCOVERY_OUT branch (issue #52 — see
+`workflows/novelty_discovery.nf`'s `SINGLETON_*_SEARCH` processes and
+`lib/singleton_presence.py`), so single-copy target-specific genes are not invisible to this
+pathway.
+
+**Known gap:** the design doc's single-`DISCOVERY_TARGET`-genome pairwise-search branch (skip clustering
 entirely when `|DISCOVERY_TARGET| == 1`) is likewise not implemented — the pipeline always runs the
 mmseqs family-clustering path regardless of `DISCOVERY_TARGET` count, so a lone target genome mostly
 yields single-member "families" that phase 1 currently can't evaluate for the same reason.
@@ -771,7 +780,7 @@ family HMM from scratch.
 ### Phase 2 — `workflows/novelty_screen.nf` (`NOVELTY_SCREEN`)
 
 Always runs after `NOVELTY_DISCOVERY` for this `--cluster_tool` (there is no flag to skip
-it). Re-searches the *same* calibrated family HMMs against `NEAR_INGROUP` and `BROAD_OUTGROUP`
+it). Re-searches the *same* family HMMs against `NEAR_INGROUP` and `BROAD_OUTGROUP`
 proteomes and reclassifies every phase-1 candidate (`NOVELTY_SCREEN_CLASSIFY` /
 `bin/novelty_screen.py`) into one of three categories, written as a `novelty_category`
 column on the screened presence matrix:

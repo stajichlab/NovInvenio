@@ -7,6 +7,9 @@
 .nextflow.log*
 work/
 results/
+/view/
+# per-sweep isolated nextflow launch directories (bin/run_param_sweep.sh)
+/.nf_launch/
 
 # python
 __pycache__/
@@ -20,6 +23,7 @@ tests/data/logs/
 /data/
 /example/
 /busco_pezizo5/
+/busco_1kfg/
 /logs/
 /db/uniprot/
 /db/modelorgs/*.fasta

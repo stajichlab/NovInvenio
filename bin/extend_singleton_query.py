@@ -2,10 +2,10 @@
 """Extend singletons.fa with each singleton's own within-genome paralog (issue #52).
 
 The singleton pairwise search (workflows/novelty_discovery.nf's SINGLETON_*_SEARCH)
-applies the same paralog-cutoff + paralog-competition filters
-bin/build_presence_matrix.py uses (bin/novelty_presence_matrix.py). The
-paralog-competition check needs the *paralog's* own hits against the same targets to
-compare against -- which only exist if the paralog was searched too. This script just
+applies the same significance + paralog-competition filters bin/build_presence_matrix.py
+uses (bin/novelty_presence_matrix.py). The paralog-competition check needs the
+*paralog's* own hits against the same targets to compare against -- which only exist if
+the paralog was searched too. This script just
 extends the query FASTA; the actual filtering happens in
 bin/novelty_presence_matrix.py, which only ever emits presence for true singletons
 (from the mmseqs cluster_tsv), never for a paralog added here purely to support the

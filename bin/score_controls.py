@@ -324,7 +324,7 @@ def main():
     fields = ['control_id', 'class', 'expected_call', 'anchor_type',
               'resolved_family', 'actual_call', 'outcome', 'note']
     with open(args.output, 'w', newline='') as fh:
-        w = csv.DictWriter(fh, fieldnames=fields, delimiter='\t')
+        w = csv.DictWriter(fh, fieldnames=fields, delimiter='\t', lineterminator='\n')
         w.writeheader()
         w.writerows(results)
 
@@ -332,7 +332,7 @@ def main():
     summary['n_placeholder_skipped'] = n_skipped
     summary_path = args.summary or (str(Path(args.output).with_suffix('')) + '.summary.tsv')
     with open(summary_path, 'w', newline='') as fh:
-        w = csv.writer(fh, delimiter='\t')
+        w = csv.writer(fh, delimiter='\t', lineterminator='\n')
         w.writerow(['metric', 'value'])
         for k, v in summary.items():
             w.writerow([k, '' if v is None else v])

@@ -33,75 +33,13 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-BUSCO_COLS = ('busco_id', 'status', 'sequence')
-
-
-def parse_busco_full_table(path, species):
-    """Yield (busco_id, species, protein_id) for Complete rows of a BUSCO full_table.tsv."""
-    with open(path) as fh:
-        for line in fh:
-            if not line.strip() or line.startswith('#'):
-                continue
-            f = line.rstrip('\n').split('\t')
-            if len(f) < 3:
-                continue
-            busco_id, status, sequence = f[0], f[1], f[2]
-            if status != 'Complete':
-                continue
-            # BUSCO may append :start-end to the sequence id; strip to the bare protein id.
-            protein_id = sequence.split(':')[0]
-            if protein_id:
-                yield busco_id, species, protein_id
-
-
-def load_busco_map(map_path=None, tables=None):
-    """busco_id -> {species: protein_id} for Complete single-copy BUSCOs.
-
-    From a consolidated --busco-map (busco_id<TAB>species<TAB>protein_id[...]) or from raw
-    per-species full_table.tsv files given as SHORT=path.
-    """
-    mapping: dict[str, dict[str, str]] = defaultdict(dict)
-    if map_path:
-        with open(map_path) as fh:
-            for line in fh:
-                f = line.rstrip('\n').split('\t')
-                if len(f) < 3 or f[0].startswith('#'):
-                    continue
-                # a status column, if present, must be Complete
-                if len(f) >= 4 and f[3] and f[3] != 'Complete':
-                    continue
-                mapping[f[0]][f[1]] = f[2]
-    for spec in tables or []:
-        if '=' not in spec:
-            sys.exit(f'--tables entries must be SHORT=path (got: {spec!r})')
-        short, path = spec.split('=', 1)
-        for busco_id, species, protein_id in parse_busco_full_table(path, short):
-            mapping[busco_id][species] = protein_id
-    return mapping
-
-
-def load_profiled_reps(families_tsv):
-    reps = set()
-    with open(families_tsv) as fh:
-        fh.readline()  # header
-        for line in fh:
-            parts = line.rstrip('\n').split('\t')
-            if len(parts) >= 2 and parts[1]:
-                reps.add(parts[1])
-    return reps
-
-
-def load_member_to_rep(cluster_tsv, keep_reps):
-    member_to_rep = {}
-    with open(cluster_tsv) as fh:
-        for line in fh:
-            parts = line.rstrip('\n').split('\t')
-            if len(parts) < 2:
-                continue
-            rep, member = parts[0], parts[1]
-            if rep in keep_reps:
-                member_to_rep[member] = rep
-    return member_to_rep
+sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+from busco import (  # noqa: E402
+    load_busco_map,
+    load_member_to_rep,
+    load_profiled_reps,
+    parse_busco_full_table,  # noqa: F401 -- re-exported for tests/test_busco_family_recovery.py
+)
 
 
 def score_recovery(busco_map, member_to_rep, min_species):
@@ -175,20 +113,20 @@ def main():
     if not args.tables and not args.busco_map:
         sys.exit('provide --tables SHORT=path ... and/or --busco-map')
 
-    busco_map = load_busco_map(args.busco_map, args.tables)
+    busco_map, _lengths = load_busco_map(args.busco_map, args.tables)
     profiled_reps = load_profiled_reps(args.families)
     member_to_rep = load_member_to_rep(args.cluster_tsv, profiled_reps)
     per_busco, summary = score_recovery(busco_map, member_to_rep, args.min_species)
 
     fields = ['busco_id', 'n_species', 'n_families', 'n_unmapped', 'verdict', 'families']
     with open(args.output, 'w', newline='') as fh:
-        w = csv.DictWriter(fh, fieldnames=fields, delimiter='\t')
+        w = csv.DictWriter(fh, fieldnames=fields, delimiter='\t', lineterminator='\n')
         w.writeheader()
         w.writerows(per_busco)
 
     summary_path = args.summary or (str(Path(args.output).with_suffix('')) + '.summary.tsv')
     with open(summary_path, 'w', newline='') as fh:
-        w = csv.writer(fh, delimiter='\t')
+        w = csv.writer(fh, delimiter='\t', lineterminator='\n')
         w.writerow(['metric', 'value'])
         for k, v in summary.items():
             w.writerow([k, '' if v is None else v])

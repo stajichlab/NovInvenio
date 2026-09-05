@@ -26,7 +26,7 @@ swapped (`--query-group OUT`, `outgroup_min_frac`, `loss_ingroup_max_frac`).
 
 ---
 
-## 1. `pairwise` (default) — all-vs-all search with paralog calibration
+## 1. `pairwise` (default) — all-vs-all search with paralog-competition filtering
 
 **Where:** `workflows/search.nf` → `bin/parse_self_hits.py` →
 `bin/build_presence_matrix.py`
@@ -43,26 +43,39 @@ In parallel, each proteome is searched **against itself** (`-E 100
 --max-target-seqs 2`), and the best hit that is *not* the query itself (the
 "rank-2 hit") is recorded per protein as its within-proteome paralog.
 
-### Why a paralog cutoff, not a flat E-value
+### Why a flat E-value plus a paralog-competition filter (not a per-query paralog cutoff)
 
-A single global E-value cutoff (e.g. `1e-5`) makes the wrong call for two
-different reasons at once: it is too loose for a protein with weak paralogs
-(a hit just inside `1e-5` might be homologous to the *paralog*, not
-specifically to the query), and too strict for a protein with strong,
-divergent true orthologs. The self-hit calibration turns "is this cross-
-species hit real" into a question answerable from each protein's own paralog
-structure:
+An earlier version of this filter tried to be per-query: a cross-proteome hit
+only counted if its E-value beat the query protein's *own* within-proteome
+paralog E-value (from the self-search), falling back to a flat default for
+proteins with no detected paralog. That was dropped (2026-09-03) as unsound
+in both directions: too tight whenever the query happened to have a close
+in-genome paralog (a recent duplication's E-value is often far tighter than
+any real cross-species ortholog could ever reach, regardless of whether that
+paralog has anything to do with the hit being judged), and too loose whenever
+the query had no real paralog at all (the self-search is intentionally run
+loose, `-E 100`, so a protein with nothing resembling a true paralog still
+picked up self-search noise as its "cutoff" — looser than the intended flat
+default). Measured on real *N. crassa* self-search data, roughly 40% of
+proteins had a derived cutoff tighter than `1e-50` and roughly 28% had one
+looser than the intended `1e-5` default. Confirmed concretely: near-universal
+genes like actin and a core P-type ATPase were wrongly called absent from
+*S. pombe* under the old filter, in both phmmer and diamond search output,
+purely because their own near-identical in-genome paralog outscored the real
+ortholog hit.
 
-1. **Paralog-cutoff filter.** A cross-proteome hit only counts if its E-value
-   is strictly better than the query protein's own paralog E-value (from the
-   self-search). A protein with no detectable within-proteome paralog falls
-   back to `--evalue` (default `1e-5`, `DEFAULT_EVALUE` in
-   `build_presence_matrix.py`).
-2. **Paralog-competition filter.** Even if filter 1 passes, the hit is
-   disqualified if the query's own paralog scores *better* against the same
-   target than the query does — i.e. the hit is better explained by the
-   shared domain with the paralog than by the query specifically.
-   `--paralog-competition-scope` controls the granularity:
+The filter is now two steps, and only the second one is paralog-aware:
+
+1. **Significance filter.** A cross-proteome hit only counts if its E-value
+   is better than a flat `--evalue` (default `1e-5`, `DEFAULT_EVALUE` in
+   `build_presence_matrix.py`), applied identically to every protein.
+2. **Paralog-competition filter.** The hit is disqualified if the query's own
+   paralog scores *better* against the same target than the query does — i.e.
+   the hit is better explained by the shared domain with the paralog than by
+   the query specifically. This is a direct, per-hit head-to-head comparison
+   (not an absolute-magnitude proxy), so it stays sound regardless of how
+   close or distant the query's own paralog is. `--paralog-competition-scope`
+   controls the granularity:
    - `proteome` (default, strict): disqualify if the paralog's best hit
      *anywhere in the target proteome* beats the query's hit.
    - `target`: disqualify only if the paralog beats the query on the *same
@@ -97,15 +110,15 @@ candidates before TBLASTN — not a presence call), and cluster representatives
 are TBLASTN'd (`-evalue` = same `--evalue` param) against outgroup genomes.
 In the novelty direction this runs with `--skip_tblastn_filter`: a TBLASTN
 hit is reported as a column, not used to disqualify a candidate, because the
-paralog-calibrated absence call is already trusted. Pfam (`hmmscan`) and
+significance-filtered, paralog-competition-checked absence call is already trusted. Pfam (`hmmscan`) and
 SwissProt (`diamond blastp`) annotate every row in the final matrix.
 
 ### Cost / sensitivity trade-off
 
 Diamond tolerates the O(N²) job count; phmmer does not scale past small-to-
-medium configs. The paralog calibration is per-protein and precise, but pays
-for that precision with the full pairwise search cost — this is the reason
-the `mmseqs` pathway exists (docs/adr/0002).
+medium configs. The per-protein paralog-competition filter is precise, but
+pays for that precision with the full pairwise search cost — this is the
+reason the `mmseqs` pathway exists (docs/adr/0002).
 
 ---
 
@@ -162,7 +175,7 @@ ceiling is loose enough not to miss a diverged true ortholog (a family
 profile is more sensitive than any single representative), and the coverage
 floor guards against the profile hitting only a small, promiscuous shared
 domain rather than the whole gene. This is intentionally the mirror image of
-the pairwise pathway's per-protein paralog calibration — precision comes
+the pairwise pathway's per-hit paralog-competition filter — precision comes
 from clustering quality, not per-hit E-value competition. See ADR-0002 item
 8 for the swept parameter range (E-value + coverage) and the planned
 per-family GA/TC/NC gathering-threshold refinement (not yet implemented).
@@ -179,10 +192,10 @@ downstream stages are unchanged.
 ### Validation is a filter here, not just an annotation
 
 Because a clustering-based absence call is more artifact-prone (mis-merged
-or mis-split families) than the pairwise pathway's per-protein paralog
-calibration, TBLASTN validation is applied here as a **disqualifying
-filter**, not merely a reported column — the opposite of the pairwise
-pathway's `--skip_tblastn_filter` default. The family *is* its own validation
+or mis-split families) than the pairwise pathway's per-hit significance and
+paralog-competition filtering, TBLASTN validation is applied here as a
+**disqualifying filter**, not merely a reported column — the opposite of the
+pairwise pathway's `--skip_tblastn_filter` default. The family *is* its own validation
 cluster: the family representative + membership feed `VALIDATE` directly, no
 separate candidate-clustering step is needed (unlike the pairwise pathway,
 which clusters candidates post hoc purely to deduplicate before TBLASTN).
@@ -212,7 +225,7 @@ trade-off of the other pathways for a two-phase design that scales the
 *negative control* instead of the whole outgroup, then only pays for a
 broader search once a phase-1 candidate already looks interesting.
 
-### Phase 1 — discovery, calibrated against a small negative-control panel
+### Phase 1 — discovery against a small negative-control panel
 
 1. `DISCOVERY_TARGET` proteomes are clustered into families (mmseqs2) and
    family HMMs are built exactly as in the `mmseqs` pathway (same
@@ -220,37 +233,44 @@ broader search once a phase-1 candidate already looks interesting.
 2. Each family HMM is searched (`hmmsearch`) against `DISCOVERY_TARGET` +
    `DISCOVERY_OUT` proteomes only — a small reference panel (typically 5-6
    proteomes), not the full outgroup.
-3. **Per-family threshold calibration** (`bin/calibrate_family_hmms.py`):
-   rather than one fixed E-value for every family, each family's threshold
-   is set from its own best (lowest-E) hit against the `DISCOVERY_OUT`
-   negative-control panel. If a family hits any `DISCOVERY_OUT` proteome,
-   its threshold is tightened to just below that hit's E-value
-   (`calibration_source = negative_control`); if it never hits the panel, it
-   falls back to the global default (`--hmm_presence_evalue`, `1e-3`,
-   `calibration_source = global_default`). This is the same self-calibration
-   idea as the pairwise pathway's paralog cutoff, applied at family
-   granularity against an explicit negative control instead of a paralog.
-4. Presence is then called the same way as the `mmseqs` pathway —
-   `full-sequence E < per-family threshold AND profile coverage >=
-   hmm_presence_cov` (shared logic in `lib/family_presence.py`, used by both
-   phase 1 and phase 2 so "present" means the same thing throughout this
-   pathway).
+3. `bin/calibrate_family_hmms.py` still runs (Nextflow process interface
+   stability), computing each family's best (lowest-E) hit against the
+   `DISCOVERY_OUT` panel, but **its output is not used to gate presence**
+   (fixed 2026-09-03). It used to set each family's presence threshold to
+   that same best-observed E-value, which is circular: no `DISCOVERY_OUT`
+   proteome could ever satisfy `E < threshold` against itself, so the
+   outgroup-absence filter was a structural no-op — every family with any
+   `DISCOVERY_OUT` hit (the vast majority of conserved families) was
+   unconditionally called outgroup-absent regardless of how strong the real
+   orthology signal was. Confirmed against a real run: three genes with
+   `DISCOVERY_OUT` hits down to `3e-160` were all called absent.
+4. Presence is called with a flat rule — `full-sequence E <
+   hmm_presence_evalue AND profile coverage >= hmm_presence_cov`, evaluated
+   per target sequence and true if *any* target in that proteome clears both
+   gates (never mixing one target's E-value with another's coverage, and
+   never pooling coverage across targets) — shared logic in
+   `lib/family_presence.py`, used by both phase 1 and phase 2 and also the
+   `mmseqs` pathway (`bin/profile_to_matrix.py`), so "present" means the same
+   thing throughout the whole project.
 5. Candidate rule: family present in `>= ingroup_min_frac` of
    `DISCOVERY_TARGET` and absent from every `DISCOVERY_OUT` proteome —
    structurally identical to the other pathways' novelty rule, just against
    a smaller reference set.
 
-**Known gap:** phase 1 currently only evaluates multi-member families.
-Singleton target proteins have no family HMM to search with, so a true
-single-copy target-specific gene is invisible to this pathway today (see
-CLAUDE.md for the tracked gap and the unimplemented single-target-genome
-pairwise fallback).
+Phase 1 also searches singleton target proteins (those with no multi-member
+family) directly, pairwise, against `DISCOVERY_TARGET` + `DISCOVERY_OUT`
+(`SINGLETON_*_SEARCH`, issue #52) — using the flat `--evalue` significance
+cutoff plus the paralog-competition filter (`lib/singleton_presence.py`), the
+same two-step rule the `pairwise` pathway uses. **Known gap:** the
+single-`DISCOVERY_TARGET`-genome pairwise fallback described in the original
+design doc (skip clustering entirely when `|DISCOVERY_TARGET| == 1`) is not
+implemented — see CLAUDE.md.
 
 ### Phase 2 — screen against the broader clade
 
-The same calibrated family HMMs from phase 1 (no rebuilding) are re-searched
-against `NEAR_INGROUP` (close relatives) and `BROAD_OUTGROUP` (distant
-lineages), using the identical presence rule. Every phase-1 candidate is
+The same family HMMs from phase 1 (no rebuilding) are re-searched against
+`NEAR_INGROUP` (close relatives) and `BROAD_OUTGROUP` (distant lineages),
+using the identical flat presence rule. Every phase-1 candidate is
 reclassified:
 
 | `novelty_category` | Condition |
@@ -270,11 +290,11 @@ to demote it with.
 
 ### What's structurally different here vs. the other two pathways
 
-- The **negative control is explicit and small** (`DISCOVERY_OUT`), calibrated
-  per family, rather than "every proteome not in the query group."
-- **Calibration happens once, reused twice** — phase 2 does not recompute
-  thresholds; it reapplies phase 1's per-family E-value ceiling against a
-  larger proteome set.
+- The **negative control is explicit and small** (`DISCOVERY_OUT`) rather
+  than "every proteome not in the query group."
+- **Family HMMs are built once, reused twice** — phase 2 does not rebuild
+  family profiles; it re-searches phase 1's HMMs against a larger proteome
+  set, using the same flat presence rule both times.
 - There is **no loss direction** for this pathway (deferred future
   extension) — `main.nf` stubs a valid empty `losses.html` purely so the
   landing-page report can still assemble.
@@ -303,19 +323,19 @@ from which workflow searches against which group, and it is the axis this
 section is actually about:
 
 - **`DISCOVERY_TARGET` + `DISCOVERY_OUT` (phase 1) define the candidate
-  list.** A family HMM is built from `DISCOVERY_TARGET` membership,
-  calibrated against `DISCOVERY_OUT` as a negative control
-  (`bin/calibrate_family_hmms.py`), and a family only becomes a phase-1
-  candidate if it clears `ingroup_min_frac` in `DISCOVERY_TARGET` and has
-  zero hits in `DISCOVERY_OUT`. `DISCOVERY_OUT` is kept small (5–6 species)
-  deliberately: a bigger or more phylogenetically diverse negative control
-  would dilute the sensitivity of this definitional call, which is supposed
-  to stay cheap and tight.
+  list.** A family HMM is built from `DISCOVERY_TARGET` membership and
+  searched against `DISCOVERY_OUT` as a small explicit negative control, and
+  a family only becomes a phase-1 candidate if it clears `ingroup_min_frac`
+  in `DISCOVERY_TARGET` and has zero hits (at the flat `hmm_presence_evalue`/
+  `hmm_presence_cov` threshold) in `DISCOVERY_OUT`. `DISCOVERY_OUT` is kept
+  small (5–6 species) deliberately: a bigger or more phylogenetically diverse
+  negative control would dilute the sensitivity of this definitional call,
+  which is supposed to stay cheap and tight.
 
 - **`NEAR_INGROUP` + `BROAD_OUTGROUP` (phase 2) only reclassify candidates
-  phase 1 already produced**, using the *same* calibrated HMM thresholds —
-  phase 2 never recalibrates and never adds or removes a family from
-  nothing. Concretely:
+  phase 1 already produced**, using the *same* flat HMM presence rule and the
+  *same* family HMMs (no rebuilding, no recalibration) — phase 2 never adds
+  or removes a family from nothing. Concretely:
   - A `NEAR_INGROUP` hit **cannot make something present** in the phase-1
     sense. It cannot add to, or otherwise affect, the target's own presence
     fraction — it only demotes a candidate's `novelty_category` from
@@ -354,9 +374,9 @@ gives.
 | | `pairwise` | `mmseqs` | `novelty_discovery` |
 |---|---|---|---|
 | Search cost | O(\|IN\|×(N−1)) pairwise | O(N) hmmsearch (1 per proteome) | O(\|DISCOVERY_OUT\|) then O(\|NEAR_INGROUP\|+\|BROAD_OUTGROUP\|) |
-| Presence unit | per-protein pairwise hit | per-family HMM hit | per-family HMM hit |
-| Calibration signal | within-proteome paralog (self-search) | fixed E-value + coverage (swept, not per-family) | per-family negative-control panel (`DISCOVERY_OUT`) |
-| Absence-call risk | paralog-competition edge cases (mitigated by `--paralog-competition-scope`) | family over/under-merging | missed singleton target genes (known gap) |
+| Presence unit | per-protein pairwise hit | per-family HMM hit (+ singleton pairwise hit) | per-family HMM hit (+ singleton pairwise hit) |
+| Significance rule | flat `--evalue` + paralog-competition filter | flat E-value + coverage (swept, not per-family) | flat `--hmm_presence_evalue`/`--hmm_presence_cov` (families) or `--evalue` + paralog-competition (singletons) |
+| Absence-call risk | paralog-competition edge cases (mitigated by `--paralog-competition-scope`) | family over/under-merging | single-`DISCOVERY_TARGET`-genome pairwise fallback not implemented (known gap, see CLAUDE.md) |
 | TBLASTN role | reporting only (`--skip_tblastn_filter`) | disqualifying filter | reporting only (`BROAD_OUTGROUP`, not yet in report) |
 | Candidate-cluster step | separate mmseqs pass over candidates only | none — family *is* the cluster | none — family *is* the cluster |
 | Loss direction | yes (`LOSS_SEARCH` mirror) | yes (`PROFILE_LOSS_SEARCH` mirror) | not implemented (stubbed empty) |
