@@ -8,10 +8,26 @@ bin/make_report.py substitutes two tokens:
 The page has no external dependencies — it must open from a file:// URL on a
 laptop with no network, which is how these reports get shared off the cluster.
 
-Colour roles come from the validated data-viz palette: series-1 (blue) marks
-protein-search presence, series-2 (green) marks TBLASTN genome hits.  Column
+Colour tokens come from lib/skins.py, the shared skin registry, so this page
+and the single-table reports paint from one palette set.  Colour roles: series-1
+marks protein-search presence, series-2 marks TBLASTN genome hits.  Column
 position — not hue — carries ingroup vs outgroup, so no colour does double duty.
+
+This page keeps its own copy of the heatmap-specific chrome (canvas, tooltip,
+tabs) rather than pulling it from lib/report_common.py — that CSS has no
+counterpart in the single-table pages.  What it *does* share is the skin CSS
+and the external-link helpers: those are the parts that had actually drifted
+between the three reports.
 """
+
+from report_common import (
+    EL_HELPER_JS,
+    LINKOUT_HELPERS_JS,
+    SKIN_BOOT_JS,
+    SKIN_PICKER_HTML,
+    SKIN_PICKER_JS,
+    SKIN_VARS_CSS,
+)
 
 HTML_TEMPLATE = r"""<!doctype html>
 <html lang="en">
@@ -20,66 +36,23 @@ HTML_TEMPLATE = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__PROJECT_TITLE__ — NovInvenio candidates</title>
 <style>
-  :root {
-    color-scheme: light;
-    --page: #f9f9f7;
-    --surface-1: #fcfcfb;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --muted: #898781;
-    --grid: #e1e0d9;
-    --axis: #c3c2b7;
-    --border: rgba(11, 11, 11, 0.10);
-    --series-1: #2a78d6;
-    --series-2: #008300;
-    --wash: rgba(42, 120, 214, 0.10);
-    --hover-wash: rgba(11, 11, 11, 0.05);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
-      color-scheme: dark;
-      --page: #0d0d0d;
-      --surface-1: #1a1a19;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --muted: #898781;
-      --grid: #2c2c2a;
-      --axis: #383835;
-      --border: rgba(255, 255, 255, 0.10);
-      --series-1: #3987e5;
-      --series-2: #008300;
-      --wash: rgba(57, 135, 229, 0.16);
-      --hover-wash: rgba(255, 255, 255, 0.06);
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --page: #0d0d0d;
-    --surface-1: #1a1a19;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --muted: #898781;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.10);
-    --series-1: #3987e5;
-    --series-2: #008300;
-    --wash: rgba(57, 135, 229, 0.16);
-    --hover-wash: rgba(255, 255, 255, 0.06);
-  }
-
+""" + SKIN_VARS_CSS + r"""
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--page);
+    /* Skin texture as a background layer on the page ground -- see the note in
+       lib/report_common.py's BASE_PAGE_CSS. An element background paints below
+       every descendant, so a repeating gradient can never land on the ~8px
+       heatmap cells, the tooltip or the detail panel. */
+    background: var(--page) var(--overlay);
     color: var(--text-primary);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.5 var(--font-ui);
   }
   .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
 
   header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
   header.top .titles { flex: 1; min-width: 0; }
-  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-shadow: var(--glow); }
   .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
 
   button, select, input[type="search"] {
@@ -117,7 +90,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   @media (max-width: 900px) { .summary { grid-template-columns: 1fr; } }
 
   .hero-label { color: var(--text-secondary); font-size: 13px; margin-bottom: 2px; }
-  .hero-value { font-size: 52px; line-height: 1.05; font-weight: 600; letter-spacing: -0.02em; }
+  .hero-value { font-size: 52px; line-height: 1.05; font-weight: 600; letter-spacing: -0.02em; text-shadow: var(--glow); }
   .hero-note { color: var(--text-secondary); font-size: 12px; margin-top: 6px; }
 
   .tiles { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 22px; }
@@ -190,7 +163,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--surface-1);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--shadow);
     padding: 10px 12px;
     font-size: 12px;
     pointer-events: none;
@@ -199,7 +172,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   .tip-value { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
   .tip-row { color: var(--text-secondary); display: flex; gap: 8px; align-items: baseline; }
   .tip-key { display: inline-block; width: 10px; height: 2px; border-radius: 1px; flex: none; transform: translateY(-3px); }
-  .tip-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; word-break: break-all; }
+  .tip-id { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; word-break: break-all; }
 
   /* ---- detail panel ---- */
   .detail { position: sticky; top: 16px; }
@@ -208,7 +181,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   .field { margin-bottom: 12px; }
   .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px; }
   .field-value { font-size: 13px; word-break: break-word; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .mono { font-family: var(--font-mono); font-size: 11px; }
   .chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip {
     display: inline-block;
@@ -255,8 +228,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     border: 1px solid var(--border);
     font-variant-numeric: tabular-nums;
   }
-  .pm.on-pres { background: var(--series-1); color: #fff; border-color: transparent; }
-  .pm.on-tb { background: var(--series-2); color: #fff; border-color: transparent; }
+  .pm.on-pres { background: var(--series-1); color: var(--on-series); border-color: transparent; }
+  .pm.on-tb { background: var(--series-2); color: var(--on-series); border-color: transparent; }
   .pm.off { color: var(--muted); }
   .placeholder { color: var(--text-secondary); font-size: 13px; }
 
@@ -297,7 +270,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
+  @media print {
+    .filters, .tabs, header.top select { display: none !important; }
+    .grid-scroll, .tbl-scroll { height: auto; overflow: visible; }
+    .explorer { grid-template-columns: 1fr; }
+  }
 </style>
+<script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
 <div class="wrap">
@@ -306,7 +285,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       <h1 id="title"></h1>
       <p class="sub" id="subtitle"></p>
     </div>
-    <button id="theme-toggle" class="btn-ghost" type="button" aria-label="Toggle colour theme">Theme</button>
+""" + SKIN_PICKER_HTML + r"""
   </header>
 
   <!-- Run summary describes the whole run; the filter row below scopes only the explorer. -->
@@ -366,7 +345,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     </select>
     <button id="f-reset" type="button">Reset</button>
     <div class="spacer"></div>
-    <span class="count" id="count"></span>
+    <span class="count" id="count" role="status" aria-live="polite"></span>
     <button id="dl-tsv" type="button">Download TSV</button>
     <button id="dl-fa" type="button">Download FASTA</button>
   </div>
@@ -794,12 +773,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   // ---- tooltip ------------------------------------------------------------
   var tipEl = document.getElementById("tip");
 
-  function el(tag, cls, text) {
-    var n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text !== undefined && text !== null) n.textContent = text; // labels are untrusted data
-    return n;
-  }
+""" + EL_HELPER_JS + r"""
 
   function showTip(ri, ci, x, y) {
     var row = ROWS[ri];
@@ -850,46 +824,8 @@ HTML_TEMPLATE = r"""<!doctype html>
   // ---- detail panel -------------------------------------------------------
   var detailEl = document.getElementById("detail");
 
-  function geneIdFromProteinId(pid) {
-    return pid.replace(/-[Tt][^-]*(-p\d+)?$|-p\d+$/, "");
-  }
-  function uniprotAcc(sprot) {
-    if (!sprot) return "";
-    var m = /(?:^|\|)([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:\||\s|$)/.exec(sprot);
-    return m ? m[1] : "";
-  }
-  // Best SwissProt hit as a UniProt hyperlink -- falls back to plain text when
-  // the accession can't be parsed out of the hit string.
-  function uniprotLinkNode(sprot) {
-    var acc = uniprotAcc(sprot);
-    if (!acc) return document.createTextNode(sprot || "");
-    var a = el("a", "pfam-link", sprot);
-    a.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
-    a.target = "_blank"; a.rel = "noopener noreferrer";
-    a.title = "UniProt " + acc;
-    return a;
-  }
-  // Compact comma-separated Pfam links for a table cell -- same PF#### accession
-  // rule as the detail panel's chip list above, without the chip styling.
-  function pfamLinksInline(pfamNames, pfamAccs) {
-    var frag = document.createDocumentFragment();
-    var names = pfamNames ? pfamNames.split(",") : [];
-    var accs = pfamAccs ? pfamAccs.split(",") : [];
-    names.forEach(function (n, i) {
-      if (i > 0) frag.appendChild(document.createTextNode(", "));
-      var acc = (accs[i] || "").split(".")[0];
-      if (/^PF\d+$/.test(acc)) {
-        var a = el("a", "pfam-link", n);
-        a.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
-        a.target = "_blank"; a.rel = "noopener noreferrer";
-        a.title = acc;
-        frag.appendChild(a);
-      } else {
-        frag.appendChild(document.createTextNode(n));
-      }
-    });
-    return frag;
-  }
+""" + LINKOUT_HELPERS_JS + r"""
+
   function field(label, valueNode) {
     var f = el("div", "field");
     f.appendChild(el("div", "field-label", label));
@@ -1025,74 +961,26 @@ HTML_TEMPLATE = r"""<!doctype html>
     if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", uniprotLinkNode(row[F.sprot])));
 
     if (row[F.pfam_n]) {
-      var names = row[F.pfam_n].split(",");
-      var accs = row[F.pfam_a] ? row[F.pfam_a].split(",") : [];
-      var evs = row[F.pfam_e] ? row[F.pfam_e].split(",") : [];
-      var chips = el("div", "chips");
-      names.forEach(function (n, i) {
-        var acc = (accs[i] || "").split(".")[0];
-        var ev = evs[i];
-        var node;
-        if (/^PF\d+$/.test(acc)) {
-          node = el("a", "chip", n + (ev ? " · " + ev : ""));
-          node.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
-          node.target = "_blank";
-          node.rel = "noopener noreferrer";
-          node.title = acc + (ev ? " — hmmsearch E-value " + ev : "");
-        } else {
-          node = el("span", "chip", n);
-        }
-        chips.appendChild(node);
-      });
-      detailEl.appendChild(field("Pfam domains (" + names.length + ")", chips));
+      var nPfam = row[F.pfam_n].split(",").length;
+      detailEl.appendChild(field("Pfam domains (" + nPfam + ")",
+        pfamChipsNode(row[F.pfam_n], row[F.pfam_a], row[F.pfam_e])));
     }
 
-    // external links
-    var links = el("div", "links");
-    var acc = uniprotAcc(row[F.sprot]);
-    if (acc) {
-      var up = el("a", null, "UniProt " + acc);
-      up.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
-      up.target = "_blank"; up.rel = "noopener noreferrer";
-      links.appendChild(up);
-      var af = el("a", null, "AlphaFold");
-      af.href = "https://alphafold.ebi.ac.uk/entry/" + acc;
-      af.target = "_blank"; af.rel = "noopener noreferrer";
-      links.appendChild(af);
-    }
-    var fsrcName = row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "";
-    if (fsrcName.indexOf("ModelOrg_") === 0) {
-      var fd = el("a", null, "FungiDB gene");
-      fd.href = "https://fungidb.org/fungidb/app/record/gene/" + encodeURIComponent(geneIdFromProteinId(row[F.id]));
-      fd.target = "_blank"; fd.rel = "noopener noreferrer";
-      links.appendChild(fd);
-    }
+    // External links come from the one shared builder in lib/report_common.py
+    // so all three reports resolve a protein to the same records. This is the
+    // only report that embeds sequences, so it is the only one that gets the
+    // sequence-driven tools (BLASTP, Copy FASTA) and the remote-homology
+    // cluster for candidates with no Pfam and no SwissProt hit.
     var seq = row[F.seq];
-    if (seq) {
-      var bl = el("a", null, "BLASTP at NCBI");
-      bl.href = "https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE=Proteins&PROGRAM=blastp" +
-                "&BLAST_PROGRAMS=blastp&DATABASE=nr&CMD=Web&QUERY=" + encodeURIComponent(seq);
-      bl.target = "_blank"; bl.rel = "noopener noreferrer";
-      links.appendChild(bl);
-
-      var ipr = el("a", null, "InterProScan");
-      ipr.href = "https://www.ebi.ac.uk/interpro/search/sequence/";
-      ipr.target = "_blank"; ipr.rel = "noopener noreferrer";
-      ipr.title = "Opens InterProScan — paste the sequence copied below";
-      links.appendChild(ipr);
-
-      var cp = el("button", null, "Copy FASTA");
-      cp.type = "button";
-      cp.addEventListener("click", function () {
-        var fa = ">" + row[F.id] + "\n" + (seq.match(/.{1,60}/g) || []).join("\n") + "\n";
-        navigator.clipboard.writeText(fa).then(function () {
-          cp.textContent = "Copied";
-          setTimeout(function () { cp.textContent = "Copy FASTA"; }, 1400);
-        });
-      });
-      links.appendChild(cp);
-    }
-    if (links.childNodes.length) detailEl.appendChild(field("External resources", links));
+    detailEl.appendChild(field("External resources", externalLinksNode({
+      id: row[F.id],
+      gene: row[F.gene],
+      sprot: row[F.sprot],
+      pfam: row[F.pfam_n],
+      fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
+      seq: seq,
+      proteome: row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null
+    })));
 
     if (seq) {
       detailEl.appendChild(field("Protein sequence (" + seq.length + " aa)", el("div", "seq", seq)));
@@ -1458,18 +1346,12 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
   });
 
-  var themeBtn = document.getElementById("theme-toggle");
-  themeBtn.addEventListener("click", function () {
-    var cur = document.documentElement.getAttribute("data-theme");
-    if (!cur) {
-      cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-    document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
-    drawHead(); drawGrid();
-  });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-    drawHead(); drawGrid();
-  });
+  // The canvas paints from the same CSS custom properties as the rest of the
+  // page (see palette()), so a skin change only needs a repaint. skin_picker_js
+  // calls this for both an explicit choice and an OS light/dark flip while
+  // "Follow system" is selected.
+  window.onSkinChange = function () { drawHead(); drawGrid(); };
+""" + SKIN_PICKER_JS + r"""
 
   var resizeTimer = null;
   window.addEventListener("resize", function () {

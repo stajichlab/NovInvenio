@@ -81,7 +81,12 @@ NovInvenio/
 │   ├── clusters.py                # build_families() + FamilyIndex — mmseqs cluster -> gene-family grouping
 │   ├── report_data.py             # build_payload() / build_core_payload() / build_losses_payload()
 │   ├── report_template.py         # HTML_TEMPLATE — the novelties.html page (canvas heatmap, HTML/CSS/JS, no deps)
-│   ├── report_common.py           # Shared CSS/JS fragments for the lighter single-table report templates
+│   ├── skins.py                   # SKINS registry — every report page's CSS custom properties,
+│   │                               #   plus the picker markup/JS and WCAG contrast helpers
+│   ├── report_common.py           # Shared CSS/JS fragments for all report templates (page chrome,
+│   │                               #   el()/linkout helpers, external-resource builder)
+│   ├── index_page.py              # render_project_page() / render_gallery_page() — the
+│   │                               #   view/<project>/report.html and view/index.html designs
 │   ├── core_report_template.py    # CORE_HTML_TEMPLATE — the core.html page (single table, no deps)
 │   ├── losses_report_template.py  # LOSSES_HTML_TEMPLATE — the losses.html page (single table, no deps)
 │   └── Helpers.groovy             # Helpers.projectName(params) — derives results subdirectory name
@@ -484,24 +489,67 @@ bin/make_report.py \
   SwissProt/Pfam text. Insert them with `textContent` (the `el()` helper), never
   `innerHTML`. `make_report.py` escapes `</` in the payload so an annotation cannot close
   the `<script>` block early — `tests/test_report_data.py` covers this.
-- **Colour encodes evidence type, not group.** series-1 blue = presence from the protein
-  search; series-2 green = TBLASTN genome hit. Ingroup vs outgroup is carried by column
-  position and the band labels, so no hue does double duty. Both hues are validated for
-  colour-blind separation and contrast in light and dark mode — re-validate before
-  changing them.
+- **Colour lives in `lib/skins.py`, never in a template.** All four pages emit
+  `skins_css()`; a raw hex in a template is a test failure
+  (`tests/test_report_templates.py::test_report_has_no_hardcoded_theme_colours`). Adding
+  a palette means adding a `SKINS` entry — it must define every token in
+  `REQUIRED_TOKENS`, and `tests/test_skins.py` enforces the WCAG floors
+  (4.5:1 body text, 3:1 data marks and `--on-series` chip labels).
+- **Colour encodes evidence type, not group.** series-1 = presence from the protein
+  search; series-2 = TBLASTN genome hit. Ingroup vs outgroup is carried by column
+  position and the band labels, so no hue does double duty. The pair must stay separable
+  under red-green CVD — which is *hue* separation on the blue-yellow axis, something no
+  contrast test can check, so reason about it explicitly when adding a skin (the neon
+  skin pairs cyan with amber rather than the obvious cyan/magenta for exactly this
+  reason). Re-validate before editing the shipped `paper`/`dark` values.
+- **The canvas repaints on a skin change** via `window.onSkinChange` — it reads the same
+  tokens through `getComputedStyle` (`palette()`), so a new skin needs no canvas code.
+- **A skin owns its type and effects too**, through `--font-ui`/`--font-mono`/`--glow`/
+  `--overlay`/`--shadow`. `--overlay` (the neon skin's scanlines) is a **background layer
+  on `body`**, not an overlay element: an element's background always paints below all of
+  its descendants, so the texture can only ever appear in the page's negative space. Do
+  not reimplement it as a positioned overlay — the first attempt did, and a `z-index: 50`
+  overlay painted scanlines across the detail panel (`position: sticky`, `z-index: auto`)
+  and the heatmap tooltip (`z-index: 20`), because raising only the two scroll containers
+  left every other content region below it. Webfonts are impossible here — the pages open
+  from `file://` — so every font stack is system fonts.
 - **Rows are virtualised** on a canvas (~20k rows). `drawGrid()` renders only the visible
   window; the scroll height comes from the spacer div.
 - **The table tab is the accessibility twin** of the heatmap and must keep every value
   reachable without hovering.
+- **External links come from one builder**, `externalLinksNode()` in
+  `lib/report_common.py`. All three reports call it, so a protein resolves to the same
+  records everywhere — the previous per-template copies had drifted. Per-species gene
+  records come from the config CSV's optional `SourceDB` column, not from the annotation
+  source. A candidate with neither a Pfam domain nor a SwissProt hit gets the
+  remote-homology cluster (HHpred/Foldseek/InterProScan) instead of an ID-based NCBI
+  search that would return nothing — that population is the point of the pipeline.
+- **A `SourceDB` value is only semi-trusted.** Config CSVs get copied between users and
+  projects, and the free-form `{gene}` template goes straight into an `href`, so
+  `genomeDbLink()` requires an `http(s)` scheme before building a link — otherwise a
+  `javascript:` value becomes a clickable link in the report.
+  `tests/test_report_js_behaviour.py` covers this with a hostile fixture.
 
 ### Testing template JS changes
 
-`lib/report_template.py` has no test runner of its own — pytest only covers the Python
-side (`tests/test_report_data.py` checks the embedded payload, not the JS behaviour). When
-editing the JS inside `HTML_TEMPLATE`, verify it in two stages:
+Stage 1 below now runs as part of the suite —
+`tests/test_report_templates.py::test_page_javascript_parses` does the `node --check`
+pass over every page's `<script>` bodies and skips where node is unavailable. That matters
+more than it used to: the pages are assembled from shared fragments in
+`lib/report_common.py` and `lib/skins.py`, so one bad fragment breaks all four at once.
+Stage 2 (jsdom) now has a home too: `tests/test_report_js_behaviour.py` generates real
+report pages from a fixture and drives them through `tests/js/drive_reports.mjs`,
+covering the skin picker's three states and the whole external-link fallback chain. It
+**skips unless jsdom resolves**, since that is an npm dependency in a pixi project — set
+`NOVINVENIO_JSDOM` to a jsdom install, or `npm install jsdom` somewhere Node will find
+it. Extend that driver rather than writing a new throwaway script.
 
-1. **Syntax check with `node --check`.** Extract the `<script>` body (the second one — the
-   first is the `application/json` payload) and check it parses:
+When editing the JS inside `HTML_TEMPLATE` — or any shared fragment — verify it in two
+stages:
+
+1. **Syntax check with `node --check`** (or just run `pytest tests/test_report_templates.py`).
+   To do it by hand, extract the `<script>` body (the second one — the first is the
+   `application/json` payload) and check it parses:
 
    ```bash
    python3 -c "
@@ -547,6 +595,12 @@ editing the JS inside `HTML_TEMPLATE`, verify it in two stages:
    the debounced search box (140ms), and assert on `textContent` of `#count`, `#tbl-body`,
    and `#detail` rather than the canvas heatmap (canvas is stubbed to a no-op, so pixel
    output isn't observable — assert through the table tab instead).
+
+   Two things to stub beyond the list above when driving the *skin* wiring: the page
+   writes to `localStorage`, so give jsdom a real `url` (a `file://` document has an
+   opaque origin and storage throws), and remember that `--report_sequences` defaults to
+   `novelties` — a non-novelty row carries no sequence, so it legitimately shows none of
+   the sequence-driven links.
 
    This caught a real behavioural requirement during the gene-family feature: with default
    filters, a family member that doesn't independently clear its own species' novelty
@@ -631,6 +685,13 @@ IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,,Cimm,Pezi
 ```
 
 - `Short` is a ≤8-char unique ID used in filenames and output tables throughout.
+- `SourceDB` and `NCBI_TaxID` are optional, report-only, and never affect a
+  presence/novelty call. `SourceDB` builds a per-gene database link in the reports'
+  detail panels: `fungidb`, `mycocosm:<portal>`, `ensemblfungi:<species>`,
+  `veupathdb:<project>`, or any URL template containing `{gene}`. `NCBI_TaxID` turns the
+  species' NCBI Taxonomy link from a by-name search into a direct taxid lookup. Omitting
+  either (or the whole column) is never an error — see `lib/report_common.py`'s
+  `genomeDbLink()`/`taxonomyLink()`.
 - `Strain` may be empty.
 - The config CSV filename (without `.csv`) becomes the results output subdirectory name.
 - `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs).

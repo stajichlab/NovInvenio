@@ -66,6 +66,32 @@ ROW_FIELDS = [
 # from here (e.g. tests/test_report_data.py).
 
 
+def _proteome_meta(sample, context: bool = False) -> dict:
+    """Payload metadata for one proteome column.
+
+    Shared by all three payload builders so a column means the same thing in
+    every report. ``source_db``/``taxid`` come from the config CSV's optional
+    SourceDB/NCBI_TaxID columns and are report-only: they drive the detail
+    panel's gene-record and NCBI Taxonomy links (lib/report_common.py's
+    ``genomeDbLink``/``taxonomyLink``) and nothing else. Both are omitted when
+    empty so they never bloat a payload that has no use for them.
+    """
+    meta = {
+        'short': sample.short,
+        'species': sample.species,
+        'strain': sample.strain,
+        'group': sample.group,
+        'taxon': sample.taxon_group,
+    }
+    if getattr(sample, 'source_db', ''):
+        meta['source_db'] = sample.source_db
+    if getattr(sample, 'taxid', ''):
+        meta['taxid'] = sample.taxid
+    if context:
+        meta['context'] = True
+    return meta
+
+
 def read_matrix(path: str | Path) -> tuple[list[str], list[dict]]:
     """Return (fieldnames, rows) from an annotated presence matrix TSV."""
     with open(path, newline='') as fh:
@@ -439,23 +465,10 @@ def build_payload(
         'methods': methods,
         'support_method': support_method if support_matrix else None,
         'proteomes': [
-            {
-                'short': s.short,
-                'species': s.species,
-                'strain': s.strain,
-                'group': s.group,
-                'taxon': s.taxon_group,
-            }
+            _proteome_meta(s)
             for s in proteomes
         ] + [
-            {
-                'short': context_samples[short].short,
-                'species': context_samples[short].species,
-                'strain': context_samples[short].strain,
-                'group': context_samples[short].group,
-                'taxon': context_samples[short].taxon_group,
-                'context': True,
-            }
+            _proteome_meta(context_samples[short], context=True)
             for short in context_shorts
         ],
         'tblastn_genomes': tb_genomes,
@@ -479,6 +492,7 @@ CORE_ROW_FIELDS = [
     'sprot',     # Best_Swissprot
     'pfam_n',    # Pfam_Names (comma-separated)
     'pfam_a',    # Pfam_Accessions (comma-separated)
+    'pfam_e',    # Pfam_Evalues (comma-separated)
     'fam',       # index into payload['families'], or -1 if not part of a multi-member cluster
     'chrom',     # GFF3-derived chromosome/scaffold/contig name (see ROW_FIELDS' 'chrom')
     'start',     # GFF3-derived 1-based start coordinate, int or null (see ROW_FIELDS' 'start')
@@ -568,6 +582,7 @@ def build_core_payload(
             row.get('Best_Swissprot', '') or '',
             row.get('Pfam_Names', '') or '',
             row.get('Pfam_Accessions', '') or '',
+            row.get('Pfam_Evalues', '') or '',
             fam_i,
             chrom,
             start,
@@ -578,13 +593,7 @@ def build_core_payload(
         'core_min_frac': core_min_frac,
         'fields': CORE_ROW_FIELDS,
         'proteomes': [
-            {
-                'short': s.short,
-                'species': s.species,
-                'strain': s.strain,
-                'group': s.group,
-                'taxon': s.taxon_group,
-            }
+            _proteome_meta(s)
             for s in proteomes
         ],
         'fsources': fsources,
@@ -609,6 +618,7 @@ LOSSES_ROW_FIELDS = [
     'sprot',       # Best_Swissprot
     'pfam_n',      # Pfam_Names (comma-separated)
     'pfam_a',      # Pfam_Accessions (comma-separated)
+    'pfam_e',      # Pfam_Evalues (comma-separated)
     'tb_hit',      # 1 if TBLASTN found this outgroup protein in an ingroup genome
     'tb_genomes',  # comma-separated ingroup genome IDs with a TBLASTN hit
     'fam',         # index into payload['families'], or -1 if not part of a multi-member cluster
@@ -755,6 +765,7 @@ def build_losses_payload(
             row.get('Best_Swissprot', '') or '',
             row.get('Pfam_Names', '') or '',
             row.get('Pfam_Accessions', '') or '',
+            row.get('Pfam_Evalues', '') or '',
             1 if hit_genomes else 0,
             ','.join(hit_genomes),
             fam_i,
@@ -770,13 +781,7 @@ def build_losses_payload(
         'n_outgroup': len(outgroup_ids),
         'fields': LOSSES_ROW_FIELDS,
         'proteomes': [
-            {
-                'short': s.short,
-                'species': s.species,
-                'strain': s.strain,
-                'group': s.group,
-                'taxon': s.taxon_group,
-            }
+            _proteome_meta(s)
             for s in proteomes
         ],
         'tblastn_genomes': tb_genomes,

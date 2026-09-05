@@ -18,8 +18,10 @@ from report_common import (
     DOWNLOAD_JS,
     EL_HELPER_JS,
     LINKOUT_HELPERS_JS,
-    THEME_TOGGLE_JS,
-    THEME_VARS_CSS,
+    SKIN_BOOT_JS,
+    SKIN_PICKER_HTML,
+    SKIN_PICKER_JS,
+    SKIN_VARS_CSS,
 )
 
 CORE_HTML_TEMPLATE = r"""<!doctype html>
@@ -29,8 +31,9 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__PROJECT_TITLE__ — NovInvenio core genes</title>
 <style>
-""" + THEME_VARS_CSS + BASE_PAGE_CSS + r"""
+""" + SKIN_VARS_CSS + BASE_PAGE_CSS + r"""
 </style>
+<script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
 <div class="wrap">
@@ -39,7 +42,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       <h1 id="title"></h1>
       <p class="sub" id="subtitle"></p>
     </div>
-    <button id="theme-toggle" class="btn-ghost" type="button" aria-label="Toggle colour theme">Theme</button>
+""" + SKIN_PICKER_HTML + r"""
   </header>
 
   <section class="card">
@@ -79,7 +82,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
     </select>
     <button id="f-reset" type="button">Reset</button>
     <div class="spacer"></div>
-    <span class="count" id="count"></span>
+    <span class="count" id="count" role="status" aria-live="polite"></span>
     <button id="dl-tsv" type="button">Download TSV</button>
   </div>
 
@@ -350,41 +353,22 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
     if (row[F.pfam_n]) {
       var pfamCount = row[F.pfam_n].split(",").length;
       detailEl.appendChild(field("Pfam domains (" + pfamCount + ")",
-        pfamChipsNode(row[F.pfam_n], row[F.pfam_a])));
+        pfamChipsNode(row[F.pfam_n], row[F.pfam_a], row[F.pfam_e])));
     }
 
-    // external links — same resolution order as lib/report_template.py's
-    // detail panel: SwissProt accession, then model-organism gene, then a
-    // generic NCBI protein-name search as the last resort for a core gene
-    // with neither (worth a manual spot-check).
-    var links = el("div", "links");
-    var acc = uniprotAcc(row[F.sprot]);
-    var fsrcName = row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "";
-    if (acc) {
-      var up = el("a", null, "UniProt " + acc);
-      up.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
-      up.target = "_blank"; up.rel = "noopener noreferrer";
-      links.appendChild(up);
-      var af = el("a", null, "AlphaFold");
-      af.href = "https://alphafold.ebi.ac.uk/entry/" + acc;
-      af.target = "_blank"; af.rel = "noopener noreferrer";
-      links.appendChild(af);
-    }
-    if (fsrcName.indexOf("ModelOrg_") === 0) {
-      var fd = el("a", null, "FungiDB gene");
-      fd.href = "https://fungidb.org/fungidb/app/record/gene/" + encodeURIComponent(geneIdFromProteinId(row[F.id]));
-      fd.target = "_blank"; fd.rel = "noopener noreferrer";
-      links.appendChild(fd);
-    }
-    if (!acc && fsrcName.indexOf("ModelOrg_") !== 0) {
-      var term = row[F.gene] || geneIdFromProteinId(row[F.id]);
-      var nc = el("a", null, "Search NCBI Protein");
-      nc.href = "https://www.ncbi.nlm.nih.gov/protein/?term=" + encodeURIComponent(term);
-      nc.target = "_blank"; nc.rel = "noopener noreferrer";
-      nc.title = "No model-organism or SwissProt hit — worth a manual check";
-      links.appendChild(nc);
-    }
-    if (links.childNodes.length) detailEl.appendChild(field("External resources", links));
+    // External links come from the one shared builder in lib/report_common.py
+    // so all three reports resolve a protein to the same records. core.html
+    // embeds no sequences, so the sequence-driven tools (BLASTP, Copy FASTA,
+    // the remote-homology cluster) are simply absent here.
+    detailEl.appendChild(field("External resources", externalLinksNode({
+      id: row[F.id],
+      gene: row[F.gene],
+      sprot: row[F.sprot],
+      pfam: row[F.pfam_n],
+      fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
+      seq: "",
+      proteome: row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null
+    })));
   }
 
   function select(ri) {
@@ -478,7 +462,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
     refresh(true);
   });
 
-""" + THEME_TOGGLE_JS + r"""
+""" + SKIN_PICKER_JS + r"""
 
   // ---- init ---------------------------------------------------------------
   document.getElementById("title").textContent = DATA.project + " — core genes";
