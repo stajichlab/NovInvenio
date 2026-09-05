@@ -317,3 +317,46 @@ Resolution). No structural mitigation exists yet for the second failure mode bey
 operational guidance above — a candidate would be a wrapper around manual SLURM
 job manipulation that first checks whether the job ID is currently tracked by a live
 Nextflow session (e.g. grepping `.nextflow.log` for the job ID) and warns before acting.
+
+---
+
+## The report pages' colour duplication was hiding two real defects (2026-09-05)
+
+**What surprised us**: consolidating four copies of the colour tokens was framed as a
+tidy-up, but the copies had drifted in ways that were invisible until they sat side by
+side:
+
+1. `core.html` and `losses.html` called `pfamChipsNode(names, accs)` with two arguments
+   against a three-argument helper, so both **silently dropped the Pfam E-values** that
+   `novelties.html` shows. No error — the third parameter just came back `undefined`.
+   Fixing it also needed `pfam_e` added to `CORE_ROW_FIELDS`/`LOSSES_ROW_FIELDS`, which
+   never carried the column at all.
+2. The FungiDB gene link was gated on the *annotation source* being a `ModelOrg_*` entry,
+   so only the four model organisms in `configs/modelorgs.yaml` ever got a gene-record
+   link — even though most of the sample pool lives in FungiDB or MycoCosm. The fix is a
+   per-species `SourceDB` config column, not a smarter guess from the annotation.
+
+**Why it matters**: both are the failure mode where nothing throws and the page still
+renders, so neither would ever surface from a stack trace or a payload unit test. They
+surfaced from putting the three implementations in one file.
+
+**Also learned**:
+
+- A WCAG contrast test over a palette dict is cheap (~40 lines) and immediately earned its
+  keep: it failed on `color: #fff` chip labels sitting at ~1.5:1 on the neon skin's cyan.
+  The lesson is that the *hardcoded* colour was the bug — a token (`--on-series`) is what
+  lets a skin decide what reads on top of its own fill.
+- A luminance test cannot check the property that actually matters for the two evidence
+  colours (hue separation on the blue-yellow axis under red-green CVD). Keep it as a
+  collapse detector and reason about CVD explicitly in the skin's docstring.
+- The `view/` gallery already had every fact needed to be useful — species counts, row
+  counts, thresholds are all parsed by `collect_run_summary()` — and displayed none of it.
+  Worth checking for that pattern elsewhere before adding new extraction code.
+- A page that writes `localStorage` needs a real `url` in the jsdom options: a `file://`
+  document gets an opaque origin and storage throws.
+- `git commit` fails on this machine with `cannot exec '/usr/local/bin/gpg'` — `gpg.program`
+  points at the Intel-homebrew path. `git -c gpg.program=/opt/homebrew/bin/gpg commit`
+  works without changing the user's config.
+
+**Tags**: report, skins, accessibility, wcag, colour-blind, pfam, linkouts, duplication,
+jsdom, testing, gpg, gotcha

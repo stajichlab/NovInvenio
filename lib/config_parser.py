@@ -18,6 +18,16 @@ class Sample:
     gff3: str = ''      # optional filename, resolved relative to data_dir (also checked
                          # under pep/, dna/, genome/, scaffolds/, and gff3/ subdirs) --
                          # empty means no chrom/start data for this species' report rows
+    source_db: str = ''  # optional genome-database key used to build a per-gene linkout in
+                         # the HTML reports. Accepted forms: 'fungidb',
+                         # 'mycocosm:<portal>', 'ensemblfungi:<species>',
+                         # 'veupathdb:<project>', or any URL template containing '{gene}'.
+                         # Empty means the report falls back to a model-organism FungiDB
+                         # link (if the annotation came from one) or an NCBI Protein search.
+                         # Report-only: never affects any presence/novelty call.
+    taxid: str = ''      # optional NCBI taxonomy ID. Report-only -- turns the species name
+                         # in a report's detail panel into an NCBI Taxonomy link; without it
+                         # the link falls back to a by-name search.
 
 
 # All recognised group labels. IN/OUT are the classic pairwise/mmseqs pathway roles;
@@ -62,6 +72,8 @@ def parse_config(config_path: Union[str, Path]) -> list[Sample]:
                 short=row['Short'].strip(),
                 taxon_group=row['TaxonGroup'].strip(),
                 gff3=(row.get('GFF3') or '').strip(),
+                source_db=(row.get('SourceDB') or '').strip(),
+                taxid=(row.get('NCBI_TaxID') or '').strip(),
             ))
     return samples
 

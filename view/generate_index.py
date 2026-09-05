@@ -29,10 +29,13 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import html
 import json
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'lib'))
+from index_page import render_gallery_page, render_project_page  # noqa: E402
 
 # The folder title links here.
 REPORT_NAME = "report.html"
@@ -126,143 +129,48 @@ def collect_run_summary(project_dir: Path) -> dict | None:
     }
 
 
-REPORT_PAGE_TEMPLATE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>__PROJECT__ — NovInvenio run summary</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; background: #fff;
-  }
-  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-  h2 { font-size: 1.1rem; margin-top: 1.75rem; }
-  .sub { color: #666; font-size: 0.9rem; margin-top: 0; }
-  a { color: #0645ad; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .reports { list-style: none; padding: 0; }
-  .reports li {
-    border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 0.9rem; margin-bottom: 0.5rem;
-  }
-  .reports .meta { color: #666; font-size: 0.85rem; }
-  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; margin-top: 0.5rem; }
-  th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #eee; }
-  th { border-bottom: 1px solid #bbb; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
-  @media (max-width: 760px) { .groups { grid-template-columns: 1fr; } }
-  .params { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 1.5rem; }
-  .params .label { color: #666; font-size: 0.8rem; }
-  .params .value { font-size: 1.1rem; font-weight: 600; }
-  footer { margin-top: 2rem; color: #999; font-size: 0.8rem; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #1a1a1a; color: #ddd; }
-    .reports li { border-color: #444; }
-    th { border-color: #555; } td { border-color: #333; }
-    a { color: #6cb2ff; } .sub, .reports .meta, .params .label { color: #999; }
-    footer { color: #777; }
-  }
-</style>
-</head>
-<body>
-<h1>__PROJECT__</h1>
-<p class="sub">NovInvenio run summary · reconstructed from the reports in this folder</p>
-
-<h2>Reports</h2>
-<ul class="reports">
-__REPORTS__
-</ul>
-
-<h2>Run parameters</h2>
-<ul class="params">
-__PARAMS__
-</ul>
-
-<div class="groups">
-  <div>
-    <h2>Ingroup (__N_IN__)</h2>
-    __INGROUP__
-  </div>
-  <div>
-    <h2>Outgroup (__N_OUT__)</h2>
-    __OUTGROUP__
-  </div>
-</div>
-
-<footer>Generated __GENERATED__ by generate_index.py</footer>
-</body>
-</html>
-"""
-
-
-def _species_table(proteomes: list[dict]) -> str:
-    if not proteomes:
-        return '<p class="sub">None found in the reports.</p>'
-    rows = []
-    for p in proteomes:
-        name = html.escape(p.get("species", ""))
-        if p.get("strain"):
-            name += " " + html.escape(p["strain"])
-        rows.append(
-            "<tr><td class=\"mono\">{short}</td><td>{name}</td><td>{taxon}</td></tr>".format(
-                short=html.escape(p.get("short", "")),
-                name=name,
-                taxon=html.escape(p.get("taxon", "")),
-            )
-        )
-    return (
-        '<table><thead><tr><th>Short</th><th>Species</th><th>Taxon group</th></tr></thead>'
-        "<tbody>" + "\n".join(rows) + "</tbody></table>"
-    )
-
-
-def _reports_list(project_dir: Path, counts: dict[str, int]) -> str:
-    items = []
+def _report_cards(project_dir: Path, counts: dict[str, int]) -> list[dict]:
+    cards = []
     for name in SUBPAGES:
         if not (project_dir / name).exists():
             continue
         label, blurb = REPORT_LABELS.get(name, (name, ""))
         n = counts.get(name)
-        meta = blurb
-        if n is not None:
-            meta = f"{n:,} rows · {blurb}" if blurb else f"{n:,} rows"
-        items.append(
-            '  <li><a href="{href}">{label}</a><div class="meta">{meta}</div></li>'.format(
-                href=html.escape(name), label=html.escape(label), meta=html.escape(meta),
-            )
-        )
-    return "\n".join(items) or '  <li class="meta">No reports found in this folder.</li>'
+        cards.append({
+            "href": name,
+            "title": label,
+            "desc": blurb,
+            "meta": f"{n:,} rows" if n is not None else "",
+        })
+    return cards
 
 
-def _params_list(params: dict[str, object]) -> str:
-    items = []
+def _param_tiles(params: dict[str, object]) -> list[tuple[str, str]]:
+    tiles = []
     for key, label in PARAM_LABELS:
         if key not in params:
             continue
         value = params[key]
-        text = f"{value:g}" if isinstance(value, (int, float)) else str(value)
-        items.append(
-            '  <li><div class="label">{label}</div><div class="value">{value}</div></li>'.format(
-                label=html.escape(label), value=html.escape(text),
-            )
-        )
-    return "\n".join(items) or '  <li class="label">No run parameters recorded in the reports.</li>'
+        tiles.append((label, f"{value:g}" if isinstance(value, (int, float)) else str(value)))
+    return tiles
 
 
 def render_report(project_dir: Path, summary: dict) -> str:
-    generated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    return (
-        REPORT_PAGE_TEMPLATE
-        .replace("__PROJECT__", html.escape(summary["project"]))
-        .replace("__REPORTS__", _reports_list(project_dir, summary["counts"]))
-        .replace("__PARAMS__", _params_list(summary["params"]))
-        .replace("__INGROUP__", _species_table(summary["ingroup"]))
-        .replace("__OUTGROUP__", _species_table(summary["outgroup"]))
-        .replace("__N_IN__", str(len(summary["ingroup"])))
-        .replace("__N_OUT__", str(len(summary["outgroup"])))
-        .replace("__GENERATED__", generated)
+    return render_project_page(
+        project=summary["project"],
+        reports=_report_cards(project_dir, summary["counts"]),
+        tiles=(
+            [
+                ("Ingroup proteomes", str(len(summary["ingroup"]))),
+                ("Outgroup proteomes", str(len(summary["outgroup"]))),
+            ]
+            + _param_tiles(summary["params"])
+        ),
+        ingroup=summary["ingroup"],
+        outgroup=summary["outgroup"],
+        note="Reconstructed from the data embedded in the reports in this folder — "
+             "no config CSV or pipeline rerun needed.",
+        footer=f"Generated {datetime.datetime.now():%Y-%m-%d %H:%M} by generate_index.py",
     )
 
 
@@ -288,72 +196,6 @@ def write_reports(root: Path, force: bool) -> None:
 
 # ---- top-level view/index.html -------------------------------------------
 
-PAGE_TEMPLATE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>NovInvenio Reports</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    max-width: 48rem;
-    margin: 2rem auto;
-    padding: 0 1rem;
-    color: #1a1a1a;
-    background: #fff;
-  }}
-  h1 {{ font-size: 1.5rem; }}
-  ul {{ list-style: none; padding: 0; }}
-  li {{
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-  }}
-  a {{ font-size: 1.1rem; text-decoration: none; color: #0645ad; }}
-  a:hover {{ text-decoration: underline; }}
-  .meta {{ color: #666; font-size: 0.85rem; margin-top: 0.2rem; }}
-  .pages {{ list-style: none; padding: 0; margin: 0.5rem 0 0; }}
-  .pages li {{
-    border: none;
-    padding: 0.15rem 0;
-    margin: 0;
-  }}
-  .pages a {{ font-size: 0.95rem; }}
-  footer {{ margin-top: 2rem; color: #999; font-size: 0.8rem; }}
-  @media (prefers-color-scheme: dark) {{
-    body {{ background: #1a1a1a; color: #ddd; }}
-    li {{ border-color: #444; }}
-    a {{ color: #6cb2ff; }}
-    .meta {{ color: #999; }}
-    footer {{ color: #777; }}
-  }}
-</style>
-</head>
-<body>
-<h1>NovInvenio Reports</h1>
-<ul>
-{items}
-</ul>
-<footer>Regenerated {generated} by generate_index.py</footer>
-</body>
-</html>
-"""
-
-ITEM_TEMPLATE = """  <li>
-    <a href="{href}">{title}</a>
-    <div class="meta">updated {mtime}</div>{pages}
-  </li>"""
-
-PAGE_ITEM_TEMPLATE = """      <li><a href="{href}">{title}</a></li>"""
-
-PAGES_LIST_TEMPLATE = """
-    <ul class="pages">
-{pages}
-    </ul>"""
-
-
 def find_project_dirs(root: Path) -> list[Path]:
     return sorted(
         p for p in root.iterdir()
@@ -369,36 +211,48 @@ def page_title(filename: str) -> str:
     return filename[:-len(".html")].replace("_", " ").replace("-", " ")
 
 
+def _project_card(d: Path) -> dict:
+    """One gallery card, with the run's actual shape rather than just its name.
+
+    The species and row counts are already sitting in the report payloads (see
+    collect_run_summary) -- the old gallery parsed none of it and showed a bare
+    directory name and an mtime, which told a first-time visitor nothing.
+    """
+    report = d / REPORT_NAME
+    main = report if report.exists() else sorted(d.glob("*.html"))[0]
+    summary = collect_run_summary(d)
+
+    desc = ""
+    meta_bits = []
+    if summary:
+        n_in, n_out = len(summary["ingroup"]), len(summary["outgroup"])
+        if n_in or n_out:
+            desc = f"{n_in} ingroup · {n_out} outgroup proteomes"
+        counts = summary["counts"]
+        for name in SUBPAGES:
+            if name in counts:
+                label = REPORT_LABELS.get(name, (name, ""))[0]
+                meta_bits.append(f"{counts[name]:,} {label.lower()}")
+    mtime = datetime.datetime.fromtimestamp(main.stat().st_mtime)
+    meta_bits.append(f"updated {mtime:%Y-%m-%d}")
+
+    return {
+        "title": project_title(d.name),
+        "href": f"{d.name}/{main.name}",
+        "desc": desc,
+        "meta": " · ".join(meta_bits),
+        "subpages": [
+            {"href": f"{d.name}/{name}", "title": page_title(name)}
+            for name in SUBPAGES if (d / name).exists()
+        ],
+    }
+
+
 def render(root: Path) -> str:
-    project_dirs = find_project_dirs(root)
-    items = []
-    for d in project_dirs:
-        # The folder title links to report.html when present; otherwise fall
-        # back to the first available HTML page so the title is always a link.
-        report = d / REPORT_NAME
-        main = report if report.exists() else sorted(d.glob("*.html"))[0]
-
-        subpages = [name for name in SUBPAGES if (d / name).exists()]
-        pages_html = ""
-        if subpages:
-            page_items = "\n".join(
-                PAGE_ITEM_TEMPLATE.format(
-                    href=f"{d.name}/{name}",
-                    title=html.escape(page_title(name)),
-                )
-                for name in subpages
-            )
-            pages_html = PAGES_LIST_TEMPLATE.format(pages=page_items)
-
-        mtime = datetime.datetime.fromtimestamp(main.stat().st_mtime)
-        items.append(ITEM_TEMPLATE.format(
-            href=f"{d.name}/{main.name}",
-            title=html.escape(project_title(d.name)),
-            mtime=mtime.strftime("%Y-%m-%d"),
-            pages=pages_html,
-        ))
-    generated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    return PAGE_TEMPLATE.format(items="\n".join(items), generated=generated)
+    return render_gallery_page(
+        projects=[_project_card(d) for d in find_project_dirs(root)],
+        footer=f"Regenerated {datetime.datetime.now():%Y-%m-%d %H:%M} by generate_index.py",
+    )
 
 
 def main():

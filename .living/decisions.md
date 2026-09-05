@@ -675,3 +675,59 @@ sweep
 
 **Tags**: novelty-discovery, infrastructure, nextflow, slurm, session-lock, sweep,
 site-config, bug-fix
+
+---
+
+## Report presentation: one skin registry, one linkout builder, one landing-page design (2026-09-05)
+
+**Context**: A code audit of the report/`view/` layer, driven by a request for a
+cyberpunk/Neuromancer look that could be *swapped* rather than hardcoded, plus better
+external-database linkouts for a broad audience reading these off GitHub Pages.
+
+**What we found**: the presentation layer had four independent copies of the same colour
+tokens (inline in `report_template.py`, `report_common.THEME_VARS_CSS`, and twice as raw
+hex in `view/generate_index.py`), plus a hardcoded light/dark pair for `losses.html`'s
+`.badge.warn`. Adding a fifth palette meant editing four files and remembering the badge.
+Two *different* generators also produced `view/<project>/report.html`
+(`bin/make_index_report.py` from the config CSV; `view/generate_index.py` from the report
+payloads) with different markup and CSS, so whichever ran last decided what a shared
+folder looked like — and the top-level gallery matched neither.
+
+**Decision**:
+
+1. `lib/skins.py` is the sole source of colour. Selection is three-state — no `data-skin`
+   attribute means follow the OS; an explicit value overrides it; `@media print` always
+   pins Paper. Persisted in `localStorage` under one key so a choice carries across a
+   project's three reports, and applied from `<head>` before first paint.
+2. Skins own type and effects too (`--font-ui`/`--font-mono`/`--glow`/`--overlay`), so a
+   neon look needs no `[data-skin=...]` selectors scattered through the templates.
+3. `lib/report_common.py`'s `externalLinksNode()` is the sole external-link builder for
+   all three reports.
+4. `lib/index_page.py` renders both landing pages; the two generators keep their different
+   *inputs* but no longer differ in what they draw.
+
+**Alternatives rejected**:
+
+- *Cyan/magenta for the neon skin* — the obvious cyberpunk pair, but magenta desaturates
+  toward blue-grey under deuteranopia and converges with cyan, breaking the report's
+  colour-role contract (series-1 = search presence, series-2 = TBLASTN hit). Cyan/amber is
+  separated on the blue-yellow axis, which every common form of red-green CVD preserves.
+- *A full `report_template.py` refactor onto `report_common.py`* — still rejected for the
+  heatmap-specific chrome (large, well covered, no counterpart in the single-table pages).
+  Only the two fragments that had actually **drifted** were shared: the skin CSS and the
+  linkout helpers.
+- *Recolouring the shipped `paper`/`dark` palettes* to widen the series-pair luminance gap.
+  CLAUDE.md requires re-validating CVD separation first, and this change was meant to be
+  pixel-neutral for the existing skins; the greyscale guard is calibrated to "no worse than
+  what ships" (1.10) instead.
+- *An `amber` monochrome VT220 skin* — cannot carry two evidence hues without a
+  fill-pattern fallback. Dropped in favour of `contrast`.
+
+**Consequences**: `tests/test_skins.py` makes the contrast floors a build failure rather
+than an aspiration — it immediately caught white-on-neon presence-chip labels, which is
+why `--on-series` exists. `tests/test_report_templates.py` runs the `node --check` pass
+CLAUDE.md documented but nothing enforced; that matters more now that one bad shared
+fragment breaks all four pages at once.
+
+**Tags**: report, skins, accessibility, wcag, colour-blind, linkouts, github-pages,
+refactor, duplication, config-csv
