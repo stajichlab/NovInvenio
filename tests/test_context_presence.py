@@ -128,3 +128,26 @@ def test_no_context_proteomes_in_config_yields_empty_columns(tmp_path):
     matrix, evalues = run(tmp_path, 'g1\tg1_x\t1e-10\t100\tIn1\tSomewhere\n', 'In1::g1\n')
     assert list(matrix.columns) == ['protein_id', 'source_proteome']
     assert list(evalues.columns) == ['protein_id', 'source_proteome']
+
+
+def test_hits_flag_with_zero_filenames_does_not_crash(tmp_path):
+    """Regression: workflows/context_search.nf renders `--hits ${hit_tsvs}` with zero
+    following tokens when near_in_ch/broad_out_ch are both empty (no NEAR_INGROUP/
+    BROAD_OUTGROUP rows in the config) -- `--hits` nargs='+' used to reject that with
+    an argparse error before main()'s own graceful-degradation branch ever ran."""
+    (tmp_path / 'config.csv').write_text('GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup\n'
+                                         'IN,In one,,in1.pep.fa,,In1,X\n')
+    candidates_path = tmp_path / 'candidates.txt'
+    candidates_path.write_text('In1::g1\n')
+    matrix_out = tmp_path / 'context_presence.tsv'
+    evalues_out = tmp_path / 'context_presence.evalues.tsv'
+    cmd = [sys.executable, str(SCRIPT),
+           '--hits',  # zero filenames follow, exactly as Nextflow renders an empty list
+           '--candidates', str(candidates_path),
+           '--config', str(tmp_path / 'config.csv'),
+           '--output-matrix', str(matrix_out),
+           '--output-evalues', str(evalues_out)]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    matrix = pd.read_csv(matrix_out, sep='\t')
+    assert list(matrix.columns) == ['protein_id', 'source_proteome']
