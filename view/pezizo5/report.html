@@ -1,82 +1,418 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>pezizo5 — NovInvenio run summary</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pezizo5 — NovInvenio reports</title>
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    max-width: 60rem; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; background: #fff;
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --series-2: #008300;
+    --on-series: #ffffff;
+    --wash: rgba(42, 120, 214, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+    --warn: #a15c00;
+    --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
   }
-  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-  h2 { font-size: 1.1rem; margin-top: 1.75rem; }
-  .sub { color: #666; font-size: 0.9rem; margin-top: 0; }
-  a { color: #0645ad; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .reports { list-style: none; padding: 0; }
-  .reports li {
-    border: 1px solid #ddd; border-radius: 6px; padding: 0.6rem 0.9rem; margin-bottom: 0.5rem;
-  }
-  .reports .meta { color: #666; font-size: 0.85rem; }
-  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; margin-top: 0.5rem; }
-  th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #eee; }
-  th { border-bottom: 1px solid #bbb; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
-  @media (max-width: 760px) { .groups { grid-template-columns: 1fr; } }
-  .params { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 1.5rem; }
-  .params .label { color: #666; font-size: 0.8rem; }
-  .params .value { font-size: 1.1rem; font-weight: 600; }
-  footer { margin-top: 2rem; color: #999; font-size: 0.8rem; }
   @media (prefers-color-scheme: dark) {
-    body { background: #1a1a1a; color: #ddd; }
-    .reports li { border-color: #444; }
-    th { border-color: #555; } td { border-color: #333; }
-    a { color: #6cb2ff; } .sub, .reports .meta, .params .label { color: #999; }
-    footer { color: #777; }
+    :root:where(:not([data-skin])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --series-2: #008300;
+      --on-series: #ffffff;
+      --wash: rgba(57, 135, 229, 0.16);
+      --hover-wash: rgba(255, 255, 255, 0.06);
+      --warn: #e0a030;
+      --shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+      --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+      --glow: none;
+      --overlay: none;
+    }
   }
+  :root[data-skin="paper"] {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --series-2: #008300;
+    --on-series: #ffffff;
+    --wash: rgba(42, 120, 214, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+    --warn: #a15c00;
+    --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  :root[data-skin="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --series-2: #008300;
+    --on-series: #ffffff;
+    --wash: rgba(57, 135, 229, 0.16);
+    --hover-wash: rgba(255, 255, 255, 0.06);
+    --warn: #e0a030;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  :root[data-skin="neuromancer"] {
+    color-scheme: dark;
+    --page: #0a0e14;
+    --surface-1: #111820;
+    --text-primary: #c6d3d6;
+    --text-secondary: #8fa3a7;
+    --muted: #6b8085;
+    --grid: #1b2733;
+    --axis: #2b3b48;
+    --border: rgba(0, 229, 255, 0.16);
+    --series-1: #00e5ff;
+    --series-2: #ff9d00;
+    --on-series: #0a0e14;
+    --wash: rgba(0, 229, 255, 0.14);
+    --hover-wash: rgba(0, 229, 255, 0.07);
+    --warn: #ff5f56;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+    --font-ui: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: 0 0 6px rgba(0, 229, 255, 0.35);
+    --overlay: repeating-linear-gradient(to bottom, rgba(0, 229, 255, 0.06) 0px, rgba(0, 229, 255, 0.06) 1px, transparent 1px, transparent 3px);
+  }
+  :root[data-skin="contrast"] {
+    color-scheme: dark;
+    --page: #000000;
+    --surface-1: #0a0a0a;
+    --text-primary: #ffffff;
+    --text-secondary: #e6e6e6;
+    --muted: #b8b8b8;
+    --grid: #3a3a3a;
+    --axis: #6a6a6a;
+    --border: rgba(255, 255, 255, 0.35);
+    --series-1: #4db8ff;
+    --series-2: #ffd400;
+    --on-series: #000000;
+    --wash: rgba(77, 184, 255, 0.22);
+    --hover-wash: rgba(255, 255, 255, 0.12);
+    --warn: #ff6b6b;
+    --shadow: 0 0 0 1px rgba(255, 255, 255, 0.45), 0 6px 24px rgba(0, 0, 0, 0.8);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  @media print {
+    :root, :root[data-skin] {
+      color-scheme: light;
+      --page: #f9f9f7;
+      --surface-1: #fcfcfb;
+      --text-primary: #0b0b0b;
+      --text-secondary: #52514e;
+      --muted: #898781;
+      --grid: #e1e0d9;
+      --axis: #c3c2b7;
+      --border: rgba(11, 11, 11, 0.10);
+      --series-1: #2a78d6;
+      --series-2: #008300;
+      --on-series: #ffffff;
+      --wash: rgba(42, 120, 214, 0.10);
+      --hover-wash: rgba(11, 11, 11, 0.05);
+      --warn: #a15c00;
+      --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+      --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+      --glow: none;
+      --overlay: none;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    /* Skin-supplied page texture (scanlines for the neon skin, `none`
+       everywhere else) painted as a background layer on the page ground.
+       An element's background always paints below all of its descendants, so
+       the texture can never land on a card, a table, the detail panel or a
+       tooltip -- it shows in the page's negative space only. An overlay
+       element positioned above the content cannot make that guarantee without
+       every content region opting out by z-index, which is how the first
+       attempt at this put scanlines across the detail panel and the heatmap
+       tooltip. Deliberately static, never animated. */
+    background: var(--page) var(--overlay);
+    color: var(--text-primary);
+    font: 14px/1.5 var(--font-ui);
+  }
+  .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
+  header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+  header.top .titles { flex: 1; min-width: 0; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-shadow: var(--glow); }
+  .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  .mono { font-family: var(--font-mono); font-size: 11px; }
+  button, select, input[type="search"] {
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover-wash); }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--series-1);
+    outline-offset: 2px;
+  }
+  .btn-ghost { background: transparent; }
+  section.card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card-title { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .card-note { margin: 0 0 16px; color: var(--text-secondary); font-size: 12px; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 28px; }
+  .tile-label { color: var(--text-secondary); font-size: 12px; }
+  .tile-value { font-size: 20px; font-weight: 600; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .filters input[type="search"] { min-width: 260px; }
+  .spacer { flex: 1; }
+  .count { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .explorer { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+  @media (max-width: 1180px) { .explorer { grid-template-columns: 1fr; } }
+  .tbl-scroll { overflow: auto; height: 560px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.data th, table.data td {
+    text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap;
+  }
+  table.data th {
+    position: sticky; top: 0; background: var(--surface-1); font-weight: 600; z-index: 1;
+    border-bottom: 1px solid var(--axis);
+  }
+  table.data th.sortable { cursor: pointer; user-select: none; }
+  table.data th.sortable:hover { color: var(--series-1); }
+  table.data th.sortable::after { content: ""; margin-left: 4px; color: var(--series-1); }
+  table.data th.sortable.sort-active::after { content: "\25BE"; }
+  table.data td.num { font-variant-numeric: tabular-nums; }
+  /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
+  table.data td.wrap-cell, table.data th.wrap-cell {
+    white-space: normal; overflow-wrap: anywhere;
+    min-width: 200px; max-width: clamp(260px, 26vw, 640px);
+  }
+  table.data td.cell, table.data th.cell { padding: 6px 5px; text-align: center; }
+  table.data tbody tr:hover { background: var(--hover-wash); }
+  table.data tbody tr.sel { background: var(--wash); }
+  .empty { padding: 40px 8px; color: var(--text-secondary); font-size: 13px; }
+  .detail { position: sticky; top: 16px; }
+  .detail h3 { margin: 0 0 2px; font-size: 15px; font-weight: 600; word-break: break-all; }
+  .detail .species { color: var(--text-secondary); font-size: 12px; font-style: italic; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px; }
+  .field-value { font-size: 13px; word-break: break-word; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    display: inline-block; padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 11px; text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .chip:hover { border-color: var(--series-1); }
+  a.pfam-link { color: var(--series-1); text-decoration: none; }
+  a.pfam-link:hover { text-decoration: underline; }
+  .links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .links a, .links button {
+    font-size: 12px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px;
+    text-decoration: none; color: var(--text-primary); background: var(--page);
+  }
+  .links a:hover, .links button:hover { border-color: var(--series-1); }
+  /* The "this protein has no annotation" follow-up cluster -- the population
+     this pipeline exists to surface, so it gets its own visible grouping
+     rather than being one more link in the row. */
+  .links-note {
+    font-size: 11px; color: var(--muted); margin: 8px 0 4px;
+  }
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .badge.warn { color: var(--warn); border-color: var(--warn); }
+  .placeholder { color: var(--text-secondary); font-size: 13px; }
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  @media print {
+    .filters, .tabs, header.top select, header.top button { display: none !important; }
+    .tbl-scroll { height: auto; overflow: visible; }
+    .explorer { grid-template-columns: 1fr; }
+  }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  a.card-link {
+    display: flex; flex-direction: column; gap: 6px; text-decoration: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; color: var(--text-primary);
+  }
+  a.card-link:hover { border-color: var(--series-1); background: var(--hover-wash); }
+  .card-link-title { font-size: 15px; font-weight: 600; }
+  .card-link-desc { font-size: 12px; color: var(--text-secondary); }
+  .card-link-meta { font-size: 11px; color: var(--muted); }
+  .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .groups { grid-template-columns: 1fr; } }
+  .subpages { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .subpages a {
+    font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px;
+    text-decoration: none; color: var(--text-secondary); background: var(--page);
+  }
+  .subpages a:hover { border-color: var(--series-1); color: var(--text-primary); }
+  .intro { max-width: 70ch; color: var(--text-secondary); font-size: 13px; }
+  footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 </style>
+<script>
+(function () {
+  try {
+    var v = localStorage.getItem("novinvenio.skin");
+    if (v && ["paper", "dark", "neuromancer", "contrast"].indexOf(v) >= 0) {
+      document.documentElement.setAttribute("data-skin", v);
+    }
+  } catch (e) { /* opaque file:// origin, or storage disabled */ }
+})();
+</script>
 </head>
 <body>
-<h1>pezizo5</h1>
-<p class="sub">NovInvenio run summary · reconstructed from the reports in this folder</p>
+<div class="wrap">
+  <header class="top">
+    <div class="titles">
+      <h1>pezizo5 — NovInvenio reports</h1>
+      <p class="sub">Lineage-specific gene analysis · one folder, three interactive reports</p>
+    </div>
+    <label class="sr-only" for="skin">Colour skin</label>
+    <select id="skin" title="Colour skin">
+      <option value="">Follow system</option>
+      <option value="paper">Paper</option>
+      <option value="dark">Dark</option>
+      <option value="neuromancer">Neuromancer</option>
+      <option value="contrast">High contrast</option>
+    </select>
+  </header>
 
-<h2>Reports</h2>
-<ul class="reports">
-  <li><a href="novelties.html">Novelty candidates</a><div class="meta">28,091 rows · lineage-specific genes</div></li>
-  <li><a href="core.html">Core genes</a><div class="meta">4,858 rows · near-universally conserved</div></li>
-  <li><a href="losses.html">Candidate gene losses</a><div class="meta">146 rows · conserved in outgroup, lost in ingroup</div></li>
-</ul>
+  <section class="card">
+    <h2 class="card-title">Reports</h2>
+    <p class="card-note">Each page is self-contained — open it directly, no network needed.</p>
+    <div class="cards">
+      <a class="card-link" href="novelties.html"><span class="card-link-title">Novelty candidates</span><span class="card-link-desc">lineage-specific genes</span><span class="card-link-meta">39,048 rows</span></a>
+      <a class="card-link" href="core.html"><span class="card-link-title">Core genes</span><span class="card-link-desc">near-universally conserved</span><span class="card-link-meta">13,591 rows</span></a>
+      <a class="card-link" href="losses.html"><span class="card-link-title">Candidate gene losses</span><span class="card-link-desc">conserved in outgroup, lost in ingroup</span><span class="card-link-meta">132 rows</span></a>
+    </div>
+  </section>
 
-<h2>Run parameters</h2>
-<ul class="params">
-  <li><div class="label">Ingroup min fraction</div><div class="value">0.75</div></li>
-  <li><div class="label">Outgroup min fraction</div><div class="value">0.75</div></li>
-  <li><div class="label">Loss ingroup max fraction</div><div class="value">0</div></li>
-  <li><div class="label">Core min fraction</div><div class="value">0.95</div></li>
-</ul>
+  <section class="card">
+    <h2 class="card-title">Run summary</h2>
+    <p class="card-note">Reconstructed from the data embedded in the reports in this folder — no config CSV or pipeline rerun needed.</p>
+    <div class="tiles">
+      <div><div class="tile-label">Ingroup proteomes</div><div class="tile-value">5</div></div>
+      <div><div class="tile-label">Outgroup proteomes</div><div class="tile-value">6</div></div>
+      <div><div class="tile-label">Ingroup min fraction</div><div class="tile-value">0.75</div></div>
+      <div><div class="tile-label">Outgroup min fraction</div><div class="tile-value">0.75</div></div>
+      <div><div class="tile-label">Loss ingroup max fraction</div><div class="tile-value">0</div></div>
+      <div><div class="tile-label">Core min fraction</div><div class="tile-value">0.95</div></div>
+    </div>
+  </section>
 
-<div class="groups">
-  <div>
-    <h2>Ingroup (5)</h2>
-    <table><thead><tr><th>Short</th><th>Species</th><th>Taxon group</th></tr></thead><tbody><tr><td class="mono">Afum</td><td>Aspergillus fumigatus Af293</td><td>Pezizomycotina</td></tr>
+  <div class="groups">
+    <section class="card">
+      <h2 class="card-title">Ingroup (5)</h2>
+      <p class="card-note">Genes are called lineage-specific relative to this clade.</p>
+<table class="data">
+<thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
+<tbody>
+<tr><td class="mono">Afum</td><td>Aspergillus fumigatus Af293</td><td>Pezizomycotina</td></tr>
 <tr><td class="mono">Amega</td><td>Arthrobotrys megalospora TWF281</td><td>Pezizomycotina</td></tr>
 <tr><td class="mono">Cimm</td><td>Coccidioides immitis WA_211</td><td>Pezizomycotina</td></tr>
 <tr><td class="mono">Ncra</td><td>Neurospora crassa OR74A</td><td>Pezizomycotina</td></tr>
-<tr><td class="mono">Ztri</td><td>Zymoseptoria tritici</td><td>Pezizomycotina</td></tr></tbody></table>
-  </div>
-  <div>
-    <h2>Outgroup (6)</h2>
-    <table><thead><tr><th>Short</th><th>Species</th><th>Taxon group</th></tr></thead><tbody><tr><td class="mono">Ccin</td><td>Coprinus cinerea okyama 7-130</td><td>Basidiomycota</td></tr>
+<tr><td class="mono">Ztri</td><td>Zymoseptoria tritici</td><td>Pezizomycotina</td></tr>
+</tbody></table>
+    </section>
+    <section class="card">
+      <h2 class="card-title">Outgroup (6)</h2>
+      <p class="card-note">Background proteomes used to exclude broadly conserved genes.</p>
+<table class="data">
+<thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
+<tbody>
+<tr><td class="mono">Ccin</td><td>Coprinus cinerea okyama 7-130</td><td>Basidiomycota</td></tr>
 <tr><td class="mono">CneoH99</td><td>Cryptococcus neoformans H99</td><td>Basidiomycota</td></tr>
 <tr><td class="mono">Mcir</td><td>Mucor circinelloides 1006PhL</td><td>Mucoromycotina</td></tr>
 <tr><td class="mono">Nirr</td><td>Neolecta irregularis DAH-3</td><td>Taphrinomycotina</td></tr>
 <tr><td class="mono">Scer</td><td>Saccharomyces cerevisiae S288c</td><td>Saccharomycotina</td></tr>
-<tr><td class="mono">Spom</td><td>Schizosaccharomyces pombe 972h</td><td>Taphrinomycotina</td></tr></tbody></table>
+<tr><td class="mono">Spom</td><td>Schizosaccharomyces pombe 972h</td><td>Taphrinomycotina</td></tr>
+</tbody></table>
+    </section>
   </div>
-</div>
+  <footer>Generated 2026-09-05 13:03 by generate_index.py</footer>
 
-<footer>Generated 2026-07-25 20:41 by generate_index.py</footer>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  var skinSel = document.getElementById("skin");
+  function notifySkinChange() {
+    if (typeof window.onSkinChange === "function") window.onSkinChange();
+  }
+  function storeSkin(v) {
+    try {
+      if (v) localStorage.setItem("novinvenio.skin", v);
+      else localStorage.removeItem("novinvenio.skin");
+    } catch (e) { /* storage unavailable -- selection still applies for this page */ }
+  }
+  skinSel.value = document.documentElement.getAttribute("data-skin") || "";
+  skinSel.addEventListener("change", function () {
+    var v = skinSel.value;
+    if (v) document.documentElement.setAttribute("data-skin", v);
+    else document.documentElement.removeAttribute("data-skin");
+    storeSkin(v);
+    notifySkinChange();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", notifySkinChange);
+})();
+</script>
 </body>
 </html>

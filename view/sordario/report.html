@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>sordario — NovInvenio reports</title>
 <style>
-
   :root {
     color-scheme: light;
     --page: #f9f9f7;
@@ -17,11 +16,19 @@
     --axis: #c3c2b7;
     --border: rgba(11, 11, 11, 0.10);
     --series-1: #2a78d6;
+    --series-2: #008300;
+    --on-series: #ffffff;
     --wash: rgba(42, 120, 214, 0.10);
     --hover-wash: rgba(11, 11, 11, 0.05);
+    --warn: #a15c00;
+    --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
   }
   @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
+    :root:where(:not([data-skin])) {
       color-scheme: dark;
       --page: #0d0d0d;
       --surface-1: #1a1a19;
@@ -32,11 +39,41 @@
       --axis: #383835;
       --border: rgba(255, 255, 255, 0.10);
       --series-1: #3987e5;
+      --series-2: #008300;
+      --on-series: #ffffff;
       --wash: rgba(57, 135, 229, 0.16);
       --hover-wash: rgba(255, 255, 255, 0.06);
+      --warn: #e0a030;
+      --shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+      --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+      --glow: none;
+      --overlay: none;
     }
   }
-  :root[data-theme="dark"] {
+  :root[data-skin="paper"] {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --series-2: #008300;
+    --on-series: #ffffff;
+    --wash: rgba(42, 120, 214, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+    --warn: #a15c00;
+    --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  :root[data-skin="dark"] {
     color-scheme: dark;
     --page: #0d0d0d;
     --surface-1: #1a1a19;
@@ -47,22 +84,108 @@
     --axis: #383835;
     --border: rgba(255, 255, 255, 0.10);
     --series-1: #3987e5;
+    --series-2: #008300;
+    --on-series: #ffffff;
     --wash: rgba(57, 135, 229, 0.16);
     --hover-wash: rgba(255, 255, 255, 0.06);
+    --warn: #e0a030;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  :root[data-skin="neuromancer"] {
+    color-scheme: dark;
+    --page: #0a0e14;
+    --surface-1: #111820;
+    --text-primary: #c6d3d6;
+    --text-secondary: #8fa3a7;
+    --muted: #6b8085;
+    --grid: #1b2733;
+    --axis: #2b3b48;
+    --border: rgba(0, 229, 255, 0.16);
+    --series-1: #00e5ff;
+    --series-2: #ff9d00;
+    --on-series: #0a0e14;
+    --wash: rgba(0, 229, 255, 0.14);
+    --hover-wash: rgba(0, 229, 255, 0.07);
+    --warn: #ff5f56;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+    --font-ui: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: 0 0 6px rgba(0, 229, 255, 0.35);
+    --overlay: repeating-linear-gradient(to bottom, rgba(0, 229, 255, 0.06) 0px, rgba(0, 229, 255, 0.06) 1px, transparent 1px, transparent 3px);
+  }
+  :root[data-skin="contrast"] {
+    color-scheme: dark;
+    --page: #000000;
+    --surface-1: #0a0a0a;
+    --text-primary: #ffffff;
+    --text-secondary: #e6e6e6;
+    --muted: #b8b8b8;
+    --grid: #3a3a3a;
+    --axis: #6a6a6a;
+    --border: rgba(255, 255, 255, 0.35);
+    --series-1: #4db8ff;
+    --series-2: #ffd400;
+    --on-series: #000000;
+    --wash: rgba(77, 184, 255, 0.22);
+    --hover-wash: rgba(255, 255, 255, 0.12);
+    --warn: #ff6b6b;
+    --shadow: 0 0 0 1px rgba(255, 255, 255, 0.45), 0 6px 24px rgba(0, 0, 0, 0.8);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  @media print {
+    :root, :root[data-skin] {
+      color-scheme: light;
+      --page: #f9f9f7;
+      --surface-1: #fcfcfb;
+      --text-primary: #0b0b0b;
+      --text-secondary: #52514e;
+      --muted: #898781;
+      --grid: #e1e0d9;
+      --axis: #c3c2b7;
+      --border: rgba(11, 11, 11, 0.10);
+      --series-1: #2a78d6;
+      --series-2: #008300;
+      --on-series: #ffffff;
+      --wash: rgba(42, 120, 214, 0.10);
+      --hover-wash: rgba(11, 11, 11, 0.05);
+      --warn: #a15c00;
+      --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+      --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+      --glow: none;
+      --overlay: none;
+    }
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--page);
+    /* Skin-supplied page texture (scanlines for the neon skin, `none`
+       everywhere else) painted as a background layer on the page ground.
+       An element's background always paints below all of its descendants, so
+       the texture can never land on a card, a table, the detail panel or a
+       tooltip -- it shows in the page's negative space only. An overlay
+       element positioned above the content cannot make that guarantee without
+       every content region opting out by z-index, which is how the first
+       attempt at this put scanlines across the detail panel and the heatmap
+       tooltip. Deliberately static, never animated. */
+    background: var(--page) var(--overlay);
     color: var(--text-primary);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.5 var(--font-ui);
   }
   .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
   header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
   header.top .titles { flex: 1; min-width: 0; }
-  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-shadow: var(--glow); }
   .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  .mono { font-family: var(--font-mono); font-size: 11px; }
   button, select, input[type="search"] {
     font: inherit;
     color: var(--text-primary);
@@ -105,6 +228,10 @@
     position: sticky; top: 0; background: var(--surface-1); font-weight: 600; z-index: 1;
     border-bottom: 1px solid var(--axis);
   }
+  table.data th.sortable { cursor: pointer; user-select: none; }
+  table.data th.sortable:hover { color: var(--series-1); }
+  table.data th.sortable::after { content: ""; margin-left: 4px; color: var(--series-1); }
+  table.data th.sortable.sort-active::after { content: "\25BE"; }
   table.data td.num { font-variant-numeric: tabular-nums; }
   /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
   table.data td.wrap-cell, table.data th.wrap-cell {
@@ -127,33 +254,68 @@
     font-size: 11px; text-decoration: none; color: var(--text-primary); background: var(--page);
   }
   .chip:hover { border-color: var(--series-1); }
+  a.pfam-link { color: var(--series-1); text-decoration: none; }
+  a.pfam-link:hover { text-decoration: underline; }
   .links { display: flex; flex-wrap: wrap; gap: 6px; }
   .links a, .links button {
     font-size: 12px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px;
     text-decoration: none; color: var(--text-primary); background: var(--page);
   }
   .links a:hover, .links button:hover { border-color: var(--series-1); }
+  /* The "this protein has no annotation" follow-up cluster -- the population
+     this pipeline exists to surface, so it gets its own visible grouping
+     rather than being one more link in the row. */
+  .links-note {
+    font-size: 11px; color: var(--muted); margin: 8px 0 4px;
+  }
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .badge.warn { color: var(--warn); border-color: var(--warn); }
   .placeholder { color: var(--text-secondary); font-size: 13px; }
   .hidden { display: none !important; }
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
-
-  .reports { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-  a.report-card {
-    display: flex; flex-direction: column; gap: 6px; text-decoration: none;
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
-    color: var(--text-primary);
+  @media print {
+    .filters, .tabs, header.top select, header.top button { display: none !important; }
+    .tbl-scroll { height: auto; overflow: visible; }
+    .explorer { grid-template-columns: 1fr; }
   }
-  a.report-card:hover { border-color: var(--series-1); background: var(--hover-wash); }
-  .report-title { font-size: 15px; font-weight: 600; }
-  .report-desc { font-size: 12px; color: var(--text-secondary); }
-  .report-file { font-size: 11px; color: var(--muted); }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  a.card-link {
+    display: flex; flex-direction: column; gap: 6px; text-decoration: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; color: var(--text-primary);
+  }
+  a.card-link:hover { border-color: var(--series-1); background: var(--hover-wash); }
+  .card-link-title { font-size: 15px; font-weight: 600; }
+  .card-link-desc { font-size: 12px; color: var(--text-secondary); }
+  .card-link-meta { font-size: 11px; color: var(--muted); }
   .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 800px) { .groups { grid-template-columns: 1fr; } }
+  .subpages { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .subpages a {
+    font-size: 11px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px;
+    text-decoration: none; color: var(--text-secondary); background: var(--page);
+  }
+  .subpages a:hover { border-color: var(--series-1); color: var(--text-primary); }
+  .intro { max-width: 70ch; color: var(--text-secondary); font-size: 13px; }
+  footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
 </style>
+<script>
+(function () {
+  try {
+    var v = localStorage.getItem("novinvenio.skin");
+    if (v && ["paper", "dark", "neuromancer", "contrast"].indexOf(v) >= 0) {
+      document.documentElement.setAttribute("data-skin", v);
+    }
+  } catch (e) { /* opaque file:// origin, or storage disabled */ }
+})();
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -162,79 +324,77 @@
       <h1>sordario — NovInvenio reports</h1>
       <p class="sub">Lineage-specific gene analysis · one folder, three interactive reports</p>
     </div>
-    <button id="theme-toggle" class="btn-ghost" type="button" aria-label="Toggle colour theme">Theme</button>
+    <label class="sr-only" for="skin">Colour skin</label>
+    <select id="skin" title="Colour skin">
+      <option value="">Follow system</option>
+      <option value="paper">Paper</option>
+      <option value="dark">Dark</option>
+      <option value="neuromancer">Neuromancer</option>
+      <option value="contrast">High contrast</option>
+    </select>
   </header>
 
   <section class="card">
     <h2 class="card-title">Reports</h2>
     <p class="card-note">Each page is self-contained — open it directly, no network needed.</p>
-    <div class="reports">
-<a class="report-card" href="novelties.html"><span class="report-title">Novelty candidates</span><span class="report-desc">Lineage-specific genes: present across the ingroup, absent from every outgroup proteome.</span><span class="report-file mono">novelties.html</span></a>
-<a class="report-card" href="core.html"><span class="report-title">Core genes</span><span class="report-desc">Near-universally conserved genes shared by essentially every proteome, ingroup and outgroup.</span><span class="report-file mono">core.html</span></a>
-<a class="report-card" href="losses.html"><span class="report-title">Candidate gene losses</span><span class="report-desc">Gene families conserved across the outgroups but (nearly) absent from the ingroup.</span><span class="report-file mono">losses.html</span></a>
+    <div class="cards">
+      <a class="card-link" href="novelties.html"><span class="card-link-title">Novelty candidates</span><span class="card-link-desc">lineage-specific genes</span><span class="card-link-meta">39,513 rows</span></a>
+      <a class="card-link" href="core.html"><span class="card-link-title">Core genes</span><span class="card-link-desc">near-universally conserved</span><span class="card-link-meta">0 rows</span></a>
+      <a class="card-link" href="losses.html"><span class="card-link-title">Candidate gene losses</span><span class="card-link-desc">conserved in outgroup, lost in ingroup</span><span class="card-link-meta">0 rows</span></a>
     </div>
   </section>
 
   <section class="card">
     <h2 class="card-title">Run summary</h2>
-    <p class="card-note">Parameters and proteomes used to generate these reports.</p>
+    <p class="card-note">Reconstructed from the data embedded in the reports in this folder — no config CSV or pipeline rerun needed.</p>
     <div class="tiles">
-<div><div class="tile-label">Ingroup proteomes</div><div class="tile-value">4</div></div>
-<div><div class="tile-label">Outgroup proteomes</div><div class="tile-value">8</div></div>
-<div><div class="tile-label">Search tool</div><div class="tile-value">phmmer</div></div>
-<div><div class="tile-label">Ingroup min fraction</div><div class="tile-value">0.75</div></div>
-<div><div class="tile-label">Outgroup min fraction</div><div class="tile-value">0.75</div></div>
-<div><div class="tile-label">Loss ingroup max fraction</div><div class="tile-value">0</div></div>
-<div><div class="tile-label">Core min fraction</div><div class="tile-value">0.95</div></div>
+      <div><div class="tile-label">Ingroup proteomes</div><div class="tile-value">0</div></div>
+      <div><div class="tile-label">Outgroup proteomes</div><div class="tile-value">0</div></div>
+      <div><div class="tile-label">Ingroup min fraction</div><div class="tile-value">0.75</div></div>
+      <div><div class="tile-label">Outgroup min fraction</div><div class="tile-value">0.75</div></div>
+      <div><div class="tile-label">Loss ingroup max fraction</div><div class="tile-value">0</div></div>
+      <div><div class="tile-label">Core min fraction</div><div class="tile-value">0.95</div></div>
     </div>
   </section>
 
   <div class="groups">
     <section class="card">
-      <h2 class="card-title">Ingroup (4)</h2>
+      <h2 class="card-title">Ingroup (0)</h2>
       <p class="card-note">Genes are called lineage-specific relative to this clade.</p>
-      <table class="data">
-        <thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
-        <tbody>
-<tr><td class="mono">Ncra</td><td>Neurospora crassa OR74A</td><td>Sordariomycete</td></tr>
-<tr><td class="mono">Afum</td><td>Aspergillus fumigatus Af293</td><td>Eurotiomycete</td></tr>
-<tr><td class="mono">FgraPH1</td><td>Fusarium graminearum PH-1</td><td>Sordariomycete</td></tr>
-<tr><td class="mono">Cimm</td><td>Coccidioides immitis WA_211</td><td>Eurotiomycete</td></tr>
-        </tbody>
-      </table>
+<p class="card-note">None recorded.</p>
     </section>
     <section class="card">
-      <h2 class="card-title">Outgroup (8)</h2>
+      <h2 class="card-title">Outgroup (0)</h2>
       <p class="card-note">Background proteomes used to exclude broadly conserved genes.</p>
-      <table class="data">
-        <thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
-        <tbody>
-<tr><td class="mono">Nirr</td><td>Neolecta irregularis DAH-3</td><td>Taphrinomycotina</td></tr>
-<tr><td class="mono">Spom</td><td>Schizosaccharomyces pombe 972h</td><td>Taphrinomycotina</td></tr>
-<tr><td class="mono">Scer</td><td>Saccharomyces cerevisiae S288c</td><td>Saccharomycotina</td></tr>
-<tr><td class="mono">Ylip</td><td>Yarrowia lipolytica CLIB122</td><td>Saccharomycotina</td></tr>
-<tr><td class="mono">Ztri</td><td>Zymoseptoria tritici</td><td>Dothideomycete</td></tr>
-<tr><td class="mono">CneoH99</td><td>Cryptococcus neoformans H99</td><td>Basidiomycota</td></tr>
-<tr><td class="mono">Ccin</td><td>Coprinus cinerea okyama 7-130</td><td>Basidiomycota</td></tr>
-<tr><td class="mono">Mcir</td><td>Mucor circinelloides 1006PhL</td><td>Mucoromycotina</td></tr>
-        </tbody>
-      </table>
+<p class="card-note">None recorded.</p>
     </section>
   </div>
+  <footer>Generated 2026-09-05 13:03 by generate_index.py</footer>
+
 </div>
 <script>
 (function () {
   "use strict";
 
-  var themeBtn = document.getElementById("theme-toggle");
-  themeBtn.addEventListener("click", function () {
-    var cur = document.documentElement.getAttribute("data-theme");
-    if (!cur) {
-      cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-    document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  var skinSel = document.getElementById("skin");
+  function notifySkinChange() {
+    if (typeof window.onSkinChange === "function") window.onSkinChange();
+  }
+  function storeSkin(v) {
+    try {
+      if (v) localStorage.setItem("novinvenio.skin", v);
+      else localStorage.removeItem("novinvenio.skin");
+    } catch (e) { /* storage unavailable -- selection still applies for this page */ }
+  }
+  skinSel.value = document.documentElement.getAttribute("data-skin") || "";
+  skinSel.addEventListener("change", function () {
+    var v = skinSel.value;
+    if (v) document.documentElement.setAttribute("data-skin", v);
+    else document.documentElement.removeAttribute("data-skin");
+    storeSkin(v);
+    notifySkinChange();
   });
-
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", notifySkinChange);
 })();
 </script>
 </body>

@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>sordario — NovInvenio candidate losses</title>
 <style>
-
   :root {
     color-scheme: light;
     --page: #f9f9f7;
@@ -17,11 +16,19 @@
     --axis: #c3c2b7;
     --border: rgba(11, 11, 11, 0.10);
     --series-1: #2a78d6;
+    --series-2: #008300;
+    --on-series: #ffffff;
     --wash: rgba(42, 120, 214, 0.10);
     --hover-wash: rgba(11, 11, 11, 0.05);
+    --warn: #a15c00;
+    --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
   }
   @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
+    :root:where(:not([data-skin])) {
       color-scheme: dark;
       --page: #0d0d0d;
       --surface-1: #1a1a19;
@@ -32,11 +39,41 @@
       --axis: #383835;
       --border: rgba(255, 255, 255, 0.10);
       --series-1: #3987e5;
+      --series-2: #008300;
+      --on-series: #ffffff;
       --wash: rgba(57, 135, 229, 0.16);
       --hover-wash: rgba(255, 255, 255, 0.06);
+      --warn: #e0a030;
+      --shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+      --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+      --glow: none;
+      --overlay: none;
     }
   }
-  :root[data-theme="dark"] {
+  :root[data-skin="paper"] {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --series-2: #008300;
+    --on-series: #ffffff;
+    --wash: rgba(42, 120, 214, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+    --warn: #a15c00;
+    --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  :root[data-skin="dark"] {
     color-scheme: dark;
     --page: #0d0d0d;
     --surface-1: #1a1a19;
@@ -47,22 +84,108 @@
     --axis: #383835;
     --border: rgba(255, 255, 255, 0.10);
     --series-1: #3987e5;
+    --series-2: #008300;
+    --on-series: #ffffff;
     --wash: rgba(57, 135, 229, 0.16);
     --hover-wash: rgba(255, 255, 255, 0.06);
+    --warn: #e0a030;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  :root[data-skin="neuromancer"] {
+    color-scheme: dark;
+    --page: #0a0e14;
+    --surface-1: #111820;
+    --text-primary: #c6d3d6;
+    --text-secondary: #8fa3a7;
+    --muted: #6b8085;
+    --grid: #1b2733;
+    --axis: #2b3b48;
+    --border: rgba(0, 229, 255, 0.16);
+    --series-1: #00e5ff;
+    --series-2: #ff9d00;
+    --on-series: #0a0e14;
+    --wash: rgba(0, 229, 255, 0.14);
+    --hover-wash: rgba(0, 229, 255, 0.07);
+    --warn: #ff5f56;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+    --font-ui: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: 0 0 6px rgba(0, 229, 255, 0.35);
+    --overlay: repeating-linear-gradient(to bottom, rgba(0, 229, 255, 0.06) 0px, rgba(0, 229, 255, 0.06) 1px, transparent 1px, transparent 3px);
+  }
+  :root[data-skin="contrast"] {
+    color-scheme: dark;
+    --page: #000000;
+    --surface-1: #0a0a0a;
+    --text-primary: #ffffff;
+    --text-secondary: #e6e6e6;
+    --muted: #b8b8b8;
+    --grid: #3a3a3a;
+    --axis: #6a6a6a;
+    --border: rgba(255, 255, 255, 0.35);
+    --series-1: #4db8ff;
+    --series-2: #ffd400;
+    --on-series: #000000;
+    --wash: rgba(77, 184, 255, 0.22);
+    --hover-wash: rgba(255, 255, 255, 0.12);
+    --warn: #ff6b6b;
+    --shadow: 0 0 0 1px rgba(255, 255, 255, 0.45), 0 6px 24px rgba(0, 0, 0, 0.8);
+    --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+    --glow: none;
+    --overlay: none;
+  }
+  @media print {
+    :root, :root[data-skin] {
+      color-scheme: light;
+      --page: #f9f9f7;
+      --surface-1: #fcfcfb;
+      --text-primary: #0b0b0b;
+      --text-secondary: #52514e;
+      --muted: #898781;
+      --grid: #e1e0d9;
+      --axis: #c3c2b7;
+      --border: rgba(11, 11, 11, 0.10);
+      --series-1: #2a78d6;
+      --series-2: #008300;
+      --on-series: #ffffff;
+      --wash: rgba(42, 120, 214, 0.10);
+      --hover-wash: rgba(11, 11, 11, 0.05);
+      --warn: #a15c00;
+      --shadow: 0 6px 24px rgba(11, 11, 11, 0.18);
+      --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace;
+      --glow: none;
+      --overlay: none;
+    }
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--page);
+    /* Skin-supplied page texture (scanlines for the neon skin, `none`
+       everywhere else) painted as a background layer on the page ground.
+       An element's background always paints below all of its descendants, so
+       the texture can never land on a card, a table, the detail panel or a
+       tooltip -- it shows in the page's negative space only. An overlay
+       element positioned above the content cannot make that guarantee without
+       every content region opting out by z-index, which is how the first
+       attempt at this put scanlines across the detail panel and the heatmap
+       tooltip. Deliberately static, never animated. */
+    background: var(--page) var(--overlay);
     color: var(--text-primary);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.5 var(--font-ui);
   }
   .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
   header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
   header.top .titles { flex: 1; min-width: 0; }
-  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-shadow: var(--glow); }
   .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  .mono { font-family: var(--font-mono); font-size: 11px; }
   button, select, input[type="search"] {
     font: inherit;
     color: var(--text-primary);
@@ -105,6 +228,10 @@
     position: sticky; top: 0; background: var(--surface-1); font-weight: 600; z-index: 1;
     border-bottom: 1px solid var(--axis);
   }
+  table.data th.sortable { cursor: pointer; user-select: none; }
+  table.data th.sortable:hover { color: var(--series-1); }
+  table.data th.sortable::after { content: ""; margin-left: 4px; color: var(--series-1); }
+  table.data th.sortable.sort-active::after { content: "\25BE"; }
   table.data td.num { font-variant-numeric: tabular-nums; }
   /* Text columns grow with the viewport (floor keeps them readable, ceiling bounded). */
   table.data td.wrap-cell, table.data th.wrap-cell {
@@ -127,29 +254,50 @@
     font-size: 11px; text-decoration: none; color: var(--text-primary); background: var(--page);
   }
   .chip:hover { border-color: var(--series-1); }
+  a.pfam-link { color: var(--series-1); text-decoration: none; }
+  a.pfam-link:hover { text-decoration: underline; }
   .links { display: flex; flex-wrap: wrap; gap: 6px; }
   .links a, .links button {
     font-size: 12px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px;
     text-decoration: none; color: var(--text-primary); background: var(--page);
   }
   .links a:hover, .links button:hover { border-color: var(--series-1); }
+  /* The "this protein has no annotation" follow-up cluster -- the population
+     this pipeline exists to surface, so it gets its own visible grouping
+     rather than being one more link in the row. */
+  .links-note {
+    font-size: 11px; color: var(--muted); margin: 8px 0 4px;
+  }
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .badge.warn { color: var(--warn); border-color: var(--warn); }
   .placeholder { color: var(--text-secondary); font-size: 13px; }
   .hidden { display: none !important; }
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
+  @media print {
+    .filters, .tabs, header.top select, header.top button { display: none !important; }
+    .tbl-scroll { height: auto; overflow: visible; }
+    .explorer { grid-template-columns: 1fr; }
+  }
 
-  .badge {
-    display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
-    border: 1px solid var(--border); color: var(--text-secondary);
-  }
-  .badge.warn { color: #a15c00; border-color: #a15c00; }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) .badge.warn { color: #e0a030; border-color: #e0a030; }
-  }
-  :root[data-theme="dark"] .badge.warn { color: #e0a030; border-color: #e0a030; }
+  /* .badge / .badge.warn now live in BASE_PAGE_CSS and read var(--warn), so a
+     skin owns the colour instead of this page hardcoding a light/dark pair. */
 </style>
+<script>
+(function () {
+  try {
+    var v = localStorage.getItem("novinvenio.skin");
+    if (v && ["paper", "dark", "neuromancer", "contrast"].indexOf(v) >= 0) {
+      document.documentElement.setAttribute("data-skin", v);
+    }
+  } catch (e) { /* opaque file:// origin, or storage disabled */ }
+})();
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -158,7 +306,14 @@
       <h1 id="title"></h1>
       <p class="sub" id="subtitle"></p>
     </div>
-    <button id="theme-toggle" class="btn-ghost" type="button" aria-label="Toggle colour theme">Theme</button>
+    <label class="sr-only" for="skin">Colour skin</label>
+    <select id="skin" title="Colour skin">
+      <option value="">Follow system</option>
+      <option value="paper">Paper</option>
+      <option value="dark">Dark</option>
+      <option value="neuromancer">Neuromancer</option>
+      <option value="contrast">High contrast</option>
+    </select>
   </header>
 
   <section class="card">
@@ -198,10 +353,11 @@
       <option value="frac">Sort: outgroup presence fraction</option>
       <option value="id">Sort: protein ID</option>
       <option value="src">Sort: source proteome</option>
+      <option value="pos">Sort: genomic position (chrom, start)</option>
     </select>
     <button id="f-reset" type="button">Reset</button>
     <div class="spacer"></div>
-    <span class="count" id="count"></span>
+    <span class="count" id="count" role="status" aria-live="polite"></span>
     <button id="dl-tsv" type="button">Download TSV</button>
   </div>
 
@@ -223,7 +379,7 @@
   </div>
 </div>
 
-<script type="application/json" id="payload">{"project":"sordario","outgroup_min_frac":0.75,"loss_ingroup_max_frac":0.0,"n_ingroup":4,"n_outgroup":8,"fields":["id","src","frac","out_breadth","in_retained","gene","prod","fsrc","sprot","pfam_n","pfam_a","tb_hit","tb_genomes","fam"],"proteomes":[{"short":"Ncra","species":"Neurospora crassa","strain":"OR74A","group":"DISCOVERY_TARGET","taxon":"Sordariomycete"},{"short":"Afum","species":"Aspergillus fumigatus","strain":"Af293","group":"DISCOVERY_TARGET","taxon":"Eurotiomycete"},{"short":"FgraPH1","species":"Fusarium graminearum","strain":"PH-1","group":"DISCOVERY_TARGET","taxon":"Sordariomycete"},{"short":"Cimm","species":"Coccidioides immitis","strain":"WA_211","group":"DISCOVERY_TARGET","taxon":"Eurotiomycete"},{"short":"Nirr","species":"Neolecta irregularis","strain":"DAH-3","group":"DISCOVERY_OUT","taxon":"Taphrinomycotina"},{"short":"Spom","species":"Schizosaccharomyces pombe","strain":"972h","group":"DISCOVERY_OUT","taxon":"Taphrinomycotina"},{"short":"Scer","species":"Saccharomyces cerevisiae","strain":"S288c","group":"DISCOVERY_OUT","taxon":"Saccharomycotina"},{"short":"Ylip","species":"Yarrowia lipolytica","strain":"CLIB122","group":"DISCOVERY_OUT","taxon":"Saccharomycotina"},{"short":"Ztri","species":"Zymoseptoria tritici","strain":"","group":"NEAR_INGROUP","taxon":"Dothideomycete"},{"short":"CneoH99","species":"Cryptococcus neoformans","strain":"H99","group":"BROAD_OUTGROUP","taxon":"Basidiomycota"},{"short":"Ccin","species":"Coprinus cinerea","strain":"okyama 7-130","group":"BROAD_OUTGROUP","taxon":"Basidiomycota"},{"short":"Mcir","species":"Mucor circinelloides","strain":"1006PhL","group":"BROAD_OUTGROUP","taxon":"Mucoromycotina"}],"tblastn_genomes":[],"fsources":[],"families":[],"rows":[]}</script>
+<script type="application/json" id="payload">{"project":"sordario","outgroup_min_frac":0.75,"loss_ingroup_max_frac":0.0,"n_ingroup":4,"n_outgroup":8,"fields":["id","src","frac","out_breadth","in_retained","gene","prod","fsrc","sprot","pfam_n","pfam_a","pfam_e","tb_hit","tb_genomes","fam","chrom","start"],"proteomes":[{"short":"Ncra","species":"Neurospora crassa","strain":"OR74A","group":"DISCOVERY_TARGET","taxon":"Sordariomycete"},{"short":"Afum","species":"Aspergillus fumigatus","strain":"Af293","group":"DISCOVERY_TARGET","taxon":"Eurotiomycete"},{"short":"FgraPH1","species":"Fusarium graminearum","strain":"PH-1","group":"DISCOVERY_TARGET","taxon":"Sordariomycete"},{"short":"Cimm","species":"Coccidioides immitis","strain":"WA_211","group":"DISCOVERY_TARGET","taxon":"Eurotiomycete"},{"short":"Nirr","species":"Neolecta irregularis","strain":"DAH-3","group":"DISCOVERY_OUT","taxon":"Taphrinomycotina"},{"short":"Spom","species":"Schizosaccharomyces pombe","strain":"972h","group":"DISCOVERY_OUT","taxon":"Taphrinomycotina"},{"short":"Scer","species":"Saccharomyces cerevisiae","strain":"S288c","group":"DISCOVERY_OUT","taxon":"Saccharomycotina"},{"short":"Ylip","species":"Yarrowia lipolytica","strain":"CLIB122","group":"DISCOVERY_OUT","taxon":"Saccharomycotina"},{"short":"Ztri","species":"Zymoseptoria tritici","strain":"","group":"NEAR_INGROUP","taxon":"Dothideomycete"},{"short":"CneoH99","species":"Cryptococcus neoformans","strain":"H99","group":"BROAD_OUTGROUP","taxon":"Basidiomycota"},{"short":"Ccin","species":"Coprinus cinerea","strain":"okyama 7-130","group":"BROAD_OUTGROUP","taxon":"Basidiomycota"},{"short":"Mcir","species":"Mucor circinelloides","strain":"1006PhL","group":"BROAD_OUTGROUP","taxon":"Mucoromycotina"}],"tblastn_genomes":[],"fsources":[],"families":[],"rows":[]}</script>
 <script>
 (function () {
   "use strict";
@@ -248,6 +404,14 @@
     if (text !== undefined && text !== null) n.textContent = text; // labels are untrusted data
     return n;
   }
+  function extLink(label, href, title) {
+    var a = el("a", null, label);
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    if (title) a.title = title;
+    return a;
+  }
 
   function geneIdFromProteinId(pid) {
     return pid.replace(/-[Tt][^-]*(-p\d+)?$|-p\d+$/, "");
@@ -256,6 +420,270 @@
     if (!sprot) return "";
     var m = /(?:^|\|)([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:\||\s|$)/.exec(sprot);
     return m ? m[1] : "";
+  }
+  // Best SwissProt hit as a UniProt hyperlink -- falls back to plain text when
+  // the accession can't be parsed out of the hit string.
+  function uniprotLinkNode(sprot) {
+    var acc = uniprotAcc(sprot);
+    if (!acc) return document.createTextNode(sprot || "");
+    var a = el("a", "pfam-link", sprot);
+    a.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
+    a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.title = "UniProt " + acc;
+    return a;
+  }
+  // Pfam names as a chip row (detail panel) -- accession + optional E-value in the
+  // link title, same InterPro/Pfam target used by every report's "Pfam domains" field.
+  function pfamChipsNode(pfamNames, pfamAccs, pfamEvs) {
+    var chips = el("div", "chips");
+    var names = pfamNames ? pfamNames.split(",") : [];
+    var accs = pfamAccs ? pfamAccs.split(",") : [];
+    var evs = pfamEvs ? pfamEvs.split(",") : [];
+    names.forEach(function (n, i) {
+      var acc = (accs[i] || "").split(".")[0];
+      var ev = evs[i];
+      var node;
+      if (/^PF\d+$/.test(acc)) {
+        node = el("a", "chip", n + (ev ? " · " + ev : ""));
+        node.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
+        node.target = "_blank"; node.rel = "noopener noreferrer";
+        node.title = acc + (ev ? " — hmmsearch E-value " + ev : "");
+      } else {
+        node = el("span", "chip", n);
+      }
+      chips.appendChild(node);
+    });
+    return chips;
+  }
+  // Compact comma-separated Pfam links for a table cell (same accession rule as
+  // pfamChipsNode, without the chip styling -- a table row is dense already).
+  function pfamLinksInline(pfamNames, pfamAccs) {
+    var frag = document.createDocumentFragment();
+    var names = pfamNames ? pfamNames.split(",") : [];
+    var accs = pfamAccs ? pfamAccs.split(",") : [];
+    names.forEach(function (n, i) {
+      if (i > 0) frag.appendChild(document.createTextNode(", "));
+      var acc = (accs[i] || "").split(".")[0];
+      if (/^PF\d+$/.test(acc)) {
+        var a = el("a", "pfam-link", n);
+        a.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
+        a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.title = acc;
+        frag.appendChild(a);
+      } else {
+        frag.appendChild(document.createTextNode(n));
+      }
+    });
+    return frag;
+  }
+
+  // ---- genome-database gene records --------------------------------------
+  // Driven by the config CSV's optional SourceDB column, carried through to
+  // each payload proteome entry as `source_db` (see lib/config_parser.py).
+  // Before this, a gene-record link was gated on the annotation source being
+  // a ModelOrg_* entry, so only the handful of model organisms got one even
+  // though most of the sample pool lives in FungiDB or MycoCosm.
+  //
+  // Accepted forms: "fungidb", "mycocosm:<portal>", "ensemblfungi:<species>",
+  // "veupathdb:<project>", or any URL template containing "{gene}".
+  // A config CSV travels between users and projects, so a SourceDB value is
+  // only semi-trusted: anything that ends up in an href must be checked for
+  // its scheme, or "javascript:...{gene}" becomes a clickable link in the
+  // report. The keyed forms below interpolate into a fixed https:// prefix,
+  // so only the free-form template needs the check.
+  function isSafeHttpUrl(url) {
+    return /^https?:\/\//i.test(url);
+  }
+  function genomeDbLink(sourceDb, proteinId) {
+    if (!sourceDb) return null;
+    var gene = geneIdFromProteinId(proteinId);
+    if (sourceDb.indexOf("{gene}") >= 0) {
+      if (!isSafeHttpUrl(sourceDb)) return null;
+      return extLink("Gene record", sourceDb.replace("{gene}", encodeURIComponent(gene)),
+                     "Source database record for " + gene);
+    }
+    var sep = sourceDb.indexOf(":");
+    var kind = (sep >= 0 ? sourceDb.slice(0, sep) : sourceDb).toLowerCase();
+    var arg = sep >= 0 ? sourceDb.slice(sep + 1) : "";
+    if (kind === "fungidb") {
+      return extLink("FungiDB gene",
+        "https://fungidb.org/fungidb/app/record/gene/" + encodeURIComponent(gene),
+        "FungiDB gene record for " + gene);
+    }
+    if (kind === "mycocosm" && arg) {
+      return extLink("JGI MycoCosm",
+        "https://mycocosm.jgi.doe.gov/cgi-bin/dispGeneModel?db=" +
+          encodeURIComponent(arg) + "&id=" + encodeURIComponent(proteinId),
+        "JGI MycoCosm gene model in portal " + arg);
+    }
+    if (kind === "ensemblfungi" && arg) {
+      return extLink("Ensembl Fungi",
+        "https://fungi.ensembl.org/" + encodeURIComponent(arg) +
+          "/Gene/Summary?g=" + encodeURIComponent(gene),
+        "Ensembl Fungi gene record for " + gene);
+    }
+    if (kind === "veupathdb" && arg) {
+      return extLink("VEuPathDB gene",
+        "https://" + encodeURIComponent(arg) + ".org/" + encodeURIComponent(arg) +
+          "/app/record/gene/" + encodeURIComponent(gene),
+        "VEuPathDB gene record for " + gene);
+    }
+    return null;
+  }
+
+  function taxonomyLink(proteome) {
+    if (!proteome) return null;
+    if (proteome.taxid) {
+      return extLink("NCBI Taxonomy",
+        "https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=" +
+          encodeURIComponent(proteome.taxid),
+        "NCBI Taxonomy taxid " + proteome.taxid);
+    }
+    if (proteome.species) {
+      return extLink("NCBI Taxonomy",
+        "https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?name=" +
+          encodeURIComponent(proteome.species),
+        "NCBI Taxonomy search for " + proteome.species);
+    }
+    return null;
+  }
+
+  // ---- sequence-driven links ---------------------------------------------
+  function fastaText(pid, seq) {
+    return ">" + pid + "\n" + (seq.match(/.{1,60}/g) || []).join("\n") + "\n";
+  }
+  function copyFastaButton(pid, seq) {
+    var cp = el("button", null, "Copy FASTA");
+    cp.type = "button";
+    cp.addEventListener("click", function () {
+      var fa = fastaText(pid, seq);
+      // navigator.clipboard is undefined on some file:// origins; fall back to
+      // selecting a scratch textarea so the button is never a dead control.
+      function done() {
+        cp.textContent = "Copied";
+        setTimeout(function () { cp.textContent = "Copy FASTA"; }, 1400);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fa).then(done, function () { legacyCopy(fa, done); });
+      } else {
+        legacyCopy(fa, done);
+      }
+    });
+    return cp;
+  }
+  function legacyCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { /* leave label alone */ }
+    ta.remove();
+  }
+  // NCBI BLAST accepts the query in the URL, but a long protein blows past the
+  // ~8 KB practical URL ceiling and the request silently fails in some
+  // browsers and proxies. Above the threshold, submit the same query as a POST
+  // form instead -- still no external assets, still works from file://.
+  var BLAST_GET_MAX_AA = 1200;
+  function ncbiBlastpNode(pid, seq) {
+    var base = "https://blast.ncbi.nlm.nih.gov/Blast.cgi";
+    if (seq.length <= BLAST_GET_MAX_AA) {
+      return extLink("BLASTP at NCBI",
+        base + "?PAGE=Proteins&PROGRAM=blastp&BLAST_PROGRAMS=blastp" +
+        "&DATABASE=nr&CMD=Web&QUERY=" + encodeURIComponent(seq),
+        "blastp against NCBI nr");
+    }
+    var b = el("button", null, "BLASTP at NCBI");
+    b.type = "button";
+    b.title = "Sequence is " + seq.length + " aa — submitted as a POST form";
+    b.addEventListener("click", function () {
+      var f = document.createElement("form");
+      f.method = "POST";
+      f.action = base;
+      f.target = "_blank";
+      f.rel = "noopener noreferrer";
+      var fields = { CMD: "Put", PROGRAM: "blastp", DATABASE: "nr", QUERY: fastaText(pid, seq) };
+      Object.keys(fields).forEach(function (k) {
+        var i = document.createElement("input");
+        i.type = "hidden"; i.name = k; i.value = fields[k];
+        f.appendChild(i);
+      });
+      document.body.appendChild(f);
+      f.submit();
+      f.remove();
+    });
+    return b;
+  }
+
+  // ---- the whole "External resources" block ------------------------------
+  // One builder for all three reports so they can no longer drift apart.
+  //   o.id        protein ID
+  //   o.gene      gene_name ('' if none)
+  //   o.sprot     Best_Swissprot ('' if none)
+  //   o.pfam      Pfam_Names ('' if none)
+  //   o.fsrcName  annotation source label ('' if none)
+  //   o.seq       protein sequence ('' when the payload carries no sequences)
+  //   o.proteome  payload proteomes[] entry for the row's source species
+  function externalLinksNode(o) {
+    var box = document.createDocumentFragment();
+    var links = el("div", "links");
+    var acc = uniprotAcc(o.sprot);
+    if (acc) {
+      links.appendChild(extLink("UniProt " + acc,
+        "https://www.uniprot.org/uniprotkb/" + acc + "/entry"));
+      links.appendChild(extLink("AlphaFold",
+        "https://alphafold.ebi.ac.uk/entry/" + acc,
+        "Predicted structure for " + acc));
+    }
+    var db = genomeDbLink(o.proteome && o.proteome.source_db, o.id);
+    if (!db && o.fsrcName && o.fsrcName.indexOf("ModelOrg_") === 0) {
+      // Legacy behaviour for configs with no SourceDB column: the model
+      // organisms in configs/modelorgs.yaml are all FungiDB-backed.
+      db = genomeDbLink("fungidb", o.id);
+    }
+    if (db) links.appendChild(db);
+    var tax = taxonomyLink(o.proteome);
+    if (tax) links.appendChild(tax);
+    if (!acc && !db) {
+      var term = o.gene || geneIdFromProteinId(o.id);
+      links.appendChild(extLink("Search NCBI Protein",
+        "https://www.ncbi.nlm.nih.gov/protein/?term=" + encodeURIComponent(term),
+        "No SwissProt hit or source-database link — worth a manual check"));
+    }
+    if (o.seq) {
+      // Copy first: every tool below it is a paste target, so the old order
+      // (paste-me links above the button that fills the clipboard) was
+      // backwards.
+      links.appendChild(copyFastaButton(o.id, o.seq));
+      links.appendChild(ncbiBlastpNode(o.id, o.seq));
+      links.appendChild(extLink("UniProt BLAST",
+        "https://www.uniprot.org/blast?query=" + encodeURIComponent(o.seq),
+        "blastp against UniProtKB"));
+    }
+    box.appendChild(links);
+
+    // A candidate with neither a Pfam domain nor a SwissProt hit is the whole
+    // point of this pipeline, and it is exactly the row for which an ID-based
+    // NCBI search returns nothing. Give it the remote-homology and structure
+    // tools that are the real next step.
+    if (o.seq && !acc && !o.pfam) {
+      box.appendChild(el("p", "links-note",
+        "No Pfam domain and no SwissProt hit — remote-homology and structure searches:"));
+      var more = el("div", "links");
+      more.appendChild(extLink("HHpred",
+        "https://toolkit.tuebingen.mpg.de/tools/hhpred",
+        "MPI Bioinformatics Toolkit — paste the copied FASTA"));
+      more.appendChild(extLink("Foldseek",
+        "https://search.foldseek.com/search",
+        "Structure search — paste the copied FASTA"));
+      more.appendChild(extLink("InterProScan",
+        "https://www.ebi.ac.uk/interpro/search/sequence/",
+        "InterProScan — paste the copied FASTA"));
+      box.appendChild(more);
+    }
+    return box;
   }
 
   function download(name, text, type) {
@@ -325,6 +753,15 @@
     else if (s === "src") cmp = function (a, b) { return (ROWS[a][F.src] - ROWS[b][F.src]) || cmpId(a, b); };
     else if (s === "frac") cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
     else if (s === "breadth") cmp = function (a, b) { return (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) || cmpId(a, b); };
+    else if (s === "pos") cmp = function (a, b) {
+      var ca = ROWS[a][F.chrom] || "", cb = ROWS[b][F.chrom] || "";
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      var sa = ROWS[a][F.start], sb = ROWS[b][F.start];
+      if (sa == null && sb == null) return cmpId(a, b);
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return (sa - sb) || cmpId(a, b);
+    };
     // priority: the strongest loss call is a gene family retained in the fewest ingroup
     // species (cleanest loss), conserved across the most outgroup species (broadest
     // ortholog set), with no ingroup TBLASTN hit — a genomic hit means "might just be a
@@ -339,11 +776,13 @@
 
   // ---- table --------------------------------------------------------------
   var TBL_COLS = [
-    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono" },
-    { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; } },
-    { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num" },
+    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono", sortKey: "id" },
+    { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; }, sortKey: "src" },
+    { label: "Chrom", get: function (r) { return ROWS[r][F.chrom] || ""; }, cls: "mono", sortKey: "pos" },
+    { label: "Start", get: function (r) { return ROWS[r][F.start] != null ? ROWS[r][F.start] : ""; }, cls: "num", sortKey: "pos" },
+    { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num", sortKey: "breadth" },
     { label: "Ingroup retained", get: function (r) { return ROWS[r][F.in_retained] + " / " + N_IN + " species"; }, cls: "num" },
-    { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num" },
+    { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num", sortKey: "frac" },
     { label: "Ingroup TBLASTN", get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; }, cls: "wrap-cell" },
     {
       label: "Gene family", cls: "wrap-cell",
@@ -355,7 +794,11 @@
     { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
     { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
     { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
-    { label: "Pfam domains", get: function (r) { return ROWS[r][F.pfam_n]; }, cls: "wrap-cell" }
+    {
+      label: "Pfam domains", cls: "wrap-cell",
+      get: function (r) { return ROWS[r][F.pfam_n]; },
+      render: function (td, r) { td.appendChild(pfamLinksInline(ROWS[r][F.pfam_n], ROWS[r][F.pfam_a])); }
+    }
   ];
 
   var TBL_PAGE = 300;
@@ -370,9 +813,33 @@
     TBL_COLS.forEach(function (c) {
       var th = el("th", c.cls || null, c.label);
       th.scope = "col";
+      if (c.sortKey) {
+        th.classList.add("sortable");
+        th.tabIndex = 0;
+        th.setAttribute("role", "button");
+        th.setAttribute("aria-label", "Sort by " + c.label);
+        (function (key) {
+          th.addEventListener("click", function () {
+            state.sort = key;
+            document.getElementById("f-sort").value = key;
+            refresh(true);
+          });
+        })(c.sortKey);
+        th.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.click(); }
+        });
+      }
       tr.appendChild(th);
     });
     thead.appendChild(tr);
+    markSortHeader();
+  }
+
+  function markSortHeader() {
+    var ths = document.querySelectorAll("#tbl-head th");
+    TBL_COLS.forEach(function (c, i) {
+      if (ths[i]) ths[i].classList.toggle("sort-active", !!c.sortKey && c.sortKey === state.sort);
+    });
   }
 
   function renderTable(reset) {
@@ -386,7 +853,8 @@
       tr.dataset.ri = ri;
       if (ri === state.selected) tr.className = "sel";
       TBL_COLS.forEach(function (c) {
-        var td = el("td", c.cls || null, c.get(ri) || "");
+        var td = el("td", c.cls || null, c.render ? null : (c.get(ri) || ""));
+        if (c.render) c.render(td, ri);
         tr.appendChild(td);
       });
       frag.appendChild(tr);
@@ -440,6 +908,11 @@
         sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short + " · outgroup"));
     }
 
+    if (row[F.chrom]) {
+      detailEl.appendChild(field("Location",
+        row[F.chrom] + (row[F.start] != null ? ":" + row[F.start] : "")));
+    }
+
     var retained = row[F.in_retained];
     var statusText = (retained === 0
         ? "Absent from every ingroup proteome"
@@ -477,59 +950,26 @@
     if (row[F.gene]) detailEl.appendChild(field("Gene name (outgroup)", row[F.gene]));
     if (row[F.prod]) detailEl.appendChild(field("Product", row[F.prod]));
     if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
-    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", row[F.sprot]));
+    if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", uniprotLinkNode(row[F.sprot])));
 
     if (row[F.pfam_n]) {
-      var names = row[F.pfam_n].split(",");
-      var accs = row[F.pfam_a] ? row[F.pfam_a].split(",") : [];
-      var chips = el("div", "chips");
-      names.forEach(function (n, i) {
-        var acc = (accs[i] || "").split(".")[0];
-        var node;
-        if (/^PF\d+$/.test(acc)) {
-          node = el("a", "chip", n);
-          node.href = "https://www.ebi.ac.uk/interpro/entry/pfam/" + acc + "/";
-          node.target = "_blank";
-          node.rel = "noopener noreferrer";
-          node.title = acc;
-        } else {
-          node = el("span", "chip", n);
-        }
-        chips.appendChild(node);
-      });
-      detailEl.appendChild(field("Pfam domains (" + names.length + ")", chips));
+      var pfamCount = row[F.pfam_n].split(",").length;
+      detailEl.appendChild(field("Pfam domains (" + pfamCount + ")",
+        pfamChipsNode(row[F.pfam_n], row[F.pfam_a], row[F.pfam_e])));
     }
 
-    // external links — resolved against the *outgroup* protein, since that is
-    // where the gene actually is (e.g. "this looks like S. cerevisiae's ERG3").
-    var links = el("div", "links");
-    var acc = uniprotAcc(row[F.sprot]);
-    var fsrcName = row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "";
-    if (acc) {
-      var up = el("a", null, "UniProt " + acc);
-      up.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
-      up.target = "_blank"; up.rel = "noopener noreferrer";
-      links.appendChild(up);
-      var af = el("a", null, "AlphaFold");
-      af.href = "https://alphafold.ebi.ac.uk/entry/" + acc;
-      af.target = "_blank"; af.rel = "noopener noreferrer";
-      links.appendChild(af);
-    }
-    if (fsrcName.indexOf("ModelOrg_") === 0) {
-      var fd = el("a", null, "FungiDB gene");
-      fd.href = "https://fungidb.org/fungidb/app/record/gene/" + encodeURIComponent(geneIdFromProteinId(row[F.id]));
-      fd.target = "_blank"; fd.rel = "noopener noreferrer";
-      links.appendChild(fd);
-    }
-    if (!acc && fsrcName.indexOf("ModelOrg_") !== 0) {
-      var term = row[F.gene] || geneIdFromProteinId(row[F.id]);
-      var nc = el("a", null, "Search NCBI Protein");
-      nc.href = "https://www.ncbi.nlm.nih.gov/protein/?term=" + encodeURIComponent(term);
-      nc.target = "_blank"; nc.rel = "noopener noreferrer";
-      nc.title = "No model-organism or SwissProt hit — worth a manual check";
-      links.appendChild(nc);
-    }
-    if (links.childNodes.length) detailEl.appendChild(field("External resources (outgroup protein)", links));
+    // External links come from the one shared builder in lib/report_common.py,
+    // resolved against the *outgroup* protein since that is where the gene
+    // actually is (e.g. "this looks like S. cerevisiae's ERG3").
+    detailEl.appendChild(field("External resources (outgroup protein)", externalLinksNode({
+      id: row[F.id],
+      gene: row[F.gene],
+      sprot: row[F.sprot],
+      pfam: row[F.pfam_n],
+      fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
+      seq: "",
+      proteome: row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null
+    })));
   }
 
   function select(ri) {
@@ -571,6 +1011,7 @@
   // ---- wiring -------------------------------------------------------------
   function refresh(resetScroll) {
     applyFilters();
+    markSortHeader();
     if (state.selected >= 0 && view.indexOf(state.selected) === -1) {
       state.selected = -1;
       renderDetail();
@@ -630,14 +1071,25 @@
   });
 
 
-  var themeBtn = document.getElementById("theme-toggle");
-  themeBtn.addEventListener("click", function () {
-    var cur = document.documentElement.getAttribute("data-theme");
-    if (!cur) {
-      cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-    document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  var skinSel = document.getElementById("skin");
+  function notifySkinChange() {
+    if (typeof window.onSkinChange === "function") window.onSkinChange();
+  }
+  function storeSkin(v) {
+    try {
+      if (v) localStorage.setItem("novinvenio.skin", v);
+      else localStorage.removeItem("novinvenio.skin");
+    } catch (e) { /* storage unavailable -- selection still applies for this page */ }
+  }
+  skinSel.value = document.documentElement.getAttribute("data-skin") || "";
+  skinSel.addEventListener("change", function () {
+    var v = skinSel.value;
+    if (v) document.documentElement.setAttribute("data-skin", v);
+    else document.documentElement.removeAttribute("data-skin");
+    storeSkin(v);
+    notifySkinChange();
   });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", notifySkinChange);
 
 
   // ---- init ---------------------------------------------------------------
