@@ -88,9 +88,13 @@ def load_hits(hit_files):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--hits', nargs='+', required=True,
+    ap.add_argument('--hits', nargs='*', default=[], required=True,
                     help='Parsed hit TSVs: context query (candidates + paralogs) vs '
-                         'NEAR_INGROUP/BROAD_OUTGROUP proteomes')
+                         'NEAR_INGROUP/BROAD_OUTGROUP proteomes. May be empty when the '
+                         'config has no NEAR_INGROUP/BROAD_OUTGROUP proteomes -- the '
+                         'flag itself must still be present (required), just with zero '
+                         'following filenames; main() already degrades gracefully for '
+                         'this via the `hits.empty or not context_ids` branch below.')
     ap.add_argument('--candidates', required=True,
                     help='candidates.txt -- only these protein_ids are scored/emitted')
     ap.add_argument('--paralog-cutoffs', nargs='+', default=[], dest='paralog_cutoffs',
