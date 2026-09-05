@@ -360,3 +360,55 @@ surfaced from putting the three implementations in one file.
 
 **Tags**: report, skins, accessibility, wcag, colour-blind, pfam, linkouts, duplication,
 jsdom, testing, gpg, gotcha
+
+---
+
+### [2026-09-05] A live-checkout `-profile slurm` job reads whatever `bin/`/`lib/` is on disk *right now*, not what it started with
+
+**Category**: gotcha
+
+**What happened**: `run_pezizo5_refresh.sh` launched a plain `-profile slurm` (no
+`docker`/`singularity`) re-run at 10:25am from the repo's real working directory (not a
+container, not a worktree). Its `MAKE_CORE_REPORT`/`MAKE_LOSSES_REPORT` steps ran at
+10:35-10:41am and wrote `core.html`/`losses.html` **without** the new report skins, even
+though the same-day fix commits were already on the branch checked out at launch time.
+Root cause: this session merged `main`'s skins work into that same working directory at
+11:48-11:52am — *while the job was still running*. Nextflow doesn't snapshot `bin/`
+scripts; each process invokes `make_core_report.py` etc. by bare command, resolved via
+`PATH` against the live `bin/` directory at execution time, so a `git checkout`/`merge` in
+the same working tree mid-run can flip what a still-running task's *next* invocation
+executes, non-deterministically depending on exact timing. First (wrongly) suspected as
+container staleness before checking `.nextflow.log`/`sacct` timestamps: no container
+profile was active for this run, so it couldn't have been that — and a closer read of
+`Dockerfile` afterward showed the premise was wrong anyway (see the correction below).
+
+**Why it matters**: any Claude session (or person) doing `git checkout`/`merge`/`rebase`
+in a repo directory that also hosts an actively-running non-containerized Nextflow
+pipeline can silently corrupt that run's outputs — no error, no warning, just some tasks
+executing pre-change code and others post-change, depending on exactly when each process
+happened to start relative to the working-tree edit.
+
+**Correction (same day, caught when asked "would rebuilding the container bake in the
+skins?"):** the first version of this entry additionally claimed
+`ghcr.io/stajichlab/novinvenio` was "stale" and that a `-profile docker`/`singularity` run
+would need a rebuilt image to pick up `bin/`/`lib/` changes (skins, presence-calling
+fixes). That's wrong, and avoidably so — `Dockerfile`'s own header comment says exactly
+the opposite: "This image contains only the tool layer. The pipeline source (bin/, lib/,
+modules/, workflows/) is supplied by the cloned repository; Nextflow stages it into each
+task working directory automatically." The image ships only the external binaries
+(hmmer/diamond/blast/mmseqs2/famsa/openmpi) plus a bare Python+pandas+biopython+matplotlib
+— zero repo Python code. Every run, containerized or not, always executes `bin/*.py` from
+whatever git checkout launched it. So `docker-build.yml` rebuilding only on
+`Dockerfile`/`pixi.toml` changes is *correct*, not a gap: those are the only changes that
+could ever go stale in the image. Don't repeat the container-staleness theory for any
+`bin/`/`lib/` change — the actual and only hazard here is the live-filesystem race above.
+
+**Resolution**: Regenerated `pezizo5`'s `core.html`/`losses.html` (and `novelties.html`,
+which never got produced at all — see decision log) directly from the already-fresh
+`presence_matrix.function.tsv` via `bin/make_*_report.py`, bypassing Nextflow entirely.
+No repo-wide fix applied — this is a process/awareness gap, not a code bug: don't run
+`git checkout`/merge in a repo directory with a live non-containerized pipeline job still
+running against it; use a separate worktree/clone for that job's launch dir instead.
+
+**Tags**: nextflow, slurm, git, race-condition, container, docker-build, correction,
+gotcha, live-filesystem
