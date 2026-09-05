@@ -365,6 +365,26 @@ nextflow run main.nf -resume --config configs/... --data_dir ...
 
 `-resume` reuses completed tasks from `work/`. The `search_cache/` directory is additionally protected by `storeDir` — those steps are never re-run even across separate invocations.
 
+### Running multiple pipelines concurrently
+
+Nextflow keys a run's session (`.nextflow/history`, `-resume`'s "most recent run"
+lookup) to the **launch directory**, not `--project`/`--outdir` — two runs started
+from the same directory at the same time race for that state, and a `-resume` on
+one can attach to the other's still-running session. Launch each concurrent run
+from its own `.nf_launch/<project>/` subdirectory instead (already `.gitignore`d),
+with every path-bearing argument converted to an absolute path first (relative
+paths would otherwise resolve against the isolated subdir, not the repo root).
+See the README's "Running multiple pipelines concurrently" for the full pattern
+and a worked example, and `bin/run_param_sweep.sh` / the `run_*_refresh.sh`
+scripts in the repo root for real usages. This only isolates Nextflow's own
+bookkeeping — concurrent runs still share the SLURM queue, and since Nextflow
+always stages `bin/`/`lib/` live from wherever `main.nf` was launched — the
+Docker image ships only the external tool binaries, never the repo's own
+Python code, so this applies to containerized runs too — do **not** `git
+checkout`/`merge`/`rebase` in the repo root while any run is still using it.
+See `.living/learnings.md`'s 2026-09-05 entry on the live-checkout race this
+surfaced.
+
 ### Switching search tools
 
 Pass `--run_tool phmmer|diamond|blast`. Results are keyed by tool name in the cache filenames (`*.phmmer.tblout.gz`, `*.diamond.tsv.gz`, `*.blast.tsv.gz`) so cached results from one tool are not reused when switching.

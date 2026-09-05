@@ -714,6 +714,46 @@ inside every task work directory.  You can pass relative paths
 (e.g. `db/pfam/Pfam-A.hmm`) from the project root and they will resolve
 correctly regardless of where Nextflow stages the task.
 
+### Running multiple pipelines concurrently
+
+Nextflow keys a run's session (`.nextflow/history`, `-resume`'s "most recent
+run" lookup) to the **launch directory**, not `--project`/`--outdir`. Two
+`nextflow run` invocations started from the same directory at the same time
+race for that same session state — a `-resume` on one can attach to the
+other's still-running session.
+
+Launch each concurrent run from its own subdirectory instead, e.g.
+`.nf_launch/<project>/` (already `.gitignore`d), `cd`-ing into it before
+invoking `nextflow run <absolute path to main.nf> ...` with every
+path-bearing argument (`--config`, `--data_dir`, `--pfam_hmm`, `-c`, etc.)
+converted to an **absolute path first** — relative paths would otherwise
+resolve against the isolated subdirectory instead of the repo root:
+
+```bash
+REPO_ROOT=$(pwd)
+abspath() { python3 -c "import os,sys; print(os.path.abspath(sys.argv[1]))" "$1"; }
+CONFIG=$(abspath configs/my_config.csv)
+LAUNCH_DIR="$REPO_ROOT/.nf_launch/my_project"
+mkdir -p "$LAUNCH_DIR"
+cd "$LAUNCH_DIR"
+nextflow run "$REPO_ROOT/main.nf" --config "$CONFIG" ... -profile slurm
+```
+
+Each subdirectory gets its own `work/`, `.nextflow.log`, and session
+history, so concurrent runs never collide at the Nextflow level — only
+`--project` still needs to stay unique per run so `storeDir`/`search_cache/`
+and `results/<project>/` don't collide too. Note this only isolates
+Nextflow's own bookkeeping: concurrent runs still share the SLURM queue
+(expect scheduling contention, not correctness problems), and — since
+Nextflow stages `bin/`/`lib/` live from wherever `main.nf` was launched, not
+from a container or a repo snapshot — do **not** `git checkout`/`merge`/
+`rebase` in the repo root while any run (containerized or not) is still
+using it; use a separate clone/worktree for that instead. See
+`bin/run_param_sweep.sh` and the `run_*_refresh.sh` scripts (repo root) for
+worked examples of this pattern, and `.living/learnings.md`'s "A live-checkout
+`-profile slurm` job reads whatever `bin/`/`lib/` is on disk *right now*"
+entry for the incident that surfaced it.
+
 ## Development
 
 See `CLAUDE.md` for architecture details, module/workflow conventions, and
