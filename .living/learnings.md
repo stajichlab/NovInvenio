@@ -279,13 +279,17 @@ Nextflow's default 270s wait for the `.exitcode` file to appear on shared GPFS s
 was too short when many chunks finished within the same window and contended for
 filesystem metadata. A second, distinct signature was also present in earlier logs:
 `Process ... terminated for an unknown reason -- Likely it has been terminated by the
-external system` — this is what Nextflow reports when a job it submitted is manually
-`scontrol requeue`'d, moved to another partition, or cancelled/resubmitted outside its
-control. The user confirmed manually moving jobs between queues during this run, which
-plausibly explains some fraction of these failures independently of the GPFS timing
-issue — the two are easy to conflate since both surface as a failed `BUILD_CHUNK`, but
-only the first is a timing artifact; the second reflects a genuine break in Nextflow's
-job-tracking and isn't fixable by any timeout setting.
+external system` — this is what Nextflow reports when a job it submitted disappears or
+restarts outside its control (e.g. `scontrol requeue`, cancel+resubmit, or genuine SLURM
+preemption on the `preempt` partition, which is deliberately preemptible). The user was
+separately using `scontrol update JobId=X Partition=Y` to move *pending* jobs to a less
+congested partition during this run — confirmed that does NOT reproduce this signature,
+since it keeps the same job ID and only affects scheduling of a job that hasn't started
+yet, so Nextflow's tracking is unaffected. The two failure signatures are easy to
+conflate since both surface as a failed `BUILD_CHUNK`, but only the exit-timeout one is
+a timing artifact from this incident; the "terminated by external system" one (seen
+earlier, chunk_200) was most likely ordinary `preempt`-partition preemption, not any
+manual action.
 
 **Why it matters**: An entire sweep grid point's presence/recovery metrics were silently
 recorded as blank/partial rather than the run being flagged for a hard rerun, because
@@ -298,9 +302,10 @@ sweep's own summary line.
 900sec in both `conf/ucr_hpcc_slurm.config` and `nextflow.config`'s `slurm` profile
 block (kept in sync — the latter is the profile default, the former is what
 `bin/run_param_sweep.sh` actually loads via `-c`). This addresses the first failure mode
-only. For the second: avoid `scontrol requeue`/cancel+resubmit on a job Nextflow is
-actively tracking; `scontrol update JobId=X Partition=Y` on a still-pending job is safer
-since it doesn't restart or orphan the task.
+only. The second (external termination) is not something this run's failures were
+actually attributed to once checked — `scontrol update JobId=X Partition=Y` on a
+still-pending job is confirmed safe (same job ID, no restart); avoid `scontrol
+requeue`/cancel+resubmit on a job Nextflow is actively tracking, which would not be.
 
 **Tags**: nextflow, slurm, exitReadTimeout, gpfs, false-failure, queue-management,
 sweep, preempt, gotcha
