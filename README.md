@@ -350,10 +350,27 @@ IN,Neurospora crassa,OR74A,Ncrassa.pep.fa,Ncrassa.dna.fa,Ncra,Pezizomycotina
 IN,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
 ```
 
+
 - `GROUP`: `IN` (ingroup) or `OUT` (outgroup)
 - `Short`: ≤8-char unique identifier used in all output filenames
 - `Protein`, `DNA`: FASTA basenames resolved relative to `--data_dir`
 - Config filename (without `.csv`) becomes the results subdirectory
+- `SourceDB`, `NCBI_TaxID` (both optional, report-only): `SourceDB` gives each species a
+  per-gene database linkout in the HTML reports — `fungidb`, `mycocosm:<portal>`,
+  `ensemblfungi:<species>`, `veupathdb:<project>`, or any URL template containing
+  `{gene}`. `NCBI_TaxID` makes that species' NCBI Taxonomy link a direct taxid lookup
+  instead of a name search. Neither affects any presence or novelty call, and omitting
+  them is never an error.
+
+### Report appearance (skins)
+
+Every generated page — `novelties.html`, `core.html`, `losses.html`, and the `view/`
+landing pages — carries a skin picker in its header: **Paper** (the default), **Dark**,
+**Neuromancer** (a terminal-phosphor neon palette) and **High contrast**. The choice
+follows your OS by default, persists across the reports of a project, and always prints
+as Paper. Palettes live in `lib/skins.py`; adding one is a dictionary entry, and
+`tests/test_skins.py` enforces WCAG contrast floors so a new palette cannot regress
+legibility.
 
 ### Generating config files (`bin/make_config.py`)
 
