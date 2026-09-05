@@ -57,13 +57,19 @@ _MONO = (
     'ui-monospace, SFMono-Regular, Menlo, "DejaVu Sans Mono", Consolas, monospace'
 )
 
-# Static scanlines for the neon skin. Deliberately not animated: an animated
-# overlay over a 20k-row canvas heatmap is both a legibility and an
-# accessibility problem, and this one is already excluded from the grid region
-# by BASE_PAGE_CSS's .grid-hscroll stacking rule.
+# Static scanlines for the neon skin. Deliberately not animated: animated
+# texture over a 20k-row canvas heatmap is both a legibility and an
+# accessibility problem. This is painted as a background layer on `body`
+# (BASE_PAGE_CSS), so it sits in the page's negative space and can never land
+# on a card, table, tooltip or detail panel -- an element's background always
+# paints below its descendants. Printing pins the paper tokens, where this is
+# `none`, so it never reaches paper either.
+# The alpha can afford to be this visible precisely because the texture is
+# confined to the page ground: it never sits behind text or heatmap cells, so
+# it costs no legibility anywhere.
 _SCANLINES = (
     'repeating-linear-gradient(to bottom, '
-    'rgba(0, 229, 255, 0.035) 0px, rgba(0, 229, 255, 0.035) 1px, '
+    'rgba(0, 229, 255, 0.06) 0px, rgba(0, 229, 255, 0.06) 1px, '
     'transparent 1px, transparent 3px)'
 )
 
@@ -91,6 +97,7 @@ SKINS: dict[str, dict] = {
             '--wash': 'rgba(42, 120, 214, 0.10)',
             '--hover-wash': 'rgba(11, 11, 11, 0.05)',
             '--warn': '#a15c00',
+            '--shadow': '0 6px 24px rgba(11, 11, 11, 0.18)',
             '--font-ui': _SYSTEM_UI,
             '--font-mono': _MONO,
             '--glow': 'none',
@@ -116,6 +123,7 @@ SKINS: dict[str, dict] = {
             '--wash': 'rgba(57, 135, 229, 0.16)',
             '--hover-wash': 'rgba(255, 255, 255, 0.06)',
             '--warn': '#e0a030',
+            '--shadow': '0 6px 24px rgba(0, 0, 0, 0.55)',
             '--font-ui': _SYSTEM_UI,
             '--font-mono': _MONO,
             '--glow': 'none',
@@ -144,6 +152,7 @@ SKINS: dict[str, dict] = {
             '--wash': 'rgba(0, 229, 255, 0.14)',
             '--hover-wash': 'rgba(0, 229, 255, 0.07)',
             '--warn': '#ff5f56',
+            '--shadow': '0 6px 24px rgba(0, 0, 0, 0.65)',
             '--font-ui': _MONO,
             '--font-mono': _MONO,
             '--glow': '0 0 6px rgba(0, 229, 255, 0.35)',
@@ -169,6 +178,7 @@ SKINS: dict[str, dict] = {
             '--wash': 'rgba(77, 184, 255, 0.22)',
             '--hover-wash': 'rgba(255, 255, 255, 0.12)',
             '--warn': '#ff6b6b',
+            '--shadow': '0 0 0 1px rgba(255, 255, 255, 0.45), 0 6px 24px rgba(0, 0, 0, 0.8)',
             '--font-ui': _SYSTEM_UI,
             '--font-mono': _MONO,
             '--glow': 'none',
@@ -234,7 +244,6 @@ def skins_css() -> str:
         '    :root, :root[data-skin] {',
         _block(SKINS[DEFAULT_SKIN]['tokens'], SKINS[DEFAULT_SKIN]['scheme']),
         '    }',
-        '    body::before { display: none !important; }',
         '  }',
     ]
     return '\n'.join(parts) + '\n'

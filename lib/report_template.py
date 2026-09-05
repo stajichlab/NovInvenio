@@ -40,21 +40,13 @@ HTML_TEMPLATE = r"""<!doctype html>
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--page);
+    /* Skin texture as a background layer on the page ground -- see the note in
+       lib/report_common.py's BASE_PAGE_CSS. An element background paints below
+       every descendant, so a repeating gradient can never land on the ~8px
+       heatmap cells, the tooltip or the detail panel. */
+    background: var(--page) var(--overlay);
     color: var(--text-primary);
     font: 14px/1.5 var(--font-ui);
-  }
-  /* Skin-supplied page texture (scanlines for the neon skin, `none` for the
-     rest). Static, never animated, and deliberately *below* the heatmap and
-     table, which raise themselves in the stacking order: a repeating gradient
-     over ~8px heatmap cells destroys the thing the page exists to show. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    pointer-events: none;
-    background: var(--overlay);
   }
   .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
 
@@ -152,8 +144,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   .swatch.tb { background: var(--series-2); }
   .swatch.absent { background: var(--grid); }
 
-  /* z-index 51 keeps the grid above body::before -- see the note there. */
-  .grid-hscroll { overflow-x: auto; position: relative; z-index: 51; background: var(--surface-1); }
+  .grid-hscroll { overflow-x: auto; }
   .grid-scroll { overflow-y: auto; height: 560px; position: relative; }
   .grid-spacer { position: relative; width: 100%; }
   canvas.grid { display: block; position: absolute; left: 0; top: 0; }
@@ -172,7 +163,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--surface-1);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--shadow);
     padding: 10px 12px;
     font-size: 12px;
     pointer-events: none;
@@ -243,7 +234,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   .placeholder { color: var(--text-secondary); font-size: 13px; }
 
   /* ---- table view ---- */
-  .tbl-scroll { overflow: auto; height: 560px; position: relative; z-index: 51; background: var(--surface-1); }
+  .tbl-scroll { overflow: auto; height: 560px; }
   table.data { border-collapse: collapse; width: 100%; font-size: 12px; }
   table.data th, table.data td {
     text-align: left;

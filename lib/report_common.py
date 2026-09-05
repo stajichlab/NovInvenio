@@ -43,22 +43,18 @@ BASE_PAGE_CSS = r"""
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--page);
+    /* Skin-supplied page texture (scanlines for the neon skin, `none`
+       everywhere else) painted as a background layer on the page ground.
+       An element's background always paints below all of its descendants, so
+       the texture can never land on a card, a table, the detail panel or a
+       tooltip -- it shows in the page's negative space only. An overlay
+       element positioned above the content cannot make that guarantee without
+       every content region opting out by z-index, which is how the first
+       attempt at this put scanlines across the detail panel and the heatmap
+       tooltip. Deliberately static, never animated. */
+    background: var(--page) var(--overlay);
     color: var(--text-primary);
     font: 14px/1.5 var(--font-ui);
-  }
-  /* Skin-supplied full-page texture (scanlines for the neon skin, `none`
-     everywhere else). Deliberately static, never animated. Sits above the
-     page background but *below* the data regions, which raise themselves in
-     the stacking order -- an overlay across a dense canvas heatmap or a data
-     table is a legibility problem, not an aesthetic. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    pointer-events: none;
-    background: var(--overlay);
   }
   .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
   header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
@@ -99,8 +95,7 @@ BASE_PAGE_CSS = r"""
   .count { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
   .explorer { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
   @media (max-width: 1180px) { .explorer { grid-template-columns: 1fr; } }
-  /* Raised above body::before so a textured skin never sits over the data. */
-  .tbl-scroll { overflow: auto; height: 560px; position: relative; z-index: 51; background: var(--surface-1); }
+  .tbl-scroll { overflow: auto; height: 560px; }
   table.data { border-collapse: collapse; width: 100%; font-size: 12px; }
   table.data th, table.data td {
     text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap;
@@ -268,10 +263,19 @@ LINKOUT_HELPERS_JS = r"""
   //
   // Accepted forms: "fungidb", "mycocosm:<portal>", "ensemblfungi:<species>",
   // "veupathdb:<project>", or any URL template containing "{gene}".
+  // A config CSV travels between users and projects, so a SourceDB value is
+  // only semi-trusted: anything that ends up in an href must be checked for
+  // its scheme, or "javascript:...{gene}" becomes a clickable link in the
+  // report. The keyed forms below interpolate into a fixed https:// prefix,
+  // so only the free-form template needs the check.
+  function isSafeHttpUrl(url) {
+    return /^https?:\/\//i.test(url);
+  }
   function genomeDbLink(sourceDb, proteinId) {
     if (!sourceDb) return null;
     var gene = geneIdFromProteinId(proteinId);
     if (sourceDb.indexOf("{gene}") >= 0) {
+      if (!isSafeHttpUrl(sourceDb)) return null;
       return extLink("Gene record", sourceDb.replace("{gene}", encodeURIComponent(gene)),
                      "Source database record for " + gene);
     }

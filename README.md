@@ -367,8 +367,10 @@ IN,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
 Every generated page — `novelties.html`, `core.html`, `losses.html`, and the `view/`
 landing pages — carries a skin picker in its header: **Paper** (the default), **Dark**,
 **Neuromancer** (a terminal-phosphor neon palette) and **High contrast**. The choice
-follows your OS by default, persists across the reports of a project, and always prints
-as Paper. Palettes live in `lib/skins.py`; adding one is a dictionary entry, and
+follows your OS by default and always prints as Paper. It persists across a project's
+reports when they're served over http(s) — as they are on GitHub Pages; opening them
+straight off disk usually won't remember it, because most browsers give each `file://`
+document its own opaque origin with no shared storage. Palettes live in `lib/skins.py`; adding one is a dictionary entry, and
 `tests/test_skins.py` enforces WCAG contrast floors so a new palette cannot regress
 legibility.
 

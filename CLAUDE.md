@@ -505,9 +505,14 @@ bin/make_report.py \
 - **The canvas repaints on a skin change** via `window.onSkinChange` — it reads the same
   tokens through `getComputedStyle` (`palette()`), so a new skin needs no canvas code.
 - **A skin owns its type and effects too**, through `--font-ui`/`--font-mono`/`--glow`/
-  `--overlay`. `--overlay` (the neon skin's scanlines) paints at `z-index: 50`; the
-  heatmap and table sit at `51` so a texture never lands on the data. Webfonts are
-  impossible here — the pages open from `file://` — so every font stack is system fonts.
+  `--overlay`/`--shadow`. `--overlay` (the neon skin's scanlines) is a **background layer
+  on `body`**, not an overlay element: an element's background always paints below all of
+  its descendants, so the texture can only ever appear in the page's negative space. Do
+  not reimplement it as a positioned overlay — the first attempt did, and a `z-index: 50`
+  overlay painted scanlines across the detail panel (`position: sticky`, `z-index: auto`)
+  and the heatmap tooltip (`z-index: 20`), because raising only the two scroll containers
+  left every other content region below it. Webfonts are impossible here — the pages open
+  from `file://` — so every font stack is system fonts.
 - **Rows are virtualised** on a canvas (~20k rows). `drawGrid()` renders only the visible
   window; the scroll height comes from the spacer div.
 - **The table tab is the accessibility twin** of the heatmap and must keep every value
@@ -519,6 +524,11 @@ bin/make_report.py \
   source. A candidate with neither a Pfam domain nor a SwissProt hit gets the
   remote-homology cluster (HHpred/Foldseek/InterProScan) instead of an ID-based NCBI
   search that would return nothing — that population is the point of the pipeline.
+- **A `SourceDB` value is only semi-trusted.** Config CSVs get copied between users and
+  projects, and the free-form `{gene}` template goes straight into an `href`, so
+  `genomeDbLink()` requires an `http(s)` scheme before building a link — otherwise a
+  `javascript:` value becomes a clickable link in the report.
+  `tests/test_report_js_behaviour.py` covers this with a hostile fixture.
 
 ### Testing template JS changes
 
@@ -527,7 +537,12 @@ Stage 1 below now runs as part of the suite —
 pass over every page's `<script>` bodies and skips where node is unavailable. That matters
 more than it used to: the pages are assembled from shared fragments in
 `lib/report_common.py` and `lib/skins.py`, so one bad fragment breaks all four at once.
-Stage 2 (jsdom) still needs an npm install and stays a manual procedure.
+Stage 2 (jsdom) now has a home too: `tests/test_report_js_behaviour.py` generates real
+report pages from a fixture and drives them through `tests/js/drive_reports.mjs`,
+covering the skin picker's three states and the whole external-link fallback chain. It
+**skips unless jsdom resolves**, since that is an npm dependency in a pixi project — set
+`NOVINVENIO_JSDOM` to a jsdom install, or `npm install jsdom` somewhere Node will find
+it. Extend that driver rather than writing a new throwaway script.
 
 When editing the JS inside `HTML_TEMPLATE` — or any shared fragment — verify it in two
 stages:
