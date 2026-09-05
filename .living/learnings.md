@@ -320,7 +320,7 @@ Nextflow session (e.g. grepping `.nextflow.log` for the job ID) and warns before
 
 ---
 
-## The report pages' colour duplication was hiding two real defects (2026-09-05)
+### [2026-09-05] The report pages' colour duplication was hiding two real defects
 
 **What surprised us**: consolidating four copies of the colour tokens was framed as a
 tidy-up, but the copies had drifted in ways that were invisible until they sat side by

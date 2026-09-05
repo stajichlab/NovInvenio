@@ -678,7 +678,7 @@ site-config, bug-fix
 
 ---
 
-## Report presentation: one skin registry, one linkout builder, one landing-page design (2026-09-05)
+### [2026-09-05] Report presentation: one skin registry, one linkout builder, one landing-page design
 
 **Context**: A code audit of the report/`view/` layer, driven by a request for a
 cyberpunk/Neuromancer look that could be *swapped* rather than hardcoded, plus better
