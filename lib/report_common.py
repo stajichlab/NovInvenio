@@ -1,73 +1,42 @@
 """
-Small reusable HTML/CSS/JS string fragments for the lighter, single-table
-report pages (lib/core_report_template.py, and the future LOSSES report).
+Small reusable HTML/CSS/JS string fragments shared by the NovInvenio report
+pages (lib/report_template.py, lib/core_report_template.py,
+lib/losses_report_template.py, bin/make_index_report.py, view/generate_index.py).
 
-lib/report_template.py — the canvas-heatmap novelty report — predates this
-module and is not wired to it: it is large, thoroughly covered by
-tests/test_report_data.py's self-contained-HTML checks, and restructuring it
-to pull from here is not worth the risk for the handful of lines it would
-save. New single-table templates should build on these fragments instead of
-re-copying them inline, so the two report families stay visually and
-behaviourally consistent without duplicating boilerplate.
+Colour tokens are *not* defined here -- they come from lib/skins.py, the single
+registry every page paints from. This module holds the page chrome (CSS) and
+the DOM/link helpers (JS) that sit on top of those tokens.
+
+lib/report_template.py -- the canvas-heatmap novelty report -- historically
+duplicated all of this inline. It now shares the skin CSS and the linkout
+helpers (the two things that had actually diverged between the reports), while
+keeping its own copy of the heatmap-specific chrome: that part is large,
+thoroughly covered by tests/test_report_data.py's self-contained-HTML checks,
+and has no counterpart in the single-table pages.
 
 Every fragment here is plain text meant to be concatenated into a larger
-HTML_TEMPLATE-style triple-quoted string (see lib/report_template.py's
-module docstring for the __PROJECT_TITLE__ / /*__PAYLOAD__*/ substitution
-convention) — nothing here does its own token substitution.
+HTML_TEMPLATE-style triple-quoted string (see lib/report_template.py's module
+docstring for the __PROJECT_TITLE__ / /*__PAYLOAD__*/ substitution convention)
+-- nothing here does its own token substitution.
 """
 
-# Colour tokens shared with lib/report_template.py so every report reads as
-# one visual system in light and dark mode. series-2 (TBLASTN green) is
-# intentionally omitted — these single-table reports have nothing to encode
-# a second evidence colour for.
-THEME_VARS_CSS = r"""
-  :root {
-    color-scheme: light;
-    --page: #f9f9f7;
-    --surface-1: #fcfcfb;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --muted: #898781;
-    --grid: #e1e0d9;
-    --axis: #c3c2b7;
-    --border: rgba(11, 11, 11, 0.10);
-    --series-1: #2a78d6;
-    --wash: rgba(42, 120, 214, 0.10);
-    --hover-wash: rgba(11, 11, 11, 0.05);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
-      color-scheme: dark;
-      --page: #0d0d0d;
-      --surface-1: #1a1a19;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --muted: #898781;
-      --grid: #2c2c2a;
-      --axis: #383835;
-      --border: rgba(255, 255, 255, 0.10);
-      --series-1: #3987e5;
-      --wash: rgba(57, 135, 229, 0.16);
-      --hover-wash: rgba(255, 255, 255, 0.06);
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --page: #0d0d0d;
-    --surface-1: #1a1a19;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --muted: #898781;
-    --grid: #2c2c2a;
-    --axis: #383835;
-    --border: rgba(255, 255, 255, 0.10);
-    --series-1: #3987e5;
-    --wash: rgba(57, 135, 229, 0.16);
-    --hover-wash: rgba(255, 255, 255, 0.06);
-  }
-"""
+from skins import skin_boot_js, skin_picker_html, skin_picker_js, skins_css
 
-# Page chrome, filter bar, single data table and detail panel — the shape
+# The full skin registry as CSS. Named for what it is now; the old
+# THEME_VARS_CSS spelling is gone along with the light/dark-only model.
+SKIN_VARS_CSS = skins_css()
+
+# <head> snippet -- must run before first paint so a stored skin choice does
+# not flash the default palette. Wrap in <script>...</script> at the call site.
+SKIN_BOOT_JS = skin_boot_js()
+
+# End-of-body wiring for the header's skin <select>.
+SKIN_PICKER_JS = skin_picker_js()
+
+# The header control itself.
+SKIN_PICKER_HTML = skin_picker_html()
+
+# Page chrome, filter bar, single data table and detail panel -- the shape
 # every single-table report needs. No canvas/heatmap rules here; that stays
 # specific to lib/report_template.py.
 BASE_PAGE_CSS = r"""
@@ -76,13 +45,27 @@ BASE_PAGE_CSS = r"""
     margin: 0;
     background: var(--page);
     color: var(--text-primary);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.5 var(--font-ui);
+  }
+  /* Skin-supplied full-page texture (scanlines for the neon skin, `none`
+     everywhere else). Deliberately static, never animated. Sits above the
+     page background but *below* the data regions, which raise themselves in
+     the stacking order -- an overlay across a dense canvas heatmap or a data
+     table is a legibility problem, not an aesthetic. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    background: var(--overlay);
   }
   .wrap { max-width: min(95vw, 2100px); margin: 0 auto; padding: 24px 20px 64px; }
   header.top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
   header.top .titles { flex: 1; min-width: 0; }
-  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-shadow: var(--glow); }
   .sub { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  .mono { font-family: var(--font-mono); font-size: 11px; }
   button, select, input[type="search"] {
     font: inherit;
     color: var(--text-primary);
@@ -116,7 +99,8 @@ BASE_PAGE_CSS = r"""
   .count { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
   .explorer { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
   @media (max-width: 1180px) { .explorer { grid-template-columns: 1fr; } }
-  .tbl-scroll { overflow: auto; height: 560px; }
+  /* Raised above body::before so a textured skin never sits over the data. */
+  .tbl-scroll { overflow: auto; height: 560px; position: relative; z-index: 51; background: var(--surface-1); }
   table.data { border-collapse: collapse; width: 100%; font-size: 12px; }
   table.data th, table.data td {
     text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap;
@@ -159,18 +143,34 @@ BASE_PAGE_CSS = r"""
     text-decoration: none; color: var(--text-primary); background: var(--page);
   }
   .links a:hover, .links button:hover { border-color: var(--series-1); }
+  /* The "this protein has no annotation" follow-up cluster -- the population
+     this pipeline exists to surface, so it gets its own visible grouping
+     rather than being one more link in the row. */
+  .links-note {
+    font-size: 11px; color: var(--muted); margin: 8px 0 4px;
+  }
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .badge.warn { color: var(--warn); border-color: var(--warn); }
   .placeholder { color: var(--text-secondary); font-size: 13px; }
   .hidden { display: none !important; }
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
+  @media print {
+    .filters, .tabs, header.top select, header.top button { display: none !important; }
+    .tbl-scroll { height: auto; overflow: visible; }
+    .explorer { grid-template-columns: 1fr; }
+  }
 """
 
 # ---- JS fragments ---------------------------------------------------------
 
 # Untrusted-string discipline: every report must build DOM nodes with this
-# helper (or plain textContent), never innerHTML — see CLAUDE.md's report
+# helper (or plain textContent), never innerHTML -- see CLAUDE.md's report
 # constraints. Protein IDs and annotation text come from FASTA headers and
 # SwissProt/Pfam text and are not sanitised upstream.
 EL_HELPER_JS = r"""
@@ -180,12 +180,20 @@ EL_HELPER_JS = r"""
     if (text !== undefined && text !== null) n.textContent = text; // labels are untrusted data
     return n;
   }
+  function extLink(label, href, title) {
+    var a = el("a", null, label);
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    if (title) a.title = title;
+    return a;
+  }
 """
 
-# Shared with lib/report_template.py's detail panel (kept independent there,
-# see this module's docstring) — same gene-id stripping and SwissProt
-# accession regex, so the two reports resolve the same protein to the same
-# FungiDB/UniProt link.
+# Every report resolves a protein to the same external record, so this lives in
+# one place. lib/report_template.py imports it too -- the inline copies it and
+# the single-table templates each carried had already drifted apart (the core
+# and losses pages silently dropped the Pfam E-values the novelty page shows).
 LINKOUT_HELPERS_JS = r"""
   function geneIdFromProteinId(pid) {
     return pid.replace(/-[Tt][^-]*(-p\d+)?$|-p\d+$/, "");
@@ -250,17 +258,206 @@ LINKOUT_HELPERS_JS = r"""
     });
     return frag;
   }
-"""
 
-THEME_TOGGLE_JS = r"""
-  var themeBtn = document.getElementById("theme-toggle");
-  themeBtn.addEventListener("click", function () {
-    var cur = document.documentElement.getAttribute("data-theme");
-    if (!cur) {
-      cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // ---- genome-database gene records --------------------------------------
+  // Driven by the config CSV's optional SourceDB column, carried through to
+  // each payload proteome entry as `source_db` (see lib/config_parser.py).
+  // Before this, a gene-record link was gated on the annotation source being
+  // a ModelOrg_* entry, so only the handful of model organisms got one even
+  // though most of the sample pool lives in FungiDB or MycoCosm.
+  //
+  // Accepted forms: "fungidb", "mycocosm:<portal>", "ensemblfungi:<species>",
+  // "veupathdb:<project>", or any URL template containing "{gene}".
+  function genomeDbLink(sourceDb, proteinId) {
+    if (!sourceDb) return null;
+    var gene = geneIdFromProteinId(proteinId);
+    if (sourceDb.indexOf("{gene}") >= 0) {
+      return extLink("Gene record", sourceDb.replace("{gene}", encodeURIComponent(gene)),
+                     "Source database record for " + gene);
     }
-    document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
-  });
+    var sep = sourceDb.indexOf(":");
+    var kind = (sep >= 0 ? sourceDb.slice(0, sep) : sourceDb).toLowerCase();
+    var arg = sep >= 0 ? sourceDb.slice(sep + 1) : "";
+    if (kind === "fungidb") {
+      return extLink("FungiDB gene",
+        "https://fungidb.org/fungidb/app/record/gene/" + encodeURIComponent(gene),
+        "FungiDB gene record for " + gene);
+    }
+    if (kind === "mycocosm" && arg) {
+      return extLink("JGI MycoCosm",
+        "https://mycocosm.jgi.doe.gov/cgi-bin/dispGeneModel?db=" +
+          encodeURIComponent(arg) + "&id=" + encodeURIComponent(proteinId),
+        "JGI MycoCosm gene model in portal " + arg);
+    }
+    if (kind === "ensemblfungi" && arg) {
+      return extLink("Ensembl Fungi",
+        "https://fungi.ensembl.org/" + encodeURIComponent(arg) +
+          "/Gene/Summary?g=" + encodeURIComponent(gene),
+        "Ensembl Fungi gene record for " + gene);
+    }
+    if (kind === "veupathdb" && arg) {
+      return extLink("VEuPathDB gene",
+        "https://" + encodeURIComponent(arg) + ".org/" + encodeURIComponent(arg) +
+          "/app/record/gene/" + encodeURIComponent(gene),
+        "VEuPathDB gene record for " + gene);
+    }
+    return null;
+  }
+
+  function taxonomyLink(proteome) {
+    if (!proteome) return null;
+    if (proteome.taxid) {
+      return extLink("NCBI Taxonomy",
+        "https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=" +
+          encodeURIComponent(proteome.taxid),
+        "NCBI Taxonomy taxid " + proteome.taxid);
+    }
+    if (proteome.species) {
+      return extLink("NCBI Taxonomy",
+        "https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?name=" +
+          encodeURIComponent(proteome.species),
+        "NCBI Taxonomy search for " + proteome.species);
+    }
+    return null;
+  }
+
+  // ---- sequence-driven links ---------------------------------------------
+  function fastaText(pid, seq) {
+    return ">" + pid + "\n" + (seq.match(/.{1,60}/g) || []).join("\n") + "\n";
+  }
+  function copyFastaButton(pid, seq) {
+    var cp = el("button", null, "Copy FASTA");
+    cp.type = "button";
+    cp.addEventListener("click", function () {
+      var fa = fastaText(pid, seq);
+      // navigator.clipboard is undefined on some file:// origins; fall back to
+      // selecting a scratch textarea so the button is never a dead control.
+      function done() {
+        cp.textContent = "Copied";
+        setTimeout(function () { cp.textContent = "Copy FASTA"; }, 1400);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fa).then(done, function () { legacyCopy(fa, done); });
+      } else {
+        legacyCopy(fa, done);
+      }
+    });
+    return cp;
+  }
+  function legacyCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { /* leave label alone */ }
+    ta.remove();
+  }
+  // NCBI BLAST accepts the query in the URL, but a long protein blows past the
+  // ~8 KB practical URL ceiling and the request silently fails in some
+  // browsers and proxies. Above the threshold, submit the same query as a POST
+  // form instead -- still no external assets, still works from file://.
+  var BLAST_GET_MAX_AA = 1200;
+  function ncbiBlastpNode(pid, seq) {
+    var base = "https://blast.ncbi.nlm.nih.gov/Blast.cgi";
+    if (seq.length <= BLAST_GET_MAX_AA) {
+      return extLink("BLASTP at NCBI",
+        base + "?PAGE=Proteins&PROGRAM=blastp&BLAST_PROGRAMS=blastp" +
+        "&DATABASE=nr&CMD=Web&QUERY=" + encodeURIComponent(seq),
+        "blastp against NCBI nr");
+    }
+    var b = el("button", null, "BLASTP at NCBI");
+    b.type = "button";
+    b.title = "Sequence is " + seq.length + " aa — submitted as a POST form";
+    b.addEventListener("click", function () {
+      var f = document.createElement("form");
+      f.method = "POST";
+      f.action = base;
+      f.target = "_blank";
+      f.rel = "noopener noreferrer";
+      var fields = { CMD: "Put", PROGRAM: "blastp", DATABASE: "nr", QUERY: fastaText(pid, seq) };
+      Object.keys(fields).forEach(function (k) {
+        var i = document.createElement("input");
+        i.type = "hidden"; i.name = k; i.value = fields[k];
+        f.appendChild(i);
+      });
+      document.body.appendChild(f);
+      f.submit();
+      f.remove();
+    });
+    return b;
+  }
+
+  // ---- the whole "External resources" block ------------------------------
+  // One builder for all three reports so they can no longer drift apart.
+  //   o.id        protein ID
+  //   o.gene      gene_name ('' if none)
+  //   o.sprot     Best_Swissprot ('' if none)
+  //   o.pfam      Pfam_Names ('' if none)
+  //   o.fsrcName  annotation source label ('' if none)
+  //   o.seq       protein sequence ('' when the payload carries no sequences)
+  //   o.proteome  payload proteomes[] entry for the row's source species
+  function externalLinksNode(o) {
+    var box = document.createDocumentFragment();
+    var links = el("div", "links");
+    var acc = uniprotAcc(o.sprot);
+    if (acc) {
+      links.appendChild(extLink("UniProt " + acc,
+        "https://www.uniprot.org/uniprotkb/" + acc + "/entry"));
+      links.appendChild(extLink("AlphaFold",
+        "https://alphafold.ebi.ac.uk/entry/" + acc,
+        "Predicted structure for " + acc));
+    }
+    var db = genomeDbLink(o.proteome && o.proteome.source_db, o.id);
+    if (!db && o.fsrcName && o.fsrcName.indexOf("ModelOrg_") === 0) {
+      // Legacy behaviour for configs with no SourceDB column: the model
+      // organisms in configs/modelorgs.yaml are all FungiDB-backed.
+      db = genomeDbLink("fungidb", o.id);
+    }
+    if (db) links.appendChild(db);
+    var tax = taxonomyLink(o.proteome);
+    if (tax) links.appendChild(tax);
+    if (!acc && !db) {
+      var term = o.gene || geneIdFromProteinId(o.id);
+      links.appendChild(extLink("Search NCBI Protein",
+        "https://www.ncbi.nlm.nih.gov/protein/?term=" + encodeURIComponent(term),
+        "No SwissProt hit or source-database link — worth a manual check"));
+    }
+    if (o.seq) {
+      // Copy first: every tool below it is a paste target, so the old order
+      // (paste-me links above the button that fills the clipboard) was
+      // backwards.
+      links.appendChild(copyFastaButton(o.id, o.seq));
+      links.appendChild(ncbiBlastpNode(o.id, o.seq));
+      links.appendChild(extLink("UniProt BLAST",
+        "https://www.uniprot.org/blast?query=" + encodeURIComponent(o.seq),
+        "blastp against UniProtKB"));
+    }
+    box.appendChild(links);
+
+    // A candidate with neither a Pfam domain nor a SwissProt hit is the whole
+    // point of this pipeline, and it is exactly the row for which an ID-based
+    // NCBI search returns nothing. Give it the remote-homology and structure
+    // tools that are the real next step.
+    if (o.seq && !acc && !o.pfam) {
+      box.appendChild(el("p", "links-note",
+        "No Pfam domain and no SwissProt hit — remote-homology and structure searches:"));
+      var more = el("div", "links");
+      more.appendChild(extLink("HHpred",
+        "https://toolkit.tuebingen.mpg.de/tools/hhpred",
+        "MPI Bioinformatics Toolkit — paste the copied FASTA"));
+      more.appendChild(extLink("Foldseek",
+        "https://search.foldseek.com/search",
+        "Structure search — paste the copied FASTA"));
+      more.appendChild(extLink("InterProScan",
+        "https://www.ebi.ac.uk/interpro/search/sequence/",
+        "InterProScan — paste the copied FASTA"));
+      box.appendChild(more);
+    }
+    return box;
+  }
 """
 
 DOWNLOAD_JS = r"""
