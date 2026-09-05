@@ -38,3 +38,6 @@ docs/_build/
 .claude/settings.local.json
 .claude/last-session.md
 .claude/active-session-log.tmp
+
+# mycelium tool state (locks are per-run, not source)
+.mycelium/locks/
