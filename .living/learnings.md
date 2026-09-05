@@ -263,3 +263,52 @@ task dirs (or bump a cache-busting param/comment in the process script) rather t
 `-resume` to pick up the fix. Consider a repo convention: every `bin/`-called script that is
 `storeDir`/`-resume`-sensitive should be declared as an explicit `path` input to its process
 so Nextflow's hash tracks its content automatically.
+
+---
+
+### [2026-09-05] Two distinct BUILD_CHUNK "failure" signatures on the broader-grid sweeps — one benign, one from manual queue intervention
+
+**Category**: gotcha
+
+**What happened**: Both `deep_broad_1kfg` and `sordariales_shallow` sweeps lost their
+`hc0.5/r0` grid point to bursts of ~300-400 `BUILD_CHUNK` "failures" each. Verified by
+sampling failed work dirs directly: `.exitcode` was `0` and `sacct` showed `COMPLETED`
+for the sampled SLURM job IDs — the tasks actually succeeded. The log showed
+`Failed to get exit status for process ... exitStatusReadTimeoutMillis: 270000` —
+Nextflow's default 270s wait for the `.exitcode` file to appear on shared GPFS storage
+was too short when many chunks finished within the same window and contended for
+filesystem metadata. A second, distinct signature was also present in earlier logs:
+`Process ... terminated for an unknown reason -- Likely it has been terminated by the
+external system` — this is what Nextflow reports when a job it submitted is manually
+`scontrol requeue`'d, moved to another partition, or cancelled/resubmitted outside its
+control. The user confirmed manually moving jobs between queues during this run, which
+plausibly explains some fraction of these failures independently of the GPFS timing
+issue — the two are easy to conflate since both surface as a failed `BUILD_CHUNK`, but
+only the first is a timing artifact; the second reflects a genuine break in Nextflow's
+job-tracking and isn't fixable by any timeout setting.
+
+**Why it matters**: An entire sweep grid point's presence/recovery metrics were silently
+recorded as blank/partial rather than the run being flagged for a hard rerun, because
+`bin/run_param_sweep.sh` catches a failed grid point and continues (`recording
+partial/blank metrics and continuing`) — see that script's error handling. Without
+checking `.exitcode`/`sacct` directly, both failure classes look identical from the
+sweep's own summary line.
+
+**Resolution**: Raised `executor.exitReadTimeout` from Nextflow's 270sec default to
+900sec in both `conf/ucr_hpcc_slurm.config` and `nextflow.config`'s `slurm` profile
+block (kept in sync — the latter is the profile default, the former is what
+`bin/run_param_sweep.sh` actually loads via `-c`). This addresses the first failure mode
+only. For the second: avoid `scontrol requeue`/cancel+resubmit on a job Nextflow is
+actively tracking; `scontrol update JobId=X Partition=Y` on a still-pending job is safer
+since it doesn't restart or orphan the task.
+
+**Tags**: nextflow, slurm, exitReadTimeout, gpfs, false-failure, queue-management,
+sweep, preempt, gotcha
+
+**mitigation_type**: structural
+
+**structural_mitigation_candidate**: The `exitReadTimeout` fix has shipped (see
+Resolution). No structural mitigation exists yet for the second failure mode beyond the
+operational guidance above — a candidate would be a wrapper around manual SLURM
+job manipulation that first checks whether the job ID is currently tracked by a live
+Nextflow session (e.g. grepping `.nextflow.log` for the job ID) and warns before acting.
