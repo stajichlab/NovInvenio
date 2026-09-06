@@ -194,10 +194,12 @@ def test_load_master_pool_rejects_duplicate_species(tmp_path):
 
 def test_make_short_disambiguates_collisions():
     used: set[str] = set()
-    assert make_short('Mucor circinelloides', used) == 'Mucci'
-    assert make_short('Mucor mucedo', used) == 'Mucmu'
-    # third species with the same 4+4 prefix collides and gets a numeric suffix
-    assert make_short('Mucor circinans', used) == 'Mucci2'
+    # genus[:4] upper-first + lower + epithet[:4], concatenated and truncated to 8:
+    # 'Muco' + 'circ' -> 'Mucocirc' (already 8 chars, no truncation)
+    assert make_short('Mucor circinelloides', used) == 'Mucocirc'
+    assert make_short('Mucor mucedo', used) == 'Mucomuce'
+    # third species collides on the same 8-char base and gets a numeric suffix
+    assert make_short('Mucor circinans', used) == 'Mucocir2'
 
 
 def test_assign_shorts_is_deterministic_regardless_of_input_order(tmp_path):
@@ -207,8 +209,8 @@ def test_assign_shorts_is_deterministic_regardless_of_input_order(tmp_path):
     forward = assign_shorts(samples)
     backward = assign_shorts(list(reversed(samples)))
     assert forward == backward == {
-        'Mucor circinelloides': 'Mucci',
-        'Rhizopus arrhizus': 'Rhiar',
+        'Mucor circinelloides': 'Mucocirc',
+        'Rhizopus arrhizus': 'Rhizarrh',
     }
 ```
 
@@ -843,7 +845,8 @@ git commit -m "feat: add trait_definitions.yaml/traits.csv loader with hard-erro
 
 **Interfaces:**
 - Consumes: `RANK_NAMES`, `lineage_match` (lineage, Task 1); `MasterSample` (master_pool, Task 2); `has_trait` (trait_data, Task 5).
-- Produces: `Candidate` dataclass (`species: str`, `rank_name: str`), `DEFAULT_SCOPE_RANK = 'ORDER'`, `candidate_pool(focal_species, focal_lineage, pool, scope_rank=DEFAULT_SCOPE_RANK) -> list[Candidate]`, `rank_candidates(candidates) -> list[Candidate]`, `select_nearest(focal_species, focal_lineage, pool, n, scope_rank=DEFAULT_SCOPE_RANK) -> list[Candidate]`, `select_trait(focal_species, focal_lineage, pool, trait, value, n, traits_by_species, scope_rank=DEFAULT_SCOPE_RANK) -> list[Candidate]`, `exclude_species(candidates, excluded: set[str]) -> list[Candidate]`.
+- Produces: `Candidate` dataclass (`species: str`, `rank_name: str`), `DEFAULT_SCOPE_RANK = 'ORDER'`, `candidate_pool(focal_species, focal_lineage, pool, scope_rank=DEFAULT_SCOPE_RANK) -> list[Candidate]`, `rank_candidates(candidates) -> list[Candidate]`, `exclude_species(candidates, excluded: set[str]) -> list[Candidate]`, `select_nearest(focal_species, focal_lineage, pool, n, scope_rank=DEFAULT_SCOPE_RANK, excluded: set[str] = frozenset()) -> list[Candidate]`, `select_trait(focal_species, focal_lineage, pool, trait, value, n, traits_by_species, scope_rank=DEFAULT_SCOPE_RANK, excluded: set[str] = frozenset()) -> list[Candidate]`.
+  **Note:** `excluded` is applied *before* ranking/truncation inside `select_nearest`/`select_trait`, not after — this is deliberate: a caller that truncates to `n` and only then excludes outgroup-pool members would silently under-fill a study whenever a top candidate happens to be excluded, instead of backfilling from the next-best candidate. See the new `test_select_nearest_backfills_past_an_excluded_top_candidate` test below, which exists specifically to catch a regression to the wrong order.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -891,7 +894,20 @@ def test_rank_candidates_orders_deepest_match_first_then_alphabetically():
 def test_select_nearest_takes_top_n():
     picked = select_nearest(FOCAL.species, FOCAL.lineage, POOL, n=1, scope_rank='ORDER')
     assert len(picked) == 1
-    assert picked[0].species in ('Rhizopus arrhizus', 'Lichtheimia corymbifera')
+    # deterministic tiebreak: both tie at rank ORDER, 'Lichtheimia' sorts before 'Rhizopus'
+    assert picked[0].species == 'Lichtheimia corymbifera'
+
+
+def test_select_nearest_backfills_past_an_excluded_top_candidate():
+    # Mucor mucedo shares GENUS with the focal (closer than Rhizopus/Lichtheimia,
+    # which only share ORDER) -- excluding it must NOT just shrink the result to
+    # fewer than n; it must promote the next-best candidate instead.
+    same_genus = _sample('Mucor mucedo', 'Mucoromycota', 'Mucoromycetes', 'Mucorales', 'Mucoraceae', 'Mucor')
+    picked = select_nearest(
+        FOCAL.species, FOCAL.lineage, POOL + [same_genus], n=1,
+        scope_rank='ORDER', excluded={'Mucor mucedo'},
+    )
+    assert [c.species for c in picked] == ['Lichtheimia corymbifera']
 
 
 def test_select_trait_filters_then_ranks():
@@ -978,23 +994,28 @@ def rank_candidates(candidates: list[Candidate]) -> list[Candidate]:
     return sorted(candidates, key=lambda c: (-_depth(c.rank_name), c.species))
 
 
-def select_nearest(focal_species, focal_lineage, pool, n, scope_rank: str = DEFAULT_SCOPE_RANK) -> list[Candidate]:
-    return rank_candidates(candidate_pool(focal_species, focal_lineage, pool, scope_rank))[:n]
+def exclude_species(candidates: list[Candidate], excluded: set[str]) -> list[Candidate]:
+    return [c for c in candidates if c.species not in excluded]
 
 
-def select_trait(focal_species, focal_lineage, pool, trait, value, n, traits_by_species, scope_rank: str = DEFAULT_SCOPE_RANK) -> list[Candidate]:
-    ranked = rank_candidates(candidate_pool(focal_species, focal_lineage, pool, scope_rank))
+def select_nearest(focal_species, focal_lineage, pool, n, scope_rank: str = DEFAULT_SCOPE_RANK, excluded: set[str] = frozenset()) -> list[Candidate]:
+    # excluded is applied BEFORE ranking/truncation -- see this task's Interfaces
+    # note: excluding after truncation would silently under-fill a study instead
+    # of backfilling from the next-best candidate.
+    candidates = exclude_species(candidate_pool(focal_species, focal_lineage, pool, scope_rank), excluded)
+    return rank_candidates(candidates)[:n]
+
+
+def select_trait(focal_species, focal_lineage, pool, trait, value, n, traits_by_species, scope_rank: str = DEFAULT_SCOPE_RANK, excluded: set[str] = frozenset()) -> list[Candidate]:
+    candidates = exclude_species(candidate_pool(focal_species, focal_lineage, pool, scope_rank), excluded)
+    ranked = rank_candidates(candidates)
     filtered = [c for c in ranked if has_trait(traits_by_species, c.species, trait, value)]
     if not filtered:
         raise SystemExit(
             f"mode: trait -- no candidate for focal {focal_species!r} in the "
-            f"{scope_rank}-scoped pool has {trait}={value!r}"
+            f"{scope_rank}-scoped pool has {trait}={value!r} (after excluding the outgroup pool)"
         )
     return filtered[:n]
-
-
-def exclude_species(candidates: list[Candidate], excluded: set[str]) -> list[Candidate]:
-    return [c for c in candidates if c.species not in excluded]
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1199,7 +1220,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from master_pool import assign_shorts, load_master_pool  # noqa: E402
 from targeted_selection import (  # noqa: E402
     DEFAULT_SCOPE_RANK,
-    exclude_species,
     select_nearest,
     select_trait,
 )
@@ -1270,19 +1290,19 @@ def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_sp
         scope_rank = extra.get('scope_rank', DEFAULT_SCOPE_RANK)
 
         if mode == 'nearest':
-            candidates = select_nearest(focal.species, focal.lineage, pool, n=n, scope_rank=scope_rank)
-            candidates = exclude_species(candidates, outgroup_set)
+            # excluded= is passed straight through so exclusion happens BEFORE
+            # ranking/truncation inside select_nearest -- a candidate excluded
+            # by the outgroup pool is backfilled by the next-best candidate,
+            # not just dropped from an already-truncated top-n list.
+            candidates = select_nearest(
+                focal.species, focal.lineage, pool, n=n, scope_rank=scope_rank, excluded=outgroup_set,
+            )
             companions = [{'species': c.species, 'taxon_group': c.rank_name, 'reason': ''} for c in candidates]
         elif mode == 'trait':
             candidates = select_trait(
                 focal.species, focal.lineage, pool, extra['trait'], extra['value'], n=n,
-                traits_by_species=traits_by_species, scope_rank=scope_rank,
+                traits_by_species=traits_by_species, scope_rank=scope_rank, excluded=outgroup_set,
             )
-            candidates = exclude_species(candidates, outgroup_set)
-            if not candidates:
-                raise SystemExit(
-                    f"study for {focal_name!r}: mode: trait candidates all fell inside the outgroup pool"
-                )
             companions = [{'species': c.species, 'taxon_group': c.rank_name, 'reason': ''} for c in candidates]
         elif mode == 'explicit':
             members = _resolve_members(extra['members'], by_species, f"study for {focal_name!r}")
