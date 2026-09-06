@@ -22,6 +22,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+from lineage import RANK_NAMES  # noqa: E402
 from master_pool import assign_shorts, load_master_pool  # noqa: E402
 from targeted_selection import (  # noqa: E402
     DEFAULT_SCOPE_RANK,
@@ -102,13 +103,19 @@ def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_sp
             candidates = select_nearest(
                 focal.species, focal.lineage, pool, n=n, scope_rank=scope_rank, excluded=outgroup_set,
             )
-            companions = [{'species': c.species, 'taxon_group': c.rank_name, 'reason': ''} for c in candidates]
+            companions = [
+                {'species': c.species, 'taxon_group': by_species[c.species].lineage[RANK_NAMES.index(c.rank_name)], 'reason': ''}
+                for c in candidates
+            ]
         elif mode == 'trait':
             candidates = select_trait(
                 focal.species, focal.lineage, pool, extra['trait'], extra['value'], n=n,
                 traits_by_species=traits_by_species, scope_rank=scope_rank, excluded=outgroup_set,
             )
-            companions = [{'species': c.species, 'taxon_group': c.rank_name, 'reason': ''} for c in candidates]
+            companions = [
+                {'species': c.species, 'taxon_group': by_species[c.species].lineage[RANK_NAMES.index(c.rank_name)], 'reason': ''}
+                for c in candidates
+            ]
         elif mode == 'explicit':
             members = _resolve_members(extra['members'], by_species, f"study for {focal_name!r}")
             overlap = set(members) & outgroup_set

@@ -90,6 +90,12 @@ def test_render_batch_nearest_mode_produces_config_and_map(tmp_path):
         'Aspergillus nidulans': 'OUT',
     }
 
+    # TaxonGroup for a nearest/trait companion is the actual taxon NAME at the
+    # matched rank (e.g. "Mucorales"), not the rank category label ("ORDER").
+    taxon_groups = {r['Species']: r['TaxonGroup'] for r in rows}
+    assert taxon_groups['Rhizopus arrhizus'] == 'Mucorales'
+    assert taxon_groups['Lichtheimia corymbifera'] == 'Mucorales'
+
     map_path = Path(summary['map_path'])
     assert map_path.exists()
     map_text = map_path.read_text()
@@ -115,6 +121,102 @@ studies:
 """
     pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=bad_batch)
     with pytest.raises(SystemExit, match='inside its own outgroup pool'):
+        render_batch(pool, defs, traits, batch, outdir)
+
+
+def test_render_batch_explicit_mode_renders_named_members(tmp_path):
+    batch_yaml = """\
+batch: explicit_v1
+outgroup_pools:
+  dikarya_v1:
+    members: ["Neurospora crassa", "Aspergillus nidulans"]
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra: {mode: explicit, members: ["Basidiobolus meristosporus"], reason: "known outlier"}
+    outgroup_pool: dikarya_v1
+"""
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=batch_yaml)
+    summaries = render_batch(pool, defs, traits, batch, outdir)
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary['companions'] == [
+        {'species': 'Basidiobolus meristosporus', 'taxon_group': 'Basidiobolus', 'reason': 'known outlier'}
+    ]
+
+    config_path = Path(summary['config_path'])
+    with open(config_path, newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    groups = {r['Species']: r['GROUP'] for r in rows}
+    assert groups == {
+        'Mucor circinelloides': 'IN',
+        'Basidiobolus meristosporus': 'IN',
+        'Neurospora crassa': 'OUT',
+        'Aspergillus nidulans': 'OUT',
+    }
+
+
+def test_render_batch_explicit_mode_errors_when_member_overlaps_outgroup_pool(tmp_path):
+    batch_yaml = """\
+batch: explicit_overlap
+outgroup_pools:
+  dikarya_v1:
+    members: ["Neurospora crassa", "Aspergillus nidulans"]
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra: {mode: explicit, members: ["Neurospora crassa"]}
+    outgroup_pool: dikarya_v1
+"""
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=batch_yaml)
+    with pytest.raises(SystemExit, match='also in outgroup pool'):
+        render_batch(pool, defs, traits, batch, outdir)
+
+
+def test_render_batch_errors_when_outgroup_pool_name_undefined(tmp_path):
+    batch_yaml = """\
+batch: undefined_pool
+outgroup_pools:
+  dikarya_v1:
+    members: ["Neurospora crassa", "Aspergillus nidulans"]
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra: {mode: nearest, n: 1}
+    outgroup_pool: does_not_exist
+"""
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=batch_yaml)
+    with pytest.raises(SystemExit, match='not defined'):
+        render_batch(pool, defs, traits, batch, outdir)
+
+
+def test_render_batch_errors_when_outgroup_pool_member_not_in_master_pool(tmp_path):
+    batch_yaml = """\
+batch: unknown_pool_member
+outgroup_pools:
+  dikarya_v1:
+    members: ["Neurospora crassa", "Ghostus fungus"]
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra: {mode: nearest, n: 1}
+    outgroup_pool: dikarya_v1
+"""
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=batch_yaml)
+    with pytest.raises(SystemExit, match='species not found in master pool'):
+        render_batch(pool, defs, traits, batch, outdir)
+
+
+def test_render_batch_errors_when_explicit_member_not_in_master_pool(tmp_path):
+    batch_yaml = """\
+batch: unknown_explicit_member
+outgroup_pools:
+  dikarya_v1:
+    members: ["Neurospora crassa", "Aspergillus nidulans"]
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra: {mode: explicit, members: ["Ghostus fungus"]}
+    outgroup_pool: dikarya_v1
+"""
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=batch_yaml)
+    with pytest.raises(SystemExit, match='species not found in master pool'):
         render_batch(pool, defs, traits, batch, outdir)
 
 
