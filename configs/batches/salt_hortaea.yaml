@@ -1,0 +1,33 @@
+# HYPOTHESIS (1 of 3 independent replicates -- see salt_debaryomyces.yaml and
+# salt_rhodotorula.yaml): extreme halotolerance is a convergently-evolved trait
+# in Hortaea werneckii (found in hypersaline solar salterns), Debaryomyces
+# hansenii, and Rhodotorula mucilaginosa -- three UNRELATED fungal lineages
+# (Dothideomycetes, Saccharomycotina, Pucciniomycotina respectively). Because
+# they aren't close relatives, mode: trait's lineage-SCOPED candidate pool
+# can't unite them automatically in one study (see docs/superpowers/specs/
+# 2026-09-05-config-builder-design.md's "Trait mode" -- deliberately scoped,
+# not a whole-pool search). Instead this is three INDEPENDENT mode: nearest
+# studies, one per lineage, each against the same Dikarya reference panel.
+# The actual convergence hypothesis is tested POST-HOC: compare the three
+# resulting novelty-candidate lists for shared Pfam domains / functional
+# annotations even where the underlying genes aren't literal orthologs --
+# that overlap (or lack of it) is the real signal, not any single study alone.
+
+batch: salt_hortaea
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Hortaea werneckii
+    ingroup_extra:
+      mode: nearest
+      scope_rank: FAMILY
+      n: 3
+    outgroup_pool: dikarya_reference_v1

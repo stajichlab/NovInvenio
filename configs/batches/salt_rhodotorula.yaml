@@ -1,0 +1,26 @@
+# HYPOTHESIS (3 of 3 independent replicates -- see salt_hortaea.yaml for the
+# full convergent-halotolerance rationale). Rhodotorula mucilaginosa's
+# Sporidiobolaceae relatives (Rhodosporidiobolus/other Rhodotorula species)
+# give a Basidiomycota-side replicate, phylogenetically as far as possible
+# from the Ascomycota salt_hortaea.yaml/salt_debaryomyces.yaml studies --
+# the strongest test of convergence, if all three independently implicate
+# overlapping gene functions despite sharing no recent common ancestor.
+
+batch: salt_rhodotorula
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Rhodotorula mucilaginosa
+    ingroup_extra:
+      mode: nearest
+      scope_rank: FAMILY
+      n: 3
+    outgroup_pool: dikarya_reference_v1

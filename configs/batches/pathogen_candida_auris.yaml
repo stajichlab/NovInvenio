@@ -1,0 +1,26 @@
+# HYPOTHESIS: Candidozyma auris (formerly Candida auris) and its close
+# Metschnikowiaceae relatives -- several of them independently reported as
+# emerging, often multidrug-resistant pathogens -- share genes not found
+# broadly across Dikarya. mode: nearest picks the closest real Metschnikowiaceae
+# relatives present in the master pool as ingroup companions; same shared
+# Dikarya reference panel as pathogen_cryptococcus.yaml for a like-for-like
+# comparison between the two emerging-pathogen studies.
+
+batch: pathogen_candida_auris
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Candidozyma auris
+    ingroup_extra:
+      mode: nearest
+      scope_rank: FAMILY
+      n: 3
+    outgroup_pool: dikarya_reference_v1
