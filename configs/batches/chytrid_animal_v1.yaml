@@ -1,0 +1,65 @@
+# Example batch spec demonstrating the chytrid-vs-animal comparison from
+# this project's original design conversation: are there genes shared
+# between early-diverging fungi (chytrids) and animals, but absent from
+# the rest of filamentous fungi? See
+# docs/superpowers/specs/2026-09-05-config-builder-design.md's Problem
+# section and config_support/animal_pool.csv's header comment.
+#
+# IN = the chytrid focal species + the four animal outgroup-pool species
+# (Drosophila melanogaster, Caenorhabditis elegans, Mus musculus, and the
+# choanoflagellate Monosiga brevicollis -- the closest living non-animal
+# relative of animals, included so a "shared with animals" signal can be
+# distinguished from a signal shared with the broader
+# Opisthokonta/holozoan clade animals sit inside). OUT = a filamentous
+# Dikarya + Mucoromycotina reference panel, the same shape
+# mucoromycota_focal_v1.yaml uses.
+#
+# This can ONLY be expressed as mode: explicit -- the four animal species
+# live in config_support/animal_pool.csv (passed via --extra-pool), entirely
+# outside Fungi_BFD's PHYLUM;SUBPHYLUM;CLASS;SUBCLASS;ORDER;FAMILY;GENUS
+# lineage scheme, so mode: nearest/trait's Fungi-scoped candidate_pool()
+# will never place them automatically (by design -- see
+# lib/targeted_selection.py's candidate_pool(), which always diverges at
+# PHYLUM for a non-fungal lineage).
+#
+# Run with (note both --extra-pool and a Fungi_BFD-built --master-pool):
+#   bin/build_targeted_configs.py \
+#       --master-pool config_support/master_pool.csv \
+#       --extra-pool config_support/animal_pool.csv \
+#       --trait-definitions config_support/traits/trait_definitions.yaml \
+#       --traits config_support/traits/traits.csv \
+#       --batch-spec configs/batches/chytrid_animal_v1.yaml \
+#       --outdir configs/ \
+#       --link-dir data/chytrid_animal_v1
+
+batch: chytrid_animal_v1
+
+outgroup_pools:
+  filamentous_fungi_reference_v1:
+    members:
+      - "Mucor circinelloides"
+      - "Phycomyces blakesleeanus"
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+      - "Cryptococcus neoformans"
+
+studies:
+  - focal: Batrachochytrium dendrobatidis
+    ingroup_extra:
+      mode: explicit
+      members:
+        - "Drosophila melanogaster"
+        - "Caenorhabditis elegans"
+        - "Mus musculus"
+        - "Monosiga brevicollis"
+      reason: >-
+        Testing for genes shared between early-diverging fungi (chytrids)
+        and animals/their closest non-animal relative, but absent from
+        filamentous fungi -- the "shared cell biology" hypothesis this
+        pathway was originally scoped for. Not expressible as mode:
+        nearest/trait: these are non-fungal species with no lineage overlap
+        with any fungal focal at any scope_rank.
+    outgroup_pool: filamentous_fungi_reference_v1

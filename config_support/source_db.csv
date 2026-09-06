@@ -1,0 +1,7 @@
+Species,SourceDB,notes
+Neurospora crassa,fungidb,FungiDB release-68; matches configs/modelorgs.yaml's Ncra entry
+Aspergillus fumigatus,fungidb,FungiDB release-68; matches configs/modelorgs.yaml's Afum entry
+Aspergillus nidulans,fungidb,FungiDB release-68; matches configs/modelorgs.yaml's Anid entry
+Saccharomyces cerevisiae,fungidb,FungiDB release-68; matches configs/modelorgs.yaml's Scer entry
+Schizosaccharomyces pombe,fungidb,FungiDB release-68; matches configs/modelorgs.yaml's Spom entry
+Cryptococcus neoformans,fungidb,FungiDB release-68; matches configs/modelorgs.yaml's Cneo entry

@@ -54,6 +54,25 @@ model_organisms:
     id_transform: strip
     strip_pattern: "-p\\d+$"
 
+  # Aspergillus nidulans FGSC A4
+  # gene_names_csv derived offline from the FungiDB release-68 protein FASTA's
+  # own pipe-delimited header fields (gene=/gene_product=), not a FungiDB web
+  # export -- no "Gene Name or Symbol" is available from that source, so it is
+  # "N/A" for every row (matches the existing organisms' own placeholder use).
+  - short: Anid
+    gene_names_csv: db/modelorgs/Aspergillus_nidulans_gene_names_FungiDB.csv
+    protein_fasta: db/modelorgs/FungiDB-68_AnidulansFGSCA4_AnnotatedProteins.fasta
+    id_transform: strip
+    strip_pattern: "-T-p\\d+$"
+
+  # Cryptococcus neoformans var. grubii H99
+  # Same offline derivation as Anid above.
+  - short: Cneo
+    gene_names_csv: db/modelorgs/Cryptococcus_neoformans_gene_names_FungiDB.csv
+    protein_fasta: db/modelorgs/FungiDB-68_CneoformansH99_AnnotatedProteins.fasta
+    id_transform: strip
+    strip_pattern: "-t\\d+_1-p\\d$"
+
 # ── Adding a new organism ─────────────────────────────────────────────────────
 #
 # 1. Obtain the gene names CSV for your organism from FungiDB (or another DB).
