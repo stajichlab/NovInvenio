@@ -13,11 +13,16 @@ Usage:
         --traits config_support/traits/traits.csv \\
         --batch-spec configs/batches/mucoromycota_focal_v1.yaml \\
         --outdir configs/ \\
-        --link-dir data/mucoromycota_focal_v1
+        --link-dir data/mucoromycota_focal_v1 \\
+        --source-db config_support/source_db.csv
 
 --link-dir is what makes the rendered config directly usable with main.nf's
 --data_dir: without it, Protein/DNA columns carry the master pool's absolute
 paths, which main.nf's resolve_fa() cannot resolve (see _row()'s docstring).
+
+--source-db populates the config's optional SourceDB column (per-gene database
+linkout) from a small Species,SourceDB seed CSV -- see lib/source_db.py. A
+species not in the seed file gets an empty SourceDB, not an error.
 """
 import argparse
 import csv
@@ -34,9 +39,10 @@ from targeted_selection import (  # noqa: E402
     select_nearest,
     select_trait,
 )
+from source_db import load_source_db  # noqa: E402
 from trait_data import load_trait_definitions, load_traits  # noqa: E402
 
-CONFIG_FIELDS = ['GROUP', 'Species', 'Strain', 'Protein', 'DNA', 'Short', 'TaxonGroup', 'NCBI_TaxID']
+CONFIG_FIELDS = ['GROUP', 'Species', 'Strain', 'Protein', 'DNA', 'Short', 'TaxonGroup', 'NCBI_TaxID', 'SourceDB']
 
 
 def _by_species(pool):
@@ -65,7 +71,7 @@ def _link_into(link_dir, subdir, src_path):
     return src.name
 
 
-def _row(group, sample, short, taxon_group, link_dir=None):
+def _row(group, sample, short, taxon_group, link_dir=None, source_db_map=None):
     # NOTE: without --link-dir, ProteinPath/DNAPath (absolute paths from the
     # master pool) are written straight into the Protein/DNA columns -- this
     # keeps existing fixture-based tests passing without needing a link dir,
@@ -84,16 +90,18 @@ def _row(group, sample, short, taxon_group, link_dir=None):
         'GROUP': group, 'Species': sample.species, 'Strain': sample.strain,
         'Protein': protein, 'DNA': dna, 'Short': short,
         'TaxonGroup': taxon_group, 'NCBI_TaxID': sample.ncbi_taxid,
+        'SourceDB': (source_db_map or {}).get(sample.species, ''),
     }
 
 
-def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_spec_path, outdir, link_dir=None) -> list[dict]:
+def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_spec_path, outdir, link_dir=None, source_db_path=None) -> list[dict]:
     pool = load_master_pool(master_pool_path)
     by_species = _by_species(pool)
     short_map = assign_shorts(pool)
 
     definitions = load_trait_definitions(trait_definitions_path)
     traits_by_species = load_traits(traits_path, definitions)
+    source_db_map = load_source_db(source_db_path) if source_db_path else {}
 
     with open(batch_spec_path) as fh:
         spec = yaml.safe_load(fh)
@@ -163,13 +171,16 @@ def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_sp
         else:
             raise SystemExit(f"study for {focal_name!r}: unknown mode {mode!r} (must be nearest/trait/explicit)")
 
-        rows = [_row('IN', focal, short_map[focal.species], '', link_dir=link_dir)]
+        rows = [_row('IN', focal, short_map[focal.species], '', link_dir=link_dir, source_db_map=source_db_map)]
         for c in companions:
-            rows.append(_row('IN', by_species[c['species']], short_map[c['species']], c['taxon_group'], link_dir=link_dir))
+            rows.append(_row(
+                'IN', by_species[c['species']], short_map[c['species']], c['taxon_group'],
+                link_dir=link_dir, source_db_map=source_db_map,
+            ))
         for m in outgroup_members:
             s = by_species[m]
             taxon_group = [t for t in s.lineage if t][-1] if any(s.lineage) else ''
-            rows.append(_row('OUT', s, short_map[m], taxon_group, link_dir=link_dir))
+            rows.append(_row('OUT', s, short_map[m], taxon_group, link_dir=link_dir, source_db_map=source_db_map))
 
         config_path = outdir / f"{short_map[focal.species]}_{batch_name}.csv"
         with open(config_path, 'w', newline='') as fh:
@@ -212,11 +223,21 @@ def main():
             'writing absolute master-pool paths (not main.nf-ready without this flag).'
         ),
     )
+    p.add_argument(
+        '--source-db',
+        help=(
+            'Optional path to a Species,SourceDB seed CSV (e.g. config_support/source_db.csv) '
+            'populating the rendered config\'s optional SourceDB column -- see '
+            'lib/report_common.py\'s genomeDbLink() for the accepted value forms. '
+            'A species not listed gets an empty SourceDB (falls back to the report\'s '
+            'default NCBI Protein search / remote-homology cluster linkout).'
+        ),
+    )
     args = p.parse_args()
 
     summaries = render_batch(
         args.master_pool, args.trait_definitions, args.traits, args.batch_spec, args.outdir,
-        link_dir=args.link_dir,
+        link_dir=args.link_dir, source_db_path=args.source_db,
     )
 
     for s in summaries:

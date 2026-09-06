@@ -900,7 +900,16 @@ CSV. Full design in `docs/superpowers/specs/2026-09-05-config-builder-design.md`
    master pool's absolute paths) into the rendered config — this is what makes the config
    directly usable as `--data_dir <dir>` with `main.nf` (`main.nf`'s `resolve_fa()` cannot
    resolve an absolute path). Omitting `--link-dir` writes the master pool's absolute paths
-   straight through, which is not `main.nf`-ready.
+   straight through, which is not `main.nf`-ready. Pass `--source-db
+   config_support/source_db.csv` to populate the config's optional `SourceDB` column
+   (per-gene database linkout in the report's detail panel — see `lib/report_common.py`'s
+   `genomeDbLink()`) for any species in that seed file; `lib/source_db.py` loads and
+   validates it (rejects an unrecognized `SourceDB` form at load time). A species not in
+   the seed file gets an empty `SourceDB`, falling back to the report's default NCBI
+   Protein search / remote-homology cluster linkout. Seeded so far: the model organisms
+   with a `configs/modelorgs.yaml` entry (Neurospora crassa, Aspergillus fumigatus/nidulans,
+   Saccharomyces cerevisiae, Schizosaccharomyces pombe, Cryptococcus neoformans) all map to
+   `fungidb`.
 
 ```bash
 bin/build_master_pool.py \
@@ -915,7 +924,8 @@ bin/build_targeted_configs.py \
     --traits config_support/traits/traits.csv \
     --batch-spec configs/batches/mucoromycota_focal_v1.yaml \
     --outdir configs/ \
-    --link-dir data/mucoromycota_focal_v1
+    --link-dir data/mucoromycota_focal_v1 \
+    --source-db config_support/source_db.csv
 ```
 
 ## Model Organisms YAML Format (`configs/modelorgs.yaml`)

@@ -102,6 +102,40 @@ def test_render_batch_nearest_mode_produces_config_and_map(tmp_path):
     assert 'Mucor circinelloides\t' in map_text
 
 
+SOURCE_DB_CSV = """\
+Species,SourceDB,notes
+Neurospora crassa,fungidb,FungiDB release-68
+"""
+
+
+def test_render_batch_populates_source_db_for_listed_species_only(tmp_path):
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path)
+    source_db = tmp_path / 'source_db.csv'
+    source_db.write_text(SOURCE_DB_CSV)
+
+    summaries = render_batch(pool, defs, traits, batch, outdir, source_db_path=source_db)
+
+    config_path = Path(summaries[0]['config_path'])
+    with open(config_path, newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    source_db_by_species = {r['Species']: r['SourceDB'] for r in rows}
+
+    assert source_db_by_species['Neurospora crassa'] == 'fungidb'
+    # Not in the seed file -> empty, not a KeyError or a fabricated value.
+    assert source_db_by_species['Mucor circinelloides'] == ''
+    assert source_db_by_species['Aspergillus nidulans'] == ''
+
+
+def test_render_batch_without_source_db_arg_leaves_column_empty(tmp_path):
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path)
+    summaries = render_batch(pool, defs, traits, batch, outdir)
+
+    config_path = Path(summaries[0]['config_path'])
+    with open(config_path, newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    assert all(r['SourceDB'] == '' for r in rows)
+
+
 def test_render_batch_trait_mode_filters_to_matching_candidate(tmp_path):
     pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=BATCH_YAML_TRAIT_MODE)
     summaries = render_batch(pool, defs, traits, batch, outdir)
