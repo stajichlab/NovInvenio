@@ -4,6 +4,7 @@ from master_pool import (
     MasterSample,
     assign_shorts,
     load_master_pool,
+    load_representative_picks,
     make_short,
 )
 
@@ -66,3 +67,46 @@ def test_assign_shorts_is_deterministic_regardless_of_input_order(tmp_path):
         'Mucor circinelloides': 'Mucocirc',
         'Rhizopus arrhizus': 'Rhizarrh',
     }
+
+
+REPR_TSV = (
+    "out\tspecies\tis_representative\trepresentative_out\tani_to_representative\treuse_eligible\n"
+    "Mucor_circinelloides\tMucor circinelloides\tFalse\tMucor_circinelloides_1006PhL\t99.46\tTrue\n"
+    "Mucor_circinelloides_1006PhL\tMucor circinelloides\tTrue\tMucor_circinelloides_1006PhL\t100.0\tTrue\n"
+    "Rhizopus_arrhizus\tRhizopus arrhizus\tTrue\tRhizopus_arrhizus\t100.0\tFalse\n"
+)
+
+REPR_TSV_ZERO_TRUE = (
+    "out\tspecies\tis_representative\trepresentative_out\tani_to_representative\treuse_eligible\n"
+    "Phycomyces_blakesleeanus\tPhycomyces blakesleeanus\tFalse\tPhycomyces_blakesleeanus_NRRL1555\t98.0\tTrue\n"
+)
+
+REPR_TSV_MULTIPLE_TRUE = (
+    "out\tspecies\tis_representative\trepresentative_out\tani_to_representative\treuse_eligible\n"
+    "Basidiobolus_A\tBasidiobolus meristosporus\tTrue\tBasidiobolus_A\t100.0\tFalse\n"
+    "Basidiobolus_B\tBasidiobolus meristosporus\tTrue\tBasidiobolus_A\t99.9\tFalse\n"
+)
+
+
+def test_load_representative_picks(tmp_path):
+    p = tmp_path / 'repr.tsv'
+    p.write_text(REPR_TSV)
+    picks = load_representative_picks(p)
+    assert picks == {
+        'Mucor circinelloides': 'Mucor_circinelloides_1006PhL',
+        'Rhizopus arrhizus': 'Rhizopus_arrhizus',
+    }
+
+
+def test_load_representative_picks_rejects_zero_true_rows(tmp_path):
+    p = tmp_path / 'repr_zero.tsv'
+    p.write_text(REPR_TSV_ZERO_TRUE)
+    with pytest.raises(SystemExit, match='Phycomyces blakesleeanus'):
+        load_representative_picks(p)
+
+
+def test_load_representative_picks_rejects_multiple_true_rows(tmp_path):
+    p = tmp_path / 'repr_multi.tsv'
+    p.write_text(REPR_TSV_MULTIPLE_TRUE)
+    with pytest.raises(SystemExit, match='Basidiobolus meristosporus'):
+        load_representative_picks(p)

@@ -82,3 +82,39 @@ def assign_shorts(samples: list[MasterSample]) -> dict[str, str]:
     for s in sorted(samples, key=lambda s: s.species):
         mapping[s.species] = make_short(s.species, used)
     return mapping
+
+
+def load_representative_picks(path, expected_species: set[str] | None = None) -> dict[str, str]:
+    """Species -> representative assembly's `out` dirname, from
+    repr_assignments.tsv (columns: out, species, is_representative, ...).
+    Hard-errors if a species has zero or more than one is_representative
+    == 'True' row. If expected_species is given, also hard-errors on any
+    species in it missing from the result entirely (zero rows at all,
+    not just zero True rows).
+    """
+    import csv as _csv
+
+    true_rows: dict[str, list[str]] = {}
+    seen_species: set[str] = set()
+    with open(path, newline='') as fh:
+        for row in _csv.DictReader(fh, delimiter='\t'):
+            sp = row['species']
+            seen_species.add(sp)
+            true_rows.setdefault(sp, [])  # Ensure species is in dict
+            if row['is_representative'] == 'True':
+                true_rows[sp].append(row['out'])
+
+    if expected_species is not None:
+        never_seen = expected_species - seen_species
+        for sp in never_seen:
+            true_rows.setdefault(sp, [])
+
+    bad = {sp: outs for sp, outs in true_rows.items() if len(outs) != 1}
+    if bad:
+        lines = [
+            f"{sp}: {len(outs)} is_representative=True row(s) ({', '.join(outs) or 'none'})"
+            for sp, outs in sorted(bad.items())
+        ]
+        raise SystemExit(f"{path}: species without exactly one representative row:\n  " + "\n  ".join(lines))
+
+    return {sp: outs[0] for sp, outs in true_rows.items()}
