@@ -136,6 +136,52 @@ def test_render_batch_without_source_db_arg_leaves_column_empty(tmp_path):
     assert all(r['SourceDB'] == '' for r in rows)
 
 
+ANIMAL_POOL_CSV = """\
+Species,Strain,ProteinPath,DNAPath,Lineage,NCBI_TaxID
+Drosophila melanogaster,ISO1,/data/Dmel.pep.fa,,Arthropoda;Hexapoda;Insecta;Pterygota;Diptera;Drosophilidae;Drosophila,7227
+"""
+
+
+def test_render_batch_merges_extra_pool_for_explicit_mode(tmp_path):
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path)
+    extra_pool = tmp_path / 'animal_pool.csv'
+    extra_pool.write_text(ANIMAL_POOL_CSV)
+
+    batch_yaml = """\
+batch: animal_v1
+outgroup_pools:
+  dikarya_v1:
+    members: ["Neurospora crassa", "Aspergillus nidulans"]
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra: {mode: explicit, members: ["Drosophila melanogaster"], reason: "cross-kingdom trait comparison"}
+    outgroup_pool: dikarya_v1
+"""
+    batch.write_text(batch_yaml)
+
+    summaries = render_batch(pool, defs, traits, batch, outdir, extra_pool_paths=[extra_pool])
+
+    assert summaries[0]['companions'] == [
+        {'species': 'Drosophila melanogaster', 'taxon_group': 'Drosophila', 'reason': 'cross-kingdom trait comparison'}
+    ]
+    config_path = Path(summaries[0]['config_path'])
+    with open(config_path, newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    groups = {r['Species']: r['GROUP'] for r in rows}
+    assert groups['Drosophila melanogaster'] == 'IN'
+
+
+def test_render_batch_errors_on_species_collision_between_pools(tmp_path):
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path)
+    extra_pool = tmp_path / 'colliding_pool.csv'
+    extra_pool.write_text(
+        "Species,Strain,ProteinPath,DNAPath,Lineage,NCBI_TaxID\n"
+        "Mucor circinelloides,,,,;;;;;;,\n"
+    )
+    with pytest.raises(SystemExit, match='Mucor circinelloides'):
+        render_batch(pool, defs, traits, batch, outdir, extra_pool_paths=[extra_pool])
+
+
 def test_render_batch_trait_mode_filters_to_matching_candidate(tmp_path):
     pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=BATCH_YAML_TRAIT_MODE)
     summaries = render_batch(pool, defs, traits, batch, outdir)

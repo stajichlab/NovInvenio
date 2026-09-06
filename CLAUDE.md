@@ -71,7 +71,8 @@ NovInvenio/
 │   ├── make_config.py             # Generate a run config CSV from configs/samples.csv by taxon/lineage matching
 │   ├── convert_bfd_samples.py     # Convert a BFD Fungi_BFD samples.csv into a make_config.py-compatible sample pool (config_support/)
 │   ├── build_master_pool.py       # Build config_support/master_pool.csv from Fungi_BFD samples.csv + repr_assignments.tsv (targeted config builder)
-│   ├── build_targeted_configs.py  # Render configs/<focal_short>_<batch>.csv per study in a batches/*.yaml spec (targeted config builder); --link-dir for a main.nf-ready per-batch symlink dir
+│   ├── build_targeted_configs.py  # Render configs/<focal_short>_<batch>.csv per study in a batches/*.yaml spec (targeted config builder); --link-dir for a main.nf-ready per-batch symlink dir; --source-db, --extra-pool
+│   ├── collapse_isoforms.py       # Collapse a protein FASTA to one representative (longest) protein per gene, via an NCBI feature_table.txt(.gz)'s real gene<->protein mapping — used to prep config_support/animal_pool.csv's proteomes
 │   ├── filter_candidates.py       # (standalone helper — not yet wired into pipeline)
 │   ├── split_fasta.py             # (standalone helper)
 │   └── summarize_clusters.py      # (standalone helper)
@@ -95,6 +96,7 @@ NovInvenio/
 │   ├── master_pool.py             # MasterSample/load_master_pool(); make_short()/assign_shorts() (canonical Short-assignment rule, imported by bin/convert_bfd_samples.py); load_representative_picks() (repr_assignments.tsv join)
 │   ├── trait_data.py              # load_trait_definitions()/load_traits() — config_support/traits/ YAML+CSV loader with undeclared-(trait,value) and none-coexistence hard errors
 │   ├── targeted_selection.py      # select_nearest()/select_trait() — lineage-proximity-ranked ingroup-companion picking for bin/build_targeted_configs.py
+│   ├── source_db.py               # load_source_db() — config_support/source_db.csv Species→SourceDB seed loader, validated against genomeDbLink()'s accepted forms
 │   └── Helpers.groovy             # Helpers.projectName(params) — derives results subdirectory name
 ├── tests/
 │   ├── conftest.py
@@ -107,12 +109,15 @@ NovInvenio/
 │   ├── modelorgs.yaml             # Model organism YAML for gene name lookups
 │   └── batches/                   # YAML batch specs for bin/build_targeted_configs.py — one focal
 │       │                          #   species + companion-picker + shared outgroup pool per study
-│       └── mucoromycota_focal_v1.yaml  # Worked example: Mucor/Phycomyces/Basidiobolus/Batrachochytrium vs a shared Dikarya reference pool
+│       ├── mucoromycota_focal_v1.yaml  # Worked example: Mucor/Phycomyces/Basidiobolus/Batrachochytrium vs a shared Dikarya reference pool
+│       └── chytrid_animal_v1.yaml      # Chytrid + animals (mode: explicit, config_support/animal_pool.csv via --extra-pool) vs filamentous fungi
 ├── config_support/                # Intermediate sample pools, not run configs — e.g. bin/convert_bfd_samples.py
 │                                   #   output, passed back into make_config.py's --samples. Never passed
 │                                   #   directly as --config to main.nf. Also holds master_pool.csv
-│                                   #   (bin/build_master_pool.py output) and traits/ (config_support/traits/,
-│                                   #   see bin/build_targeted_configs.py).
+│                                   #   (bin/build_master_pool.py output), traits/ (config_support/traits/,
+│                                   #   see bin/build_targeted_configs.py), source_db.csv (Species→SourceDB
+│                                   #   seed, lib/source_db.py), and animal_pool.csv (a non-fungal
+│                                   #   --extra-pool: Drosophila/C. elegans/mouse/Monosiga brevicollis).
 └── results/
     └── <config_basename>/
         ├── search_cache/          # storeDir — pairwise + self-hit raw outputs, never re-run
@@ -909,7 +914,19 @@ CSV. Full design in `docs/superpowers/specs/2026-09-05-config-builder-design.md`
    Protein search / remote-homology cluster linkout. Seeded so far: the model organisms
    with a `configs/modelorgs.yaml` entry (Neurospora crassa, Aspergillus fumigatus/nidulans,
    Saccharomyces cerevisiae, Schizosaccharomyces pombe, Cryptococcus neoformans) all map to
-   `fungidb`.
+   `fungidb`. Pass `--extra-pool <csv>` (repeatable) to merge in species outside
+   `Fungi_BFD`'s scope -- e.g. `config_support/animal_pool.csv` (Drosophila melanogaster,
+   Caenorhabditis elegans, Mus musculus, the choanoflagellate Monosiga brevicollis; real
+   NCBI RefSeq proteomes, isoform-collapsed to one representative protein per gene with
+   `bin/collapse_isoforms.py` using each assembly's own `_feature_table.txt.gz`
+   gene<->protein mapping, not a guessed FASTA-header heuristic). These sit outside the
+   fungal `PHYLUM;SUBPHYLUM;CLASS;SUBCLASS;ORDER;FAMILY;GENUS` lineage scheme, so
+   `mode: nearest`/`trait` will never place them automatically (`candidate_pool()` always
+   diverges at `PHYLUM`) -- reference them with `mode: explicit` instead, as
+   `configs/batches/chytrid_animal_v1.yaml` does for the chytrid-vs-animal
+   shared-gene comparison this pathway was originally scoped for. A `--extra-pool`
+   `Species` colliding with the primary master pool (or another `--extra-pool`) is a
+   hard error.
 
 ```bash
 bin/build_master_pool.py \

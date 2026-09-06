@@ -94,8 +94,34 @@ def _row(group, sample, short, taxon_group, link_dir=None, source_db_map=None):
     }
 
 
-def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_spec_path, outdir, link_dir=None, source_db_path=None) -> list[dict]:
+def _merge_extra_pools(pool, extra_pool_paths):
+    """Load and append each extra pool (same master-pool CSV schema, e.g.
+    config_support/animal_pool.csv) -- used for species outside Fungi_BFD's
+    scope (non-fungal outgroups/ingroups) that mode: nearest/trait's
+    Fungi-scoped lineage matching was never meant to place automatically;
+    they're referenced via mode: explicit instead. Hard-errors on a species
+    name collision between the primary pool and an extra pool, or between
+    two extra pools -- Species is the pool's join key everywhere else, so a
+    silent duplicate would make Short assignment and lookups ambiguous.
+    """
+    combined = list(pool)
+    seen = {s.species for s in combined}
+    for extra_path in extra_pool_paths:
+        for s in load_master_pool(extra_path):
+            if s.species in seen:
+                raise SystemExit(
+                    f"{extra_path}: Species {s.species!r} already present in the master "
+                    "pool or an earlier --extra-pool -- Species must be unique across all "
+                    "combined pools"
+                )
+            seen.add(s.species)
+            combined.append(s)
+    return combined
+
+
+def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_spec_path, outdir, link_dir=None, source_db_path=None, extra_pool_paths=()) -> list[dict]:
     pool = load_master_pool(master_pool_path)
+    pool = _merge_extra_pools(pool, extra_pool_paths)
     by_species = _by_species(pool)
     short_map = assign_shorts(pool)
 
@@ -233,11 +259,21 @@ def main():
             'default NCBI Protein search / remote-homology cluster linkout).'
         ),
     )
+    p.add_argument(
+        '--extra-pool', action='append', default=[],
+        help=(
+            'Path to an additional master-pool-schema CSV to merge in (repeatable), e.g. '
+            'config_support/animal_pool.csv for non-fungal species. These species sit '
+            'outside Fungi_BFD\'s lineage scheme, so mode: nearest/trait will never place '
+            'them automatically -- reference them with mode: explicit. A Species name that '
+            'collides with the primary master pool or another --extra-pool is a hard error.'
+        ),
+    )
     args = p.parse_args()
 
     summaries = render_batch(
         args.master_pool, args.trait_definitions, args.traits, args.batch_spec, args.outdir,
-        link_dir=args.link_dir, source_db_path=args.source_db,
+        link_dir=args.link_dir, source_db_path=args.source_db, extra_pool_paths=args.extra_pool,
     )
 
     for s in summaries:
