@@ -29,6 +29,8 @@ tests/data/logs/
 /db/modelorgs/*.fasta
 /db/modelorgs/*.fasta.dmnd
 /db/animal_outgroup/
+/db/*.duckdb
+/log/
 
 # regenerable master-pool build artifact (bin/build_master_pool.py output) —
 # depends on the Fungi_BFD/repr_assignments.tsv state at build time, not source
