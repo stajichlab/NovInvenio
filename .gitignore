@@ -28,6 +28,11 @@ tests/data/logs/
 /db/uniprot/
 /db/modelorgs/*.fasta
 /db/modelorgs/*.fasta.dmnd
+/db/animal_outgroup/
+
+# regenerable master-pool build artifact (bin/build_master_pool.py output) —
+# depends on the Fungi_BFD/repr_assignments.tsv state at build time, not source
+/config_support/master_pool.csv
 
 # Claude Code session-local state
 .claude/*.tmp
@@ -41,3 +46,6 @@ docs/_build/
 
 # subagent-driven-development worktrees
 .worktrees/
+
+# mycelium tool state (locks are per-run, not source)
+.mycelium/locks/

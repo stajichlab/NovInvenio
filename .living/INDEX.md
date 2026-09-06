@@ -4,13 +4,10 @@ Last audit: 2026-09-05
 
 | File | Entries | Last updated | Key topics |
 |------|---------|--------------|------------|
-| conventions.md | 2 sections | 2026-07-20 | Implementation workflow: tickets → branch → PR, mycelium Stop hook (`mycelium-stop-check.sh`) is disabled |
-| decisions.md | 1 entry (large — read selectively) | 2026-09-04 | ADR-0002 grilling resolutions (running — folds into the ADR when complete) |
-| learnings.md | 8 entries | 2026-09-05 | Claude Code owns settings.local.json — put hooks in settings.json, mycelium Stop hook false-blocks interactive (grilling) sessions, famsa (bioconda) requires AVX2 — SIGILLs on the cluster's Abu Dhabi nodes, mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9), Session-log stubs vs substance: hooks create logs, agents must write the findings |
-| log/ | 21 sessions | 2026-09-04 | novinvenio (21) |
-
-## Local skills
-See `.living/skills/` for project-specific skill packs.
+| conventions.md | 2 sections | 2026-09-05 | Implementation workflow: tickets → branch → PR, mycelium Stop hook (`mycelium-stop-check.sh`) is disabled |
+| decisions.md | 2 entries (large — read selectively) | 2026-09-05 | ADR-0002 grilling resolutions (running — folds into the ADR when complete), Report presentation: one skin registry, one linkout builder, one landing-page design |
+| learnings.md | 9 entries | 2026-09-05 | Claude Code owns settings.local.json — put hooks in settings.json, mycelium Stop hook false-blocks interactive (grilling) sessions, famsa (bioconda) requires AVX2 — SIGILLs on the cluster's Abu Dhabi nodes, mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9), Session-log stubs vs substance: hooks create logs, agents must write the findings |
+| log/ | 20 sessions | 2026-09-05 | novinvenio (20) |
 <!-- END QUICK REFERENCE -->
 
 <!-- BEGIN KNOWLEDGE SUMMARY -->
@@ -20,33 +17,41 @@ Last summarized: 2026-09-05 (heuristic)
 
 - **mycelium** (4 entries) — L-1, L-2, L-4, L-5
 - **tooling** (3 entries) — L-1, L-2, L-4
+- **accessibility** (2 entries) — L-9, D-2
+- **colour-blind** (2 entries) — L-9, D-2
 - **findings** (2 entries) — L-5, L-6
 - **grilling** (2 entries) — L-2, D-1
-- **hooks** (2 entries) — L-1, L-2
-- **mmseqs** (2 entries) — L-6, D-1
 
 ## Most recent (10)
 
+- [2026-09-05] L-9: The report pages' colour duplication was hiding two real defects
+- [2026-09-05] D-2: Report presentation: one skin registry, one linkout builder, one landing-page design
 - [2026-09-05] L-8: Two distinct BUILD_CHUNK "failure" signatures on the broader-grid sweeps — one benign, one from manual queue intervention
 - [2026-09-04] L-7: Fixing a bin/ script doesn't bust Nextflow's `-resume` cache by itself
-- [2026-08-06] L-4: mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9)
-- [2026-08-06] L-5: Session-log stubs vs substance: hooks create logs, agents must write the findings
 - [2026-08-06] L-6: Investigation-run observations (benchmarks & cross-method divergences)
+- [2026-08-06] L-5: Session-log stubs vs substance: hooks create logs, agents must write the findings
+- [2026-08-06] L-4: mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9)
 - [2026-07-21] L-3: famsa (bioconda) requires AVX2 — SIGILLs on the cluster's Abu Dhabi nodes
-- [2026-07-20] L-1: Claude Code owns settings.local.json — put hooks in settings.json
-- [2026-07-20] L-2: mycelium Stop hook false-blocks interactive (grilling) sessions
 - [2026-07-20] D-1: ADR-0002 grilling resolutions (running — folds into the ADR when complete)
+- [2026-07-20] L-2: mycelium Stop hook false-blocks interactive (grilling) sessions
 
 ## By tag
 
 - `mycelium`: L-1, L-2, L-4, L-5
 - `tooling`: L-1, L-2, L-4
+- `accessibility`: L-9, D-2
+- `colour-blind`: L-9, D-2
 - `findings`: L-5, L-6
 - `grilling`: L-2, D-1
 - `hooks`: L-1, L-2
+- `linkouts`: L-9, D-2
 - `mmseqs`: L-6, D-1
 - `nextflow`: L-7, L-8
+- `pfam`: L-6, L-9
+- `report`: L-9, D-2
+- `skins`: L-9, D-2
 - `slurm`: L-3, L-8
+- `wcag`: L-9, D-2
 - `adr-0002`: D-1
 - `avx2`: L-3
 - `bin-scripts`: L-7
@@ -57,11 +62,13 @@ Last summarized: 2026-09-05 (heuristic)
 - `concordance`: L-6
 - `configuration`: L-1
 - `debounce`: L-2
+- `duplication`: L-9
 - `environment`: L-4
 - `exitReadTimeout`: L-8
 - `false-failure`: L-8
 - `famsa`: L-3
 - `gene-family`: D-1
+- `github-pages`: D-2
 - `gotcha`: L-7
 - `gpfs`: L-8
 - `hardware-compatibility`: L-3
@@ -75,7 +82,6 @@ Last summarized: 2026-09-05 (heuristic)
 - `loss`: L-6
 - `novelty`: L-6
 - `pairwise`: L-6
-- `pfam`: L-6
 - `pixi`: L-3
 - `presence-calling`: L-7
 - `process`: L-5

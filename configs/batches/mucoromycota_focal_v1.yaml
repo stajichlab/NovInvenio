@@ -1,0 +1,86 @@
+# Example batch spec for bin/build_targeted_configs.py, per
+# docs/superpowers/specs/2026-09-05-config-builder-design.md's worked
+# example ("Selection spec format"): one study per early-diverging-fungus
+# focal species, each paired with a shared reference outgroup pool.
+#
+# Two deviations from the design doc's literal worked example, both found
+# by actually running this against the real master pool (2026-09-05):
+#
+# 1. The doc's Spizellomyces punctatus stand-in has NO row at all in
+#    Fungi_BFD_runs/genome_annotation/_reuse_assignments/repr_assignments.tsv
+#    (verified against the real table -- zero rows, not zero
+#    is_representative=True rows, so bin/build_master_pool.py legitimately
+#    skips it rather than erroring, see the 2026-09-05 final-review fix), so
+#    it can never appear in the master pool. Substituted with Batrachochytrium
+#    dendrobatidis, a real, repr_assignments.tsv-covered chytrid
+#    (Chytridiomycota;Chytridiomycetes;Rhizophydiales) that keeps the same
+#    "one focal per early-diverging fungal lineage vs a shared Dikarya
+#    reference pool" structure the batch is meant to demonstrate.
+#
+# 2. Basidiobolus meristosporus is the ONLY Basidiobolomycota-phylum species
+#    with repr_assignments.tsv coverage in the whole real master pool -- no
+#    `mode: nearest`/`mode: trait` candidate pool at any scope_rank can ever
+#    find it a companion, since there is no phylogenetic neighbor to rank.
+#    Switched to `mode: explicit` with two real, repr-covered
+#    Entomophthoromycota species (Conidiobolus coronatus, Massospora
+#    cicadina) -- the closest available lineage in the traditional
+#    "Zygomycetes" grouping Basidiobolomycota was historically split from --
+#    with a `reason:` recording exactly why this is a manual override, per
+#    the design doc's "Trait mode"/"Selection spec format" sections.
+#
+# The outgroup pool is named for what it actually is here -- a shared
+# Dikarya (Ascomycota + Basidiomycota) reference panel -- rather than the
+# design doc's illustrative "early_diverging_v1" name, since these four
+# focal species are themselves the early-diverging lineages; naming the
+# outgroup after them would be confusing in a real batch spec.
+#
+# All species names below were verified 2026-09-05 to exist in the real
+# /bigdata/stajichlab/shared/projects/BFD/Fungi_BFD/samples.csv AND to have
+# exactly one is_representative=True row in repr_assignments.tsv, so a
+# master pool built from that data actually contains every one of them.
+
+batch: mucoromycota_focal_v1
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+      - "Cryptococcus neoformans"
+
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra:
+      mode: nearest
+      n: 3
+    outgroup_pool: dikarya_reference_v1
+
+  - focal: Phycomyces blakesleeanus
+    ingroup_extra:
+      mode: nearest
+      n: 3
+    outgroup_pool: dikarya_reference_v1
+
+  - focal: Basidiobolus meristosporus
+    ingroup_extra:
+      mode: explicit
+      members:
+        - "Conidiobolus coronatus"
+        - "Massospora cicadina"
+      reason: >-
+        Basidiobolus meristosporus is the only Basidiobolomycota-phylum
+        species with repr_assignments.tsv coverage in the master pool, so no
+        automated nearest/trait candidate exists at any scope. Manually
+        paired with the two available Entomophthoromycota species (the
+        nearest surviving lineage in the traditional "Zygomycetes" grouping)
+        instead of a phylogenetically distant trait match.
+    outgroup_pool: dikarya_reference_v1
+
+  - focal: Batrachochytrium dendrobatidis
+    ingroup_extra:
+      mode: nearest
+      n: 3
+    outgroup_pool: dikarya_reference_v1

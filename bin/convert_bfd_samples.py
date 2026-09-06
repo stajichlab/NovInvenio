@@ -38,25 +38,13 @@ sibling orders to auto-derive an outgroup from):
 """
 import argparse
 import csv
-import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
+from master_pool import make_short  # noqa: E402
+
 LINEAGE_FIELDS = ['PHYLUM', 'SUBPHYLUM', 'CLASS', 'SUBCLASS', 'ORDER', 'FAMILY', 'GENUS']
-
-
-def make_short(species, used):
-    parts = species.split()
-    genus = re.sub(r'[^A-Za-z]', '', parts[0])[:4] if parts else 'Sp'
-    epithet = re.sub(r'[^A-Za-z]', '', parts[1])[:4] if len(parts) > 1 else ''
-    base = (genus[:1].upper() + genus[1:].lower() + epithet.lower())[:8] or 'Sp'
-    short = base
-    n = 2
-    while short in used:
-        short = f"{base[:8 - len(str(n))]}{n}"
-        n += 1
-    used.add(short)
-    return short
 
 
 def find_annotation(annotation_dir, species, strain):

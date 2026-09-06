@@ -1,0 +1,233 @@
+# Controlled vocabulary for config_support/traits/traits.csv.
+#
+# Each top-level key is a trait name. Each trait declares a fixed set of
+# legal `values` — a future loader must hard-error on any (trait, value)
+# pair used in traits.csv that isn't declared here, rather than silently
+# accepting a near-miss string (e.g. "motile_biflagellate" vs "motile").
+#
+# `ontology_term` is optional provenance, citing the matching term from an
+# established phenotype/anatomy ontology (PATO, the Fungal Anatomy Ontology
+# FAO, GO, FYPO, OMP) when one clearly applies. Leave it blank/omitted
+# rather than guess an ID — populate it only after actually looking the
+# term up. It is metadata only in v1: nothing validates against a live
+# ontology, and nothing in the selection/ranking logic depends on it.
+#
+# To add a new trait: add a key here with its `values` first, THEN use it
+# in traits.csv. To add a new legal value for an existing trait: add it to
+# that trait's `values` here first.
+
+# The host-association family (animal_association, plant_association,
+# fungal_association, algal_association) shares the same shape: multiple
+# rows per species are valid, `none` is a real assertion that never
+# coexists with another value for that species+trait, and a species with
+# a broad pathogenic host range (e.g. animals AND fungi AND algae) is
+# expressed as one row per host-association trait with a pathogen-like
+# value (`pathogen` for animal/plant/algal, `mycoparasite` for fungal —
+# kept as the field's standard term rather than forced into "pathogen"
+# for cosmetic consistency). There is deliberately no single consolidated
+# "pathogen host range" trait — querying host breadth means checking the
+# pathogen-like value across these four traits, so the fact is recorded
+# once per host type rather than duplicated in a second representation
+# that would need to be kept in sync.
+
+traits:
+  hyphal_septation:
+    description: Presence/pattern of septa (cross-walls) subdividing hyphae.
+    values:
+      coenocytic:
+        description: Aseptate except at reproductive structures; multinucleate hyphal compartments.
+        ontology_term:
+      septate:
+        description: Regular septa subdividing hyphae into uninucleate or multinucleate cells.
+        ontology_term:
+      unicellular_rhizoidal:
+        description: No true hyphae; thallus is a cell body with rhizoids (chytrid-type growth form).
+        ontology_term:
+
+  spore_motility:
+    description: Motility of asexual spores/sporangiospores.
+    values:
+      motile:
+        description: Flagellated, actively motile spore (zoospore).
+        ontology_term:
+      nonmotile:
+        description: No flagellum; spore is passively or forcibly dispersed, not self-propelled.
+        ontology_term:
+
+  thermotolerance:
+    description: Ability to grow at elevated/mammalian body temperature.
+    values:
+      high:
+        description: Grows at 37C or above.
+        ontology_term:
+      low:
+        description: Growth inhibited at or below 37C.
+        ontology_term:
+
+  animal_association:
+    description: >
+      Ecological association with an animal host. Multiple rows for the
+      same species are expected and valid (e.g. commensal in most hosts,
+      opportunistic pathogen in immunocompromised ones) — this trait is
+      not mutually exclusive across values. `none` is a real assertion
+      ("checked, no association") and must never coexist with another
+      value for the same species; a loader should hard-error on that
+      combination rather than pick one.
+    values:
+      none:
+        description: No documented animal association (a real assertion, not "unassessed" — omit the row entirely if simply unassessed).
+        ontology_term:
+      commensal:
+        description: Found in/on an animal host without apparent benefit or harm to the host.
+        ontology_term:
+      mutualist:
+        description: Animal-associated with a documented mutual benefit.
+        ontology_term:
+      pathogen:
+        description: Causes disease in an animal host (may be opportunistic/context-dependent).
+        ontology_term:
+
+  light_response:
+    description: Photobiological response of reproductive structures.
+    values:
+      phototropic:
+        description: Growth or orientation of a reproductive structure responds to light direction.
+        ontology_term:
+      none:
+        description: No documented photoresponse.
+        ontology_term:
+
+  trophic_mode:
+    description: >
+      General nutritional strategy, independent of host taxon. Deliberately
+      matches FUNGuild's own trophicMode split (Pathotroph/Saprotroph/
+      Symbiotroph) rather than a finer plant-pathology-style
+      biotroph/necrotroph/hemibiotroph distinction, since FUNGuild is the
+      primary intended source and can't support that finer split. Multiple
+      rows per species are expected (e.g. a pathotroph-saprotroph is common).
+    values:
+      pathotroph:
+        description: Obtains nutrients by causing damage/disease to a host (FUNGuild "Pathotroph").
+        ontology_term:
+      saprotroph:
+        description: Obtains nutrients from dead organic matter (FUNGuild "Saprotroph").
+        ontology_term:
+      symbiotroph:
+        description: Obtains nutrients via a close association with a living host, mutual or one-sided (FUNGuild "Symbiotroph").
+        ontology_term:
+
+  plant_association:
+    description: >
+      Ecological association with a plant host, mirroring animal_association's
+      shape and rules: multiple values per species are valid and expected,
+      `none` is a real assertion (never coexists with another value for the
+      same species), and omitting the row entirely is how "unassessed" is
+      expressed.
+    values:
+      none:
+        description: No documented plant association (a real assertion, not "unassessed").
+        ontology_term:
+      saprotroph_plant_material:
+        description: Decomposes plant-derived material (wood, litter, pollen, etc).
+        ontology_term:
+      endophyte:
+        description: Lives within plant tissue without causing apparent disease.
+        ontology_term:
+      mycorrhizal_mutualist:
+        description: Forms a mycorrhizal (or comparable mutualistic root/tissue) association with a plant.
+        ontology_term:
+      pathogen:
+        description: Causes disease in a plant host.
+        ontology_term:
+
+  fungal_association:
+    description: >
+      Ecological association with another fungus (or fungal component of a
+      lichen), mirroring animal_association/plant_association's shape and
+      rules. Sourced from FUNGuild's finer `guild` field (e.g. "Fungal
+      Parasite"), not its coarse `trophicMode` field — trophic_mode
+      deliberately stays a 3-way match to FUNGuild's trophicMode; this
+      trait is the host-association axis for a fungal (rather than plant
+      or animal) host.
+    values:
+      none:
+        description: No documented fungal-host association (a real assertion, not "unassessed").
+        ontology_term:
+      mycoparasite:
+        description: Parasitizes another fungus (FUNGuild guild "Fungal Parasite").
+        ontology_term:
+
+  algal_association:
+    description: >
+      Ecological association with an alga, mirroring animal_association/
+      plant_association/fungal_association's shape and rules. Sourced from
+      FUNGuild's `guild` field (e.g. "Algal Parasite").
+    values:
+      none:
+        description: No documented algal-host association (a real assertion, not "unassessed").
+        ontology_term:
+      pathogen:
+        description: Causes disease in / parasitizes an alga (FUNGuild guild "Algal Parasite").
+        ontology_term:
+
+  cell_morphology:
+    description: >
+      Overall vegetative growth form. Sourced from FUNGuild's `growthForm`
+      field, which already distinguishes exactly this (e.g. "Yeast",
+      "Microfungus", "Dimorphic", "Facultative Yeast") — map "Yeast"/
+      "Facultative Yeast"/"Dimorphic Yeast" to `yeast`, "Microfungus"/
+      "Macrofungus"/fruiting-body forms (Agaricoid, Polyporoid, etc.) to
+      `filamentous`, and "Dimorphic"/"Dimorphic Yeast" to `dimorphic`
+      (which already implies both phases — no need for a separate
+      `yeast`+`filamentous` pair on a dimorphic species unless a source
+      distinguishes them further).
+    values:
+      yeast:
+        description: Grows as single budding/fissioning cells, no true hyphae.
+        ontology_term:
+      filamentous:
+        description: Grows as branching hyphae; no yeast phase.
+        ontology_term:
+      dimorphic:
+        description: Switches between yeast and filamentous growth forms depending on conditions (e.g. temperature, host environment).
+        ontology_term:
+
+  asexual_reproduction:
+    description: >
+      Mechanism of asexual propagule formation. Not sourced from FUNGuild
+      (no equivalent field); requires literature verification per species.
+    values:
+      conidia:
+        description: Asexual spores (conidia) produced externally on conidiophores, not enclosed in a sporangium.
+        ontology_term:
+      sporangiospores:
+        description: Asexual spores produced enclosed within a sporangium (the Mucorales/zygomycete pattern) — distinct from conidia.
+        ontology_term:
+      budding:
+        description: Asexual reproduction by budding of single cells (the classic yeast pattern).
+        ontology_term:
+      fragmentation:
+        description: Asexual reproduction by hyphal fragmentation into arthrospore-like propagules.
+        ontology_term:
+
+  pigmentation:
+    description: >
+      Presence of melanin-based pigmentation in hyphae/spores. Not sourced
+      from FUNGuild; requires literature verification per species.
+    values:
+      melanized:
+        description: Hyphae and/or spores are melanized (dematiaceous).
+        ontology_term:
+      non_melanized:
+        description: No documented melanization (hyaline).
+        ontology_term:
+
+  habitat:
+    description: Primary ecological habitat.
+    values:
+      aquatic_soil:
+        description: Aquatic or wet-soil habitat.
+        ontology_term:
+      terrestrial:
+        description: Terrestrial habitat, not specifically wet-soil/aquatic.
+        ontology_term:
