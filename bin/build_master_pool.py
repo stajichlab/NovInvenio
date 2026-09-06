@@ -45,11 +45,37 @@ def find_annotation(annotation_dir, dirname):
 
 
 def render_master_pool(bfd_samples_path, annotation_dir, repr_assignments_path) -> list[dict]:
+    """Build one master-pool row per species that (a) has a representative
+    pick in repr_assignments.tsv and (b) has annotation FASTAs on disk for
+    that pick.
+
+    Two distinct failure modes are handled differently -- see
+    docs/superpowers/specs/2026-09-05-config-builder-design.md and the
+    2026-09-05 final-review fix notes:
+
+    - A species in samples.csv with NO row at all in repr_assignments.tsv
+      (normal: the repr table only covers the annotated/ANI-assessed
+      subset) is SKIPPED, not an error. load_representative_picks() is
+      called without an expected_species set for exactly this reason --
+      only species repr_assignments.tsv actually has opinions about (zero
+      vs exactly-one vs multiple True rows) are subject to its hard-error
+      checks.
+    - A representative dirname from repr_assignments.tsv that doesn't
+      exist AT ALL in samples.csv is a genuine inconsistency between two
+      files that are supposed to agree, and stays FATAL.
+    - A representative that resolves fine but has no
+      predict_results/*.proteins.fa+scaffolds.fa on disk (observed: a
+      small fraction of real representatives) is SKIPPED with a stderr
+      warning, matching bin/convert_bfd_samples.py's existing
+      missing-annotation-dir skip pattern -- not on the spec's hard-error
+      list.
+    """
     with open(bfd_samples_path, newline='') as fh:
         bfd_rows = list(csv.DictReader(fh))
 
     species_set = {row['SPECIES'].strip() for row in bfd_rows}
-    picks = load_representative_picks(repr_assignments_path, expected_species=species_set)
+    picks = load_representative_picks(repr_assignments_path)
+    not_covered = species_set - set(picks.keys())
 
     by_dirname = {
         f"{row['SPECIES'].strip()}_{row['STRAIN'].strip()}".rstrip('_').replace(' ', '_'): row
@@ -57,15 +83,16 @@ def render_master_pool(bfd_samples_path, annotation_dir, repr_assignments_path) 
     }
 
     out_rows = []
-    missing = []
+    dirname_missing = []  # fatal: repr dirname not present in samples.csv at all
+    annotation_missing = []  # skip: repr dirname valid, but no FASTAs on disk
     for species, dirname in sorted(picks.items()):
         row = by_dirname.get(dirname)
         if row is None:
-            missing.append(f"{species}: representative dirname {dirname!r} not found in {bfd_samples_path}")
+            dirname_missing.append(f"{species}: representative dirname {dirname!r} not found in {bfd_samples_path}")
             continue
         protein, scaffolds = find_annotation(annotation_dir, dirname)
         if protein is None:
-            missing.append(f"{species}: no predict_results/{dirname}.proteins.fa+scaffolds.fa under {annotation_dir}")
+            annotation_missing.append(f"{species}: no predict_results/{dirname}.proteins.fa+scaffolds.fa under {annotation_dir}")
             continue
         lineage = [row[f].strip() for f in LINEAGE_FIELDS]
         out_rows.append({
@@ -77,8 +104,28 @@ def render_master_pool(bfd_samples_path, annotation_dir, repr_assignments_path) 
             'NCBI_TaxID': row['NCBI_TAXONID'].strip(),
         })
 
-    if missing:
-        raise SystemExit("Could not build master pool rows:\n  " + "\n  ".join(missing))
+    if dirname_missing:
+        raise SystemExit(
+            "Could not build master pool rows (representative dirname absent from "
+            f"{bfd_samples_path} -- inconsistent with {repr_assignments_path}):\n  "
+            + "\n  ".join(dirname_missing)
+        )
+
+    if not_covered:
+        print(
+            f"Skipped {len(not_covered)} species from {bfd_samples_path} with no "
+            f"repr_assignments.tsv coverage at all (not in that table)",
+            file=sys.stderr,
+        )
+    if annotation_missing:
+        print(
+            f"Skipped {len(annotation_missing)} representative(s) with no annotation FASTAs "
+            f"on disk under {annotation_dir}:",
+            file=sys.stderr,
+        )
+        for m in annotation_missing:
+            print(f"  {m}", file=sys.stderr)
+
     return out_rows
 
 

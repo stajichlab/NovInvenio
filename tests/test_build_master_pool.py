@@ -46,12 +46,52 @@ def test_render_master_pool_joins_representative_pick_and_keeps_absolute_paths(t
     assert Path(row['ProteinPath']).is_absolute()
 
 
-def test_render_master_pool_errors_on_missing_annotation_dir(tmp_path):
+def test_render_master_pool_skips_missing_annotation_dir_rather_than_erroring(tmp_path, capsys):
     bfd = tmp_path / 'bfd_samples.csv'
     bfd.write_text(BFD_SAMPLES_CSV)
     repr_tsv = tmp_path / 'repr_assignments.tsv'
     repr_tsv.write_text(REPR_TSV)
     empty_annotation_dir = tmp_path / 'no_such_dir'
 
+    rows = render_master_pool(bfd, empty_annotation_dir, repr_tsv)
+
+    assert rows == []
+    err = capsys.readouterr().err
+    assert 'Mucor circinelloides' in err
+    assert 'Skipped 1 representative' in err
+
+
+def test_render_master_pool_skips_species_absent_from_repr_assignments(tmp_path, capsys):
+    # samples.csv has two species; repr_assignments.tsv only covers one --
+    # normal (the repr table covers only the annotated/ANI-assessed subset),
+    # not a data-integrity error.
+    bfd = tmp_path / 'bfd_samples.csv'
+    bfd.write_text(
+        BFD_SAMPLES_CSV
+        + "GCA_2,Rhizopus arrhizus,,PRJ2,64495,fungi_odb12,Mucoromycota,Mucoromycotina,"
+        "Mucoromycetes,,Mucorales,Rhizopodaceae,Rhizopus,Rhizopus arrhizus,1,Rhiar\n"
+    )
+    repr_tsv = tmp_path / 'repr_assignments.tsv'
+    repr_tsv.write_text(REPR_TSV)  # only covers Mucor circinelloides
+    annotation_dir = _make_annotation_dir(tmp_path)
+
+    rows = render_master_pool(bfd, annotation_dir, repr_tsv)
+
+    assert [r['Species'] for r in rows] == ['Mucor circinelloides']
+    err = capsys.readouterr().err
+    assert 'Skipped 1 species' in err
+    assert 'no repr_assignments.tsv coverage' in err
+
+
+def test_render_master_pool_errors_when_repr_dirname_absent_from_samples_csv(tmp_path):
+    bfd = tmp_path / 'bfd_samples.csv'
+    bfd.write_text(BFD_SAMPLES_CSV)
+    repr_tsv = tmp_path / 'repr_assignments.tsv'
+    repr_tsv.write_text(
+        "out\tspecies\tis_representative\trepresentative_out\tani_to_representative\treuse_eligible\n"
+        "Mucor_circinelloides_NOSUCHSTRAIN\tMucor circinelloides\tTrue\tMucor_circinelloides_NOSUCHSTRAIN\t100.0\tTrue\n"
+    )
+    annotation_dir = _make_annotation_dir(tmp_path)
+
     with pytest.raises(SystemExit, match='Mucor circinelloides'):
-        render_master_pool(bfd, empty_annotation_dir, repr_tsv)
+        render_master_pool(bfd, annotation_dir, repr_tsv)

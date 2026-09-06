@@ -51,10 +51,12 @@ def load_master_pool(path) -> list[MasterSample]:
 
 
 def make_short(species: str, used: set[str]) -> str:
-    """Same shape as bin/convert_bfd_samples.py::make_short (genus[:4] +
-    epithet[:4], numeric-suffix on collision) so Shorts look like existing
-    configs. Determinism is the CALLER's responsibility -- see
-    assign_shorts, which always processes the full pool in a fixed order.
+    """THE canonical Short-assignment rule (genus[:4] + epithet[:4],
+    numeric-suffix on collision) -- bin/convert_bfd_samples.py imports this
+    function rather than keeping its own copy, so there is exactly one
+    implementation of the rule. Determinism is the CALLER's responsibility
+    -- see assign_shorts, which always processes the full pool in a fixed
+    order.
     """
     parts = species.split()
     genus = re.sub(r'[^A-Za-z]', '', parts[0])[:4] if parts else 'Sp'
