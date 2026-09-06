@@ -43,20 +43,25 @@ def rank_candidates(candidates: list[Candidate]) -> list[Candidate]:
     return sorted(candidates, key=lambda c: (-_depth(c.rank_name), c.species))
 
 
-def select_nearest(focal_species, focal_lineage, pool, n, scope_rank: str = DEFAULT_SCOPE_RANK) -> list[Candidate]:
-    return rank_candidates(candidate_pool(focal_species, focal_lineage, pool, scope_rank))[:n]
+def exclude_species(candidates: list[Candidate], excluded: set[str]) -> list[Candidate]:
+    return [c for c in candidates if c.species not in excluded]
 
 
-def select_trait(focal_species, focal_lineage, pool, trait, value, n, traits_by_species, scope_rank: str = DEFAULT_SCOPE_RANK) -> list[Candidate]:
-    ranked = rank_candidates(candidate_pool(focal_species, focal_lineage, pool, scope_rank))
+def select_nearest(focal_species, focal_lineage, pool, n, scope_rank: str = DEFAULT_SCOPE_RANK, excluded: set[str] = frozenset()) -> list[Candidate]:
+    # excluded is applied BEFORE ranking/truncation -- see this task's Interfaces
+    # note: excluding after truncation would silently under-fill a study instead
+    # of backfilling from the next-best candidate.
+    candidates = exclude_species(candidate_pool(focal_species, focal_lineage, pool, scope_rank), excluded)
+    return rank_candidates(candidates)[:n]
+
+
+def select_trait(focal_species, focal_lineage, pool, trait, value, n, traits_by_species, scope_rank: str = DEFAULT_SCOPE_RANK, excluded: set[str] = frozenset()) -> list[Candidate]:
+    candidates = exclude_species(candidate_pool(focal_species, focal_lineage, pool, scope_rank), excluded)
+    ranked = rank_candidates(candidates)
     filtered = [c for c in ranked if has_trait(traits_by_species, c.species, trait, value)]
     if not filtered:
         raise SystemExit(
             f"mode: trait -- no candidate for focal {focal_species!r} in the "
-            f"{scope_rank}-scoped pool has {trait}={value!r}"
+            f"{scope_rank}-scoped pool has {trait}={value!r} (after excluding the outgroup pool)"
         )
     return filtered[:n]
-
-
-def exclude_species(candidates: list[Candidate], excluded: set[str]) -> list[Candidate]:
-    return [c for c in candidates if c.species not in excluded]

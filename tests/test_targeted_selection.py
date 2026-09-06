@@ -40,7 +40,20 @@ def test_rank_candidates_orders_deepest_match_first_then_alphabetically():
 def test_select_nearest_takes_top_n():
     picked = select_nearest(FOCAL.species, FOCAL.lineage, POOL, n=1, scope_rank='ORDER')
     assert len(picked) == 1
-    assert picked[0].species in ('Rhizopus arrhizus', 'Lichtheimia corymbifera')
+    # deterministic tiebreak: both tie at rank ORDER, 'Lichtheimia' sorts before 'Rhizopus'
+    assert picked[0].species == 'Lichtheimia corymbifera'
+
+
+def test_select_nearest_backfills_past_an_excluded_top_candidate():
+    # Mucor mucedo shares GENUS with the focal (closer than Rhizopus/Lichtheimia,
+    # which only share ORDER) -- excluding it must NOT just shrink the result to
+    # fewer than n; it must promote the next-best candidate instead.
+    same_genus = _sample('Mucor mucedo', 'Mucoromycota', 'Mucoromycetes', 'Mucorales', 'Mucoraceae', 'Mucor')
+    picked = select_nearest(
+        FOCAL.species, FOCAL.lineage, POOL + [same_genus], n=1,
+        scope_rank='ORDER', excluded={'Mucor mucedo'},
+    )
+    assert [c.species for c in picked] == ['Lichtheimia corymbifera']
 
 
 def test_select_trait_filters_then_ranks():
