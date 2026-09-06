@@ -1104,3 +1104,6 @@ Coccidioides immitis,cell_morphology,dimorphic,https://www.ncbi.nlm.nih.gov/pmc/
 Coccidioides immitis,asexual_reproduction,fragmentation,https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8546678/,infectious arthroconidia form by hyphal fragmentation; only asexual mitotic reproduction observed
 Coccidioides immitis,thermotolerance,high,https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7765126/,differential thermotolerance adaptation documented across Coccidioides species
 Coccidioides immitis,animal_association,pathogen,https://www.sciencedirect.com/science/article/abs/pii/S0196439917300818,causative agent of coccidioidomycosis (Valley Fever)
+Paracoccidioides brasiliensis,cell_morphology,dimorphic,,"classic Onygenales thermally dimorphic pathogen (mycelial in environment, yeast in host tissue) -- well established medical mycology fact"
+Paracoccidioides brasiliensis,animal_association,pathogen,,causative agent of paracoccidioidomycosis
+Paracoccidioides brasiliensis,thermotolerance,high,,dimorphic switch to yeast form is thermally triggered (37C)

@@ -1,0 +1,34 @@
+# HYPOTHESIS: Mucoromycotina (Mucor, Phycomyces -- coenocytic/filamentous
+# zygomycetes) carry genes specific to their own lineage's cell biology, not
+# just genes correlated with "being filamentous" in general. The outgroup
+# here is deliberately restricted to OTHER filamentous fungi (Neurospora,
+# Aspergillus nidulans, Coprinopsis cinerea -- all cell_morphology=filamentous
+# in config_support/traits/traits.csv), excluding yeasts (Saccharomyces,
+# Schizosaccharomyces) and the dimorphic Cryptococcus that
+# pathogen_cryptococcus.yaml/pathogen_candida_auris.yaml use. This controls
+# for gross cell morphology: any novelty signal here is Mucoromycotina-specific,
+# not a confound of "coenocytic vs unicellular yeast" growth form.
+
+batch: zygo_filamentous
+
+outgroup_pools:
+  filamentous_dikarya_v1:
+    members:
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Mucor circinelloides
+    ingroup_extra:
+      mode: nearest
+      scope_rank: FAMILY
+      n: 3
+    outgroup_pool: filamentous_dikarya_v1
+
+  - focal: Phycomyces blakesleeanus
+    ingroup_extra:
+      mode: nearest
+      scope_rank: ORDER   # Phycomycetaceae has only 1 other family-mate (Phycomyces nitens) -- widen to Mucorales
+      n: 3
+    outgroup_pool: filamentous_dikarya_v1

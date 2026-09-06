@@ -1,0 +1,28 @@
+# HYPOTHESIS (2 of 3 independent replicates -- see salt_hortaea.yaml for the
+# full convergent-halotolerance rationale). Debaryomyces hansenii's closest
+# Debaryomycetaceae relatives in the master pool include several Candida
+# species that are NOT specifically halotolerant -- that's expected and fine:
+# mode: nearest tests "genes specific to this phylogenetic neighborhood", not
+# "genes shared with other halotolerant fungi" (no trait data across multiple
+# Debaryomycetaceae members exists to support the latter). The convergence
+# signal comes from comparing this study's novelty candidates against
+# salt_hortaea.yaml's and salt_rhodotorula.yaml's, not from this study alone.
+
+batch: salt_debaryomyces
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Debaryomyces hansenii
+    ingroup_extra:
+      mode: nearest
+      scope_rank: FAMILY
+      n: 3
+    outgroup_pool: dikarya_reference_v1

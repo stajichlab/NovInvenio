@@ -1,0 +1,29 @@
+# HYPOTHESIS: baseline early-diverging-fungi-vs-crown-fungi contrast --
+# genes specific to zoosporic (flagellated-spore) chytrid fungi relative to
+# the derived, non-flagellated Dikarya. Batrachochytrium dendrobatidis's
+# Batrachochytriidae family has no other master-pool member, so scope_rank
+# stays at the default ORDER (Rhizophydiales) for a real candidate pool --
+# same choice already verified working in mucoromycota_focal_v1.yaml.
+# Compare this study's novelty candidates against zoosporic_zygomycete.yaml's
+# (same focal, zygomycete outgroup instead of Dikarya) to separate
+# "chytrid vs everything else" signal from "chytrid vs specifically Dikarya"
+# signal, and against zoosporic_opisthokont_dikarya.yaml's (adds animals to
+# the ingroup) to test the shared-with-animals hypothesis specifically.
+
+batch: zoosporic_dikarya
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Batrachochytrium dendrobatidis
+    ingroup_extra:
+      mode: nearest
+      n: 3
+    outgroup_pool: dikarya_reference_v1

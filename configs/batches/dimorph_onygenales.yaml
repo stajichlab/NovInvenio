@@ -1,0 +1,32 @@
+# HYPOTHESIS: thermal dimorphism (mycelial growth in the environment, yeast
+# growth in host tissue at 37C) evolved once within Onygenales and left a
+# shared genetic signature. Contrasts the dimorphic clade (Coccidioides,
+# Histoplasma, Blastomyces, Paracoccidioides -- cell_morphology=dimorphic in
+# config_support/traits/traits.csv) against non-dimorphic dermatophyte
+# relatives in the SAME order (Trichophyton, Microsporum -- cell_morphology
+# =filamentous), rather than a broad Dikarya outgroup: the sharpest test for
+# dimorphism-specific genes is same-order fungi that never evolved the switch,
+# not fungi that differ in many other ways too.
+#
+# mode: trait (not nearest) is what makes this an actual phenotype-driven
+# test: it filters the ORDER-scoped candidate pool to the dimorphic set
+# specifically, then ranks by proximity -- see docs/superpowers/specs/
+# 2026-09-05-config-builder-design.md's "Trait mode" section.
+
+batch: dimorph_onygenales
+
+outgroup_pools:
+  onygenales_non_dimorphic_v1:
+    members:
+      - "Trichophyton benhamiae"
+      - "Microsporum canis"
+
+studies:
+  - focal: Coccidioides immitis
+    ingroup_extra:
+      mode: trait
+      trait: cell_morphology
+      value: dimorphic
+      scope_rank: ORDER
+      n: 3
+    outgroup_pool: onygenales_non_dimorphic_v1

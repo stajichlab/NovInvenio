@@ -1,0 +1,60 @@
+# HYPOTHESIS: shared cell biology between zoosporic (early-diverging) fungi
+# and animals -- are there genes present in BOTH chytrid fungi and animals
+# (or their closest non-animal relative), but absent from the derived,
+# non-flagellated Dikarya? Candidate ancestral-opisthokont genes retained in
+# zoosporic lineages but lost somewhere along the Dikarya stem. This is the
+# original motivating question for this pathway (see
+# docs/superpowers/specs/2026-09-05-config-builder-design.md's Problem
+# section) and config_support/animal_pool.csv's header comment.
+#
+# IN = the chytrid focal + Drosophila melanogaster, Caenorhabditis elegans,
+# Mus musculus, and the choanoflagellate Monosiga brevicollis (animals'
+# closest non-animal relative, included so a signal shared specifically with
+# animals can be told apart from one shared with the broader
+# Opisthokonta/holozoan clade animals sit inside). OUT = the same Dikarya
+# reference panel zoosporic_dikarya.yaml uses, for a direct three-way
+# comparison across all zoosporic_*.yaml studies.
+#
+# ONLY expressible as mode: explicit -- the four animal species live in
+# config_support/animal_pool.csv, outside Fungi_BFD's lineage scheme
+# entirely, so mode: nearest/trait will never place them automatically (see
+# lib/targeted_selection.py's candidate_pool(), which always diverges at
+# PHYLUM for a non-fungal lineage).
+#
+# Run with (note --extra-pool in addition to the Fungi_BFD --master-pool):
+#   bin/build_targeted_configs.py \
+#       --master-pool config_support/master_pool.csv \
+#       --extra-pool config_support/animal_pool.csv \
+#       --trait-definitions config_support/traits/trait_definitions.yaml \
+#       --traits config_support/traits/traits.csv \
+#       --batch-spec configs/batches/zoosporic_opisthokont_dikarya.yaml \
+#       --outdir configs/ \
+#       --link-dir data/zoosporic_opisthokont_dikarya
+
+batch: zoosporic_opisthokont_dikarya
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Batrachochytrium dendrobatidis
+    ingroup_extra:
+      mode: explicit
+      members:
+        - "Drosophila melanogaster"
+        - "Caenorhabditis elegans"
+        - "Mus musculus"
+        - "Monosiga brevicollis"
+      reason: >-
+        Testing for genes shared between zoosporic fungi and
+        animals/their closest non-animal relative, but absent from
+        Dikarya -- not expressible as mode: nearest/trait since these are
+        non-fungal species with no lineage overlap with any fungal focal
+        at any scope_rank.
+    outgroup_pool: dikarya_reference_v1

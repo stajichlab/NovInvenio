@@ -1,0 +1,24 @@
+# HYPOTHESIS: distinguishes genes truly SPECIFIC to zoosporic chytrid fungi
+# from genes shared broadly across all early-diverging (non-Dikarya) fungal
+# lineages. Same focal as zoosporic_dikarya.yaml, but the outgroup here is
+# the OTHER early-diverging lineages (Mucoromycotina: Mucor, Phycomyces;
+# Basidiobolomycota: Basidiobolus) instead of Dikarya. A gene called "novel"
+# in zoosporic_dikarya.yaml but NOT here is probably an early-diverging-fungi
+# gene generally, not a chytrid-specific one -- the two studies together are
+# more informative than either alone.
+
+batch: zoosporic_zygomycete
+
+outgroup_pools:
+  zygomycete_reference_v1:
+    members:
+      - "Mucor circinelloides"
+      - "Phycomyces blakesleeanus"
+      - "Basidiobolus meristosporus"
+
+studies:
+  - focal: Batrachochytrium dendrobatidis
+    ingroup_extra:
+      mode: nearest
+      n: 3
+    outgroup_pool: zygomycete_reference_v1
