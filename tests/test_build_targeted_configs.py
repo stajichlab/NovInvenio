@@ -237,3 +237,89 @@ studies:
     pool, defs, traits, batch, outdir = _write_fixtures(tmp_path, batch_yaml=batch_yaml)
     summaries = render_batch(pool, defs, traits, batch, outdir)
     assert [c['species'] for c in summaries[0]['companions']] == ['Lichtheimia corymbifera']
+
+
+def test_render_batch_writes_ncbi_taxid_column(tmp_path):
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path)
+    summaries = render_batch(pool, defs, traits, batch, outdir)
+    config_path = Path(summaries[0]['config_path'])
+    with open(config_path, newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    assert 'NCBI_TaxID' in rows[0].keys()
+    taxids = {r['Species']: r['NCBI_TaxID'] for r in rows}
+    assert taxids['Mucor circinelloides'] == '36698'
+    assert taxids['Rhizopus arrhizus'] == '64495'
+
+
+def test_render_batch_without_link_dir_writes_absolute_paths(tmp_path):
+    pool, defs, traits, batch, outdir = _write_fixtures(tmp_path)
+    summaries = render_batch(pool, defs, traits, batch, outdir)
+    config_path = Path(summaries[0]['config_path'])
+    with open(config_path, newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    mucor_row = next(r for r in rows if r['Species'] == 'Mucor circinelloides')
+    assert mucor_row['Protein'] == '/data/Mucci.pep.fa'
+    assert Path(mucor_row['Protein']).is_absolute()
+
+
+def test_render_batch_with_link_dir_writes_basenames_and_real_symlinks(tmp_path):
+    # Use a master pool whose ProteinPath/DNAPath point at real files, so we
+    # can verify the symlinks --link-dir creates actually resolve.
+    data_dir = tmp_path / 'real_data'
+    data_dir.mkdir()
+    real_files = {}
+    for short, species in [
+        ('Mucci', 'Mucor circinelloides'), ('Rhiar', 'Rhizopus arrhizus'),
+        ('Licor', 'Lichtheimia corymbifera'), ('Bamer', 'Basidiobolus meristosporus'),
+        ('Ncra', 'Neurospora crassa'), ('Anid', 'Aspergillus nidulans'),
+    ]:
+        pep = data_dir / f'{short}.pep.fa'
+        dna = data_dir / f'{short}.dna.fa'
+        pep.write_text('>x\nMKV\n')
+        dna.write_text('>x\nACGT\n')
+        real_files[species] = (pep, dna)
+
+    pool_csv = "Species,Strain,ProteinPath,DNAPath,Lineage,NCBI_TaxID\n"
+    for species, lineage in [
+        ('Mucor circinelloides', 'Mucoromycota;Mucoromycotina;Mucoromycetes;;Mucorales;Mucoraceae;Mucor'),
+        ('Rhizopus arrhizus', 'Mucoromycota;Mucoromycotina;Mucoromycetes;;Mucorales;Rhizopodaceae;Rhizopus'),
+        ('Lichtheimia corymbifera', 'Mucoromycota;Mucoromycotina;Mucoromycetes;;Mucorales;Lichtheimiaceae;Lichtheimia'),
+        ('Basidiobolus meristosporus', 'Basidiobolomycota;;Basidiobolomycetes;;Basidiobolales;Basidiobolaceae;Basidiobolus'),
+        ('Neurospora crassa', 'Ascomycota;Pezizomycotina;Sordariomycetes;;Sordariales;Sordariaceae;Neurospora'),
+        ('Aspergillus nidulans', 'Ascomycota;Pezizomycotina;Eurotiomycetes;;Eurotiales;Aspergillaceae;Aspergillus'),
+    ]:
+        pep, dna = real_files[species]
+        pool_csv += f"{species},,{pep},{dna},{lineage},\n"
+
+    pool = tmp_path / 'pool.csv'
+    pool.write_text(pool_csv)
+    defs = tmp_path / 'trait_definitions.yaml'
+    defs.write_text(TRAIT_DEFINITIONS_YAML)
+    traits = tmp_path / 'traits.csv'
+    traits.write_text(TRAITS_CSV)
+    batch = tmp_path / 'batch.yaml'
+    batch.write_text(BATCH_YAML)
+    outdir = tmp_path / 'out'
+    outdir.mkdir()
+    link_dir = tmp_path / 'links'
+
+    summaries = render_batch(pool, defs, traits, batch, outdir, link_dir=link_dir)
+
+    config_path = Path(summaries[0]['config_path'])
+    with open(config_path, newline='') as fh:
+        rows = list(csv.DictReader(fh))
+    mucor_row = next(r for r in rows if r['Species'] == 'Mucor circinelloides')
+    assert mucor_row['Protein'] == 'Mucci.pep.fa'
+    assert mucor_row['DNA'] == 'Mucci.dna.fa'
+    assert not Path(mucor_row['Protein']).is_absolute()
+
+    pep_link = link_dir / 'pep' / 'Mucci.pep.fa'
+    dna_link = link_dir / 'dna' / 'Mucci.dna.fa'
+    assert pep_link.is_symlink()
+    assert dna_link.is_symlink()
+    assert pep_link.resolve() == real_files['Mucor circinelloides'][0].resolve()
+    assert dna_link.resolve() == real_files['Mucor circinelloides'][1].resolve()
+    # every IN/OUT row's file got linked, not just the focal
+    for r in rows:
+        assert (link_dir / 'pep' / r['Protein']).is_symlink()
+        assert (link_dir / 'dna' / r['DNA']).is_symlink()

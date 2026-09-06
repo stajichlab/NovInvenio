@@ -12,7 +12,12 @@ Usage:
         --trait-definitions config_support/traits/trait_definitions.yaml \\
         --traits config_support/traits/traits.csv \\
         --batch-spec configs/batches/mucoromycota_focal_v1.yaml \\
-        --outdir configs/
+        --outdir configs/ \\
+        --link-dir data/mucoromycota_focal_v1
+
+--link-dir is what makes the rendered config directly usable with main.nf's
+--data_dir: without it, Protein/DNA columns carry the master pool's absolute
+paths, which main.nf's resolve_fa() cannot resolve (see _row()'s docstring).
 """
 import argparse
 import csv
@@ -31,7 +36,7 @@ from targeted_selection import (  # noqa: E402
 )
 from trait_data import load_trait_definitions, load_traits  # noqa: E402
 
-CONFIG_FIELDS = ['GROUP', 'Species', 'Strain', 'Protein', 'DNA', 'Short', 'TaxonGroup']
+CONFIG_FIELDS = ['GROUP', 'Species', 'Strain', 'Protein', 'DNA', 'Short', 'TaxonGroup', 'NCBI_TaxID']
 
 
 def _by_species(pool):
@@ -45,15 +50,44 @@ def _resolve_members(names, by_species, context):
     return names
 
 
-def _row(group, sample, short, taxon_group):
+def _link_into(link_dir, subdir, src_path):
+    """Symlink src_path into <link_dir>/<subdir>/<basename>, creating the
+    subdir if needed and skipping if a symlink with that name already
+    exists -- mirrors bin/convert_bfd_samples.py's --link-dir pattern.
+    Returns the basename to write into the config's Protein/DNA column.
+    """
+    src = Path(src_path)
+    target_dir = Path(link_dir) / subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    link = target_dir / src.name
+    if not link.exists():
+        link.symlink_to(src.resolve())
+    return src.name
+
+
+def _row(group, sample, short, taxon_group, link_dir=None):
+    # NOTE: without --link-dir, ProteinPath/DNAPath (absolute paths from the
+    # master pool) are written straight into the Protein/DNA columns -- this
+    # keeps existing fixture-based tests passing without needing a link dir,
+    # but the resulting config is NOT main.nf-ready: main.nf's resolve_fa()
+    # builds candidates as file("${params.data_dir}/${basename}"), so an
+    # absolute path here resolves to a nonexistent path. Pass --link-dir to
+    # get a config with basenames plus a small per-batch symlink directory
+    # main.nf's --data_dir can actually point at.
+    if link_dir is not None:
+        protein = _link_into(link_dir, 'pep', sample.protein_path)
+        dna = _link_into(link_dir, 'dna', sample.dna_path)
+    else:
+        protein = sample.protein_path
+        dna = sample.dna_path
     return {
         'GROUP': group, 'Species': sample.species, 'Strain': sample.strain,
-        'Protein': sample.protein_path, 'DNA': sample.dna_path, 'Short': short,
-        'TaxonGroup': taxon_group,
+        'Protein': protein, 'DNA': dna, 'Short': short,
+        'TaxonGroup': taxon_group, 'NCBI_TaxID': sample.ncbi_taxid,
     }
 
 
-def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_spec_path, outdir) -> list[dict]:
+def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_spec_path, outdir, link_dir=None) -> list[dict]:
     pool = load_master_pool(master_pool_path)
     by_species = _by_species(pool)
     short_map = assign_shorts(pool)
@@ -129,13 +163,13 @@ def render_batch(master_pool_path, trait_definitions_path, traits_path, batch_sp
         else:
             raise SystemExit(f"study for {focal_name!r}: unknown mode {mode!r} (must be nearest/trait/explicit)")
 
-        rows = [_row('IN', focal, short_map[focal.species], '')]
+        rows = [_row('IN', focal, short_map[focal.species], '', link_dir=link_dir)]
         for c in companions:
-            rows.append(_row('IN', by_species[c['species']], short_map[c['species']], c['taxon_group']))
+            rows.append(_row('IN', by_species[c['species']], short_map[c['species']], c['taxon_group'], link_dir=link_dir))
         for m in outgroup_members:
             s = by_species[m]
             taxon_group = [t for t in s.lineage if t][-1] if any(s.lineage) else ''
-            rows.append(_row('OUT', s, short_map[m], taxon_group))
+            rows.append(_row('OUT', s, short_map[m], taxon_group, link_dir=link_dir))
 
         config_path = outdir / f"{short_map[focal.species]}_{batch_name}.csv"
         with open(config_path, 'w', newline='') as fh:
@@ -168,9 +202,22 @@ def main():
     p.add_argument('--traits', required=True)
     p.add_argument('--batch-spec', required=True)
     p.add_argument('--outdir', required=True)
+    p.add_argument(
+        '--link-dir',
+        help=(
+            'If given, symlink each selected species\' Protein/DNA files into '
+            '<link-dir>/pep/ and <link-dir>/dna/ and write basenames (not absolute '
+            'paths) into the rendered config\'s Protein/DNA columns, so the config is '
+            'directly usable as --data_dir <link-dir> with main.nf. Omit to keep '
+            'writing absolute master-pool paths (not main.nf-ready without this flag).'
+        ),
+    )
     args = p.parse_args()
 
-    summaries = render_batch(args.master_pool, args.trait_definitions, args.traits, args.batch_spec, args.outdir)
+    summaries = render_batch(
+        args.master_pool, args.trait_definitions, args.traits, args.batch_spec, args.outdir,
+        link_dir=args.link_dir,
+    )
 
     for s in summaries:
         print(f"\n{s['focal']}  ({s['config_path']})", file=sys.stderr)
