@@ -1,5 +1,5 @@
 Species,Strain,ProteinPath,DNAPath,Lineage,NCBI_TaxID
-Drosophila melanogaster,ISO1,/bigdata/stajichlab/jstajich/projects/NovInvenio/.worktrees/targeted-config-builder/db/animal_outgroup/Drosophila_melanogaster.proteins.collapsed.fa,,Arthropoda;Hexapoda;Insecta;Pterygota;Diptera;Drosophilidae;Drosophila,7227
-Caenorhabditis elegans,N2,/bigdata/stajichlab/jstajich/projects/NovInvenio/.worktrees/targeted-config-builder/db/animal_outgroup/Caenorhabditis_elegans.proteins.collapsed.fa,,Nematoda;;Chromadorea;;Rhabditida;Rhabditidae;Caenorhabditis,6239
-Mus musculus,C57BL/6J,/bigdata/stajichlab/jstajich/projects/NovInvenio/.worktrees/targeted-config-builder/db/animal_outgroup/Mus_musculus.proteins.collapsed.fa,,Chordata;Vertebrata;Mammalia;Theria;Rodentia;Muridae;Mus,10090
-Monosiga brevicollis,MX1,/bigdata/stajichlab/jstajich/projects/NovInvenio/.worktrees/targeted-config-builder/db/animal_outgroup/Monosiga_brevicollis.proteins.collapsed.fa,,Choanoflagellata;;Choanoflagellatea;;Craspedida;Salpingoecidae;Monosiga,81824
+Drosophila melanogaster,ISO1,/bigdata/stajichlab/jstajich/projects/NovInvenio/db/animal_outgroup/Drosophila_melanogaster.proteins.collapsed.fa,,Arthropoda;Hexapoda;Insecta;Pterygota;Diptera;Drosophilidae;Drosophila,7227
+Caenorhabditis elegans,N2,/bigdata/stajichlab/jstajich/projects/NovInvenio/db/animal_outgroup/Caenorhabditis_elegans.proteins.collapsed.fa,,Nematoda;;Chromadorea;;Rhabditida;Rhabditidae;Caenorhabditis,6239
+Mus musculus,C57BL/6J,/bigdata/stajichlab/jstajich/projects/NovInvenio/db/animal_outgroup/Mus_musculus.proteins.collapsed.fa,,Chordata;Vertebrata;Mammalia;Theria;Rodentia;Muridae;Mus,10090
+Monosiga brevicollis,MX1,/bigdata/stajichlab/jstajich/projects/NovInvenio/db/animal_outgroup/Monosiga_brevicollis.proteins.collapsed.fa,,Choanoflagellata;;Choanoflagellatea;;Craspedida;Salpingoecidae;Monosiga,81824
