@@ -1,0 +1,95 @@
+# HYPOTHESIS: shared cell biology between zoosporic (early-diverging) fungi
+# and animals -- are there genes present in BOTH zoosporic fungi and animals
+# (or their closest non-animal relative), but absent from the derived,
+# non-flagellated Dikarya? Candidate ancestral-opisthokont genes retained in
+# zoosporic lineages but lost somewhere along the Dikarya stem. This is the
+# original motivating question for this pathway (see
+# docs/superpowers/specs/2026-09-05-config-builder-design.md's Problem
+# section) and config_support/animal_pool.csv's header comment.
+#
+# IN = the chytrid focal, plus a hand-picked spread across both zoosporic
+# phyla (Chytridiomycota: Chytriomyces hyalinus, Synchytrium endobioticum;
+# Blastocladiomycota: Catenaria anguillulae, Paraphysoderma sedebokerense --
+# chosen for genome quality and lineage distinctness within their orders, not
+# lineage-proximity ranking), plus Drosophila melanogaster, Caenorhabditis
+# elegans, Mus musculus, and the choanoflagellate Monosiga brevicollis
+# (animals' closest non-animal relative, included so a signal shared
+# specifically with animals can be told apart from one shared with the
+# broader Opisthokonta/holozoan clade animals sit inside). OUT = the same
+# Dikarya reference panel zoosporic_dikarya.yaml uses, for a direct
+# three-way comparison across all zoosporic_*.yaml studies.
+#
+# ONLY expressible as mode: explicit -- the four animal species live in
+# config_support/animal_pool.csv, outside Fungi_BFD's lineage scheme
+# entirely, so mode: nearest/trait will never place them automatically (see
+# lib/targeted_selection.py's candidate_pool(), which always diverges at
+# PHYLUM for a non-fungal lineage). The four extra zoosporic fungi ARE in
+# Fungi_BFD's lineage scheme, but are listed explicitly too rather than via
+# mode: nearest/trait since they were hand-picked for genome quality and
+# taxonomic spread, not ranked by lineage proximity.
+#
+# Spizellomyces punctatus is also part of this study's ingroup, but is NOT
+# listed here: it comes from the older 1KFG sample pool
+# (config_support/1KFG_samples.csv), not Fungi_BFD, so it isn't in
+# config_support/master_pool.csv and this renderer can't place it without a
+# --extra-pool covering it. It was added to
+# configs/zoosporic_opisthokont_dikarya.csv by hand; re-running this batch
+# spec will not remove it (this renderer only appends new focal/companion
+# rows, never a pre-existing row it doesn't produce), but any regeneration
+# from scratch needs to re-add it manually too.
+#
+# Allomyces (a genuinely diploid-dominant zoosporic genus, considered for
+# this study) is NOT available at all: it has no row in
+# Fungi_BFD_runs/_reuse_assignments/repr_assignments.tsv and no local
+# annotation directory, so it can't be added via master_pool or
+# --extra-pool without first sourcing/annotating a genome externally -- and
+# its diploid life cycle would need isoform/allele collapsing
+# (bin/collapse_isoforms.py) before its gene models are comparable to the
+# haploid species here.
+#
+# Run with (note --extra-pool in addition to the Fungi_BFD --master-pool):
+#   bin/build_targeted_configs.py \
+#       --master-pool config_support/master_pool.csv \
+#       --extra-pool config_support/animal_pool.csv \
+#       --trait-definitions config_support/traits/trait_definitions.yaml \
+#       --traits config_support/traits/traits.csv \
+#       --batch-spec configs/batches/zoosporic_opisthokont_dikarya.yaml \
+#       --outdir configs/ \
+#       --link-dir data/zoosporic_opisthokont_dikarya
+#
+# (then hand-add the Spizellomyces punctatus row as described above)
+
+batch: zoosporic_opisthokont_dikarya
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Batrachochytrium dendrobatidis
+    ingroup_extra:
+      mode: explicit
+      members:
+        - "Chytriomyces hyalinus"
+        - "Synchytrium endobioticum"
+        - "Catenaria anguillulae"
+        - "Paraphysoderma sedebokerense"
+        - "Drosophila melanogaster"
+        - "Caenorhabditis elegans"
+        - "Mus musculus"
+        - "Monosiga brevicollis"
+      reason: >-
+        Broadens the zoosporic-fungi side of the comparison across both
+        Chytridiomycota and Blastocladiomycota (hand-picked for genome
+        quality and lineage distinctness, not lineage-proximity ranked),
+        and tests for genes shared between zoosporic fungi and
+        animals/their closest non-animal relative but absent from
+        Dikarya -- not expressible as mode: nearest/trait since the
+        animal species are non-fungal with no lineage overlap with any
+        fungal focal at any scope_rank.
+    outgroup_pool: dikarya_reference_v1
