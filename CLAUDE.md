@@ -70,6 +70,8 @@ NovInvenio/
 │   ├── make_index_report.py       # Self-contained view/<project>/report.html landing page linking the three reports
 │   ├── make_config.py             # Generate a run config CSV from configs/samples.csv by taxon/lineage matching
 │   ├── convert_bfd_samples.py     # Convert a BFD Fungi_BFD samples.csv into a make_config.py-compatible sample pool (config_support/)
+│   ├── build_master_pool.py       # Build config_support/master_pool.csv from Fungi_BFD samples.csv + repr_assignments.tsv (targeted config builder)
+│   ├── build_targeted_configs.py  # Render configs/<focal_short>_<batch>.csv per study in a batches/*.yaml spec (targeted config builder); --link-dir for a main.nf-ready per-batch symlink dir
 │   ├── filter_candidates.py       # (standalone helper — not yet wired into pipeline)
 │   ├── split_fasta.py             # (standalone helper)
 │   └── summarize_clusters.py      # (standalone helper)
@@ -89,6 +91,10 @@ NovInvenio/
 │   │                               #   view/<project>/report.html and view/index.html designs
 │   ├── core_report_template.py    # CORE_HTML_TEMPLATE — the core.html page (single table, no deps)
 │   ├── losses_report_template.py  # LOSSES_HTML_TEMPLATE — the losses.html page (single table, no deps)
+│   ├── lineage.py                 # RANK_NAMES + lineage_match() — deepest shared lineage-rank name between two species
+│   ├── master_pool.py             # MasterSample/load_master_pool(); make_short()/assign_shorts() (canonical Short-assignment rule, imported by bin/convert_bfd_samples.py); load_representative_picks() (repr_assignments.tsv join)
+│   ├── trait_data.py              # load_trait_definitions()/load_traits() — config_support/traits/ YAML+CSV loader with undeclared-(trait,value) and none-coexistence hard errors
+│   ├── targeted_selection.py      # select_nearest()/select_trait() — lineage-proximity-ranked ingroup-companion picking for bin/build_targeted_configs.py
 │   └── Helpers.groovy             # Helpers.projectName(params) — derives results subdirectory name
 ├── tests/
 │   ├── conftest.py
@@ -98,10 +104,15 @@ NovInvenio/
 ├── configs/
 │   ├── samples.csv                 # Master species pool (Species,Strain,Protein,DNA,Short,Lineage) — source for bin/make_config.py
 │   ├── pezizo4_asco.csv            # Main analysis config (Pezizomycotina ingroup, Asco outgroup)
-│   └── modelorgs.yaml             # Model organism YAML for gene name lookups
+│   ├── modelorgs.yaml             # Model organism YAML for gene name lookups
+│   └── batches/                   # YAML batch specs for bin/build_targeted_configs.py — one focal
+│       │                          #   species + companion-picker + shared outgroup pool per study
+│       └── mucoromycota_focal_v1.yaml  # Worked example: Mucor/Phycomyces/Basidiobolus/Batrachochytrium vs a shared Dikarya reference pool
 ├── config_support/                # Intermediate sample pools, not run configs — e.g. bin/convert_bfd_samples.py
 │                                   #   output, passed back into make_config.py's --samples. Never passed
-│                                   #   directly as --config to main.nf.
+│                                   #   directly as --config to main.nf. Also holds master_pool.csv
+│                                   #   (bin/build_master_pool.py output) and traits/ (config_support/traits/,
+│                                   #   see bin/build_targeted_configs.py).
 └── results/
     └── <config_basename>/
         ├── search_cache/          # storeDir — pairwise + self-hit raw outputs, never re-run
@@ -484,6 +495,10 @@ the first outward-facing action (issue creation, push, PR) unless already told t
   - `model_organisms.py` — `ModelOrgAnnotator`; three ID-transform strategies: `direct`, `strip`, `diamond_fasta`.
   - `report_data.py` — `build_payload()` → the report's embedded JSON; `ROW_FIELDS` names the row array layout.
   - `report_template.py` — `HTML_TEMPLATE`; substitutes `__PROJECT_TITLE__` and `/*__PAYLOAD__*/`.
+  - `lineage.py` — `RANK_NAMES`; `lineage_match()` (deepest shared rank NAME between two fixed-width lineages, missing-rank-safe).
+  - `master_pool.py` — `MasterSample`/`load_master_pool()`; `make_short()` (the canonical Short-assignment rule — `bin/convert_bfd_samples.py` imports it rather than keeping its own copy) + `assign_shorts()`; `load_representative_picks()` (repr_assignments.tsv join, hard-errors on zero/multiple `is_representative=True` rows for a species the table actually covers).
+  - `trait_data.py` — `load_trait_definitions()`/`load_traits()`; hard-errors on an undeclared `(trait, value)` pair or a `none` value coexisting with another value for the same species+trait.
+  - `targeted_selection.py` — `select_nearest()`/`select_trait()`; `DEFAULT_SCOPE_RANK`.
 - Keep `lib/` free of I/O side effects at import time.
 
 ---
@@ -847,6 +862,61 @@ nextflow run main.nf \
 Same `--pfam_hmm`/`--swissprot_dmnd`/`--modelorgs_config`/report flags as the other two
 `--cluster_tool` paths apply. `--ingroup_min_frac`/`--hmm_presence_evalue`/
 `--hmm_presence_cov` are shared with `--cluster_tool mmseqs` and mean the same thing here.
+
+## Targeted Config Builder (`bin/build_master_pool.py` + `bin/build_targeted_configs.py`)
+
+Generates `configs/<name>.csv` run configs for the common "many small, targeted
+comparative-genomics runs" usage pattern (a focal species + a few close relatives vs. a
+shared, reusable outgroup pool) directly from BFD data, instead of hand-editing a config
+CSV. Full design in `docs/superpowers/specs/2026-09-05-config-builder-design.md`.
+
+1. **`bin/build_master_pool.py`** builds `config_support/master_pool.csv`
+   (`Species,Strain,ProteinPath,DNAPath,Lineage,NCBI_TaxID`, absolute FASTA paths, one row
+   per species) by joining `Fungi_BFD/samples.csv` against
+   `_reuse_assignments/repr_assignments.tsv`'s per-species representative-assembly pick.
+   A species with no row at all in `repr_assignments.tsv` is normal (that table only covers
+   the annotated/ANI-assessed subset) and is skipped with a stderr count, not an error; a
+   species the table *does* cover but with zero or more than one `is_representative=True`
+   row is a hard error (a real data-integrity problem); a representative whose annotation
+   FASTAs aren't found on disk is skipped with a stderr warning (mirrors
+   `bin/convert_bfd_samples.py`'s existing missing-annotation-dir skip pattern); a
+   representative dirname absent from `samples.csv` entirely is a hard error (the two files
+   disagree). `lib/master_pool.py` holds `MasterSample`/`load_master_pool()`,
+   `make_short()`/`assign_shorts()` (Short assigned at render time from the FULL pool, not
+   stored — see the design doc's "Short is not stored in the master pool"), and
+   `load_representative_picks()`.
+2. **`bin/build_targeted_configs.py`** renders one `configs/<focal_short>_<batch>.csv` +
+   `.map.tsv` (Species→Short trace) per `studies[]` entry in a `configs/batches/*.yaml`
+   batch spec (see `configs/batches/mucoromycota_focal_v1.yaml` for a real, runnable
+   example). Each study picks a focal species' ingroup companions via `mode: nearest`
+   (lineage-proximity-ranked, `lib/targeted_selection.py::select_nearest`), `mode: trait`
+   (same ranking, filtered to a `(trait, value)` pair from `config_support/traits/` —
+   `select_trait`), or `mode: explicit` (a literal, hand-picked list — the escape hatch when
+   neither automated mode finds a sensible candidate, e.g. a focal species that is the only
+   member of its whole phylum with `repr_assignments.tsv` coverage). A named
+   `outgroup_pools` entry is reused across studies and is always excluded from that study's
+   ingroup candidate pool. Pass `--link-dir <dir>` to also symlink every selected species'
+   Protein/DNA files into `<dir>/pep/` and `<dir>/dna/` and write **basenames** (not the
+   master pool's absolute paths) into the rendered config — this is what makes the config
+   directly usable as `--data_dir <dir>` with `main.nf` (`main.nf`'s `resolve_fa()` cannot
+   resolve an absolute path). Omitting `--link-dir` writes the master pool's absolute paths
+   straight through, which is not `main.nf`-ready.
+
+```bash
+bin/build_master_pool.py \
+    --bfd-samples /bigdata/stajichlab/shared/projects/BFD/Fungi_BFD/samples.csv \
+    --annotation-dir /bigdata/stajichlab/shared/projects/BFD/Fungi_BFD/genome_annotation \
+    --repr-assignments /bigdata/stajichlab/shared/projects/BFD/Fungi_BFD_runs/genome_annotation/_reuse_assignments/repr_assignments.tsv \
+    --output config_support/master_pool.csv
+
+bin/build_targeted_configs.py \
+    --master-pool config_support/master_pool.csv \
+    --trait-definitions config_support/traits/trait_definitions.yaml \
+    --traits config_support/traits/traits.csv \
+    --batch-spec configs/batches/mucoromycota_focal_v1.yaml \
+    --outdir configs/ \
+    --link-dir data/mucoromycota_focal_v1
+```
 
 ## Model Organisms YAML Format (`configs/modelorgs.yaml`)
 
