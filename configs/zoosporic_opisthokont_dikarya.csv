@@ -1,8 +1,12 @@
 GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup,NCBI_TaxID,SourceDB
 IN,Batrachochytrium dendrobatidis,CLFT044,Batrachochytrium_dendrobatidis_CLFT044.proteins.fa,Batrachochytrium_dendrobatidis_CLFT044.scaffolds.fa,Batrdend,Zoosporic,109871,
 IN,Spizellomyces punctatus,DAOM BR117,Spizellomyces_punctatus_DAOM_BR117.proteins.fasta,Spizellomyces_punctatus_DAOM_BR117.scaffolds.fa,Spizpunc,Zoosporic,645134,
-IN,Drosophila melanogaster,ISO1,Drosophila_melanogaster.proteins.collapsed.fa,,Drosmela,Animal,7227,ncbipep
-IN,Mus musculus,C57BL/6J,Mus_musculus.proteins.collapsed.fa,,Musmusc,Animal,10090,ncbipep
+IN,Synchytrium endobioticum,MB42,Synchytrium_endobioticum_MB42.proteins.fa,Synchytrium_endobioticum_MB42.scaffolds.fa,Syncendo,Zoosporic,286115,
+IN,Chytriomyces hyalinus,ARG121,Chytriomyces_hyalinus_ARG121.proteins.fa,Chytriomyces_hyalinus_ARG121.scaffolds.fa,Chythyal,Zoosporic,4814,
+IN,Catenaria anguillulae,PL171,Catenaria_anguillulae_PL171.proteins.fa,Catenaria_anguillulae_PL171.scaffolds.fa,Cateangu,Zoosporic,765915,
+IN,Paraphysoderma sedebokerense,JEL821,Paraphysoderma_sedebokerense_JEL821.proteins.fa,Paraphysoderma_sedebokerense_JEL821.scaffolds.fa,Parasede,Zoosporic,1500003,
+NEAR_IN,Drosophila melanogaster,ISO1,Drosophila_melanogaster.proteins.collapsed.fa,,Drosmela,Animal,7227,ncbipep
+NEAR_IN,Mus musculus,C57BL/6J,Mus_musculus.proteins.collapsed.fa,,Musmusc,Animal,10090,ncbipep
 IN,Monosiga brevicollis,MX1,Monosiga_brevicollis.proteins.collapsed.fa,,Monobrev,Choano,81824,ncbipep
 OUT,Saccharomyces cerevisiae,SX6,Saccharomyces_cerevisiae_SX6.proteins.fa,Saccharomyces_cerevisiae_SX6.scaffolds.fa,Sacccere,Dikarya,4932,fungidb
 OUT,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.proteins.fa,Neurospora_crassa_OR74A.scaffolds.fa,Neurcras,Dikarya,367110,fungidb
