@@ -38,3 +38,6 @@ docs/_build/
 .claude/settings.local.json
 .claude/last-session.md
 .claude/active-session-log.tmp
+
+# subagent-driven-development worktrees
+.worktrees/
