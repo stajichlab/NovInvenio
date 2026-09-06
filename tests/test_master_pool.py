@@ -1,7 +1,5 @@
 import pytest
 from master_pool import (
-    MASTER_POOL_FIELDS,
-    MasterSample,
     assign_shorts,
     load_master_pool,
     load_representative_picks,
