@@ -46,3 +46,5 @@ docs/_build/
 
 # subagent-driven-development worktrees
 .worktrees/
+# mycelium tool state (locks are per-run, not source)
+.mycelium/locks/
