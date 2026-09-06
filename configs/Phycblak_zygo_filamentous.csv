@@ -1,0 +1,8 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup,NCBI_TaxID,SourceDB
+IN,Phycomyces blakesleeanus,UBC21,Phycomyces_blakesleeanus_UBC21.proteins.fa,Phycomyces_blakesleeanus_UBC21.scaffolds.fa,Phycblak,,4837,
+IN,Phycomyces nitens,YXQ0117,Phycomyces_nitens_YXQ0117.proteins.fa,Phycomyces_nitens_YXQ0117.scaffolds.fa,Phycnite,Phycomyces,269771,
+IN,Actinomucor elegans,JCM 22485,Actinomucor_elegans_JCM_22485.proteins.fa,Actinomucor_elegans_JCM_22485.scaffolds.fa,Actieleg,Mucorales,64647,
+IN,Backusella australiensis,UoMAU90,Backusella_australiensis_UoMAU90.proteins.fa,Backusella_australiensis_UoMAU90.scaffolds.fa,Backaust,Mucorales,2583354,
+OUT,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.proteins.fa,Neurospora_crassa_OR74A.scaffolds.fa,Neurcras,Neurospora,367110,fungidb
+OUT,Aspergillus nidulans,5,Aspergillus_nidulans_5.proteins.fa,Aspergillus_nidulans_5.scaffolds.fa,Aspenidu,Aspergillus,162425,fungidb
+OUT,Coprinopsis cinerea,okayama7-130,Coprinopsis_cinerea_okayama7-130.proteins.fa,Coprinopsis_cinerea_okayama7-130.scaffolds.fa,Coprcine,Coprinopsis,240176,

@@ -1,0 +1,10 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup,NCBI_TaxID,SourceDB
+IN,Cryptococcus neoformans,T4,Cryptococcus_neoformans_T4.proteins.fa,Cryptococcus_neoformans_T4.scaffolds.fa,Crypneof,,5207,fungidb
+IN,Cryptococcus amylolentus,CBS 6039,Cryptococcus_amylolentus_CBS_6039.proteins.fa,Cryptococcus_amylolentus_CBS_6039.scaffolds.fa,Crypamyl,Cryptococcus,1295533,
+IN,Cryptococcus bacillisporus,CA1280,Cryptococcus_bacillisporus_CA1280.proteins.fa,Cryptococcus_bacillisporus_CA1280.scaffolds.fa,Crypbaci,Cryptococcus,1296109,
+IN,Cryptococcus deneoformans,B-3501A,Cryptococcus_deneoformans_B-3501A.proteins.fa,Cryptococcus_deneoformans_B-3501A.scaffolds.fa,Crypdene,Cryptococcus,283643,
+OUT,Saccharomyces cerevisiae,SX6,Saccharomyces_cerevisiae_SX6.proteins.fa,Saccharomyces_cerevisiae_SX6.scaffolds.fa,Sacccere,Saccharomyces,4932,fungidb
+OUT,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.proteins.fa,Neurospora_crassa_OR74A.scaffolds.fa,Neurcras,Neurospora,367110,fungidb
+OUT,Aspergillus nidulans,5,Aspergillus_nidulans_5.proteins.fa,Aspergillus_nidulans_5.scaffolds.fa,Aspenidu,Aspergillus,162425,fungidb
+OUT,Schizosaccharomyces pombe,JB918,Schizosaccharomyces_pombe_JB918.proteins.fa,Schizosaccharomyces_pombe_JB918.scaffolds.fa,Schipomb,Schizosaccharomyces,4896,fungidb
+OUT,Coprinopsis cinerea,okayama7-130,Coprinopsis_cinerea_okayama7-130.proteins.fa,Coprinopsis_cinerea_okayama7-130.scaffolds.fa,Coprcine,Coprinopsis,240176,

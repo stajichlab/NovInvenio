@@ -1,0 +1,11 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup,NCBI_TaxID,SourceDB
+IN,Batrachochytrium dendrobatidis,CLFT044,Batrachochytrium_dendrobatidis_CLFT044.proteins.fa,Batrachochytrium_dendrobatidis_CLFT044.scaffolds.fa,Batrdend,Zoosporic,109871,
+IN,Spizellomyces punctatus,DAOM BR117,Spizellomyces_punctatus_DAOM_BR117.proteins.fasta,Spizellomyces_punctatus_DAOM_BR117.scaffolds.fa,Spizpunc,Zoosporic,645134,
+IN,Drosophila melanogaster,ISO1,Drosophila_melanogaster.proteins.collapsed.fa,,Drosmela,Animal,7227,ncbipep
+IN,Mus musculus,C57BL/6J,Mus_musculus.proteins.collapsed.fa,,Musmusc,Animal,10090,ncbipep
+IN,Monosiga brevicollis,MX1,Monosiga_brevicollis.proteins.collapsed.fa,,Monobrev,Choano,81824,ncbipep
+OUT,Saccharomyces cerevisiae,SX6,Saccharomyces_cerevisiae_SX6.proteins.fa,Saccharomyces_cerevisiae_SX6.scaffolds.fa,Sacccere,Dikarya,4932,fungidb
+OUT,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.proteins.fa,Neurospora_crassa_OR74A.scaffolds.fa,Neurcras,Dikarya,367110,fungidb
+OUT,Aspergillus nidulans,5,Aspergillus_nidulans_5.proteins.fa,Aspergillus_nidulans_5.scaffolds.fa,Aspenidu,Dikarya,162425,fungidb
+OUT,Schizosaccharomyces pombe,JB918,Schizosaccharomyces_pombe_JB918.proteins.fa,Schizosaccharomyces_pombe_JB918.scaffolds.fa,Schipomb,Dikarya,4896,fungidb
+OUT,Coprinopsis cinerea,okayama7-130,Coprinopsis_cinerea_okayama7-130.proteins.fa,Coprinopsis_cinerea_okayama7-130.scaffolds.fa,Coprcine,Dikarya,240176,
