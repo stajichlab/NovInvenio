@@ -1,0 +1,27 @@
+# HYPOTHESIS: the pathogenic Cryptococcus clade (C. neoformans/gattii species
+# complex) carries genes -- candidate virulence factors -- not found broadly
+# across Dikarya. mode: nearest picks the closest Cryptococcaceae relatives
+# (both other pathogens and environmental Cryptococcus/Kwoniella species) as
+# ingroup companions, contrasted against a small reference panel spanning the
+# rest of Dikarya (Ascomycota yeasts + filamentous fungi, and a non-Tremellomycetes
+# Basidiomycete) so a "present here, absent broadly" call isn't just an
+# Ascomycota-vs-Basidiomycota artifact.
+
+batch: pathogen_cryptococcus
+
+outgroup_pools:
+  dikarya_reference_v1:
+    members:
+      - "Saccharomyces cerevisiae"
+      - "Neurospora crassa"
+      - "Aspergillus nidulans"
+      - "Schizosaccharomyces pombe"
+      - "Coprinopsis cinerea"
+
+studies:
+  - focal: Cryptococcus neoformans
+    ingroup_extra:
+      mode: nearest
+      scope_rank: FAMILY
+      n: 3
+    outgroup_pool: dikarya_reference_v1

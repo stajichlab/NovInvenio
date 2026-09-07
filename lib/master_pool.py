@@ -4,6 +4,8 @@ bin/build_master_pool.py), with absolute Protein/DNA paths and a
 fixed-width Lineage. See docs/superpowers/specs/2026-09-05-config-builder-design.md
 ("Data model" -> "Master pool").
 """
+from __future__ import annotations
+
 import csv
 import re
 from dataclasses import dataclass
