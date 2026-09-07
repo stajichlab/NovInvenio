@@ -81,7 +81,8 @@ nextflow run main.nf \
 ```
 
 Family-definition knobs (sensible defaults ship; sweep them for a new clade with
-`bin/run_param_sweep.sh`): `--family_min_seq_id` (0.3), `--family_cov` (0.8),
+a launcher like `NovInvenio_Investigations/legacy/novinvenio_scripts/run_param_sweep.sh`):
+`--family_min_seq_id` (0.3), `--family_cov` (0.8),
 `--hmm_presence_evalue` (1e-3), `--hmm_presence_cov` (0.5), and `--family_chunk_size`
 (200 — how many families each parallel profile-build task handles).
 
@@ -257,8 +258,9 @@ nextflow run stajichlab/NovInvenio \
     --modelorgs_config configs/modelorgs.yaml
 ```
 
-`run.sh` sets `NXF_SINGULARITY_CACHEDIR` (if not already set in your
-environment) so the SIF is pulled/converted once instead of once per SLURM
+Set `NXF_SINGULARITY_CACHEDIR` in your environment (or in your own launcher
+script — study-specific launchers now live in `NovInvenio_Investigations`,
+not this repo) so the SIF is pulled/converted once instead of once per SLURM
 array task. `conf/ucr_hpcc_slurm.config` adds `--bind /bigdata` to
 `runOptions` — required because `--pfam_hmm`,
 `--swissprot_dmnd`, `--modelorgs_config`, and `--data_dir` are passed to
@@ -749,8 +751,9 @@ Nextflow stages `bin/`/`lib/` live from wherever `main.nf` was launched, not
 from a container or a repo snapshot — do **not** `git checkout`/`merge`/
 `rebase` in the repo root while any run (containerized or not) is still
 using it; use a separate clone/worktree for that instead. See
-`bin/run_param_sweep.sh` and the `run_*_refresh.sh` scripts (repo root) for
-worked examples of this pattern, and `.living/learnings.md`'s "A live-checkout
+`NovInvenio_Investigations/legacy/novinvenio_scripts/` (study-specific
+launchers, migrated out of this repo — it stays code-only) for worked
+examples of this pattern, and `.living/learnings.md`'s "A live-checkout
 `-profile slurm` job reads whatever `bin/`/`lib/` is on disk *right now*"
 entry for the incident that surfaced it.
 
