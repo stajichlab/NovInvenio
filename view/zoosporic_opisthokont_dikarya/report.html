@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NovInvenio reports</title>
+<title>zoosporic_opisthokont_dikarya — NovInvenio reports</title>
 <style>
   :root {
     color-scheme: light;
@@ -321,8 +321,8 @@
 <div class="wrap">
   <header class="top">
     <div class="titles">
-      <h1>NovInvenio reports</h1>
-      <p class="sub">Lineage-specific gene discovery across fungal genomes</p>
+      <h1>zoosporic_opisthokont_dikarya — NovInvenio reports</h1>
+      <p class="sub">Lineage-specific gene analysis · one folder, three interactive reports</p>
     </div>
     <label class="sr-only" for="skin">Colour skin</label>
     <select id="skin" title="Colour skin">
@@ -335,104 +335,59 @@
   </header>
 
   <section class="card">
-    <p class="intro">NovInvenio identifies lineage-specific genes — proteins conserved across a defined ingroup but absent from every outgroup proteome — by combining pairwise protein search, gene-family clustering, TBLASTN validation against outgroup genomes, and Pfam/SwissProt annotation. Each project below is one analysis run; open its summary for the species and thresholds used.</p>
+    <h2 class="card-title">Reports</h2>
+    <p class="card-note">Each page is self-contained — open it directly, no network needed.</p>
+    <div class="cards">
+      <a class="card-link" href="novelties.html"><span class="card-link-title">Novelty candidates</span><span class="card-link-desc">lineage-specific genes</span><span class="card-link-meta">41,951 rows</span></a>
+      <a class="card-link" href="core.html"><span class="card-link-title">Core genes</span><span class="card-link-desc">near-universally conserved</span><span class="card-link-meta">6,672 rows</span></a>
+      <a class="card-link" href="losses.html"><span class="card-link-title">Candidate gene losses</span><span class="card-link-desc">conserved in outgroup, lost in ingroup</span><span class="card-link-meta">574 rows</span></a>
+    </div>
   </section>
 
   <section class="card">
-    <h2 class="card-title">Projects</h2>
-    <p class="card-note">One analysis run each. Counts come from the reports themselves.</p>
-    <div class="cards">
-      <div class="card-wrap">
-      <a class="card-link" href="Antarctolithica_obscura/report.html"><span class="card-link-title">Antarctolithica obscura</span><span class="card-link-desc">2 ingroup · 11 outgroup proteomes</span><span class="card-link-meta">8,580 novelty candidates · 1,844 core genes · 1,697 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="Antarctolithica_obscura/novelties.html">novelties</a>
-        <a href="Antarctolithica_obscura/core.html">core</a>
-        <a href="Antarctolithica_obscura/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="Chaeto_subset/report.html"><span class="card-link-title">Chaeto subset</span><span class="card-link-desc">21 ingroup · 32 outgroup proteomes</span><span class="card-link-meta">157,180 novelty candidates · 68,352 core genes · 205 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="Chaeto_subset/novelties.html">novelties</a>
-        <a href="Chaeto_subset/core.html">core</a>
-        <a href="Chaeto_subset/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="pezizo4/report.html"><span class="card-link-title">pezizo4</span><span class="card-link-desc">4 ingroup · 3 outgroup proteomes</span><span class="card-link-meta">21,521 novelty candidates · 4,771 core genes · 153 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="pezizo4/novelties.html">novelties</a>
-        <a href="pezizo4/core.html">core</a>
-        <a href="pezizo4/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="pezizo5/report.html"><span class="card-link-title">pezizo5</span><span class="card-link-desc">5 ingroup · 6 outgroup proteomes</span><span class="card-link-meta">39,048 novelty candidates · 13,591 core genes · 132 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="pezizo5/novelties.html">novelties</a>
-        <a href="pezizo5/core.html">core</a>
-        <a href="pezizo5/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="sordario/report.html"><span class="card-link-title">sordario</span><span class="card-link-desc"></span><span class="card-link-meta">39,513 novelty candidates · 0 core genes · 0 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="sordario/novelties.html">novelties</a>
-        <a href="sordario/core.html">core</a>
-        <a href="sordario/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="sordario_pairwise_diamond/report.html"><span class="card-link-title">sordario pairwise diamond</span><span class="card-link-desc">4 ingroup · 8 outgroup proteomes</span><span class="card-link-meta">27,008 novelty candidates · 4,984 core genes · 122 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="sordario_pairwise_diamond/novelties.html">novelties</a>
-        <a href="sordario_pairwise_diamond/core.html">core</a>
-        <a href="sordario_pairwise_diamond/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r0/report.html"><span class="card-link-title">sweep pezizo5 coverage id0.3 c0.8 e1e 3 hc0.3 r0</span><span class="card-link-desc">5 ingroup · 6 outgroup proteomes</span><span class="card-link-meta">30,758 novelty candidates · 15,622 core genes · 21 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r0/novelties.html">novelties</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r0/core.html">core</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r0/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r100/report.html"><span class="card-link-title">sweep pezizo5 coverage id0.3 c0.8 e1e 3 hc0.3 r100</span><span class="card-link-desc">5 ingroup · 6 outgroup proteomes</span><span class="card-link-meta">30,758 novelty candidates · 17,255 core genes · 31 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r100/novelties.html">novelties</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r100/core.html">core</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.3_r100/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r0/report.html"><span class="card-link-title">sweep pezizo5 coverage id0.3 c0.8 e1e 3 hc0.5 r0</span><span class="card-link-desc">5 ingroup · 6 outgroup proteomes</span><span class="card-link-meta">30,758 novelty candidates · 12,229 core genes · 26 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r0/novelties.html">novelties</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r0/core.html">core</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r0/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r100/report.html"><span class="card-link-title">sweep pezizo5 coverage id0.3 c0.8 e1e 3 hc0.5 r100</span><span class="card-link-desc">5 ingroup · 6 outgroup proteomes</span><span class="card-link-meta">30,758 novelty candidates · 16,988 core genes · 31 candidate gene losses · updated 2026-09-05</span></a>
-      <div class="subpages">
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r100/novelties.html">novelties</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r100/core.html">core</a>
-        <a href="sweep_pezizo5_coverage_id0.3_c0.8_e1e-3_hc0.5_r100/losses.html">losses</a>
-      </div>
-      </div>
-      <div class="card-wrap">
-      <a class="card-link" href="zoosporic_opisthokont_dikarya/report.html"><span class="card-link-title">zoosporic opisthokont dikarya</span><span class="card-link-desc">7 ingroup · 5 outgroup proteomes</span><span class="card-link-meta">41,951 novelty candidates · 6,672 core genes · 574 candidate gene losses · updated 2026-09-06</span></a>
-      <div class="subpages">
-        <a href="zoosporic_opisthokont_dikarya/novelties.html">novelties</a>
-        <a href="zoosporic_opisthokont_dikarya/core.html">core</a>
-        <a href="zoosporic_opisthokont_dikarya/losses.html">losses</a>
-      </div>
-      </div>
+    <h2 class="card-title">Run summary</h2>
+    <p class="card-note">Reconstructed from the data embedded in the reports in this folder — no config CSV or pipeline rerun needed.</p>
+    <div class="tiles">
+      <div><div class="tile-label">Ingroup proteomes</div><div class="tile-value">7</div></div>
+      <div><div class="tile-label">Outgroup proteomes</div><div class="tile-value">5</div></div>
+      <div><div class="tile-label">Ingroup min fraction</div><div class="tile-value">0.75</div></div>
+      <div><div class="tile-label">Outgroup min fraction</div><div class="tile-value">0.75</div></div>
+      <div><div class="tile-label">Loss ingroup max fraction</div><div class="tile-value">0</div></div>
+      <div><div class="tile-label">Core min fraction</div><div class="tile-value">0.95</div></div>
     </div>
   </section>
-  <footer>Regenerated 2026-09-06 20:08 by generate_index.py</footer>
+
+  <div class="groups">
+    <section class="card">
+      <h2 class="card-title">Ingroup (7)</h2>
+      <p class="card-note">Genes are called lineage-specific relative to this clade.</p>
+<table class="data">
+<thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
+<tbody>
+<tr><td class="mono">Batrdend</td><td>Batrachochytrium dendrobatidis CLFT044</td><td>Zoosporic</td></tr>
+<tr><td class="mono">Cateangu</td><td>Catenaria anguillulae PL171</td><td>Zoosporic</td></tr>
+<tr><td class="mono">Chythyal</td><td>Chytriomyces hyalinus ARG121</td><td>Zoosporic</td></tr>
+<tr><td class="mono">Monobrev</td><td>Monosiga brevicollis MX1</td><td>Choano</td></tr>
+<tr><td class="mono">Parasede</td><td>Paraphysoderma sedebokerense JEL821</td><td>Zoosporic</td></tr>
+<tr><td class="mono">Spizpunc</td><td>Spizellomyces punctatus DAOM BR117</td><td>Zoosporic</td></tr>
+<tr><td class="mono">Syncendo</td><td>Synchytrium endobioticum MB42</td><td>Zoosporic</td></tr>
+</tbody></table>
+    </section>
+    <section class="card">
+      <h2 class="card-title">Outgroup (5)</h2>
+      <p class="card-note">Background proteomes used to exclude broadly conserved genes.</p>
+<table class="data">
+<thead><tr><th scope="col">Short</th><th scope="col">Species</th><th scope="col">Taxon group</th></tr></thead>
+<tbody>
+<tr><td class="mono">Aspenidu</td><td>Aspergillus nidulans 5</td><td>Dikarya</td></tr>
+<tr><td class="mono">Coprcine</td><td>Coprinopsis cinerea okayama7-130</td><td>Dikarya</td></tr>
+<tr><td class="mono">Neurcras</td><td>Neurospora crassa OR74A</td><td>Dikarya</td></tr>
+<tr><td class="mono">Sacccere</td><td>Saccharomyces cerevisiae SX6</td><td>Dikarya</td></tr>
+<tr><td class="mono">Schipomb</td><td>Schizosaccharomyces pombe JB918</td><td>Dikarya</td></tr>
+</tbody></table>
+    </section>
+  </div>
+  <footer>Generated 2026-09-06 20:08 by generate_index.py</footer>
 
 </div>
 <script>
