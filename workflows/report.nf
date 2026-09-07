@@ -68,7 +68,7 @@ workflow REPORT {
 process MAKE_PDF_REPORT {
     label 'low_cpu'
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
-    publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
+    publishDir { "${Helpers.viewDir(params, workflow.launchDir)}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
     path(annotated_matrix)
@@ -214,7 +214,7 @@ process MAKE_LOSSES_REPORT {
 process COLLATE_REPORTS {
     label 'low_cpu'
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
-    publishDir { "view/${Helpers.projectName(params)}" }, mode: 'copy'
+    publishDir { "${Helpers.viewDir(params, workflow.launchDir)}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
     path(novelties_html)

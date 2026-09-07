@@ -13,4 +13,18 @@ class Helpers {
         if (params.config)  return new File(params.config.toString()).name.replaceFirst(/\.[^.]+$/, '')
         return 'output'
     }
+
+    /**
+     * Return the absolute directory that view/<project> reports should publish under:
+     * the "view" sibling of params.outdir, resolved against the launch directory if
+     * params.outdir is relative. A plain relative "view/..." publishDir instead resolves
+     * against whatever directory `nextflow run` was launched from, which silently diverges
+     * from params.outdir whenever a caller launches from an isolated subdirectory (see
+     * the isolated-launch-dir pattern in the top-level run_*.sh scripts / README).
+     */
+    static String viewDir(params, launchDir) {
+        def outdirFile = new File(params.outdir.toString())
+        def outdirAbs = outdirFile.isAbsolute() ? outdirFile : new File(launchDir.toString(), outdirFile.path)
+        return new File(outdirAbs.canonicalFile.parentFile, 'view').path
+    }
 }
