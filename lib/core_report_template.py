@@ -17,7 +17,10 @@ from report_common import (
     BASE_PAGE_CSS,
     DOWNLOAD_JS,
     EL_HELPER_JS,
+    FAVICON_LINK_HTML,
     LINKOUT_HELPERS_JS,
+    LOGO_CSS,
+    LOGO_IMG_HTML,
     SKIN_BOOT_JS,
     SKIN_PICKER_HTML,
     SKIN_PICKER_JS,
@@ -30,14 +33,16 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__PROJECT_TITLE__ — NovInvenio core genes</title>
+""" + FAVICON_LINK_HTML + r"""
 <style>
-""" + SKIN_VARS_CSS + BASE_PAGE_CSS + r"""
+""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + r"""
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
+    """ + LOGO_IMG_HTML + r"""
     <div class="titles">
       <h1 id="title"></h1>
       <p class="sub" id="subtitle"></p>

@@ -20,11 +20,43 @@ docstring for the __PROJECT_TITLE__ / /*__PAYLOAD__*/ substitution convention)
 -- nothing here does its own token substitution.
 """
 
+import base64
+from pathlib import Path
+
 from skins import skin_boot_js, skin_picker_html, skin_picker_js, skins_css
 
 # The full skin registry as CSS. Named for what it is now; the old
 # THEME_VARS_CSS spelling is gone along with the light/dark-only model.
 SKIN_VARS_CSS = skins_css()
+
+# Logo/favicon, embedded as base64 data URIs -- these pages must open from
+# file:// with no network access, so a relative path to assets/logo/ (which
+# works fine for NII's own docs/ site, a normal directory tree) won't do here;
+# a data: URI is the only way to carry the image inside a single self-contained
+# HTML file. Read from the actual asset files (not hardcoded as a giant string
+# literal) so the source-of-truth stays the PNG/ICO in assets/logo/, not a
+# second copy baked into this module.
+_ASSETS_LOGO_DIR = Path(__file__).resolve().parent.parent / "assets" / "logo"
+
+
+def _data_uri(filename: str, mime: str) -> str:
+    data = (_ASSETS_LOGO_DIR / filename).read_bytes()
+    return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+
+
+FAVICON_DATA_URI = _data_uri("NI_logo_favicon.ico", "image/x-icon")
+LOGO_DATA_URI = _data_uri("NI_logo_card-96.png", "image/png")
+
+# <link rel="icon"> tag, ready to drop into any page's <head>.
+FAVICON_LINK_HTML = f'<link rel="icon" href="{FAVICON_DATA_URI}">'
+
+# Small header logo, sized to sit next to the h1 inside header.top .titles'
+# sibling position (see LOGO_CSS below and each template's <header class="top">).
+LOGO_IMG_HTML = f'<img class="logo" src="{LOGO_DATA_URI}" alt="NovInvenio logo">'
+
+LOGO_CSS = r"""
+  header.top .logo { width: 40px; height: 40px; border-radius: 8px; flex: 0 0 auto; }
+"""
 
 # <head> snippet -- must run before first paint so a stored skin choice does
 # not flash the default palette. Wrap in <script>...</script> at the call site.

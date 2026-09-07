@@ -20,6 +20,9 @@ import html
 
 from report_common import (
     BASE_PAGE_CSS,
+    FAVICON_LINK_HTML,
+    LOGO_CSS,
+    LOGO_IMG_HTML,
     SKIN_BOOT_JS,
     SKIN_PICKER_HTML,
     SKIN_PICKER_JS,
@@ -66,7 +69,8 @@ def _page(title: str, body: str) -> str:
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f'<title>{html.escape(title)}</title>\n'
-        '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + _EXTRA_CSS + '</style>\n'
+        + FAVICON_LINK_HTML + '\n'
+        '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + _EXTRA_CSS + '</style>\n'
         '<script>' + SKIN_BOOT_JS + '</script>\n'
         '</head>\n<body>\n<div class="wrap">\n'
         + body +
@@ -79,6 +83,7 @@ def _page(title: str, body: str) -> str:
 def _header(title: str, subtitle: str) -> str:
     return (
         '  <header class="top">\n'
+        + LOGO_IMG_HTML + '\n'
         '    <div class="titles">\n'
         f'      <h1>{html.escape(title)}</h1>\n'
         f'      <p class="sub">{html.escape(subtitle)}</p>\n'

@@ -22,7 +22,10 @@ between the three reports.
 
 from report_common import (
     EL_HELPER_JS,
+    FAVICON_LINK_HTML,
     LINKOUT_HELPERS_JS,
+    LOGO_CSS,
+    LOGO_IMG_HTML,
     SKIN_BOOT_JS,
     SKIN_PICKER_HTML,
     SKIN_PICKER_JS,
@@ -35,8 +38,9 @@ HTML_TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__PROJECT_TITLE__ — NovInvenio candidates</title>
+""" + FAVICON_LINK_HTML + r"""
 <style>
-""" + SKIN_VARS_CSS + r"""
+""" + SKIN_VARS_CSS + LOGO_CSS + r"""
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -281,6 +285,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 <body>
 <div class="wrap">
   <header class="top">
+    """ + LOGO_IMG_HTML + r"""
     <div class="titles">
       <h1 id="title"></h1>
       <p class="sub" id="subtitle"></p>
