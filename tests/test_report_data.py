@@ -473,7 +473,7 @@ def test_core_payload_carries_annotation_columns(core_run_dir, samples):
     F = {n: i for i, n in enumerate(payload['fields'])}
     rows = core_rows_by_id(payload)
     assert rows['core1'][F['gene']] == 'core-gene'
-    assert rows['core1'][F['prod']] == 'essential enzyme'
+    assert payload['descriptions'][rows['core1'][F['prod']]] == 'essential enzyme'
     assert payload['fsources'][rows['core1'][F['fsrc']]] == 'Pfam'
     assert rows['core1'][F['pfam_n']] == 'PF00001.1'
 
@@ -638,7 +638,7 @@ def test_losses_payload_carries_annotation_columns(losses_run_dir, samples):
     F = {n: i for i, n in enumerate(payload['fields'])}
     rows = losses_rows_by_id(payload)
     assert rows['loss1'][F['gene']] == 'ERG-like'
-    assert rows['loss1'][F['prod']] == 'sterol biosynthesis'
+    assert payload['descriptions'][rows['loss1'][F['prod']]] == 'sterol biosynthesis'
     assert payload['fsources'][rows['loss1'][F['fsrc']]] == 'Pfam'
     assert rows['loss1'][F['pfam_n']] == 'p450'
 
@@ -724,9 +724,11 @@ def test_make_report_escapes_a_script_tag_hiding_in_an_annotation(run_dir):
     assert len(payload['rows']) == 5
 
     # The description must survive intact as data — the browser inserts it with
-    # textContent, so it renders as literal text rather than markup.
+    # textContent, so it renders as literal text rather than markup. It's interned
+    # into payload['descriptions'] (see lib/report_data.py's _StringTable), so
+    # resolve each row's index rather than reading the string off the row itself.
     prod = payload['fields'].index('prod')
-    descriptions = [r[prod] for r in payload['rows']]
+    descriptions = [payload['descriptions'][r[prod]] for r in payload['rows'] if r[prod] >= 0]
     assert '</script><script>alert(1)</script>' in descriptions
 
 

@@ -145,7 +145,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   for (var h = 0; h < nRows; h++) {
     var row = ROWS[h];
     var famRep = row[F.fam] >= 0 ? FAMILIES[row[F.fam]].rep : "";
-    HAY[h] = (row[F.id] + " " + row[F.gene] + " " + row[F.prod] + " " +
+    HAY[h] = (row[F.id] + " " + row[F.gene] + " " + fromTable(DATA.descriptions, row[F.prod]) + " " +
               row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
   }
 
@@ -232,7 +232,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       }
     },
     { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
-    { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
+    { label: "Product", get: function (r) { return fromTable(DATA.descriptions, ROWS[r][F.prod]); }, cls: "wrap-cell" },
     { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
     {
       label: "Pfam domains", cls: "wrap-cell",
@@ -342,7 +342,10 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     var row = ROWS[ri];
     var sp = row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null;
 
-    detailEl.appendChild(el("h3", null, row[F.id]));
+    var h3 = el("h3");
+    var upLink = uniprotRecordLinkNode(row[F.id]);
+    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = row[F.id]; }
+    detailEl.appendChild(h3);
     if (sp) {
       detailEl.appendChild(el("div", "species",
         sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short + " · outgroup"));
@@ -388,7 +391,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     }
 
     if (row[F.gene]) detailEl.appendChild(field("Gene name (outgroup)", row[F.gene]));
-    if (row[F.prod]) detailEl.appendChild(field("Product", row[F.prod]));
+    if (row[F.prod] >= 0) detailEl.appendChild(field("Product", DATA.descriptions[row[F.prod]]));
     if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
     if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", uniprotLinkNode(row[F.sprot])));
 
@@ -397,6 +400,22 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(field("Pfam domains (" + pfamCount + ")",
         pfamChipsNode(row[F.pfam_n], row[F.pfam_a], row[F.pfam_e])));
     }
+
+    if (row[F.go] >= 0) {
+      var goStr = DATA.go_sets[row[F.go]];
+      var nGo = goStr.split("|").filter(Boolean).length;
+      detailEl.appendChild(field("GO terms (" + nGo + ")", goChipsNode(goStr)));
+    }
+    if (row[F.ipr] >= 0) {
+      var iprStr = DATA.ipr_sets[row[F.ipr]];
+      var nIpr = iprStr.split("|").filter(Boolean).length;
+      detailEl.appendChild(field("InterPro domains (" + nIpr + ")", interproChipsNode(iprStr)));
+    }
+    if (row[F.ec]) {
+      var nEc = row[F.ec].split(",").filter(Boolean).length;
+      detailEl.appendChild(field("EC number" + (nEc > 1 ? "s" : "") + " (" + nEc + ")", ecChipsNode(row[F.ec])));
+    }
+    if (row[F.af]) detailEl.appendChild(field("Predicted structure", alphafoldLinkNode(row[F.af])));
 
     // External links come from the one shared builder in lib/report_common.py,
     // resolved against the *outgroup* protein since that is where the gene

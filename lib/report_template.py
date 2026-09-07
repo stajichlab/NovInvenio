@@ -487,7 +487,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   for (var h = 0; h < nRows; h++) {
     var row = ROWS[h];
     var famRep = row[F.fam] >= 0 ? FAMILIES[row[F.fam]].rep : "";
-    HAY[h] = (row[F.id] + " " + row[F.gene] + " " + row[F.prod] + " " +
+    HAY[h] = (row[F.id] + " " + row[F.gene] + " " + fromTable(DATA.descriptions, row[F.prod]) + " " +
               row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
   }
 
@@ -733,7 +733,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       var idText = ellipsize(gctx, row[F.id], GUTTER - 100);
       gctx.fillText(idText, 8, y + ROW_H / 2);
 
-      var note = row[F.gene] || row[F.prod] || "";
+      var note = row[F.gene] || fromTable(DATA.descriptions, row[F.prod]) || "";
       if (note) {
         gctx.font = "10px system-ui, -apple-system, 'Segoe UI', sans-serif";
         gctx.fillStyle = P.muted;
@@ -810,7 +810,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     tipEl.appendChild(el("div", "tip-id", row[F.id]));
     if (row[F.gene]) tipEl.appendChild(el("div", "tip-row", "Gene: " + row[F.gene]));
-    if (row[F.prod]) tipEl.appendChild(el("div", "tip-row", row[F.prod]));
+    if (row[F.prod] >= 0) tipEl.appendChild(el("div", "tip-row", DATA.descriptions[row[F.prod]]));
     tipEl.appendChild(el("div", "tip-row",
       "Ingroup " + inN[ri] + "/" + N_IN + " · outgroup " + outN[ri] + "/" + (N_SCORED - N_IN) +
       (TB_GENOMES.length ? " · TBLASTN " + tbN[ri] + "/" + TB_GENOMES.length : "")));
@@ -850,7 +850,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     var row = ROWS[ri];
     var sp = row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null;
 
-    detailEl.appendChild(el("h3", null, row[F.id]));
+    var h3 = el("h3");
+    var upLink = uniprotRecordLinkNode(row[F.id]);
+    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = row[F.id]; }
+    detailEl.appendChild(h3);
     if (sp) {
       detailEl.appendChild(el("div", "species",
         sp.species + (sp.strain ? " " + sp.strain : "") + " · " + sp.short +
@@ -914,7 +917,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     var ctxEvPairs = [];
     PROTEOMES.forEach(function (p, i) {
       var on = row[F.pres].charCodeAt(i) === 49;
-      var ev = rowEv[i] || "";
+      var ev = fmtEvalue(rowEv[i] || "");
       var chip = el("span", "pm " + (on ? "on-pres" : "off"), p.short);
       chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "absent") +
         (p.context ? " (context, not scored)" : "") + (ev ? " (E=" + ev + ")" : "");
@@ -961,7 +964,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     if (row[F.gene]) detailEl.appendChild(field("Gene name", row[F.gene]));
-    if (row[F.prod]) detailEl.appendChild(field("Product", row[F.prod]));
+    if (row[F.prod] >= 0) detailEl.appendChild(field("Product", DATA.descriptions[row[F.prod]]));
     if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
     if (row[F.sprot]) detailEl.appendChild(field("Best SwissProt hit", uniprotLinkNode(row[F.sprot])));
 
@@ -970,6 +973,25 @@ HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(field("Pfam domains (" + nPfam + ")",
         pfamChipsNode(row[F.pfam_n], row[F.pfam_a], row[F.pfam_e])));
     }
+
+    // GO terms / InterPro domains (NII UniProt DR cross-references, see
+    // lib/report_data.py's ROW_FIELDS 'go'/'ipr' docs) -- -1 for matrices not
+    // produced by bin/merge_uniprot_annotations.py.
+    if (row[F.go] >= 0) {
+      var goStr = DATA.go_sets[row[F.go]];
+      var nGo = goStr.split("|").filter(Boolean).length;
+      detailEl.appendChild(field("GO terms (" + nGo + ")", goChipsNode(goStr)));
+    }
+    if (row[F.ipr] >= 0) {
+      var iprStr = DATA.ipr_sets[row[F.ipr]];
+      var nIpr = iprStr.split("|").filter(Boolean).length;
+      detailEl.appendChild(field("InterPro domains (" + nIpr + ")", interproChipsNode(iprStr)));
+    }
+    if (row[F.ec]) {
+      var nEc = row[F.ec].split(",").filter(Boolean).length;
+      detailEl.appendChild(field("EC number" + (nEc > 1 ? "s" : "") + " (" + nEc + ")", ecChipsNode(row[F.ec])));
+    }
+    if (row[F.af]) detailEl.appendChild(field("Predicted structure", alphafoldLinkNode(row[F.af])));
 
     // External links come from the one shared builder in lib/report_common.py
     // so all three reports resolve a protein to the same records. This is the
@@ -1019,7 +1041,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     { label: "Outgroup", get: function (r) { return outN[r] + "/" + (N_SCORED - N_IN); }, cls: "num", sortKey: "outgroup" },
     { label: "TBLASTN", get: function (r) { return TB_GENOMES.length ? tbN[r] + "/" + TB_GENOMES.length : "—"; }, cls: "num", sortKey: "tb" },
     { label: "Gene", get: function (r) { return ROWS[r][F.gene]; } },
-    { label: "Product", get: function (r) { return ROWS[r][F.prod]; }, cls: "wrap-cell" },
+    { label: "Product", get: function (r) { return fromTable(DATA.descriptions, ROWS[r][F.prod]); }, cls: "wrap-cell" },
     { label: "Source of annotation", get: function (r) { return ROWS[r][F.fsrc] >= 0 ? DATA.fsources[ROWS[r][F.fsrc]] : ""; } },
     {
       label: "Pfam domains", cls: "wrap-cell", sortKey: "pfam",

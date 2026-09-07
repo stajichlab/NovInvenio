@@ -241,6 +241,22 @@ LINKOUT_HELPERS_JS = r"""
     a.title = "UniProt " + acc;
     return a;
   }
+  // Resolve an interned-string index (payload['descriptions']/'go_sets'/'ipr_sets' --
+  // -1 for "no value", see lib/report_data.py's _StringTable) back to its string.
+  function fromTable(table, i) {
+    return i >= 0 && table ? (table[i] || "") : "";
+  }
+  // Format a numeric-string E-value to 4 significant figures for display (e.g.
+  // "4.549999999999999e-230" -> "4.550e-230") -- the raw strings survive
+  // float->str round-tripping through the TSV sidecars with full double
+  // precision, which is noise no report reader needs. Returns the input
+  // unchanged if it doesn't parse as a number (defensive; shouldn't happen).
+  function fmtEvalue(ev) {
+    if (!ev) return "";
+    var n = Number(ev);
+    if (!isFinite(n)) return ev;
+    return n.toPrecision(4);
+  }
   // Pfam names as a chip row (detail panel) -- accession + optional E-value in the
   // link title, same InterPro/Pfam target used by every report's "Pfam domains" field.
   function pfamChipsNode(pfamNames, pfamAccs, pfamEvs) {
@@ -250,7 +266,7 @@ LINKOUT_HELPERS_JS = r"""
     var evs = pfamEvs ? pfamEvs.split(",") : [];
     names.forEach(function (n, i) {
       var acc = (accs[i] || "").split(".")[0];
-      var ev = evs[i];
+      var ev = fmtEvalue(evs[i]);
       var node;
       if (/^PF\d+$/.test(acc)) {
         node = el("a", "chip", n + (ev ? " · " + ev : ""));
@@ -263,6 +279,76 @@ LINKOUT_HELPERS_JS = r"""
       chips.appendChild(node);
     });
     return chips;
+  }
+  // GO terms as a chip row (detail panel) -- payload's 'go' field is "|"-separated
+  // "GO:nnnnnnn:EVIDENCE" entries (NII bin/extract_dat_annotations.py, curated from
+  // the source UniProt record's own DR GO cross-references). Links to QuickGO.
+  function goChipsNode(goIds) {
+    var chips = el("div", "chips");
+    (goIds ? goIds.split("|") : []).filter(Boolean).forEach(function (entry) {
+      var parts = entry.split(":");
+      var id = parts[0] + ":" + parts[1];
+      var evidence = parts[2] || "";
+      var a = el("a", "chip", id + (evidence ? " · " + evidence : ""));
+      a.href = "https://www.ebi.ac.uk/QuickGO/term/" + id;
+      a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.title = id + (evidence ? " — evidence code " + evidence : "");
+      chips.appendChild(a);
+    });
+    return chips;
+  }
+  // InterPro domains as a chip row (detail panel) -- payload's 'ipr' field is
+  // "|"-separated "IPRnnnnnn" entries (same UniProt DR cross-reference source).
+  function interproChipsNode(iprIds) {
+    var chips = el("div", "chips");
+    (iprIds ? iprIds.split("|") : []).filter(Boolean).forEach(function (id) {
+      var a = el("a", "chip", id);
+      a.href = "https://www.ebi.ac.uk/interpro/entry/InterPro/" + id + "/";
+      a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.title = id;
+      chips.appendChild(a);
+    });
+    return chips;
+  }
+  // EC numbers as a chip row (detail panel) -- payload's 'ec' field is
+  // comma-separated (bin/extract_dat_annotations.py's DE-line EC=... values,
+  // matching the Pfam fields' separator convention). Links to ExPASy ENZYME.
+  function ecChipsNode(ecNumbers) {
+    var chips = el("div", "chips");
+    (ecNumbers ? ecNumbers.split(",") : []).filter(Boolean).forEach(function (ec) {
+      var a = el("a", "chip", "EC " + ec);
+      a.href = "https://enzyme.expasy.org/EC/" + ec;
+      a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.title = "ExPASy ENZYME: EC " + ec;
+      chips.appendChild(a);
+    });
+    return chips;
+  }
+  // AlphaFold predicted-structure link (detail panel) -- payload's 'af' field is
+  // a single AlphaFold DB accession (bin/extract_dat_annotations.py's DR
+  // AlphaFoldDB cross-reference), or '' when absent. AlphaFold DB covers nearly
+  // all of UniProt, so this is usually available and is a real structure link,
+  // not the generic "no Pfam/SwissProt -- try a remote-homology search" fallback.
+  function alphafoldLinkNode(afId) {
+    var a = el("a", "chip", "View predicted structure");
+    a.href = "https://alphafold.ebi.ac.uk/entry/" + afId;
+    a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.title = "AlphaFold DB: " + afId;
+    return a;
+  }
+  // The detail panel's protein-ID heading as a UniProt hotlink, when the ID is a
+  // UniProt FASTA header token ("sp|ACC|NAME" or "tr|ACC|NAME" -- see NII's
+  // lib/uniprot_ids.bare_accession, the same format this parses). Returns null
+  // for a non-UniProt protein_id (e.g. a BFD/funannotate-style gene ID), so the
+  // caller can fall back to plain text -- never assume every study is UniProt-sourced.
+  function uniprotRecordLinkNode(proteinId) {
+    var m = /^(?:sp|tr)\|([^|]+)\|/.exec(proteinId);
+    if (!m) return null;
+    var a = el("a", null, proteinId);
+    a.href = "https://www.uniprot.org/uniprotkb/" + m[1] + "/entry";
+    a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.title = "View " + m[1] + " on UniProt";
+    return a;
   }
   // Compact comma-separated Pfam links for a table cell (same accession rule as
   // pfamChipsNode, without the chip styling -- a table row is dense already).

@@ -27,12 +27,30 @@ ROW_FIELDS = [
     'pres',      # bitstring over payload['proteomes'] order
     'tb',        # bitstring over payload['tblastn_genomes'] order
     'gene',      # gene_name
-    'prod',      # product_description
+    'prod',      # index into payload['descriptions'], or -1 -- product_description is
+                 # highly repetitive (e.g. "Uncharacterized protein" on thousands of rows),
+                 # so it's interned the same way 'fsrc'/payload['fsources'] already is,
+                 # rather than repeating the string on every row.
     'fsrc',      # index into payload['fsources'], or -1
     'sprot',     # Best_Swissprot
     'pfam_n',    # Pfam_Names (comma-separated)
     'pfam_a',    # Pfam_Accessions (comma-separated)
     'pfam_e',    # Pfam_Evalues (comma-separated)
+    'go',        # index into payload['go_sets'], or -1 -- uniprot_go_ids (NII bin/
+                 # merge_uniprot_annotations.py), "|"-separated GO:nnnnnnn:EVIDENCE entries,
+                 # curated from the source UniProt record's own DR GO cross-references (not
+                 # a fresh GO run). Interned like 'prod'/'descriptions': the same GO-term set
+                 # recurs across many rows (paralogs, conserved domains), so this avoids
+                 # repeating the whole pipe-joined string per row.
+    'ipr',       # index into payload['ipr_sets'], or -1 -- uniprot_interpro_ids (same
+                 # source), "|"-separated IPRnnnnnn entries, interned the same way.
+    'ec',        # uniprot_ec_numbers (comma-separated) -- DE-line EC=... value(s) only,
+                 # not EC numbers mentioned in a CC comment's prose (see bin/
+                 # extract_dat_annotations.py's module docstring). Not interned: low
+                 # per-row cardinality doesn't justify it, unlike 'prod'/'go'/'ipr'.
+    'af',        # uniprot_alphafold_id, or '' -- AlphaFold DB covers nearly all of
+                 # UniProt, so this is the direct predicted-structure link that
+                 # replaces the report's generic "structure search" fallback.
     'nov',       # 1 if this protein is a novelty candidate for its source proteome
     'fam',       # index into payload['families'], or -1 if not part of a multi-member cluster
     'seq',       # protein sequence ('' when not loaded)
@@ -47,6 +65,10 @@ ROW_FIELDS = [
                  # — comma-separated, one entry per payload['proteomes'] column, '' where
                  # there's no e-value evidence (absent, self-sourced, or the run's pathway
                  # doesn't track e-values). Report-only: never affects presence/novelty calls.
+                 # Rounded to 3 significant figures at build time (_round_evalue) -- the
+                 # sidecar TSV carries full float->str precision (e.g.
+                 # "4.549999999999999e-230"), which is pure payload bloat once the report
+                 # only ever displays 4 sig figs (lib/report_common.py's fmtEvalue).
                  # 'pres'/'ev' both extend to cover context columns too (issue #48) —
                  # payload['proteomes'] entries tagged {'context': true} are appended after
                  # the scored ingroup/outgroup columns, so 'pres'/'ev' stay one bit/entry per
@@ -58,6 +80,46 @@ ROW_FIELDS = [
                  # unknown (same conditions as 'chrom'). Per-protein-record as currently
                  # modeled -- see CLAUDE.md's GFF3 chrom/start note on splice isoforms.
 ]
+
+class _StringTable:
+    """Intern repeated strings into a shared payload array + integer index per row --
+    the same trick payload['fsources']/'families' already use for function_source/gene
+    families, applied to product_description/GO/InterPro (all highly repetitive: e.g.
+    "Uncharacterized protein" alone accounts for ~20% of one real study's product_description
+    values). '' interns to -1 (never added to the table) so an empty value costs nothing.
+    """
+
+    def __init__(self):
+        self.table: list[str] = []
+        self._index: dict[str, int] = {}
+
+    def intern(self, value: str) -> int:
+        if not value:
+            return -1
+        i = self._index.get(value)
+        if i is None:
+            i = len(self.table)
+            self.table.append(value)
+            self._index[value] = i
+        return i
+
+
+def _round_evalue(value: str) -> str:
+    """3-significant-figure string for an e-value sidecar cell, or '' unchanged.
+
+    Sidecar TSVs carry raw float->str precision (e.g. "4.549999999999999e-230") --
+    the report only ever displays 4 sig figs (lib/report_common.py's fmtEvalue), so
+    embedding more than that in the payload is pure size with no information the
+    reader can use. Any value that doesn't parse as a float (shouldn't happen) is
+    passed through unchanged rather than dropped.
+    """
+    if not value:
+        return value
+    try:
+        return f'{float(value):.3g}'
+    except ValueError:
+        return value
+
 
 # gene_id_from_protein_id() / _GENE_ID_SUFFIX moved to lib/gff3_genes.py --
 # lookup_gene_position() (gff3_genes.py) needs it, and this module needs
@@ -385,6 +447,9 @@ def build_payload(
 
     fsources: list[str] = []
     fsource_idx: dict[str, int] = {}
+    descriptions = _StringTable()
+    go_sets = _StringTable()
+    ipr_sets = _StringTable()
     out_rows = []
     categories: set[str] = set()
 
@@ -399,8 +464,8 @@ def build_payload(
         )
         row_evalues = evalue_lookup.get(pid, {})
         ev = ','.join(
-            [row_evalues.get(s, '') for s in shorts] +
-            [row_context_ev.get(s, '') for s in context_shorts]
+            [_round_evalue(row_evalues.get(s, '')) for s in shorts] +
+            [_round_evalue(row_context_ev.get(s, '')) for s in context_shorts]
         )
         hit_genomes = tb_hits.get(pid, set())
         tb = ''.join('1' if g in hit_genomes else '0' for g in tb_genomes)
@@ -441,13 +506,17 @@ def build_payload(
             shorts.index(src) if src in shorts else -1,
             pres,
             tb,
-            row.get('gene_name', '') or '',
-            row.get('product_description', '') or '',
+            row.get('gene_name', '') or row.get('uniprot_gene_name', '') or '',
+            descriptions.intern(row.get('product_description', '') or row.get('uniprot_description', '') or ''),
             fsrc_i,
             row.get('Best_Swissprot', '') or '',
-            row.get('Pfam_Names', '') or '',
-            row.get('Pfam_Accessions', '') or '',
+            row.get('Pfam_Names', '') or (row.get('uniprot_pfam_names', '') or '').replace('|', ','),
+            row.get('Pfam_Accessions', '') or (row.get('uniprot_pfam_ids', '') or '').replace('|', ','),
             row.get('Pfam_Evalues', '') or '',
+            go_sets.intern(row.get('uniprot_go_ids', '') or ''),
+            ipr_sets.intern(row.get('uniprot_interpro_ids', '') or ''),
+            (row.get('uniprot_ec_numbers', '') or '').replace('|', ','),
+            row.get('uniprot_alphafold_id', '') or '',
             is_nov,
             fam_i,
             seq,
@@ -473,6 +542,9 @@ def build_payload(
         ],
         'tblastn_genomes': tb_genomes,
         'fsources': fsources,
+        'descriptions': descriptions.table,
+        'go_sets': go_sets.table,
+        'ipr_sets': ipr_sets.table,
         'novelty_categories': sorted(categories),
         'has_evalues': bool(evalue_lookup),
         'has_context': bool(context_shorts),
@@ -487,12 +559,16 @@ CORE_ROW_FIELDS = [
     'src',       # index into payload['proteomes']
     'frac',      # presence fraction across every proteome column (ingroup + outgroup)
     'gene',      # gene_name
-    'prod',      # product_description
+    'prod',      # index into payload['descriptions'], or -1 -- see ROW_FIELDS' 'prod'
     'fsrc',      # index into payload['fsources'], or -1
     'sprot',     # Best_Swissprot
     'pfam_n',    # Pfam_Names (comma-separated)
     'pfam_a',    # Pfam_Accessions (comma-separated)
     'pfam_e',    # Pfam_Evalues (comma-separated)
+    'go',        # index into payload['go_sets'], or -1 -- see ROW_FIELDS' 'go'
+    'ipr',       # index into payload['ipr_sets'], or -1 -- see ROW_FIELDS' 'ipr'
+    'ec',        # uniprot_ec_numbers (comma-separated) -- see ROW_FIELDS' 'ec'
+    'af',        # uniprot_alphafold_id, or '' -- see ROW_FIELDS' 'af'
     'fam',       # index into payload['families'], or -1 if not part of a multi-member cluster
     'chrom',     # GFF3-derived chromosome/scaffold/contig name (see ROW_FIELDS' 'chrom')
     'start',     # GFF3-derived 1-based start coordinate, int or null (see ROW_FIELDS' 'start')
@@ -546,6 +622,9 @@ def build_core_payload(
 
     fsources: list[str] = []
     fsource_idx: dict[str, int] = {}
+    descriptions = _StringTable()
+    go_sets = _StringTable()
+    ipr_sets = _StringTable()
     out_rows = []
 
     for row in rows:
@@ -576,13 +655,17 @@ def build_core_payload(
             pid,
             shorts.index(src),
             round(frac, 4),
-            row.get('gene_name', '') or '',
-            row.get('product_description', '') or '',
+            row.get('gene_name', '') or row.get('uniprot_gene_name', '') or '',
+            descriptions.intern(row.get('product_description', '') or row.get('uniprot_description', '') or ''),
             fsrc_i,
             row.get('Best_Swissprot', '') or '',
-            row.get('Pfam_Names', '') or '',
-            row.get('Pfam_Accessions', '') or '',
+            row.get('Pfam_Names', '') or (row.get('uniprot_pfam_names', '') or '').replace('|', ','),
+            row.get('Pfam_Accessions', '') or (row.get('uniprot_pfam_ids', '') or '').replace('|', ','),
             row.get('Pfam_Evalues', '') or '',
+            go_sets.intern(row.get('uniprot_go_ids', '') or ''),
+            ipr_sets.intern(row.get('uniprot_interpro_ids', '') or ''),
+            (row.get('uniprot_ec_numbers', '') or '').replace('|', ','),
+            row.get('uniprot_alphafold_id', '') or '',
             fam_i,
             chrom,
             start,
@@ -592,6 +675,9 @@ def build_core_payload(
         'project': project,
         'core_min_frac': core_min_frac,
         'fields': CORE_ROW_FIELDS,
+        'descriptions': descriptions.table,
+        'go_sets': go_sets.table,
+        'ipr_sets': ipr_sets.table,
         'proteomes': [
             _proteome_meta(s)
             for s in proteomes
@@ -613,12 +699,16 @@ LOSSES_ROW_FIELDS = [
                    #   (or, for a singleton, this protein's own ingroup presence count) — 0 is a
                    #   clean loss; >0 means "nearly missing" (allowed by loss_ingroup_max_frac)
     'gene',        # gene_name (from the outgroup side's own annotation)
-    'prod',        # product_description
+    'prod',        # index into payload['descriptions'], or -1 -- see ROW_FIELDS' 'prod'
     'fsrc',        # index into payload['fsources'], or -1
     'sprot',       # Best_Swissprot
     'pfam_n',      # Pfam_Names (comma-separated)
     'pfam_a',      # Pfam_Accessions (comma-separated)
     'pfam_e',      # Pfam_Evalues (comma-separated)
+    'go',          # index into payload['go_sets'], or -1 -- see ROW_FIELDS' 'go'
+    'ipr',         # index into payload['ipr_sets'], or -1 -- see ROW_FIELDS' 'ipr'
+    'ec',          # uniprot_ec_numbers (comma-separated) -- see ROW_FIELDS' 'ec'
+    'af',          # uniprot_alphafold_id, or '' -- see ROW_FIELDS' 'af'
     'tb_hit',      # 1 if TBLASTN found this outgroup protein in an ingroup genome
     'tb_genomes',  # comma-separated ingroup genome IDs with a TBLASTN hit
     'fam',         # index into payload['families'], or -1 if not part of a multi-member cluster
@@ -732,6 +822,9 @@ def build_losses_payload(
     # Pass 2: emit rows, resolving the family-level aggregates.
     fsources: list[str] = []
     fsource_idx: dict[str, int] = {}
+    descriptions = _StringTable()
+    go_sets = _StringTable()
+    ipr_sets = _StringTable()
     out_rows = []
     for row, pid, src, out_frac, out_present, in_present, fam_i in kept:
         fsrc = row.get('function_source', '') or ''
@@ -759,13 +852,17 @@ def build_losses_payload(
             round(out_frac, 4),
             out_breadth,
             in_retained,
-            row.get('gene_name', '') or '',
-            row.get('product_description', '') or '',
+            row.get('gene_name', '') or row.get('uniprot_gene_name', '') or '',
+            descriptions.intern(row.get('product_description', '') or row.get('uniprot_description', '') or ''),
             fsrc_i,
             row.get('Best_Swissprot', '') or '',
-            row.get('Pfam_Names', '') or '',
-            row.get('Pfam_Accessions', '') or '',
+            row.get('Pfam_Names', '') or (row.get('uniprot_pfam_names', '') or '').replace('|', ','),
+            row.get('Pfam_Accessions', '') or (row.get('uniprot_pfam_ids', '') or '').replace('|', ','),
             row.get('Pfam_Evalues', '') or '',
+            go_sets.intern(row.get('uniprot_go_ids', '') or ''),
+            ipr_sets.intern(row.get('uniprot_interpro_ids', '') or ''),
+            (row.get('uniprot_ec_numbers', '') or '').replace('|', ','),
+            row.get('uniprot_alphafold_id', '') or '',
             1 if hit_genomes else 0,
             ','.join(hit_genomes),
             fam_i,
@@ -786,6 +883,9 @@ def build_losses_payload(
         ],
         'tblastn_genomes': tb_genomes,
         'fsources': fsources,
+        'descriptions': descriptions.table,
+        'go_sets': go_sets.table,
+        'ipr_sets': ipr_sets.table,
         'families': fam_index.payload(),
         'rows': out_rows,
     }
