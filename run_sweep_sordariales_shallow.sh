@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#SBATCH -p batch -c 2 --mem 8gb --time=2-00:00:00 --out logs/sweep_sordariales_shallow.log
+#SBATCH -p batch -c 2 --mem 8gb --time=6-00:00:00 --out logs/sweep_sordariales_shallow.log
 module load nextflow
 
 # "Shallow divergence" broader-grid validation point (2026-09-03), alongside the pezizo5
