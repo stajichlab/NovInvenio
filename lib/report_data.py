@@ -709,6 +709,12 @@ LOSSES_ROW_FIELDS = [
     'ipr',         # index into payload['ipr_sets'], or -1 -- see ROW_FIELDS' 'ipr'
     'ec',          # uniprot_ec_numbers (comma-separated) -- see ROW_FIELDS' 'ec'
     'af',          # uniprot_alphafold_id, or '' -- see ROW_FIELDS' 'af'
+    'seq',         # protein sequence, '' when not present -- unlike ROW_FIELDS' 'seq',
+                   # read directly off the matrix's own protein_sequence column (LOSS_ANNOTATE
+                   # is given loss_candidates.fa as --candidates_fa, same mechanism as the
+                   # novelty side's annotate_presence_matrix.py --candidates_fa, so every row
+                   # here -- the loss matrix only ever contains candidate rows in the first
+                   # place -- already carries its own sequence with no extra FASTA lookup).
     'tb_hit',      # 1 if TBLASTN found this outgroup protein in an ingroup genome
     'tb_genomes',  # comma-separated ingroup genome IDs with a TBLASTN hit
     'fam',         # index into payload['families'], or -1 if not part of a multi-member cluster
@@ -863,6 +869,7 @@ def build_losses_payload(
             ipr_sets.intern(row.get('uniprot_interpro_ids', '') or ''),
             (row.get('uniprot_ec_numbers', '') or '').replace('|', ','),
             row.get('uniprot_alphafold_id', '') or '',
+            (row.get('protein_sequence', '') or '').strip(),
             1 if hit_genomes else 0,
             ','.join(hit_genomes),
             fam_i,

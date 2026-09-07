@@ -84,12 +84,18 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     <label class="check" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
       <input type="checkbox" id="f-notb"> No ingroup TBLASTN hit
     </label>
+    <label class="num-range" style="display:inline-flex;align-items:center;gap:4px;font-size:13px" aria-label="Protein length range (aa)">Length (aa)
+      <input type="number" id="f-minlen" min="0" placeholder="min" style="width:5em;padding:2px 4px">–<input type="number" id="f-maxlen" min="0" placeholder="max" style="width:5em;padding:2px 4px">
+    </label>
     <select id="f-sort" aria-label="Sort by">
       <option value="priority">Sort: priority (clean loss, broad in outgroup, no TBLASTN hit first)</option>
       <option value="breadth">Sort: outgroup family breadth</option>
       <option value="frac">Sort: outgroup presence fraction</option>
       <option value="id">Sort: protein ID</option>
       <option value="src">Sort: source proteome</option>
+      <option value="len">Sort: protein length (shortest first)</option>
+      <option value="simpfam">Group: similar Pfam domains to selected gene</option>
+      <option value="simgo">Group: similar GO terms to selected gene</option>
       <option value="pos">Sort: genomic position (chrom, start)</option>
     </select>
     <button id="f-reset" type="button">Reset</button>
@@ -142,11 +148,49 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   }
 
   var HAY = new Array(nRows);
+  // Protein length in aa, from the embedded sequence (F.seq — every loss-candidate row
+  // carries one, see lib/report_data.py's LOSSES_ROW_FIELDS 'seq' docs). Short/fast-
+  // evolving proteins are disproportionately likely to be homology-detection misses
+  // rather than real losses (Weisman et al. 2020, see DESIGN.md).
+  var lenN = new Int32Array(nRows);
   for (var h = 0; h < nRows; h++) {
     var row = ROWS[h];
     var famRep = row[F.fam] >= 0 ? FAMILIES[row[F.fam]].rep : "";
     HAY[h] = (row[F.id] + " " + row[F.gene] + " " + fromTable(DATA.descriptions, row[F.prod]) + " " +
               row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
+    lenN[h] = row[F.seq] ? row[F.seq].length : 0;
+  }
+
+  // ---- Pfam/GO similarity (group/sort every row by similarity to the
+  // currently *selected* gene) -- see lib/report_template.py's identical helpers.
+  var pfamSetCache = new Array(nRows);
+  var goSetCache = new Array(nRows);
+  function pfamSetFor(ri) {
+    if (pfamSetCache[ri] === undefined) {
+      var s = ROWS[ri][F.pfam_a];
+      pfamSetCache[ri] = s ? new Set(s.split(",").filter(Boolean)) : null;
+    }
+    return pfamSetCache[ri];
+  }
+  function goSetFor(ri) {
+    if (goSetCache[ri] === undefined) {
+      var gi = ROWS[ri][F.go];
+      if (gi < 0) { goSetCache[ri] = null; }
+      else {
+        var terms = DATA.go_sets[gi].split("|").filter(Boolean).map(function (t) {
+          return t.split(":").slice(0, 2).join(":");
+        });
+        goSetCache[ri] = terms.length ? new Set(terms) : null;
+      }
+    }
+    return goSetCache[ri];
+  }
+  function jaccard(a, b) {
+    if (!a || !b) return 0;
+    var inter = 0;
+    a.forEach(function (x) { if (b.has(x)) inter++; });
+    var union = a.size + b.size - inter;
+    return union ? inter / union : 0;
   }
 
   var state = {
@@ -155,6 +199,8 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     fsrc: "",
     family: -1,
     noTb: false,
+    minLen: null,
+    maxLen: null,
     sort: "priority",
     selected: -1
   };
@@ -173,6 +219,8 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       if (srcIdx >= 0 && row[F.src] !== srcIdx) continue;
       if (state.fsrc && row[F.fsrc] !== fsrcIdx) continue;
       if (state.noTb && row[F.tb_hit]) continue;
+      if (state.minLen != null && lenN[i] < state.minLen) continue;
+      if (state.maxLen != null && lenN[i] > state.maxLen) continue;
       if (terms.length) {
         var hay = HAY[i], ok = true;
         for (var t = 0; t < terms.length; t++) {
@@ -193,6 +241,25 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     else if (s === "src") cmp = function (a, b) { return (ROWS[a][F.src] - ROWS[b][F.src]) || cmpId(a, b); };
     else if (s === "frac") cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
     else if (s === "breadth") cmp = function (a, b) { return (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) || cmpId(a, b); };
+    else if (s === "len") cmp = function (a, b) { return (lenN[a] - lenN[b]) || cmpId(a, b); };
+    else if (s === "simpfam" || s === "simgo") {
+      if (state.selected < 0) {
+        cmp = function (a, b) {
+          return (ROWS[a][F.in_retained] - ROWS[b][F.in_retained]) ||
+                 (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) ||
+                 (ROWS[a][F.tb_hit] - ROWS[b][F.tb_hit]) || cmpId(a, b);
+        };
+      } else {
+        var getSet = s === "simpfam" ? pfamSetFor : goSetFor;
+        var anchor = state.selected;
+        var anchorSet = getSet(anchor);
+        cmp = function (a, b) {
+          var sa = a === anchor ? 2 : jaccard(getSet(a), anchorSet);
+          var sb = b === anchor ? 2 : jaccard(getSet(b), anchorSet);
+          return (sb - sa) || cmpId(a, b);
+        };
+      }
+    }
     else if (s === "pos") cmp = function (a, b) {
       var ca = ROWS[a][F.chrom] || "", cb = ROWS[b][F.chrom] || "";
       if (ca !== cb) return ca < cb ? -1 : 1;
@@ -223,6 +290,16 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     { label: "Outgroup breadth", get: function (r) { return ROWS[r][F.out_breadth] + " / " + N_OUT + " species"; }, cls: "num", sortKey: "breadth" },
     { label: "Ingroup retained", get: function (r) { return ROWS[r][F.in_retained] + " / " + N_IN + " species"; }, cls: "num" },
     { label: "Outgroup presence", get: function (r) { return Math.round(ROWS[r][F.frac] * 100) + "%"; }, cls: "num", sortKey: "frac" },
+    { label: "Length (aa)", get: function (r) { return lenN[r] || ""; }, cls: "num", sortKey: "len" },
+    {
+      label: "Similarity to selected", cls: "num",
+      get: function (r) {
+        if (state.selected < 0 || (state.sort !== "simpfam" && state.sort !== "simgo")) return "";
+        if (r === state.selected) return "—";
+        var getSet = state.sort === "simpfam" ? pfamSetFor : goSetFor;
+        return Math.round(jaccard(getSet(r), getSet(state.selected)) * 100) + "%";
+      }
+    },
     { label: "Ingroup TBLASTN", get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; }, cls: "wrap-cell" },
     {
       label: "Gene family", cls: "wrap-cell",
@@ -390,6 +467,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(field("Gene family — independently recovered in multiple outgroup species", famBox));
     }
 
+    if (lenN[ri]) detailEl.appendChild(field("Protein length", lenN[ri] + " aa"));
     if (row[F.gene]) detailEl.appendChild(field("Gene name (outgroup)", row[F.gene]));
     if (row[F.prod] >= 0) detailEl.appendChild(field("Product", DATA.descriptions[row[F.prod]]));
     if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
@@ -433,6 +511,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
 
   function select(ri) {
     state.selected = ri;
+    if (state.sort === "simpfam" || state.sort === "simgo") { refresh(false); }
     renderDetail();
     markTableSelection();
   }
@@ -476,7 +555,9 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       renderDetail();
     }
     document.getElementById("count").textContent =
-      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins";
+      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins" +
+      ((state.sort === "simpfam" || state.sort === "simgo") && state.selected < 0
+        ? " — select a gene to group by similarity" : "");
     renderTable(true);
   }
 
@@ -517,14 +598,24 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   });
   document.getElementById("f-notb").addEventListener("change", function (e) { state.noTb = e.target.checked; refresh(true); });
   document.getElementById("f-sort").addEventListener("change", function (e) { state.sort = e.target.value; refresh(true); });
+  document.getElementById("f-minlen").addEventListener("input", function (e) {
+    state.minLen = e.target.value === "" ? null : Number(e.target.value);
+    refresh(true);
+  });
+  document.getElementById("f-maxlen").addEventListener("input", function (e) {
+    state.maxLen = e.target.value === "" ? null : Number(e.target.value);
+    refresh(true);
+  });
   document.getElementById("f-reset").addEventListener("click", function () {
     state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
-    state.noTb = false; state.sort = "priority";
+    state.noTb = false; state.minLen = null; state.maxLen = null; state.sort = "priority";
     document.getElementById("f-search").value = "";
     document.getElementById("f-src").value = "";
     document.getElementById("f-fsrc").value = "";
     document.getElementById("f-family").value = "";
     document.getElementById("f-notb").checked = false;
+    document.getElementById("f-minlen").value = "";
+    document.getElementById("f-maxlen").value = "";
     document.getElementById("f-sort").value = "priority";
     refresh(true);
   });
