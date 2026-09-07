@@ -412,3 +412,49 @@ running against it; use a separate worktree/clone for that job's launch dir inst
 
 **Tags**: nextflow, slurm, git, race-condition, container, docker-build, correction,
 gotcha, live-filesystem
+
+### [2026-09-06] `task.index` in an output filename silently defeats `-resume` caching across separate invocations
+
+`modules/build_family_profiles.nf`'s `BUILD_CHUNK` process named its output
+`chunk.!{task.index}.hmm`. `task.index` is Nextflow's per-session, per-scheduling-slot
+counter — it is **not** a stable identifier for a task's *content*, and it is not
+guaranteed to line up between two separate `nextflow run -resume` invocations against the
+same launch directory, even when the upstream inputs feeding that task are byte-identical
+and already cached. Confirmed against real production trace files from the
+`deep_broad_1kfg` param sweep: a fresh run's `PROFILE_SEARCH:BUILD_CHUNK` tasks used
+indices 2-1293 (430 distinct values) for a given set of family chunks; a `-resume` rerun
+of the *identical, upstream-cached* family set reassigned almost entirely different
+indices (1-1297), with only 26 of 430 overlapping.
+
+Since `task.index` was embedded in the rendered/hashed script text (via the output
+filename), this alone busted Nextflow's task-hash-based resume caching for every
+`BUILD_CHUNK` task on every rerun — regardless of whether anything relevant actually
+changed. The sweep's own swept parameters (`hmm_presence_cov`/`hmm_presence_min_residues`)
+aren't even read by this process; it was forcing a full from-scratch rebuild of ~1,187
+family HMMs (430 + 757 across the two search directions) at 130-proteome production scale
+on *every one of 4 grid points*, costing multiple days of redundant compute on a
+preemptible SLURM queue that was already fighting to make progress.
+
+**Fix**: derive the chunk's identifier from its own *content* instead — the
+alphabetically-first family's index within that chunk (`fam_000042.faa` → `000042`,
+computed once in Groovy via `.map { files -> tuple(files.min { it.name }.baseName -
+'fam_', files) }` and passed as a `val` input, not recomputed per-task in bash). This is
+deterministic (same family membership → same id → same hash → cache hit) and unique
+within a single run (no two chunks share a first family). A second, cascading instance of
+the same class of bug was caught in the same pass (`gh` review): `MERGE_PROFILES`'s
+`BUILD_CHUNK.out.partial_hmm.collect()` preserves *completion* order, which differs
+between a fresh run (arbitrary SLURM completion order) and a resumed run (cached tasks
+resolve in submission order) — an order-sensitive list hash would keep cache-busting
+`MERGE_PROFILES`, and cascade into every downstream `FAMILY_HMMSEARCH` task, even with
+`BUILD_CHUNK` itself fixed. Needed `collect(sort: true)` — safe only because the chunk
+filenames are now content-derived rather than scheduling-order-derived.
+
+**Why it matters generally**: any Nextflow output filename (or any value interpolated
+into a hashed script body) that derives from *when*/*in what order* a task happened to run
+— `task.index`, wall-clock timestamps, PID, `collect()`/`collectFile()` without an
+explicit sort — rather than from the task's actual inputs, breaks `-resume` caching in a
+way that produces no error and no warning: it just quietly recomputes everything, every
+time. Worth grepping for `task.index`/`task.hash` inside any `output:`/interpolated
+script block when adding new scatter-gather stages.
+
+**Tags**: nextflow, resume, caching, gotcha, scatter-gather, slurm, param-sweep

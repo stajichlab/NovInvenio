@@ -51,11 +51,12 @@ process EXTRACT_FAMILY_SEQS {
 // Build profiles for one chunk of families (famsa + hmmbuild). Fans out; AVX2-constrained.
 process BUILD_CHUNK {
     label 'high_cpu'
-    tag { "chunk_${task.index}" }
+    tag { "chunk_${chunk_id}" }
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
 
     input:
-    path(fam_files)       // a chunk: N per-family FASTAs (fam_*.faa)
+    tuple val(chunk_id), path(fam_files)   // chunk_id: the chunk's first family's index
+                                            // (e.g. "000042") -- see workflow below for why
     path(families_tsv)    // families.tsv, for the rep → HMM-name lookup
 
     output:
@@ -63,7 +64,8 @@ process BUILD_CHUNK {
 
     shell:
     '''
-    : > chunk.!{task.index}.hmm
+    out="chunk.!{chunk_id}.hmm"
+    : > "$out"
     for fa in fam_*.faa; do
         [ -e "$fa" ] || continue
         base=$(basename "$fa" .faa)
@@ -85,7 +87,7 @@ process BUILD_CHUNK {
             echo "WARN: hmmbuild exceeded !{params.family_align_timeout}s or failed for $base ($rep) — skipping family" >&2
             continue
         fi
-        cat "${fa}.hmm" >> chunk.!{task.index}.hmm
+        cat "${fa}.hmm" >> "$out"
     done
     '''
 }
@@ -131,15 +133,30 @@ workflow BUILD_FAMILY_PROFILES {
     // one BUILD_CHUNK task. (buffer, not collate: collate is not a channel operator here.)
     // Coerce the size: a --family_chunk_size CLI override arrives as a String.
     def chunk_size = params.family_chunk_size as int
+    // Pair each chunk with a stable id (its first family's index, e.g. "000042") derived
+    // from CONTENT, not scheduling order -- task.index (Nextflow's per-session, per-
+    // scheduling-slot counter) used to be embedded in BUILD_CHUNK's output filename, which
+    // put a scheduling-order-dependent value into the hashed script text and defeated
+    // -resume caching on every rerun, even when a chunk's actual family membership hadn't
+    // changed (see .living/learnings.md's entry on the deep_broad_1kfg sweep this broke).
+    // No two chunks share a first family, so this id is also guaranteed unique within a run.
     chunks = EXTRACT_FAMILY_SEQS.out.family_fastas
                  .flatten()
                  .buffer( size: chunk_size, remainder: true )
+                 .map { files -> tuple(files.min { it.name }.baseName - 'fam_', files) }
 
     BUILD_CHUNK(chunks, EXTRACT_FAMILY_SEQS.out.families.first())
 
     // ifEmpty([]) so MERGE_PROFILES still emits an (empty) family_profiles.hmm when there
     // were no families to profile — FAMILY_HMMSEARCH depends on the file existing.
-    MERGE_PROFILES(BUILD_CHUNK.out.partial_hmm.collect().ifEmpty([]), out_prefix)
+    // collect(sort: true) matters now that BUILD_CHUNK's output name is content-derived
+    // (chunk.<first-family-id>.hmm, not task.index): plain collect() preserves completion
+    // order, which differs between a fresh run (SLURM completion is arbitrary) and a
+    // -resume run (cached tasks resolve in submission order) — an order-sensitive input
+    // list hash would still cache-bust MERGE_PROFILES (and cascade into every downstream
+    // FAMILY_HMMSEARCH task) even with BUILD_CHUNK itself fixed. Sorting by name is stable
+    // precisely because the names are content-derived.
+    MERGE_PROFILES(BUILD_CHUNK.out.partial_hmm.collect(sort: true).ifEmpty([]), out_prefix)
 
     emit:
     profiles = MERGE_PROFILES.out.profiles
