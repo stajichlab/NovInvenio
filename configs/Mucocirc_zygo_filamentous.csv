@@ -1,0 +1,8 @@
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup,NCBI_TaxID,SourceDB
+IN,Mucor circinelloides,P1204,Mucor_circinelloides_P1204.proteins.fa,Mucor_circinelloides_P1204.scaffolds.fa,Mucocirc,,36080,
+IN,Mucor irregularis,B50,Mucor_irregularis_B50.proteins.fa,Mucor_irregularis_B50.scaffolds.fa,Mucoirre,Mucor,1290454,
+IN,Mucor lusitanicus,CBS 277.49,Mucor_lusitanicus_CBS_277.49.proteins.fa,Mucor_lusitanicus_CBS_277.49.scaffolds.fa,Mucolusi,Mucor,29924,
+IN,Mucor racemosus,C,Mucor_racemosus_C.proteins.fa,Mucor_racemosus_C.scaffolds.fa,Mucorace,Mucor,4841,
+OUT,Neurospora crassa,OR74A,Neurospora_crassa_OR74A.proteins.fa,Neurospora_crassa_OR74A.scaffolds.fa,Neurcras,Neurospora,367110,fungidb
+OUT,Aspergillus nidulans,5,Aspergillus_nidulans_5.proteins.fa,Aspergillus_nidulans_5.scaffolds.fa,Aspenidu,Aspergillus,162425,fungidb
+OUT,Coprinopsis cinerea,okayama7-130,Coprinopsis_cinerea_okayama7-130.proteins.fa,Coprinopsis_cinerea_okayama7-130.scaffolds.fa,Coprcine,Coprinopsis,240176,

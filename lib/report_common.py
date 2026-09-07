@@ -262,7 +262,7 @@ LINKOUT_HELPERS_JS = r"""
   // though most of the sample pool lives in FungiDB or MycoCosm.
   //
   // Accepted forms: "fungidb", "mycocosm:<portal>", "ensemblfungi:<species>",
-  // "veupathdb:<project>", or any URL template containing "{gene}".
+  // "veupathdb:<project>", "ncbipep", or any URL template containing "{gene}".
   // A config CSV travels between users and projects, so a SourceDB value is
   // only semi-trusted: anything that ends up in an href must be checked for
   // its scheme, or "javascript:...{gene}" becomes a clickable link in the
@@ -304,6 +304,16 @@ LINKOUT_HELPERS_JS = r"""
         "https://" + encodeURIComponent(arg) + ".org/" + encodeURIComponent(arg) +
           "/app/record/gene/" + encodeURIComponent(gene),
         "VEuPathDB gene record for " + gene);
+    }
+    if (kind === "ncbipep") {
+      // Uses proteinId as-is, NOT geneIdFromProteinId(proteinId) -- NCBI Protein
+      // pages are keyed by the literal accession (e.g. "NP_001020957.2"), and
+      // stripping a FungiDB-style transcript/protein suffix here would be wrong
+      // for species with no such suffix convention (a no-op for RefSeq
+      // accessions today, but the two ID spaces are not interchangeable).
+      return extLink("NCBI Protein",
+        "https://www.ncbi.nlm.nih.gov/protein/" + encodeURIComponent(proteinId),
+        "NCBI Protein record for " + proteinId);
     }
     return null;
   }

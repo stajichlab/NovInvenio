@@ -729,7 +729,9 @@ IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,,Cimm,Pezi
 - `SourceDB` and `NCBI_TaxID` are optional, report-only, and never affect a
   presence/novelty call. `SourceDB` builds a per-gene database link in the reports'
   detail panels: `fungidb`, `mycocosm:<portal>`, `ensemblfungi:<species>`,
-  `veupathdb:<project>`, or any URL template containing `{gene}`. `NCBI_TaxID` turns the
+  `veupathdb:<project>`, `ncbipep` (plain NCBI RefSeq proteome, links the protein ID
+  directly to its NCBI Protein record), or any URL template containing `{gene}`.
+  `NCBI_TaxID` turns the
   species' NCBI Taxonomy link from a by-name search into a direct taxid lookup. Omitting
   either (or the whole column) is never an error — see `lib/report_common.py`'s
   `genomeDbLink()`/`taxonomyLink()`.

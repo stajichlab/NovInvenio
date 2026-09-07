@@ -34,12 +34,14 @@ REPO = Path(__file__).resolve().parent.parent
 DRIVER = Path(__file__).parent / 'js' / 'drive_reports.mjs'
 
 # Ncra: a plain keyed SourceDB. Afum: the keyed form that takes an argument.
-# Scer/Spom carry a taxid but no SourceDB, so the NCBI-search fallback is
-# exercised too.
+# Drome: "ncbipep" -- a plain NCBI RefSeq proteome with no FungiDB/MycoCosm
+# record, uses the protein ID as-is rather than a gene-ID transform. Scer/Spom
+# carry a taxid but no SourceDB, so the NCBI-search fallback is exercised too.
 CONFIG = """\
 GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup,SourceDB,NCBI_TaxID
 IN,Neurospora crassa,OR74A,Ncra.pep.fa,Ncra.dna.fa,Ncra,Pezizomycotina,fungidb,367110
 IN,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina,mycocosm:Aspfu1,330879
+IN,Drosophila melanogaster,ISO1,Drome.pep.fa,,Drome,Arthropoda,ncbipep,7227
 OUT,Schizosaccharomyces pombe,972h,Spom.pep.fa,Spom.dna.fa,Spom,Taphrinomycotina,,284812
 OUT,Saccharomyces cerevisiae,S288c,Scer.pep.fa,Scer.dna.fa,Scer,Saccharomycotina,,559292
 """
@@ -59,16 +61,30 @@ OUT,Saccharomyces cerevisiae,S288c,Scer.pep.fa,Scer.dna.fa,Scer,Saccharomycotina
 # and short. shared: a SwissProt hit, present everywhere so it is not a novelty
 # and therefore carries no sequence under the default --report_sequences.
 MATRIX = (
-    "protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\tgene_name\t"
+    "protein_id\tsource_proteome\tNcra\tAfum\tDrome\tSpom\tScer\tgene_name\t"
     "product_description\tfunction_source\tBest_Swissprot\tPfam_Names\t"
     "Pfam_Accessions\tPfam_Evalues\n"
-    "n1\tNcra\t1\t1\t0\t0\tada-1\tall development altered-1\tModelOrg_Ncra\t\t"
+    # n1/n2 stay present across ALL THREE ingroup species (Ncra/Afum/Drome),
+    # not just the original two -- with a 3rd ingroup species now in play,
+    # the default ingroup_min_frac recomputation needs their ingroup coverage
+    # unchanged (2/2 -> 3/3), or they'd silently drop below the default
+    # novelty threshold (2/3 < 0.75) and the whole default-filtered table
+    # would come up empty. n3 is deliberately Drome-only (1/3 ingroup
+    # coverage) -- a real single-species-specific gene isn't expected to
+    # pass the default "conserved across most of the ingroup" novelty test,
+    # so it's checked after the novelty filter is cleared, same as `shared`.
+    # `shared` also needs Drome=1: core.html's core_min_frac=0.9 needs its
+    # presence fraction across ALL FIVE proteomes unchanged at 1.0 (it was
+    # 4/4 before Drome existed) -- 4/5=0.8 would silently drop it below
+    # 0.9 and empty the whole core report.
+    "n1\tNcra\t1\t1\t1\t0\t0\tada-1\tall development altered-1\tModelOrg_Ncra\t\t"
     "bZIP_1\tPF00170.27\t4.5e-09\n"
-    "n2\tAfum\t1\t1\t0\t0\t\t\t\t\t\t\t\n"
-    "shared\tNcra\t1\t1\t1\t1\t\tconserved thing\tPfam\t"
+    "n2\tAfum\t1\t1\t1\t0\t0\t\t\t\t\t\t\t\n"
+    "n3\tDrome\t0\t0\t1\t0\t0\t\t\t\t\t\t\t\n"
+    "shared\tNcra\t1\t1\t1\t1\t1\t\tconserved thing\tPfam\t"
     "sp|P12345|TEST_YEAST Some protein\tAAA\tPF00004.31\t1e-20\n"
 )
-TBLASTN = "protein_id\tSpom\tScer\nn1\t0\t0\nn2\t0\t1\n"
+TBLASTN = "protein_id\tSpom\tScer\nn1\t0\t0\nn2\t0\t1\nn3\t0\t0\n"
 
 
 def _fasta() -> str:
@@ -77,6 +93,7 @@ def _fasta() -> str:
     return (
         f'>n1 unannotated candidate\n{long_seq}\n'
         f'>n2 another\n{short_seq}\n'
+        f'>n3 ncbipep candidate\n{short_seq}\n'
         f'>shared thing\n{"MKQTA" * 30}\n'
     )
 

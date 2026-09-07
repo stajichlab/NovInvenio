@@ -7,6 +7,7 @@ Neurospora crassa,fungidb,FungiDB release-68
 Mucor circinelloides,mycocosm:Mucci1,JGI MycoCosm portal
 Coprinopsis cinerea,ensemblfungi:coprinopsis_cinerea,EnsemblFungi
 Cryptosporidium parvum,veupathdb:CryptoDB,VEuPathDB project
+Drosophila melanogaster,ncbipep,plain NCBI RefSeq proteome with no FungiDB/MycoCosm record
 Custom species,https://example.org/gene/{gene},raw URL template
 """
 
@@ -35,6 +36,7 @@ def test_load_source_db_accepts_all_known_forms(tmp_path):
         'Mucor circinelloides': 'mycocosm:Mucci1',
         'Coprinopsis cinerea': 'ensemblfungi:coprinopsis_cinerea',
         'Cryptosporidium parvum': 'veupathdb:CryptoDB',
+        'Drosophila melanogaster': 'ncbipep',
         'Custom species': 'https://example.org/gene/{gene}',
     }
 
