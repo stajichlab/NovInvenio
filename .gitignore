@@ -7,7 +7,6 @@
 .nextflow.log*
 work/
 results/
-/view/
 # per-sweep isolated nextflow launch directories (bin/run_param_sweep.sh)
 /.nf_launch/
 

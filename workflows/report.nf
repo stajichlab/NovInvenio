@@ -48,7 +48,7 @@ workflow REPORT {
     MAKE_PDF_REPORT(annotated_matrix, tblastn_summary, cluster_tsv,
                     loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv)
 
-    // Final step: gather the three reports under view/<project>/ with a report.html
+    // Final step: gather the three reports under docs/<project>/ with a report.html
     // landing page describing the run (ingroup/outgroup, tool, thresholds).
     COLLATE_REPORTS(
         MAKE_REPORT.out.report,
@@ -68,7 +68,7 @@ workflow REPORT {
 process MAKE_PDF_REPORT {
     label 'low_cpu'
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
-    publishDir { "${Helpers.viewDir(params, workflow.launchDir)}/${Helpers.projectName(params)}" }, mode: 'copy'
+    publishDir { "${Helpers.docsDir(params, workflow.launchDir)}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
     path(annotated_matrix)
@@ -208,13 +208,13 @@ process MAKE_LOSSES_REPORT {
     """
 }
 
-// Collate the three reports into view/<project>/ and generate a report.html
+// Collate the three reports into docs/<project>/ and generate a report.html
 // landing page. The three HTML files are re-published here (copied) so the whole
 // result set lives in one shareable folder alongside its index.
 process COLLATE_REPORTS {
     label 'low_cpu'
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
-    publishDir { "${Helpers.viewDir(params, workflow.launchDir)}/${Helpers.projectName(params)}" }, mode: 'copy'
+    publishDir { "${Helpers.docsDir(params, workflow.launchDir)}/${Helpers.projectName(params)}" }, mode: 'copy'
 
     input:
     path(novelties_html)

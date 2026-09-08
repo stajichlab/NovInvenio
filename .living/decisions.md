@@ -731,3 +731,74 @@ fragment breaks all four pages at once.
 
 **Tags**: report, skins, accessibility, wcag, colour-blind, linkouts, github-pages,
 refactor, duplication, config-csv
+
+## [2026-09-08] docs/ publishing switches to Pages-served, `results/` stays offline; TBLASTN alignment popup via release-asset shards, not committed data
+
+**Context**: `docs/<project>/` (renamed from `view/` earlier this session, see
+`Helpers.docsDir`) is now the GitHub-Pages-served copy of a project's reports; `results/`
+stays the offline, `file://`-safe, fully self-contained copy. The user wants the `docs/`
+copy to gain a feature `results/` can't have: click-triggered popups showing the actual
+TBLASTN pairwise alignment (evalue/pident/qseq/sseq) behind a novelty/loss candidate's
+genome hit, so a candidate can be visually validated instead of trusted from a 0/1 matrix
+cell.
+
+**Decision**:
+1. `results/` and `docs/` are allowed to diverge in *capability*, not just location —
+   `docs/` gets fetch()-based dynamic features, `results/` never does.
+2. TBLASTN's own `-outfmt 6` gains `sseqid sframe qseq sseq` columns (no second BLAST
+   pass) — requires a `storeDir` cache-filename version bump so pre-existing cached runs
+   (10 columns) are never mistaken for the new schema.
+3. Alignment data for actual candidates only (not the full search space) is sharded
+   **one gzip JSON file per query genome** (dozens of files, not one per candidate),
+   schema `protein_id -> [hit, ...]` (a candidate can have multiple HSPs; non-representative
+   candidates carry `aligned_as: <rep_id>` since TBLASTN only runs on cluster reps), plus a
+   `manifest.json` (schema_version, run timestamp) alongside the shards.
+4. These shards are built by a new Nextflow process directly into
+   `docs/<project>/alignments/` on the analysis-repo checkout, but are **not git-committed**
+   — a repo that re-runs pipelines regularly would otherwise grow `.git` unboundedly on
+   every rerun. This is a lesson learned the hard way: NovInvenio_Investigations (the
+   analysis repo that actually publishes real project `docs/`) had already bloated to
+   180MB / 38 committed report HTML+PDF files across 41 commits by committing derived
+   report output directly — exactly the mistake its own `DESIGN.md` had flagged as a risk
+   in the abstract before this concretely happened.
+5. Instead, an analysis-repo script packages the shards and pushes them as a GitHub
+   **Release asset** (tag = `alignments-<project>`, overwritten in place via
+   `--clobber` on every rerun — no run-history accumulation, matching how
+   `docs/<project>/report.html` itself is already always-overwritten). A small Actions
+   workflow downloads every project's release asset and merges it into the Pages deploy
+   artifact at build time (`--clobber` does not re-fire `release: published`, so the
+   publish script explicitly triggers the deploy via `workflow_dispatch`).
+6. Client side: a generic `fetchDataShard()` helper (fetch + native `DecompressionStream`,
+   zero JS dependencies, Promise-cached in a `Map`) plus a native `<dialog>` popup live in
+   `lib/report_common.py`, gated by an `online` flag so `results/` builds never emit them.
+   `DecompressionStream` is feature-detected with a plain fallback message, not polyfilled.
+7. NovInvenio_Investigations will additionally reset to a fresh orphan git history once
+   the release-asset convention is in place (tracked there, not executed yet — public repo,
+   needs an explicit final go-ahead rather than being folded into this rollout silently).
+8. A new `bin/ni` scaffolding tool (in NovInvenio, templated off NovInvenio_Investigations'
+   corrected setup) will let future analysis-deploy repos start from the release-asset
+   convention instead of rediscovering the same repo-bloat mistake independently.
+
+**Alternatives rejected**:
+- *A dedicated second TBLASTN re-run per candidate* (an existing prototype,
+  `studies/bacteria/UHM_Koxytoca/bin/{show_tblastn_alignment,archive_tblastn_alignments}.py`
+  in NovInvenio_Investigations, already does this against the cached BLAST DB) — works, and
+  already solves representative-resolution, but costs one extra `tblastn` invocation per
+  candidate on every run. Extending the existing single real run's `-outfmt` costs nothing
+  extra per run, at the price of a one-time cache-format-version bump.
+- *Committing alignment shards to git* (extending NovInvenio_Investigations' existing
+  `docs/<domain>/<set>/archive/*.tsv.gz` convention for other small derived tables) —
+  rejected specifically for alignment data because it carries real sequence text and can
+  run multi-MB gzipped per genome, compounding much faster per rerun than the
+  thousands-of-rows TSVs that convention was designed around.
+- *One alignment file per candidate* — the file-count problem the design explicitly set
+  out to avoid; per-genome sharding keeps file count at "one per genome in the config."
+
+**Consequences**: this is a two-repo change (NovInvenio: pipeline code, issues #70–#76;
+NovInvenio_Investigations: CI/publish/history, issues #1–#4) plus a new `bin/ni` tool
+(NovInvenio #76). `docs/` and `results/` reports stop being byte-identical copies of the
+same generated HTML — `workflows/report.nf`'s `COLLATE_REPORTS` needs to actually
+regenerate (not just copy) the `docs/` flavor with the alignment-popup fragment included.
+
+**Tags**: report, tblastn, github-pages, alignment, release-asset, ci, repo-bloat,
+docs, storeDir, cache-versioning

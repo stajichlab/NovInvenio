@@ -1,14 +1,9 @@
 """
 Landing pages for a NovInvenio result set: the per-project ``report.html`` and
-the top-level ``view/index.html`` gallery.
-
-Both are rendered here so there is exactly one design for each. Before this,
-``bin/make_index_report.py`` (pipeline, driven by the config CSV) and
-``view/generate_index.py`` (post-hoc, driven by the payloads embedded in the
-report HTML) each rendered their *own* report.html with different markup and
-different CSS -- so whichever ran last decided what the shared folder looked
-like, and the top-level gallery matched neither. The two callers still differ
-in where their facts come from; they no longer differ in what they draw.
+a top-level gallery page (``render_gallery_page``, currently unused now that
+the legacy ``view/generate_index.py`` post-hoc gallery tool has been removed --
+kept here as the one design for a future gallery rather than reintroducing the
+per-caller markup/CSS drift this module was written to fix).
 
 Same constraints as the reports themselves: self-contained, opens from
 file://, no network. Callers pass already-escaped-free plain text -- escaping
