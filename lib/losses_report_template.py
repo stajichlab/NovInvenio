@@ -39,6 +39,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
 """ + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + r"""
   /* .badge / .badge.warn now live in BASE_PAGE_CSS and read var(--warn), so a
      skin owns the colour instead of this page hardcoding a light/dark pair. */
+  /*__ALIGNMENT_CSS__*/
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
@@ -52,6 +53,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     </div>
 """ + SKIN_PICKER_HTML + r"""
   </header>
+  <!--__ALIGNMENT_HTML__-->
 
   <section class="card">
     <h2 class="card-title">Run summary</h2>
@@ -300,7 +302,28 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
         return Math.round(jaccard(getSet(r), getSet(state.selected)) * 100) + "%";
       }
     },
-    { label: "Ingroup TBLASTN", get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; }, cls: "wrap-cell" },
+    {
+      label: "Ingroup TBLASTN", cls: "wrap-cell",
+      get: function (r) { return ROWS[r][F.tb_hit] ? ROWS[r][F.tb_genomes] : "none"; },
+      // The alignment popup is a docs/-only feature (DATA.online) -- see
+      // lib/report_template.py's matching TB_GENOMES column for the same
+      // pattern. One clickable chip per hit genome (a loss candidate can hit
+      // more than one ingroup genome).
+      render: DATA.online ? function (td, r) {
+        if (!ROWS[r][F.tb_hit]) { td.textContent = "none"; return; }
+        ROWS[r][F.tb_genomes].split(",").forEach(function (g, gi) {
+          if (gi > 0) td.appendChild(document.createTextNode(", "));
+          var btn = el("button", "btn-ghost tb-hit-btn", g);
+          btn.type = "button";
+          btn.title = "View TBLASTN alignment vs " + g;
+          btn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            window.NIAlignments.open("loss_alignments/", g, ROWS[r][F.id]);
+          });
+          td.appendChild(btn);
+        });
+      } : undefined
+    },
     {
       label: "Gene family", cls: "wrap-cell",
       get: function (r) {
@@ -639,6 +662,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   refresh(true);
   renderDetail();
 })();
+/*__ALIGNMENT_JS__*/
 </script>
 </body>
 </html>

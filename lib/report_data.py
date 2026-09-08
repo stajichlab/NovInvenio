@@ -352,8 +352,15 @@ def build_payload(
     support_matrix=None,
     support_method=None,
     gff3_paths=None,
+    online=False,
 ) -> dict:
     """Build the embedded report payload.
+
+    online: True for the docs/ (GitHub-Pages-served, fetch-capable) copy --
+    the report's own JS uses this to decide whether to wire the TBLASTN
+    alignment popup (lib/report_common.py's ALIGNMENT_POPUP_JS, issue #74) on
+    its TBLASTN-hit table cells. False (the default) is the results/
+    (offline, file://) copy, which never fetches anything.
 
     sequences: 'novelties' (default), 'all', or 'none' — which rows carry a
     protein_sequence.  Sequences dominate payload size, so 'all' is opt-in.
@@ -532,6 +539,7 @@ def build_payload(
 
     return {
         'project': project,
+        'online': online,
         'ingroup_min_frac': ingroup_min_frac,
         'fields': ROW_FIELDS,
         'methods': methods,
@@ -741,8 +749,12 @@ def build_losses_payload(
     loss_ingroup_max_frac=0.0,
     project='NovInvenio',
     gff3_paths=None,
+    online=False,
 ) -> dict:
     """Build the embedded payload for the LOSSES (candidate gene-loss) report.
+
+    online: see build_payload()'s docstring -- same meaning, gates the same
+    TBLASTN alignment popup on this report's "Ingroup TBLASTN" column.
 
     matrix_path is loss_presence_matrix.function.tsv — built by the same
     build_presence_matrix.py machinery as the novelty matrix, but with
@@ -888,6 +900,7 @@ def build_losses_payload(
 
     return {
         'project': project,
+        'online': online,
         'outgroup_min_frac': outgroup_min_frac,
         'loss_ingroup_max_frac': loss_ingroup_max_frac,
         'n_ingroup': len(ingroup_ids),

@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
 from gff3_genes import resolve_gff3_paths  # noqa: E402
+import report_common  # noqa: E402
 from report_data import build_payload  # noqa: E402
 from report_template import HTML_TEMPLATE  # noqa: E402
 
@@ -82,6 +83,10 @@ def main():
                          '(optional; used only to resolve each species\' GFF3 column value '
                          'for the report\'s chrom/start columns). Omit or leave a row\'s GFF3 '
                          'column empty/unresolvable and that row just has no chrom/start.')
+    ap.add_argument('--online', action='store_true',
+                    help='Include the TBLASTN alignment popup (fetches alignments/<genome>'
+                         '.json.gz at runtime) -- for the docs/ (GitHub-Pages-served) copy '
+                         'only. The default (offline) copy stays file://-safe.')
     ap.add_argument('--output', required=True, help='Output HTML file')
     args = ap.parse_args()
 
@@ -115,6 +120,7 @@ def main():
         support_matrix=args.support_matrix,
         support_method=args.support_method,
         gff3_paths=resolve_gff3_paths(samples, args.data_dir),
+        online=args.online,
     )
 
     # separators: drop the whitespace json.dumps adds after every delimiter —
@@ -126,7 +132,10 @@ def main():
 
     doc = (HTML_TEMPLATE
            .replace('__PROJECT_TITLE__', html.escape(project))
-           .replace('/*__PAYLOAD__*/', payload_json))
+           .replace('/*__PAYLOAD__*/', payload_json)
+           .replace('/*__ALIGNMENT_CSS__*/', report_common.ALIGNMENT_POPUP_CSS if args.online else '')
+           .replace('<!--__ALIGNMENT_HTML__-->', report_common.ALIGNMENT_POPUP_HTML if args.online else '')
+           .replace('/*__ALIGNMENT_JS__*/', report_common.ALIGNMENT_POPUP_JS if args.online else ''))
 
     out = Path(args.output)
     if out.parent != Path(''):

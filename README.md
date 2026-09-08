@@ -32,7 +32,10 @@ Config CSV
     │
     └─► REPORT   — self-contained interactive HTML reports (open offline in a browser)
                     → novelties.html, core.html, losses.html
-                      then COLLATE_REPORTS copies all three into view/<project>/
+                      then COLLATE_REPORTS assembles docs/<project>/ (a second,
+                      fetch-capable copy for GitHub Pages -- novelties.html/losses.html
+                      are regenerated there with a TBLASTN alignment popup the offline
+                      copy doesn't carry, see "TBLASTN alignment popup" below)
                       with a report.html landing page describing the run
 ```
 
@@ -119,9 +122,23 @@ When it finishes, open the collated landing page and follow the links to the thr
 interactive reports:
 
 ```bash
-open view/test/report.html   # macOS; Linux: xdg-open
-# view/test/report.html links to copies of novelties.html · core.html · losses.html
+open docs/test/report.html   # macOS; Linux: xdg-open
+# docs/test/report.html links to novelties.html · core.html · losses.html
 ```
+
+Opening `docs/test/report.html` this way (as a `file://` URL) works for everything except
+the TBLASTN alignment popup (novelties.html/losses.html only) -- that feature fetches its
+data over http(s) by design (see "TBLASTN alignment popup" under "Interactive report
+(novelties.html)" below), so `file://` silently can't load it. To try it locally, serve
+the directory instead of opening the file directly:
+
+```bash
+cd docs/test && python3 -m http.server 8000
+# then open http://localhost:8000/report.html in a browser
+```
+
+`results/test/` (the plain offline copy of novelties.html/core.html/losses.html, no
+alignment popup, safe to open as `file://` or hand to someone else) never needs this.
 
 The test data is deliberately small (a handful of genes each), so the reports will be
 nearly empty — the point is to confirm the pipeline runs and the reports render on your
@@ -271,23 +288,38 @@ processes as plain string params rather than staged Nextflow `path` inputs
 and bind them automatically. If your data lives outside `/bigdata`, add that
 path to `runOptions` too.
 
-### UCR HPCC: Docker + SLURM combined
-
-```bash
-nextflow run stajichlab/NovInvenio \
-    -profile slurm,docker \
-    -c conf/ucr_hpcc_slurm.config \
-    --config configs/pezizo4_asco.csv \
-    --data_dir /path/to/fastas \
-    --run_tool diamond \
-    --pfam_hmm db/pfam/38.2/Pfam-A.hmm \
-    --swissprot_dmnd db/uniprot/uniprot_sprot.fasta.dmnd \
-    --modelorgs_config configs/modelorgs.yaml
-```
-
 `conf/ucr_hpcc_slurm.config` provides the SLURM queue routing, AVX2 node
 constraints for `famsa`, and preempt-queue settings specific to the UCR HPCC.
 See that file's header for full usage documentation.
+
+### Tool versions inside the image
+
+`Dockerfile`'s single `conda install` pins each tool differently:
+
+| Tool | Pin | Behaviour on rebuild |
+|---|---|---|
+| `hmmer` | `=3.4` | exact — never changes until the Dockerfile is edited |
+| `blast` | `=2.17` | exact |
+| `mmseqs2` | `=18.8` | exact |
+| `diamond` | `=2.2` | **floating minor** — resolves to whatever the latest `2.2.x` patch is in bioconda *at build time* |
+
+A floating pin like `diamond=2.2` means the exact patch version running in a
+given published image depends on when that image was last built, not on when
+you pulled it — bioconda can (and does) publish new `2.2.x` patches between
+rebuilds. To check what a running image actually has: `docker run
+ghcr.io/stajichlab/novinvenio:<tag> diamond version`. To pick up a newer patch
+without changing the pin, the image just needs a rebuild — touching
+`Dockerfile` or `pixi.toml` and pushing to `main` triggers one automatically
+(`.github/workflows/docker-build.yml`); bumping `pixi.toml`'s version does
+the same via `release-tag.yml`. If reproducibility matters more than always
+tracking the newest patch, pin the exact version instead (e.g. `diamond=2.2.6`).
+
+As of 2026-09-08: bioconda's latest `diamond` is `2.2.6` (published
+2026-09-02); the most recently published image (`sha-d5c3054`, built
+2026-08-26) predates that release and so does not have it yet — a rebuild is
+needed to pick it up. Deliberately left on the floating `2.2` pin for now
+rather than pinning `2.2.6` explicitly (see the project's `.living/decisions.md`
+if a rationale beyond "not yet needed" gets recorded later).
 
 ### Override the container image tag
 
@@ -338,7 +370,7 @@ need to bake it into the image.
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd` database; skips if unset |
 | `--modelorgs_config` | `null` | YAML listing model organisms for gene name lookup (see `configs/modelorgs.yaml`) |
 | `--report_sequences` | `novelties` | Which proteins carry a sequence in `novelties.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
-| `--pdf_report` | `true` | Write `view/<project>/summary.pdf` (matplotlib figures). Set `false` to skip the step (gated via the process `when:` directive) |
+| `--pdf_report` | `true` | Write `docs/<project>/summary.pdf` (matplotlib figures). Set `false` to skip the step (gated via the process `when:` directive) |
 | `--project` | *(auto)* | Output subdirectory name; defaults to config CSV basename |
 | `--outdir` | `results` | Root output directory |
 | `--hmm_mpi` | `false` | Run hmmsearch in MPI mode (requires MPI-enabled HMMER) |
@@ -368,7 +400,7 @@ IN,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
 
 ### Report appearance (skins)
 
-Every generated page — `novelties.html`, `core.html`, `losses.html`, and the `view/`
+Every generated page — `novelties.html`, `core.html`, `losses.html`, and the `docs/`
 landing pages — carries a skin picker in its header: **Paper** (the default), **Dark**,
 **Neuromancer** (a terminal-phosphor neon palette) and **High contrast**. The choice
 follows your OS by default and always prints as Paper. It persists across a project's
@@ -484,8 +516,8 @@ folder alongside a landing page:
 
 | File | Description |
 |---|---|
-| `view/<project>/report.html` | Landing page linking to the three reports, with a run summary (ingroup/outgroup proteomes, search tool, thresholds) |
-| `view/<project>/novelties.html` · `core.html` · `losses.html` | Copies of the three reports, so the whole result set is one self-contained folder to `scp` or share |
+| `docs/<project>/report.html` | Landing page linking to the three reports, with a run summary (ingroup/outgroup proteomes, search tool, thresholds) |
+| `docs/<project>/novelties.html` · `core.html` · `losses.html` | The docs/-flavored novelties.html/losses.html (TBLASTN alignment popup, see above) plus core.html, gathered into one folder to publish as a GitHub Pages site |
 
 ### novelties.\<SHORT\>.tsv columns
 
@@ -545,6 +577,28 @@ No web server is needed — `file://` works, including offline.
 > **Tip:** `SUMMARIZE` currently runs with `--skip_tblastn_filter`, so proteins with
 > TBLASTN hits in outgroup genomes are *kept* and flagged rather than dropped. Tick
 > **No TBLASTN hit** to see the subset that is also absent at the nucleotide level.
+
+### TBLASTN alignment popup (docs/ copy only)
+
+`docs/<project>/novelties.html` and `docs/<project>/losses.html` — the copies
+`COLLATE_REPORTS` assembles for GitHub Pages, generated with `--online` — carry one extra
+feature the plain `results/` copy above doesn't: click a "1" (a TBLASTN hit) in the table
+tab's genome columns (novelties.html) or a genome name in the "Ingroup TBLASTN" column
+(losses.html) to pop up the actual pairwise alignment (evalue/pident/bitscore, plus the
+aligned query/subject sequences) instead of just trusting the 0/1 call. It reads
+`alignments/<genome>.json.gz` / `loss_alignments/<genome>.json.gz` next to the report via
+`fetch()`, so it needs to be **served over http(s)**, not opened as a `file://` URL. Locally:
+
+```bash
+cd docs/pezizo4_asco && python3 -m http.server 8000
+# open http://localhost:8000/novelties.html — no GitHub Pages needed to try this
+```
+
+Opening the file directly (`open novelties.html` / double-click) makes the rest of the
+page work fine but leaves the popup silently unable to fetch — that's expected, not a
+bug to chase. This is also why the offline `results/` copy never gets the feature at all:
+it must stay a single self-contained file with zero network access (see "What the
+container does NOT include" and this repo's `CLAUDE.md` for the constraint).
 
 ### Regenerating without re-running the pipeline
 

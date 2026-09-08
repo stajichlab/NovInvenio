@@ -39,21 +39,33 @@ workflow REPORT {
                                //   it themselves, see lib/gff3_genes.resolve_gff3_paths)
 
     main:
+    // results/ copy: offline, file://-safe, never carries the TBLASTN
+    // alignment popup (issue #74's ALIGNMENT_POPUP_JS).
     MAKE_REPORT(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
                evalues, context_matrix, context_evalues, config_csv, data_dir)
     MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv, data_dir)
     MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
 
+    // docs/ copy: fetch-capable (GitHub Pages), regenerated (not copied) with
+    // --online so it includes the alignment popup wired to its own
+    // alignments/loss_alignments shards (issue #75). core.html has no TBLASTN
+    // column at all (MAKE_CORE_REPORT never takes a tblastn_summary input), so
+    // it never diverges between the two copies and is reused as-is.
+    MAKE_REPORT_ONLINE(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
+                       evalues, context_matrix, context_evalues, config_csv, data_dir)
+    MAKE_LOSSES_REPORT_ONLINE(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
+
     // Publication-quality PDF summary (static figures) alongside the interactive HTML.
     MAKE_PDF_REPORT(annotated_matrix, tblastn_summary, cluster_tsv,
                     loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv)
 
-    // Final step: gather the three reports under docs/<project>/ with a report.html
-    // landing page describing the run (ingroup/outgroup, tool, thresholds).
+    // Final step: gather the three (docs/-flavored) reports under docs/<project>/
+    // with a report.html landing page describing the run (ingroup/outgroup, tool,
+    // thresholds).
     COLLATE_REPORTS(
-        MAKE_REPORT.out.report,
+        MAKE_REPORT_ONLINE.out.report,
         MAKE_CORE_REPORT.out.report,
-        MAKE_LOSSES_REPORT.out.report,
+        MAKE_LOSSES_REPORT_ONLINE.out.report,
         config_csv,
     )
 
@@ -151,6 +163,51 @@ process MAKE_REPORT {
     """
 }
 
+// docs/-only twin of MAKE_REPORT: identical inputs, --online flag included.
+// No publishDir of its own -- COLLATE_REPORTS is what actually places this
+// into docs/<project>/, exactly like MAKE_REPORT's output only reaches
+// results/<project>/ through its own publishDir. Publishing this here too
+// would just double-write the same bytes to the same docs/ path.
+process MAKE_REPORT_ONLINE {
+    label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(annotated_matrix)
+    path(tblastn_summary)
+    path(novelties)
+    path(candidates_fa)
+    path(cluster_tsv)
+    path(evalues, stageAs: 'evalues.tsv')
+    path(context_matrix, stageAs: 'context_matrix.tsv')
+    path(context_evalues, stageAs: 'context_evalues.tsv')
+    path(config_csv)
+    val(data_dir)
+
+    output:
+    path("novelties.html"), emit: report
+
+    script:
+    """
+    make_report.py \
+        --matrix ${annotated_matrix} \
+        --config ${config_csv} \
+        --tblastn_summary ${tblastn_summary} \
+        --novelties ${novelties} \
+        --candidates_fa ${candidates_fa} \
+        --cluster_tsv ${cluster_tsv} \
+        --evalues ${evalues} \
+        --context_matrix ${context_matrix} \
+        --context_evalues ${context_evalues} \
+        --project ${Helpers.projectName(params)} \
+        --ingroup_min_frac ${params.ingroup_min_frac} \
+        --sequences ${params.report_sequences} \
+        --data_dir ${data_dir} \
+        --online \
+        --output novelties.html
+    """
+}
+
 process MAKE_CORE_REPORT {
     label 'low_cpu'
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
@@ -204,6 +261,37 @@ process MAKE_LOSSES_REPORT {
         --project ${Helpers.projectName(params)} \
         --outgroup_min_frac ${params.outgroup_min_frac} \
         --loss_ingroup_max_frac ${params.loss_ingroup_max_frac} \
+        --output losses.html
+    """
+}
+
+// docs/-only twin of MAKE_LOSSES_REPORT -- see MAKE_REPORT_ONLINE's comment.
+process MAKE_LOSSES_REPORT_ONLINE {
+    label 'low_cpu'
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(loss_annotated_matrix)
+    path(loss_tblastn_summary)
+    path(loss_cluster_tsv)
+    path(config_csv)
+    val(data_dir)
+
+    output:
+    path("losses.html"), emit: report
+
+    script:
+    """
+    make_losses_report.py \
+        --matrix ${loss_annotated_matrix} \
+        --config ${config_csv} \
+        --tblastn_summary ${loss_tblastn_summary} \
+        --cluster_tsv ${loss_cluster_tsv} \
+        --data_dir ${data_dir} \
+        --project ${Helpers.projectName(params)} \
+        --outgroup_min_frac ${params.outgroup_min_frac} \
+        --loss_ingroup_max_frac ${params.loss_ingroup_max_frac} \
+        --online \
         --output losses.html
     """
 }
