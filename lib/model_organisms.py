@@ -228,6 +228,21 @@ class ModelOrgAnnotator:
     # -- private --
 
     def _resolve_gene_key(self, protein_id: str, mo: ModelOrgConfig) -> Optional[str]:
+        # Some studies bake a "<Short>__" prefix into protein_id itself (NII's
+        # bin/build_study_config.py header-rewrite convention -- the same one
+        # report_common.py's displayId() has to be idempotent against). Since
+        # a model_organisms entry only ever fires for its own source_short
+        # (mo.short -- see this file's module docstring), that's exactly the
+        # prefix to strip: sidecar files like diamond_hits/gene_names_csv were
+        # built against the study's *unprefixed* protein/gene IDs, so a
+        # prefixed protein_id would otherwise never match any lookup key here
+        # (id_transform='diamond_fasta' in particular: the diamond dict keys
+        # come from that same unprefixed FASTA, so every lookup silently
+        # missed and gene_name/product came back empty for every row).
+        prefix = mo.short + '__'
+        if protein_id.startswith(prefix):
+            protein_id = protein_id[len(prefix):]
+
         if mo.id_transform == 'direct':
             return protein_id
 
