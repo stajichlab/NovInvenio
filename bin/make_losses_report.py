@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
 from gff3_genes import resolve_gff3_paths  # noqa: E402
 from losses_report_template import LOSSES_HTML_TEMPLATE  # noqa: E402
+import report_common  # noqa: E402
 from report_data import build_losses_payload  # noqa: E402
 
 
@@ -64,6 +65,10 @@ def main():
                          'for the report\'s chrom/start columns). Losses are sourced from '
                          'outgroup proteins, so it is each row\'s outgroup source species\' '
                          'GFF3 that resolves here.')
+    ap.add_argument('--online', action='store_true',
+                    help='Include the TBLASTN alignment popup (fetches loss_alignments/'
+                         '<genome>.json.gz at runtime) -- for the docs/ (GitHub-Pages-served) '
+                         'copy only. The default (offline) copy stays file://-safe.')
     ap.add_argument('--output', required=True, help='Output HTML file')
     args = ap.parse_args()
 
@@ -84,6 +89,7 @@ def main():
         loss_ingroup_max_frac=args.loss_ingroup_max_frac,
         project=project,
         gff3_paths=resolve_gff3_paths(samples, args.data_dir),
+        online=args.online,
     )
 
     payload_json = json.dumps(payload, separators=(',', ':'))
@@ -91,7 +97,10 @@ def main():
 
     doc = (LOSSES_HTML_TEMPLATE
            .replace('__PROJECT_TITLE__', html.escape(project))
-           .replace('/*__PAYLOAD__*/', payload_json))
+           .replace('/*__PAYLOAD__*/', payload_json)
+           .replace('/*__ALIGNMENT_CSS__*/', report_common.ALIGNMENT_POPUP_CSS if args.online else '')
+           .replace('<!--__ALIGNMENT_HTML__-->', report_common.ALIGNMENT_POPUP_HTML if args.online else '')
+           .replace('/*__ALIGNMENT_JS__*/', report_common.ALIGNMENT_POPUP_JS if args.online else ''))
 
     out = Path(args.output)
     if out.parent != Path(''):

@@ -281,6 +281,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .grid-scroll, .tbl-scroll { height: auto; overflow: visible; }
     .explorer { grid-template-columns: 1fr; }
   }
+  /*__ALIGNMENT_CSS__*/
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
@@ -294,6 +295,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     </div>
 """ + SKIN_PICKER_HTML + r"""
   </header>
+  <!--__ALIGNMENT_HTML__-->
 
   <!-- Run summary describes the whole run; the filter row below scopes only the explorer. -->
   <section class="card">
@@ -1151,11 +1153,27 @@ HTML_TEMPLATE = r"""<!doctype html>
       cls: "cell"
     });
   });
+  // The alignment popup is a docs/-only feature (DATA.online, set by
+  // bin/make_report.py's --online flag) -- the results/ (offline, file://)
+  // copy never wires window.NIAlignments.open() and these cells stay plain
+  // "1"/"0" text, matching the pre-existing behaviour exactly.
   TB_GENOMES.forEach(function (g, i) {
     TBL_COLS.push({
       label: g + " (tblastn)",
       get: function (r) { return ROWS[r][F.tb].charCodeAt(i) === 49 ? "1" : "0"; },
-      cls: "cell"
+      cls: "cell",
+      render: DATA.online ? function (td, r) {
+        var hit = ROWS[r][F.tb].charCodeAt(i) === 49;
+        if (!hit) { td.textContent = "0"; return; }
+        var btn = el("button", "btn-ghost tb-hit-btn", "1");
+        btn.type = "button";
+        btn.title = "View TBLASTN alignment vs " + g;
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          window.NIAlignments.open("alignments/", g, ROWS[r][F.id]);
+        });
+        td.appendChild(btn);
+      } : undefined
     });
   });
 
@@ -1508,6 +1526,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   refresh(true);
   renderDetail();
 })();
+/*__ALIGNMENT_JS__*/
 </script>
 </body>
 </html>
