@@ -281,7 +281,7 @@ workflow {
         // novelty_discovery/novelty_screen plan (todo/novelty-discovery-screen.md); a
         // DISCOVERY_TARGET/DISCOVERY_OUT config has no IN/OUT rows, so LOSS_SEARCH would only ever see
         // empty channels. REPORT's COLLATE_REPORTS still needs a (zero-row) losses.html
-        // to assemble view/<project>/, so stub the three loss artifacts instead.
+        // to assemble docs/<project>/, so stub the three loss artifacts instead.
         EMPTY_LOSS_STUB(ANNOTATE.out.annotated_matrix)
         loss_annotated_matrix   = EMPTY_LOSS_STUB.out.matrix
         loss_tblastn_summary    = EMPTY_LOSS_STUB.out.tblastn_summary

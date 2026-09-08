@@ -1,7 +1,7 @@
 """
 Small reusable HTML/CSS/JS string fragments shared by the NovInvenio report
 pages (lib/report_template.py, lib/core_report_template.py,
-lib/losses_report_template.py, bin/make_index_report.py, view/generate_index.py).
+lib/losses_report_template.py, bin/make_index_report.py).
 
 Colour tokens are *not* defined here -- they come from lib/skins.py, the single
 registry every page paints from. This module holds the page chrome (CSS) and
