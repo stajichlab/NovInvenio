@@ -33,11 +33,18 @@ process TBLASTN {
     tuple val(meta_genome), path("${meta_genome.id}.tblastn.tsv"), emit: tsv
 
     script:
+    // Columns 0-9 (qseqid..send) are the original contract that
+    // bin/summarize_tblastn.py's presence/absence matrix relies on -- new
+    // columns are appended, never inserted, so any positional reader of the
+    // first 10 fields is unaffected. sframe/qseq/sseq feed
+    // bin/build_alignment_shards.py's pairwise-alignment archive: tblastn is
+    // gapped by default, so qseq/sseq are always equal length (padded with
+    // '-') and sframe disambiguates the minus-strand case where sstart > send.
     """
     tblastn \
         -query ${reps_fa} \
         -db ${meta_genome.id}.genome_db \
-        -outfmt "6 qseqid sseqid evalue bitscore pident length qstart qend sstart send" \
+        -outfmt "6 qseqid sseqid evalue bitscore pident length qstart qend sstart send sframe qseq sseq" \
         -evalue ${params.evalue} \
         -num_threads ${task.cpus} \
         -out ${meta_genome.id}.tblastn.tsv
