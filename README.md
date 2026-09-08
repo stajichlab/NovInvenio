@@ -1,5 +1,7 @@
 # NovInvenio
 
+![NI logo](assets/logo/NI_logo_card-96.png)
+
 Identifies lineage-specific (novel) genes: proteins present in ≥N% of an ingroup but absent from all outgroup proteomes *and* outgroup genomes.
 
 ## Pipeline overview
