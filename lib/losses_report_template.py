@@ -283,7 +283,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
 
   // ---- table --------------------------------------------------------------
   var TBL_COLS = [
-    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono", sortKey: "id" },
+    { label: "Protein ID", get: function (r) { return displayId(ROWS[r][F.id], ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]] : null); }, cls: "mono", sortKey: "id" },
     { label: "Outgroup source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; }, sortKey: "src" },
     { label: "Chrom", get: function (r) { return ROWS[r][F.chrom] || ""; }, cls: "mono", sortKey: "pos" },
     { label: "Start", get: function (r) { return ROWS[r][F.start] != null ? ROWS[r][F.start] : ""; }, cls: "num", sortKey: "pos" },
@@ -421,7 +421,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
 
     var h3 = el("h3");
     var upLink = uniprotRecordLinkNode(row[F.id]);
-    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = row[F.id]; }
+    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = displayId(row[F.id], sp); }
     detailEl.appendChild(h3);
     if (sp) {
       detailEl.appendChild(el("div", "species",
@@ -502,6 +502,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       id: row[F.id],
       gene: row[F.gene],
       sprot: row[F.sprot],
+      geneUrl: row[F.gene_url],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: "",

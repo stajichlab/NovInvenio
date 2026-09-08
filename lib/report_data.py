@@ -33,6 +33,8 @@ ROW_FIELDS = [
                  # rather than repeating the string on every row.
     'fsrc',      # index into payload['fsources'], or -1
     'sprot',     # Best_Swissprot
+    'gene_url',  # Model_Org_Gene_URL -- '' unless the modelorgs.yaml entry has
+                 # gene_url_template set (see lib/model_organisms.py)
     'pfam_n',    # Pfam_Names (comma-separated)
     'pfam_a',    # Pfam_Accessions (comma-separated)
     'pfam_e',    # Pfam_Evalues (comma-separated)
@@ -510,6 +512,7 @@ def build_payload(
             descriptions.intern(row.get('product_description', '') or row.get('uniprot_description', '') or ''),
             fsrc_i,
             row.get('Best_Swissprot', '') or '',
+            row.get('Model_Org_Gene_URL', '') or '',
             row.get('Pfam_Names', '') or (row.get('uniprot_pfam_names', '') or '').replace('|', ','),
             row.get('Pfam_Accessions', '') or (row.get('uniprot_pfam_ids', '') or '').replace('|', ','),
             row.get('Pfam_Evalues', '') or '',
@@ -562,6 +565,8 @@ CORE_ROW_FIELDS = [
     'prod',      # index into payload['descriptions'], or -1 -- see ROW_FIELDS' 'prod'
     'fsrc',      # index into payload['fsources'], or -1
     'sprot',     # Best_Swissprot
+    'gene_url',  # Model_Org_Gene_URL -- '' unless the modelorgs.yaml entry has
+                 # gene_url_template set (see lib/model_organisms.py)
     'pfam_n',    # Pfam_Names (comma-separated)
     'pfam_a',    # Pfam_Accessions (comma-separated)
     'pfam_e',    # Pfam_Evalues (comma-separated)
@@ -659,6 +664,7 @@ def build_core_payload(
             descriptions.intern(row.get('product_description', '') or row.get('uniprot_description', '') or ''),
             fsrc_i,
             row.get('Best_Swissprot', '') or '',
+            row.get('Model_Org_Gene_URL', '') or '',
             row.get('Pfam_Names', '') or (row.get('uniprot_pfam_names', '') or '').replace('|', ','),
             row.get('Pfam_Accessions', '') or (row.get('uniprot_pfam_ids', '') or '').replace('|', ','),
             row.get('Pfam_Evalues', '') or '',
@@ -702,6 +708,8 @@ LOSSES_ROW_FIELDS = [
     'prod',        # index into payload['descriptions'], or -1 -- see ROW_FIELDS' 'prod'
     'fsrc',        # index into payload['fsources'], or -1
     'sprot',       # Best_Swissprot
+    'gene_url',  # Model_Org_Gene_URL -- '' unless the modelorgs.yaml entry has
+                 # gene_url_template set (see lib/model_organisms.py)
     'pfam_n',      # Pfam_Names (comma-separated)
     'pfam_a',      # Pfam_Accessions (comma-separated)
     'pfam_e',      # Pfam_Evalues (comma-separated)
@@ -862,6 +870,7 @@ def build_losses_payload(
             descriptions.intern(row.get('product_description', '') or row.get('uniprot_description', '') or ''),
             fsrc_i,
             row.get('Best_Swissprot', '') or '',
+            row.get('Model_Org_Gene_URL', '') or '',
             row.get('Pfam_Names', '') or (row.get('uniprot_pfam_names', '') or '').replace('|', ','),
             row.get('Pfam_Accessions', '') or (row.get('uniprot_pfam_ids', '') or '').replace('|', ','),
             row.get('Pfam_Evalues', '') or '',

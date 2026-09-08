@@ -215,6 +215,20 @@ EL_HELPER_JS = r"""
     if (title) a.title = title;
     return a;
   }
+  // Candidate protein IDs are only unique within their own source proteome
+  // (MAG/prodigal locus tags in particular collide across MAGs -- e.g.
+  // "k141_81591_30" says nothing about which of the study's MAGs it came
+  // from), so any human-facing label needs the source proteome's Short
+  // prefixed. Some pipelines already bake a "<Short>__" prefix into
+  // protein_id itself (see NII's bin/build_study_config.py header-rewrite
+  // convention) -- id.indexOf check makes this a no-op for those instead of
+  // doubling up ("UHM102bin47:UHM102bin47__k141..."). Never used for the raw
+  // id itself (FASTA export, UniProt-record parsing, sort/search keys) --
+  // only for what a reader sees.
+  function displayId(id, sp) {
+    if (!sp) return id;
+    return id.indexOf(sp.short) === 0 ? id : sp.short + ":" + id;
+  }
 """
 
 # Every report resolves a protein to the same external record, so this lives in
@@ -526,6 +540,11 @@ LINKOUT_HELPERS_JS = r"""
   // One builder for all three reports so they can no longer drift apart.
   //   o.id        protein ID
   //   o.gene      gene_name ('' if none)
+  //   o.geneUrl   Model_Org_Gene_URL -- modelorgs.yaml's gene_url_template
+  //               resolved by bin/annotate_presence_matrix.py against the
+  //               gene_names_csv LOOKUP KEY (e.g. a UniProt accession), not
+  //               against o.gene itself (see ModelOrgAnnotator.gene_url()'s
+  //               docstring for why those can differ), or '' if unset/unresolved
   //   o.sprot     Best_Swissprot ('' if none)
   //   o.pfam      Pfam_Names ('' if none)
   //   o.fsrcName  annotation source label ('' if none)
@@ -543,12 +562,21 @@ LINKOUT_HELPERS_JS = r"""
         "Predicted structure for " + acc));
     }
     var db = genomeDbLink(o.proteome && o.proteome.source_db, o.id);
-    if (!db && o.fsrcName && o.fsrcName.indexOf("ModelOrg_") === 0) {
-      // Legacy behaviour for configs with no SourceDB column: the model
-      // organisms in configs/modelorgs.yaml are all FungiDB-backed.
-      db = genomeDbLink("fungidb", o.id);
-    }
     if (db) links.appendChild(db);
+    // Model-org gene lookup (modelorgs.yaml) is a *different* external record
+    // than the candidate's own genome-db entry above: it's a lookup into
+    // whatever database the model organism's gene_names_csv itself came from
+    // (UniProt, FungiDB, ...), and o.geneUrl is already resolved against the
+    // exact lookup key (see the o.geneUrl field note above) -- never on the
+    // candidate's own protein_id, which a MAG's prodigal-called ID has no
+    // relationship to at all. Only rendered when the modelorgs.yaml entry
+    // that fired sets gene_url_template; there is no safe default to guess,
+    // since the same fsrcName ("ModelOrg_<short>") fires for both FungiDB-
+    // and UniProt-backed configs.
+    if (o.gene && o.geneUrl && isSafeHttpUrl(o.geneUrl)) {
+      links.appendChild(extLink("Model organism gene: " + o.gene, o.geneUrl,
+        "Reference gene record for " + o.gene));
+    }
     var tax = taxonomyLink(o.proteome);
     if (tax) links.appendChild(tax);
     if (!acc && !db) {

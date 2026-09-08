@@ -805,7 +805,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       gctx.textAlign = "left";
       gctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
       gctx.fillStyle = P.primary;
-      var idText = ellipsize(gctx, row[F.id], GUTTER - 100);
+      var rowSp = row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null;
+      var idText = ellipsize(gctx, displayId(row[F.id], rowSp), GUTTER - 100);
       gctx.fillText(idText, 8, y + ROW_H / 2);
 
       var note = row[F.gene] || fromTable(DATA.descriptions, row[F.prod]) || "";
@@ -883,7 +884,8 @@ HTML_TEMPLATE = r"""<!doctype html>
         : "Outgroup genome"));
     }
 
-    tipEl.appendChild(el("div", "tip-id", row[F.id]));
+    tipEl.appendChild(el("div", "tip-id",
+      displayId(row[F.id], row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null)));
     if (row[F.gene]) tipEl.appendChild(el("div", "tip-row", "Gene: " + row[F.gene]));
     if (row[F.prod] >= 0) tipEl.appendChild(el("div", "tip-row", DATA.descriptions[row[F.prod]]));
     tipEl.appendChild(el("div", "tip-row",
@@ -927,7 +929,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     var h3 = el("h3");
     var upLink = uniprotRecordLinkNode(row[F.id]);
-    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = row[F.id]; }
+    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = displayId(row[F.id], sp); }
     detailEl.appendChild(h3);
     if (sp) {
       detailEl.appendChild(el("div", "species",
@@ -1079,6 +1081,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       id: row[F.id],
       gene: row[F.gene],
       sprot: row[F.sprot],
+      geneUrl: row[F.gene_url],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: seq,
@@ -1102,7 +1105,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   // ---- table view ---------------------------------------------------------
   var TBL_COLS = [
-    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono", sortKey: "id" },
+    { label: "Protein ID", get: function (r) { return displayId(ROWS[r][F.id], ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]] : null); }, cls: "mono", sortKey: "id" },
     { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; }, sortKey: "src" },
     { label: "Chrom", get: function (r) { return ROWS[r][F.chrom] || ""; }, cls: "mono", sortKey: "pos" },
     { label: "Start", get: function (r) { return ROWS[r][F.start] != null ? ROWS[r][F.start] : ""; }, cls: "num", sortKey: "pos" },
