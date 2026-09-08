@@ -34,6 +34,12 @@ Optional column overrides (defaults match FungiDB CSV export format):
       gene_name_col: "Gene Name or Symbol"
       product_col:   "Product Description"
       csv_delimiter: ","              # default comma; set to "\\t" for TSV
+
+Optional report hyperlink for the resolved gene_name -- a "{gene}" URL
+template naming whatever database this organism's gene_names_csv itself came
+from (there's no safe default to assume, since that varies by organism):
+      gene_url_template: "https://www.uniprot.org/uniprotkb?query={gene}"
+      gene_url_template: "https://fungidb.org/fungidb/app/record/gene/{gene}"
 """
 
 import csv
@@ -42,6 +48,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 import yaml
 
@@ -67,6 +74,15 @@ class ModelOrgConfig:
     gene_name_col: str = 'Gene Name or Symbol'
     product_col: str = 'Product Description'
     csv_delimiter: str = ','
+
+    # Optional lookup URL for the resolved gene_name, e.g.
+    # "https://www.uniprot.org/uniprotkb?query={gene}" or
+    # "https://fungidb.org/fungidb/app/record/gene/{gene}". Must contain the
+    # literal "{gene}" placeholder. There is no default: which external
+    # database a model organism's gene names came from varies per organism
+    # (UniProt locus tags, FungiDB gene IDs, ...), so guessing one is wrong
+    # more often than it's right -- see report_common.py's externalLinksNode.
+    gene_url_template: Optional[str] = None
 
 
 # ── Loader ────────────────────────────────────────────────────────────────────
@@ -104,6 +120,7 @@ def load_model_org_configs(yaml_path: str,
             gene_name_col=entry.get('gene_name_col', 'Gene Name or Symbol'),
             product_col=entry.get('product_col', 'Product Description'),
             csv_delimiter=entry.get('csv_delimiter', ','),
+            gene_url_template=entry.get('gene_url_template'),
         )
 
         _validate(mo)
@@ -134,6 +151,11 @@ def _validate(mo: ModelOrgConfig) -> None:
             sys.exit(f"[model_organisms] diamond_hits required when id_transform=diamond_fasta for {mo.short}")
         if not mo.protein_fasta:
             sys.exit(f"[model_organisms] protein_fasta required when id_transform=diamond_fasta for {mo.short}")
+    if mo.gene_url_template and '{gene}' not in mo.gene_url_template:
+        sys.exit(
+            f"[model_organisms] gene_url_template for {mo.short} must contain the "
+            f"literal '{{gene}}' placeholder: {mo.gene_url_template!r}"
+        )
 
 
 # ── Annotator ─────────────────────────────────────────────────────────────────
@@ -146,7 +168,7 @@ class ModelOrgAnnotator:
     Usage::
 
         annotator = ModelOrgAnnotator.from_yaml("configs/modelorgs.yaml")
-        gene_name, product = annotator.annotate("FC69C3D3_000001-T1", "Ncra")
+        gene_name, product, gene_key = annotator.annotate("FC69C3D3_000001-T1", "Ncra")
     """
 
     def __init__(self, configs: dict[str, ModelOrgConfig]) -> None:
@@ -163,30 +185,64 @@ class ModelOrgAnnotator:
 
     # -- public --
 
-    def annotate(self, protein_id: str, source_short: str) -> tuple[str, str]:
+    def annotate(self, protein_id: str, source_short: str) -> tuple[str, str, str]:
         """
-        Return (gene_name, product_description) for the given protein.
-        Returns ('', '') if no annotation is found or the source is not
-        in the configured model organisms.
+        Return (gene_name, product_description, gene_key) for the given protein.
+        gene_key is the raw gene_names_csv lookup key (its gene_id_col value --
+        e.g. a UniProt accession, not necessarily the same as gene_name/
+        gene_name_col -- see gene_url()'s docstring for why the two must not be
+        conflated). Returns ('', '', '') if no annotation is found or the
+        source is not in the configured model organisms.
         """
         mo = self._configs.get(source_short)
         if mo is None:
-            return '', ''
+            return '', '', ''
 
         gene_key = self._resolve_gene_key(protein_id, mo)
         if not gene_key:
-            return '', ''
+            return '', '', ''
 
         info = self._gene_info_for(mo)
-        result = info.get(gene_key, ('', ''))
-        return result
+        gene_name, product = info.get(gene_key, ('', ''))
+        return gene_name, product, gene_key
 
     def shorts(self) -> list[str]:
         return list(self._configs.keys())
 
+    def gene_url(self, source_short: str, gene_key: str) -> str:
+        """Resolve the modelorgs.yaml entry's gene_url_template (if any) against
+        gene_key -- annotate()'s 3rd return value, the gene_names_csv lookup
+        key -- NOT against gene_name. The two often differ: Kpn78578's
+        gene_name_col falls back to a UniProt locus tag (e.g. "KPN_01641")
+        whenever a protein has no real gene symbol, but gene_id_col (here
+        "accession", e.g. "A6T901") is always the actual UniProt accession --
+        the only one guaranteed to resolve to a single, correct record.
+        Returns '' when the entry has no template configured, or gene_key is
+        empty -- never guesses a database from source_short alone (see
+        ModelOrgConfig.gene_url_template's docstring)."""
+        mo = self._configs.get(source_short)
+        if mo is None or not mo.gene_url_template or not gene_key:
+            return ''
+        return mo.gene_url_template.replace('{gene}', quote(gene_key, safe=''))
+
     # -- private --
 
     def _resolve_gene_key(self, protein_id: str, mo: ModelOrgConfig) -> Optional[str]:
+        # Some studies bake a "<Short>__" prefix into protein_id itself (NII's
+        # bin/build_study_config.py header-rewrite convention -- the same one
+        # report_common.py's displayId() has to be idempotent against). Since
+        # a model_organisms entry only ever fires for its own source_short
+        # (mo.short -- see this file's module docstring), that's exactly the
+        # prefix to strip: sidecar files like diamond_hits/gene_names_csv were
+        # built against the study's *unprefixed* protein/gene IDs, so a
+        # prefixed protein_id would otherwise never match any lookup key here
+        # (id_transform='diamond_fasta' in particular: the diamond dict keys
+        # come from that same unprefixed FASTA, so every lookup silently
+        # missed and gene_name/product came back empty for every row).
+        prefix = mo.short + '__'
+        if protein_id.startswith(prefix):
+            protein_id = protein_id[len(prefix):]
+
         if mo.id_transform == 'direct':
             return protein_id
 

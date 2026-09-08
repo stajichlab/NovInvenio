@@ -108,13 +108,13 @@ def test_novelty_discovery_and_screen_end_to_end(fixture_dir):
     )
 
     results_dir = tmp_path / 'results' / project
-    view_dir = tmp_path / 'view' / project
+    docs_dir = tmp_path / 'docs' / project
 
     for name in ('screened_presence_matrix.tsv', 'screened_candidates.txt',
                 'novelties.html', 'core.html', 'losses.html'):
         assert (results_dir / name).exists(), f'missing results/{project}/{name}'
     for name in ('novelties.html', 'core.html', 'losses.html', 'report.html', 'summary.pdf'):
-        assert (view_dir / name).exists(), f'missing view/{project}/{name}'
+        assert (docs_dir / name).exists(), f'missing docs/{project}/{name}'
 
     header = (results_dir / 'screened_presence_matrix.tsv').read_text().splitlines()[0]
     fields = header.split('\t')

@@ -83,6 +83,8 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       <option value="id">Sort: protein ID</option>
       <option value="src">Sort: source proteome</option>
       <option value="pfam">Sort: annotated first</option>
+      <option value="simpfam">Group: similar Pfam domains to selected gene</option>
+      <option value="simgo">Group: similar GO terms to selected gene</option>
       <option value="pos">Sort: genomic position (chrom, start)</option>
     </select>
     <button id="f-reset" type="button">Reset</button>
@@ -139,6 +141,38 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
               row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
   }
 
+  // ---- Pfam/GO similarity (group/sort every row by similarity to the
+  // currently *selected* gene) -- see lib/report_template.py's identical helpers.
+  var pfamSetCache = new Array(nRows);
+  var goSetCache = new Array(nRows);
+  function pfamSetFor(ri) {
+    if (pfamSetCache[ri] === undefined) {
+      var s = ROWS[ri][F.pfam_a];
+      pfamSetCache[ri] = s ? new Set(s.split(",").filter(Boolean)) : null;
+    }
+    return pfamSetCache[ri];
+  }
+  function goSetFor(ri) {
+    if (goSetCache[ri] === undefined) {
+      var gi = ROWS[ri][F.go];
+      if (gi < 0) { goSetCache[ri] = null; }
+      else {
+        var terms = DATA.go_sets[gi].split("|").filter(Boolean).map(function (t) {
+          return t.split(":").slice(0, 2).join(":");
+        });
+        goSetCache[ri] = terms.length ? new Set(terms) : null;
+      }
+    }
+    return goSetCache[ri];
+  }
+  function jaccard(a, b) {
+    if (!a || !b) return 0;
+    var inter = 0;
+    a.forEach(function (x) { if (b.has(x)) inter++; });
+    var union = a.size + b.size - inter;
+    return union ? inter / union : 0;
+  }
+
   var state = {
     search: "",
     src: "",
@@ -183,6 +217,20 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       var pa = ROWS[a][F.pfam_n] ? 1 : 0, pb = ROWS[b][F.pfam_n] ? 1 : 0;
       return (pb - pa) || (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b);
     };
+    else if (s === "simpfam" || s === "simgo") {
+      if (state.selected < 0) {
+        cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
+      } else {
+        var getSet = s === "simpfam" ? pfamSetFor : goSetFor;
+        var anchor = state.selected;
+        var anchorSet = getSet(anchor);
+        cmp = function (a, b) {
+          var sa = a === anchor ? 2 : jaccard(getSet(a), anchorSet);
+          var sb = b === anchor ? 2 : jaccard(getSet(b), anchorSet);
+          return (sb - sa) || cmpId(a, b);
+        };
+      }
+    }
     else if (s === "pos") cmp = function (a, b) {
       var ca = ROWS[a][F.chrom] || "", cb = ROWS[b][F.chrom] || "";
       if (ca !== cb) return ca < cb ? -1 : 1;
@@ -198,7 +246,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 
   // ---- table --------------------------------------------------------------
   var TBL_COLS = [
-    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono", sortKey: "id" },
+    { label: "Protein ID", get: function (r) { return displayId(ROWS[r][F.id], ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]] : null); }, cls: "mono", sortKey: "id" },
     { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; }, sortKey: "src" },
     { label: "Chrom", get: function (r) { return ROWS[r][F.chrom] || ""; }, cls: "mono", sortKey: "pos" },
     { label: "Start", get: function (r) { return ROWS[r][F.start] != null ? ROWS[r][F.start] : ""; }, cls: "num", sortKey: "pos" },
@@ -217,6 +265,15 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       label: "Pfam domains", cls: "wrap-cell", sortKey: "pfam",
       get: function (r) { return ROWS[r][F.pfam_n]; },
       render: function (td, r) { td.appendChild(pfamLinksInline(ROWS[r][F.pfam_n], ROWS[r][F.pfam_a])); }
+    },
+    {
+      label: "Similarity to selected", cls: "num",
+      get: function (r) {
+        if (state.selected < 0 || (state.sort !== "simpfam" && state.sort !== "simgo")) return "";
+        if (r === state.selected) return "—";
+        var getSet = state.sort === "simpfam" ? pfamSetFor : goSetFor;
+        return Math.round(jaccard(getSet(r), getSet(state.selected)) * 100) + "%";
+      }
     }
   ];
 
@@ -323,7 +380,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 
     var h3 = el("h3");
     var upLink = uniprotRecordLinkNode(row[F.id]);
-    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = row[F.id]; }
+    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = displayId(row[F.id], sp); }
     detailEl.appendChild(h3);
     if (sp) {
       detailEl.appendChild(el("div", "species",
@@ -388,6 +445,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       id: row[F.id],
       gene: row[F.gene],
       sprot: row[F.sprot],
+      geneUrl: row[F.gene_url],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: "",
@@ -397,6 +455,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 
   function select(ri) {
     state.selected = ri;
+    if (state.sort === "simpfam" || state.sort === "simgo") { refresh(false); }
     renderDetail();
     markTableSelection();
   }
@@ -436,7 +495,9 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       renderDetail();
     }
     document.getElementById("count").textContent =
-      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins";
+      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins" +
+      ((state.sort === "simpfam" || state.sort === "simgo") && state.selected < 0
+        ? " — select a gene to group by similarity" : "");
     renderTable(true);
   }
 

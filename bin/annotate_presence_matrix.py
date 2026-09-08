@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-Add gene_name, product_description, function_source, Best_Swissprot, and
-Pfam_Names columns to presence_matrix.tsv.
+Add gene_name, product_description, function_source, Best_Swissprot,
+Pfam_Names, and Model_Org_Gene_URL columns to presence_matrix.tsv.
+
+Model_Org_Gene_URL is '' unless the modelorgs.yaml entry that resolved
+gene_name also sets gene_url_template (see lib/model_organisms.py) -- there is
+no default gene-lookup database to assume, since that varies per model
+organism (UniProt, FungiDB, ...).
 
 Annotation priority per protein:
   1. Model organism gene names (via --modelorgs_config YAML)
@@ -108,7 +113,8 @@ def main():
     with open(args.matrix) as fin, open(args.output, 'w', newline='') as fout:
         reader = csv.DictReader(fin, delimiter='\t')
         extra_cols = ['gene_name', 'product_description', 'function_source',
-                      'Best_Swissprot', 'Pfam_Names', 'Pfam_Accessions', 'Pfam_Evalues']
+                      'Best_Swissprot', 'Pfam_Names', 'Pfam_Accessions', 'Pfam_Evalues',
+                      'Model_Org_Gene_URL']
         if args.candidates_fa:
             extra_cols.append('protein_sequence')
         out_fields = list(reader.fieldnames) + extra_cols
@@ -122,12 +128,20 @@ def main():
             gene_name = ''
             product = ''
             func_source = ''
+            gene_url = ''
 
             # --- Model organism lookup (via YAML config) ---
             if annotator:
-                gene_name, product = annotator.annotate(pid, source)
+                gene_name, product, gene_key = annotator.annotate(pid, source)
                 if product or gene_name:
                     func_source = f'ModelOrg_{source}'
+                    # Linked by gene_key (the gene_names_csv lookup key, e.g. a
+                    # UniProt accession), not gene_name -- see
+                    # ModelOrgAnnotator.gene_url()'s docstring for why: a
+                    # model organism's gene_name can be a locus-tag fallback
+                    # with no guaranteed unique record, but gene_key always
+                    # resolves to the exact source record.
+                    gene_url = annotator.gene_url(source, gene_key)
 
             # --- Best Swissprot hit (always stored separately) ---
             best_swissprot = swissprot_hits.get(pid, '')
@@ -154,6 +168,7 @@ def main():
             row['Pfam_Names'] = pfam_names
             row['Pfam_Accessions'] = pfam_accessions
             row['Pfam_Evalues'] = pfam_evalues
+            row['Model_Org_Gene_URL'] = gene_url
             if args.candidates_fa:
                 row['protein_sequence'] = sequences.get(pid, '')
             writer.writerow(row)

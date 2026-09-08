@@ -116,6 +116,8 @@ HTML_TEMPLATE = r"""<!doctype html>
   /* ---- filters ---- */
   .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
   .filters label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .filters label.num-range { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+  .filters label.num-range input[type="number"] { padding: 2px 4px; }
   .filters input[type="search"] { min-width: 260px; }
   .spacer { flex: 1; }
   .count { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -339,6 +341,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     <label class="check"><input type="checkbox" id="f-pfam"> Has Pfam</label>
     <label class="check"><input type="checkbox" id="f-notb"> No TBLASTN hit</label>
     <label class="check hidden" id="f-concordant-wrap"><input type="checkbox" id="f-concordant"> Concordant (both methods)</label>
+    <label class="num-range" aria-label="Protein length range (aa)">Length (aa)
+      <input type="number" id="f-minlen" min="0" placeholder="min" style="width:5em">–<input type="number" id="f-maxlen" min="0" placeholder="max" style="width:5em">
+    </label>
     <select id="f-sort" aria-label="Sort by">
       <option value="ingroup">Sort: ingroup breadth</option>
       <option value="id">Sort: protein ID</option>
@@ -346,6 +351,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       <option value="outgroup">Sort: fewest outgroup hits</option>
       <option value="tb">Sort: fewest TBLASTN hits</option>
       <option value="pfam">Sort: annotated first</option>
+      <option value="len">Sort: protein length (shortest first)</option>
+      <option value="simpfam">Group: similar Pfam domains to selected gene</option>
+      <option value="simgo">Group: similar GO terms to selected gene</option>
       <option value="pos">Sort: genomic position (chrom, start)</option>
     </select>
     <button id="f-reset" type="button">Reset</button>
@@ -464,6 +472,12 @@ HTML_TEMPLATE = r"""<!doctype html>
   var outN = new Int16Array(nRows);
   var tbN = new Int16Array(nRows);
   var hasPfam = new Uint8Array(nRows);
+  // Protein length in aa, from the embedded sequence (F.seq — only populated for
+  // novelty candidates, see lib/report_data.py's ROW_FIELDS 'seq' docs; 0 for rows
+  // with no sequence loaded). Short/fast-evolving proteins are disproportionately
+  // likely to be homology-detection misses rather than real novelties (Weisman et
+  // al. 2020, see DESIGN.md) — this lets that be filtered/sorted on directly.
+  var lenN = new Int32Array(nRows);
 
   for (var r = 0; r < nRows; r++) {
     var pres = ROWS[r][F.pres];
@@ -478,6 +492,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     for (ci = 0; ci < tb.length; ci++) { if (tb.charCodeAt(ci) === 49) cn++; }
     tbN[r] = cn;
     hasPfam[r] = ROWS[r][F.pfam_n] ? 1 : 0;
+    lenN[r] = ROWS[r][F.seq] ? ROWS[r][F.seq].length : 0;
   }
 
   // Lowercased haystack per row, built once — search runs on every keystroke.
@@ -491,6 +506,45 @@ HTML_TEMPLATE = r"""<!doctype html>
               row[F.pfam_n] + " " + row[F.sprot] + " " + famRep).toLowerCase();
   }
 
+  // ---- Pfam/GO similarity (group/sort every row by similarity to the
+  // currently *selected* gene) ---------------------------------------------
+  // Sets are parsed lazily and cached per row -- most rows are never compared
+  // (only ever needed once a row is selected and a similarity sort chosen).
+  var pfamSetCache = new Array(nRows);
+  var goSetCache = new Array(nRows);
+  function pfamSetFor(ri) {
+    if (pfamSetCache[ri] === undefined) {
+      var s = ROWS[ri][F.pfam_a];
+      pfamSetCache[ri] = s ? new Set(s.split(",").filter(Boolean)) : null;
+    }
+    return pfamSetCache[ri];
+  }
+  function goSetFor(ri) {
+    if (goSetCache[ri] === undefined) {
+      var gi = ROWS[ri][F.go];
+      if (gi < 0) { goSetCache[ri] = null; }
+      else {
+        // DATA.go_sets entries are "|"-separated "GO:nnnnnnn:EVIDENCE" -- drop the
+        // evidence code so two rows citing the same term via different evidence
+        // still count as a match (see lib/report_data.py's ROW_FIELDS 'go' docs).
+        var terms = DATA.go_sets[gi].split("|").filter(Boolean).map(function (t) {
+          return t.split(":").slice(0, 2).join(":");
+        });
+        goSetCache[ri] = terms.length ? new Set(terms) : null;
+      }
+    }
+    return goSetCache[ri];
+  }
+  // Jaccard similarity (|intersection| / |union|) — simple, symmetric, and
+  // appropriate for small unordered annotation sets like these.
+  function jaccard(a, b) {
+    if (!a || !b) return 0;
+    var inter = 0;
+    a.forEach(function (x) { if (b.has(x)) inter++; });
+    var union = a.size + b.size - inter;
+    return union ? inter / union : 0;
+  }
+
   // ---- state --------------------------------------------------------------
   var state = {
     search: "",
@@ -502,6 +556,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     noTb: false,
     concordantOnly: false,
     category: "",
+    minLen: null,
+    maxLen: null,
     sort: "ingroup",
     view: "heatmap",
     selected: -1,
@@ -573,6 +629,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       // Concordant = called novel by both search methods (support has a "+").
       if (state.concordantOnly && String(row[F.support] || "").indexOf("+") === -1) continue;
       if (state.category && row[F.category] !== state.category) continue;
+      if (state.minLen != null && lenN[i] < state.minLen) continue;
+      if (state.maxLen != null && lenN[i] > state.maxLen) continue;
       if (terms.length) {
         var hay = HAY[i], ok = true;
         for (var t = 0; t < terms.length; t++) {
@@ -594,6 +652,23 @@ HTML_TEMPLATE = r"""<!doctype html>
     else if (s === "outgroup") cmp = function (a, b) { return (outN[a] - outN[b]) || (inN[b] - inN[a]) || cmpId(a, b); };
     else if (s === "tb") cmp = function (a, b) { return (tbN[a] - tbN[b]) || (inN[b] - inN[a]) || cmpId(a, b); };
     else if (s === "pfam") cmp = function (a, b) { return (hasPfam[b] - hasPfam[a]) || (inN[b] - inN[a]) || cmpId(a, b); };
+    else if (s === "len") cmp = function (a, b) { return (lenN[a] - lenN[b]) || cmpId(a, b); };
+    else if (s === "simpfam" || s === "simgo") {
+      // Group every row by similarity to the currently *selected* gene (the anchor).
+      // Falls back to the default ordering when nothing is selected yet.
+      if (state.selected < 0) {
+        cmp = function (a, b) { return (inN[b] - inN[a]) || (outN[a] - outN[b]) || cmpId(a, b); };
+      } else {
+        var getSet = s === "simpfam" ? pfamSetFor : goSetFor;
+        var anchor = state.selected;
+        var anchorSet = getSet(anchor);
+        cmp = function (a, b) {
+          var sa = a === anchor ? 2 : jaccard(getSet(a), anchorSet);
+          var sb = b === anchor ? 2 : jaccard(getSet(b), anchorSet);
+          return (sb - sa) || cmpId(a, b);
+        };
+      }
+    }
     else if (s === "pos") cmp = function (a, b) {
       var ca = ROWS[a][F.chrom] || "", cb = ROWS[b][F.chrom] || "";
       if (ca !== cb) return ca < cb ? -1 : 1;
@@ -730,7 +805,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       gctx.textAlign = "left";
       gctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
       gctx.fillStyle = P.primary;
-      var idText = ellipsize(gctx, row[F.id], GUTTER - 100);
+      var rowSp = row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null;
+      var idText = ellipsize(gctx, displayId(row[F.id], rowSp), GUTTER - 100);
       gctx.fillText(idText, 8, y + ROW_H / 2);
 
       var note = row[F.gene] || fromTable(DATA.descriptions, row[F.prod]) || "";
@@ -808,7 +884,8 @@ HTML_TEMPLATE = r"""<!doctype html>
         : "Outgroup genome"));
     }
 
-    tipEl.appendChild(el("div", "tip-id", row[F.id]));
+    tipEl.appendChild(el("div", "tip-id",
+      displayId(row[F.id], row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null)));
     if (row[F.gene]) tipEl.appendChild(el("div", "tip-row", "Gene: " + row[F.gene]));
     if (row[F.prod] >= 0) tipEl.appendChild(el("div", "tip-row", DATA.descriptions[row[F.prod]]));
     tipEl.appendChild(el("div", "tip-row",
@@ -852,7 +929,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     var h3 = el("h3");
     var upLink = uniprotRecordLinkNode(row[F.id]);
-    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = row[F.id]; }
+    if (upLink) { h3.appendChild(upLink); } else { h3.textContent = displayId(row[F.id], sp); }
     detailEl.appendChild(h3);
     if (sp) {
       detailEl.appendChild(el("div", "species",
@@ -963,6 +1040,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(field("TBLASTN vs outgroup genomes · " + tbN[ri] + "/" + TB_GENOMES.length + " hit", tbm));
     }
 
+    if (lenN[ri]) detailEl.appendChild(field("Protein length", lenN[ri] + " aa"));
     if (row[F.gene]) detailEl.appendChild(field("Gene name", row[F.gene]));
     if (row[F.prod] >= 0) detailEl.appendChild(field("Product", DATA.descriptions[row[F.prod]]));
     if (row[F.fsrc] >= 0) detailEl.appendChild(field("Annotation source", DATA.fsources[row[F.fsrc]]));
@@ -1003,6 +1081,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       id: row[F.id],
       gene: row[F.gene],
       sprot: row[F.sprot],
+      geneUrl: row[F.gene_url],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: seq,
@@ -1016,6 +1095,9 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   function select(ri) {
     state.selected = ri;
+    // Changing the anchor gene changes the whole ordering in similarity mode --
+    // a plain re-render isn't enough, the view needs re-sorting.
+    if (state.sort === "simpfam" || state.sort === "simgo") { refresh(false); }
     renderDetail();
     drawGrid();
     if (state.view === "table") markTableSelection();
@@ -1023,7 +1105,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
   // ---- table view ---------------------------------------------------------
   var TBL_COLS = [
-    { label: "Protein ID", get: function (r) { return ROWS[r][F.id]; }, cls: "mono", sortKey: "id" },
+    { label: "Protein ID", get: function (r) { return displayId(ROWS[r][F.id], ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]] : null); }, cls: "mono", sortKey: "id" },
     { label: "Source", get: function (r) { return ROWS[r][F.src] >= 0 ? PROTEOMES[ROWS[r][F.src]].short : ""; }, sortKey: "src" },
     { label: "Chrom", get: function (r) { return ROWS[r][F.chrom] || ""; }, cls: "mono", sortKey: "pos" },
     { label: "Start", get: function (r) { return ROWS[r][F.start] != null ? ROWS[r][F.start] : ""; }, cls: "num", sortKey: "pos" },
@@ -1035,6 +1117,16 @@ HTML_TEMPLATE = r"""<!doctype html>
       get: function (r) {
         var fi = ROWS[r][F.fam];
         return fi >= 0 ? FAMILIES[fi].rep + " (" + FAMILIES[fi].size + ")" : "";
+      }
+    },
+    { label: "Length (aa)", get: function (r) { return lenN[r] || ""; }, cls: "num", sortKey: "len" },
+    {
+      label: "Similarity to selected", cls: "num",
+      get: function (r) {
+        if (state.selected < 0 || (state.sort !== "simpfam" && state.sort !== "simgo")) return "";
+        if (r === state.selected) return "—";
+        var getSet = state.sort === "simpfam" ? pfamSetFor : goSetFor;
+        return Math.round(jaccard(getSet(r), getSet(state.selected)) * 100) + "%";
       }
     },
     { label: "Ingroup", get: function (r) { return inN[r] + "/" + N_IN; }, cls: "num", sortKey: "ingroup" },
@@ -1234,7 +1326,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       renderDetail();
     }
     document.getElementById("count").textContent =
-      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins";
+      "Showing " + view.length.toLocaleString() + " of " + nRows.toLocaleString() + " proteins" +
+      ((state.sort === "simpfam" || state.sort === "simgo") && state.selected < 0
+        ? " — select a gene to group by similarity" : "");
     spacerEl.style.height = Math.max(1, view.length * ROW_H) + "px";
     if (resetScroll) scrollEl.scrollTop = 0;
     document.getElementById("grid-empty").classList.toggle("hidden", view.length > 0);
@@ -1300,10 +1394,19 @@ HTML_TEMPLATE = r"""<!doctype html>
   document.getElementById("f-concordant").addEventListener("change", function (e) { state.concordantOnly = e.target.checked; refresh(true); });
   document.getElementById("f-category").addEventListener("change", function (e) { state.category = e.target.value; refresh(true); });
   document.getElementById("f-sort").addEventListener("change", function (e) { state.sort = e.target.value; refresh(true); });
+  document.getElementById("f-minlen").addEventListener("input", function (e) {
+    state.minLen = e.target.value === "" ? null : Number(e.target.value);
+    refresh(true);
+  });
+  document.getElementById("f-maxlen").addEventListener("input", function (e) {
+    state.maxLen = e.target.value === "" ? null : Number(e.target.value);
+    refresh(true);
+  });
   document.getElementById("f-reset").addEventListener("click", function () {
     state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
     state.novOnly = true; state.pfamOnly = false; state.noTb = false;
-    state.concordantOnly = false; state.category = ""; state.sort = "ingroup";
+    state.concordantOnly = false; state.category = ""; state.minLen = null; state.maxLen = null;
+    state.sort = "ingroup";
     document.getElementById("f-search").value = "";
     document.getElementById("f-src").value = "";
     document.getElementById("f-fsrc").value = "";
@@ -1313,6 +1416,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("f-notb").checked = false;
     document.getElementById("f-concordant").checked = false;
     document.getElementById("f-category").value = "";
+    document.getElementById("f-minlen").value = "";
+    document.getElementById("f-maxlen").value = "";
     document.getElementById("f-sort").value = "ingroup";
     refresh(true);
   });

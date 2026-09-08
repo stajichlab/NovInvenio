@@ -245,7 +245,8 @@ workflow {
     // novelty_discovery already produced its own TBLASTN summary (see above); the other two
     // cluster_tool paths still need the generic VALIDATE (TBLASTN vs the OUT proteomes' DNA).
     if (params.cluster_tool != 'novelty_discovery') {
-        VALIDATE(cand_reps, outgroup_dna_ch, cand_cluster_tsv, 'tblastn_summary.tsv')
+        VALIDATE(cand_reps, outgroup_dna_ch, cand_cluster_tsv, 'tblastn_summary.tsv',
+                 novelty_candidates, 'alignments')
         novelty_tblastn_summary = VALIDATE.out.summary
     }
 
@@ -262,7 +263,8 @@ workflow {
         // of the outgroup and present in <= loss_ingroup_max_frac of the ingroup.
         PROFILE_LOSS_SEARCH(outgroup_prot_ch, ingroup_prot_ch, file(params.config),
                             'OUT', params.outgroup_min_frac, params.loss_ingroup_max_frac, 'loss_')
-        loss_matrix = PROFILE_LOSS_SEARCH.out.matrix
+        loss_matrix     = PROFILE_LOSS_SEARCH.out.matrix
+        loss_candidates = PROFILE_LOSS_SEARCH.out.candidates
 
         LOSS_PROFILE_CANDIDATE_CLUSTERS(
             PROFILE_LOSS_SEARCH.out.candidates,
@@ -281,7 +283,7 @@ workflow {
         // novelty_discovery/novelty_screen plan (todo/novelty-discovery-screen.md); a
         // DISCOVERY_TARGET/DISCOVERY_OUT config has no IN/OUT rows, so LOSS_SEARCH would only ever see
         // empty channels. REPORT's COLLATE_REPORTS still needs a (zero-row) losses.html
-        // to assemble view/<project>/, so stub the three loss artifacts instead.
+        // to assemble docs/<project>/, so stub the three loss artifacts instead.
         EMPTY_LOSS_STUB(ANNOTATE.out.annotated_matrix)
         loss_annotated_matrix   = EMPTY_LOSS_STUB.out.matrix
         loss_tblastn_summary    = EMPTY_LOSS_STUB.out.tblastn_summary
@@ -290,7 +292,8 @@ workflow {
     else {
         // See workflows/loss_search.nf for why this needs its own search direction.
         LOSS_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
-        loss_matrix = LOSS_SEARCH.out.matrix
+        loss_matrix     = LOSS_SEARCH.out.matrix
+        loss_candidates = LOSS_SEARCH.out.candidates
 
         LOSS_CLUSTER(LOSS_SEARCH.out.candidates, outgroup_prot_ch, file(params.config), 'loss_candidates.fa', 'loss_clusters')
         loss_cand_fa          = LOSS_CLUSTER.out.candidates_fa
@@ -299,7 +302,8 @@ workflow {
     }
 
     if (params.cluster_tool != 'novelty_discovery') {
-        LOSS_VALIDATE(loss_cand_reps, ingroup_dna_ch, loss_cand_cluster_tsv, 'loss_tblastn_summary.tsv')
+        LOSS_VALIDATE(loss_cand_reps, ingroup_dna_ch, loss_cand_cluster_tsv, 'loss_tblastn_summary.tsv',
+                      loss_candidates, 'loss_alignments')
         LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
         loss_annotated_matrix = LOSS_ANNOTATE.out.annotated_matrix
         loss_tblastn_summary  = LOSS_VALIDATE.out.summary

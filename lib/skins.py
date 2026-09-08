@@ -4,9 +4,10 @@ Colour-skin registry for every NovInvenio HTML report.
 This is the single source of truth for the CSS custom properties the report
 pages paint with. Before this module the same token block was written out four
 times -- inline in lib/report_template.py, again as report_common.THEME_VARS_CSS,
-and twice more as raw hex in view/generate_index.py -- so a fifth palette meant
-editing four files and remembering lib/losses_report_template.py's hardcoded
-``.badge.warn`` escape hatch. Everything now reads ``skins_css()``.
+and twice more as raw hex in the now-removed legacy view/generate_index.py
+gallery tool -- so a fifth palette meant editing four files and remembering
+lib/losses_report_template.py's hardcoded ``.badge.warn`` escape hatch.
+Everything now reads ``skins_css()``.
 
 Selection model -- three states, matching the artifact/theme convention:
 
