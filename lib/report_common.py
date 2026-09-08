@@ -630,3 +630,206 @@ DOWNLOAD_JS = r"""
     setTimeout(function () { URL.revokeObjectURL(url); }, 0);
   }
 """
+
+# TBLASTN alignment popup -- docs/-only (see CLAUDE.md's report constraints):
+# the results/ copy stays fully embedded/file://-safe and never includes this
+# fragment. Callers gate inclusion behind their own `online` flag (see #75);
+# nothing here decides that for itself. bin/build_alignment_shards.py (#72)
+# is the producer: one gzip JSON shard per query genome under
+# alignments/<genome>.json.gz (novelty) or loss_alignments/<genome>.json.gz
+# (loss), keyed protein_id -> [hit, ...], schema_version-stamped in a sibling
+# manifest.json.
+ALIGNMENT_POPUP_CSS = r"""
+  dialog.alignment {
+    max-width: min(92vw, 900px);
+    width: 100%;
+    max-height: 85vh;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-1);
+    color: var(--text-primary);
+    box-shadow: var(--shadow);
+  }
+  dialog.alignment::backdrop { background: rgba(0, 0, 0, 0.45); }
+  dialog.alignment .align-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+  }
+  dialog.alignment .align-head h3 { margin: 0; font-size: 14px; font-weight: 600; flex: 1; min-width: 0; }
+  dialog.alignment .align-stats {
+    padding: 10px 18px; font-size: 12px; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  dialog.alignment .align-body { padding: 12px 18px; overflow: auto; max-height: 60vh; }
+  dialog.alignment pre.align-block {
+    font-family: var(--font-mono); font-size: 11px; line-height: 1.5;
+    white-space: pre; margin: 0 0 10px;
+  }
+  dialog.alignment .align-empty { padding: 24px 4px; color: var(--text-secondary); font-size: 13px; }
+"""
+
+# Bare <dialog>; content is populated entirely via textContent at render time
+# (protein IDs, sequences and hit metadata are untrusted strings -- FASTA
+# headers and BLAST output -- see CLAUDE.md's report constraints).
+ALIGNMENT_POPUP_HTML = r"""
+  <dialog class="alignment" id="alignment-dialog">
+    <div class="align-head">
+      <h3 id="alignment-title"></h3>
+      <button type="button" class="btn-ghost" id="alignment-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="align-stats" id="alignment-stats"></div>
+    <div class="align-body" id="alignment-body"></div>
+  </dialog>
+"""
+
+# Public surface: window.NIAlignments.open(baseUrl, genome, proteinId, hitIndex).
+# baseUrl is the caller's own relative path to its shard directory
+# ("alignments/" or "loss_alignments/"), so this fragment stays agnostic to
+# which direction (novelty/loss) or which page is calling it.
+ALIGNMENT_POPUP_JS = r"""
+  (function () {
+    var shardCache = new Map(); // url -> Promise<Object>, cached by URL so two
+                                 // rapid clicks against the same genome never
+                                 // fire a second fetch (see #74 design notes).
+
+    function isGzip(bytes) {
+      return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+    }
+
+    async function fetchDataShard(url) {
+      if (shardCache.has(url)) return shardCache.get(url);
+      var promise = (async function () {
+        var resp = await fetch(url);
+        if (!resp.ok) throw new Error("fetch " + url + ": " + resp.status);
+        var bytes = new Uint8Array(await resp.arrayBuffer());
+        var text;
+        if (isGzip(bytes)) {
+          if (typeof DecompressionStream === "undefined") {
+            throw new Error("DECOMPRESSION_UNSUPPORTED");
+          }
+          var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+          text = await new Response(stream).text();
+        } else {
+          // Some hosts transparently decode gzip in transit (Content-Encoding) --
+          // if the bytes we got back aren't gzip-magic, treat them as already-
+          // decoded plain text rather than double-decompressing and throwing.
+          text = new TextDecoder("utf-8").decode(bytes);
+        }
+        return JSON.parse(text);
+      })();
+      shardCache.set(url, promise);
+      return promise;
+    }
+
+    // Positional match/mismatch line. tblastn is gapped by default, so qseq/
+    // sseq are always equal length (padded with '-') -- never assume ungapped.
+    function midline(qseq, sseq) {
+      var out = "";
+      for (var i = 0; i < qseq.length; i++) {
+        var a = qseq[i], b = sseq[i];
+        out += (a === "-" || b === "-") ? " " : (a === b ? "|" : " ");
+      }
+      return out;
+    }
+
+    // Query coordinates advance left-to-right per block (proteins have no
+    // strand). Subject coordinates are shown once, whole-HSP, in the stats
+    // line -- sframe/minus-strand direction makes per-block subject numbering
+    // more complex than a v1 popup needs; sstart/send/sframe together are
+    // enough to locate the hit in the genome.
+    function chunkAlignment(qseq, sseq, qstart, width) {
+      width = width || 60;
+      var mid = midline(qseq, sseq);
+      var blocks = [];
+      var qi = qstart;
+      for (var off = 0; off < qseq.length; off += width) {
+        var qc = qseq.slice(off, off + width);
+        var sc = sseq.slice(off, off + width);
+        var mc = mid.slice(off, off + width);
+        blocks.push({ qstart: qi, qseq: qc, mid: mc, sseq: sc });
+        qi += qc.replace(/-/g, "").length;
+      }
+      return blocks;
+    }
+
+    function renderHit(dialogEls, proteinId, hit) {
+      dialogEls.title.textContent = proteinId + " vs " + hit.genome;
+      var alignedNote = hit.aligned_as ? (" (shown via cluster representative " + hit.aligned_as + ")") : "";
+      dialogEls.stats.textContent =
+        "evalue=" + hit.evalue + "  bitscore=" + hit.bitscore + "  pident=" + hit.pident.toFixed(1) + "%" +
+        "  length=" + hit.length + "  subject=" + hit.sseqid + ":" + hit.sstart + "-" + hit.send +
+        " (frame " + hit.sframe + ")" + alignedNote;
+      dialogEls.body.textContent = "";
+      var blocks = chunkAlignment(hit.qseq, hit.sseq, hit.qstart);
+      blocks.forEach(function (b) {
+        var pre = document.createElement("pre");
+        pre.className = "align-block";
+        var qLabel = "Q " + String(b.qstart).padStart(6, " ") + "  ";
+        pre.textContent =
+          qLabel + b.qseq + "\n" +
+          " ".repeat(qLabel.length) + b.mid + "\n" +
+          " ".repeat(qLabel.length) + b.sseq;
+        dialogEls.body.appendChild(pre);
+      });
+    }
+
+    function renderEmpty(dialogEls, message) {
+      dialogEls.title.textContent = "";
+      dialogEls.stats.textContent = "";
+      dialogEls.body.textContent = "";
+      var p = document.createElement("p");
+      p.className = "align-empty";
+      p.textContent = message;
+      dialogEls.body.appendChild(p);
+    }
+
+    function dialogEls() {
+      return {
+        dialog: document.getElementById("alignment-dialog"),
+        title: document.getElementById("alignment-title"),
+        stats: document.getElementById("alignment-stats"),
+        body: document.getElementById("alignment-body"),
+      };
+    }
+
+    async function open(baseUrl, genome, proteinId, hitIndex) {
+      var els = dialogEls();
+      if (!els.dialog) return; // page didn't include ALIGNMENT_POPUP_HTML
+      els.dialog.showModal();
+      renderEmpty(els, "Loading alignment...");
+      try {
+        var shard = await fetchDataShard(baseUrl + genome + ".json.gz");
+        var hits = shard[proteinId];
+        if (!hits || !hits.length) {
+          renderEmpty(els, "No archived alignment for " + proteinId + " vs " + genome + ".");
+          return;
+        }
+        renderHit(els, proteinId, hits[hitIndex || 0]);
+      } catch (err) {
+        if (err && err.message === "DECOMPRESSION_UNSUPPORTED") {
+          renderEmpty(els, "Alignment viewer requires a modern browser (Chrome/Firefox/Safari, last ~2 years).");
+        } else {
+          renderEmpty(els, "Could not load alignment data (" + (err && err.message ? err.message : err) + ").");
+        }
+      }
+    }
+
+    function wireClose() {
+      var els = dialogEls();
+      if (!els.dialog) return;
+      var closeBtn = document.getElementById("alignment-close");
+      if (closeBtn) closeBtn.addEventListener("click", function () { els.dialog.close(); });
+      els.dialog.addEventListener("click", function (ev) {
+        if (ev.target === els.dialog) els.dialog.close(); // click on backdrop
+      });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", wireClose);
+    } else {
+      wireClose();
+    }
+
+    window.NIAlignments = { open: open, fetchDataShard: fetchDataShard };
+  })();
+"""
