@@ -1,6 +1,30 @@
+import re
 import sys
 from pathlib import Path
 from Bio import SeqIO
+
+# mmseqs2 (createdb/easy-cluster) recognizes UniProt-style "sp|ACC|NAME" /
+# "tr|ACC|NAME" FASTA deflines and reports the bare accession (the middle
+# field) as the sequence ID in its own *_cluster.tsv, rather than the whole
+# first-whitespace-delimited header token every other tool in this pipeline
+# uses (Biopython's SeqRecord.id, and the "grep '^>' | sed 's/[[:space:]].*//'"
+# protein-map extraction in workflows/profile_search.nf's SEED_PROTEIN_MAP).
+# BLAST+ independently does the same UniProt-header recognition, so the
+# pairwise (--cluster_tool pairwise) path never notices this divergence --
+# it only surfaces for --cluster_tool mmseqs's family-profile pathway, whose
+# own bin/ scripts (extract_family_seqs.py, profile_to_matrix.py) need to
+# apply this same normalization before joining against a mmseqs cluster.tsv
+# id. Confirmed empirically against a real mmseqs2 build (see issue #85) --
+# not documentation-derived, since mmseqs' own docs don't spell this out.
+_MMSEQS_UNIPROT_ID_RE = re.compile(r'^(?:sp|tr)\|([^|]+)\|')
+
+
+def mmseqs_id(header_id: str) -> str:
+    """Normalize a FASTA header's first token to what mmseqs2 would report as
+    that sequence's id in its own *_cluster.tsv output -- a no-op for any
+    header that isn't UniProt "sp|ACC|NAME"/"tr|ACC|NAME"-shaped."""
+    m = _MMSEQS_UNIPROT_ID_RE.match(header_id)
+    return m.group(1) if m else header_id
 
 
 def read_fasta(path: str | Path) -> dict[str, object]:

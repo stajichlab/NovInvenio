@@ -149,3 +149,23 @@ def test_min_covered_residues_rescues_a_long_partial_hit(tmp_path):
 
     _, cands = _run(tmp_path, **{'min-covered-residues': 100})
     assert set(cands) == {'In1::pA1', 'In2::pA2'}
+
+
+def test_uniprot_style_protein_map_resolves_via_mmseqs_id(tmp_path):
+    """Regression test for issue #85: --protein-map (workflows/profile_search.nf's
+    SEED_PROTEIN_MAP, a plain `grep '^>' | sed 's/[[:space:]].*//'` extraction) keeps
+    a UniProt header's full "sp|ACC|NAME"/"tr|ACC|NAME" token, but --cluster-tsv's
+    member ids come from mmseqs2 itself, which reports the bare accession for those
+    same headers. Without normalizing, every member lookup misses silently (treated
+    as "not in the ingroup map, skip defensively") and the matrix comes out empty."""
+    _setup(tmp_path)
+    (tmp_path / 'protein_map.tsv').write_text(
+        "sp|pA1|NAME_ONE\tIn1\n"
+        "tr|pA2|NAME_TWO\tIn2\n"
+        "sp|pB1|NAME_THREE\tIn1\n"
+        "tr|pB2|NAME_FOUR\tIn2\n"
+        "pC1\tIn1\n"
+    )
+    matrix, cands = _run(tmp_path)
+    assert set(matrix['protein_id']) == {'pA1', 'pA2', 'pB1', 'pB2'}
+    assert cands == ['In1::pA1', 'In2::pA2']
