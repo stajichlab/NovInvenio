@@ -40,10 +40,22 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config  # noqa: E402
 from family_presence import parse_domtblout  # noqa: E402
+from fasta import mmseqs_id  # noqa: E402
 
 
 def load_protein_map(path):
-    """protein_id -> proteome Short, from a two-column TSV (no header)."""
+    """protein_id -> proteome Short, from a two-column TSV (no header).
+
+    Keys are normalized with mmseqs_id() (issue #85): --protein-map comes from
+    workflows/profile_search.nf's SEED_PROTEIN_MAP, which extracts a FASTA
+    header's first whitespace-delimited token verbatim (no UniProt-header
+    awareness) -- but --cluster-tsv's member ids come from mmseqs2 itself,
+    which *does* recognize "sp|ACC|NAME"/"tr|ACC|NAME" headers and reports
+    the bare accession. Without this normalization, every member lookup
+    against this map silently misses for UniProt-sourced proteomes (not a
+    crash -- main() below treats a missing map entry as "skip defensively",
+    so the presence matrix would just come out empty).
+    """
     mapping = {}
     with open(path) as fh:
         for line in fh:
@@ -51,7 +63,7 @@ def load_protein_map(path):
             if not line:
                 continue
             pid, short = line.split('\t')[:2]
-            mapping[pid] = short
+            mapping[mmseqs_id(pid)] = short
     return mapping
 
 

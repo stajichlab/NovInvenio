@@ -78,3 +78,34 @@ def test_fam_fasta_written_only_for_in_range_families(tmp_path):
     fam_files = sorted(outdir.glob('fam_*.faa'))
     assert len(fam_files) == 1
     assert fam_files[0].read_text() == '>mid\nMB\n>mid2\nMC\n'
+
+
+def test_uniprot_style_headers_resolve_via_mmseqs_id(tmp_path):
+    """Regression test for issue #85: mmseqs2 reports the bare accession (not
+    the full "sp|ACC|NAME"/"tr|ACC|NAME" token) as a member's id in its own
+    *_cluster.tsv -- confirmed empirically against a real mmseqs2 build. The
+    FASTA the clustering was run on still has the full original header, so
+    the lookup here must normalize before failing loud on a real mismatch."""
+    cluster_tsv = tmp_path / 'cluster.tsv'
+    cluster_tsv.write_text("O74225\tO74225\nO74225\tA8PCG9\n")
+    fasta = tmp_path / 'seed.faa'
+    fasta.write_text(
+        ">sp|O74225|YCF1_SCHPO Uncharacterized OS=S. pombe OX=284812 GN=x PE=1 SV=1\nMKVLA\n"
+        ">tr|A8PCG9|A8PCG9_ASPNG Putative OS=A. niger OX=5061 PE=4 SV=1\nMKVLB\n"
+    )
+    outdir = tmp_path / 'out'
+    outdir.mkdir()
+    cmd = [
+        sys.executable, str(BIN),
+        '--cluster-tsv', str(cluster_tsv),
+        '--fasta', str(fasta),
+        '--min-members', '2',
+        '--outdir', str(outdir),
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    fam_files = sorted(outdir.glob('fam_*.faa'))
+    assert len(fam_files) == 1
+    # Written under the mmseqs-native (bare-accession) id, matching families.tsv's
+    # representative_id and everything downstream that keys off cluster.tsv.
+    assert fam_files[0].read_text() == '>O74225\nMKVLA\n>A8PCG9\nMKVLB\n'

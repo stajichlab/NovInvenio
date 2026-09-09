@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'lib'))
-from fasta import read_fasta  # noqa: E402
+from fasta import mmseqs_id, read_fasta  # noqa: E402
 
 
 def test_no_duplicates_reads_normally(tmp_path):
@@ -26,3 +26,19 @@ def test_duplicate_id_keeps_first_and_warns(tmp_path, capsys):
     captured = capsys.readouterr()
     assert 'duplicate' in captured.err.lower()
     assert '1 duplicate' in captured.err
+
+
+def test_mmseqs_id_extracts_uniprot_accession():
+    # Empirically confirmed against a real mmseqs2 easy-cluster run (issue #85):
+    # both "sp|" (reviewed) and "tr|" (unreviewed) UniProt deflines report the
+    # middle field as the sequence's cluster.tsv id.
+    assert mmseqs_id('sp|O74225|YCF1_SCHPO') == 'O74225'
+    assert mmseqs_id('tr|A8PCG9|A8PCG9_ASPNG') == 'A8PCG9'
+
+
+def test_mmseqs_id_is_a_no_op_for_non_uniprot_headers():
+    # BFD/FungiDB-style bare protein IDs (no recognized prefix) pass through
+    # unchanged -- this is why the pairwise (--cluster_tool pairwise) path
+    # never surfaced this mismatch.
+    assert mmseqs_id('Ncra_00001') == 'Ncra_00001'
+    assert mmseqs_id('Pchr|PCH_Pc18g05710.1') == 'Pchr|PCH_Pc18g05710.1'
