@@ -120,6 +120,15 @@ def test_report_template_shares_helpers_rather_than_copying_them():
 
 
 @pytest.mark.parametrize('name', ['novelties', 'core', 'losses'])
+def test_report_includes_external_links_node(name):
+    """externalLinksNode must be available in assembled pages for clicking
+    table rows to resolve xrefs. It moved from LINKOUT_HELPERS_JS to EXTERNAL_LINKS_JS,
+    so this guards against a template that imports one but forgets the other."""
+    page = PAGES[name]
+    assert 'function externalLinksNode(' in page
+
+
+@pytest.mark.parametrize('name', ['novelties', 'core', 'losses'])
 def test_filter_count_is_announced(name):
     """The result count changes on every filter; a screen reader needs to hear it."""
     assert 'id="count" role="status" aria-live="polite"' in PAGES[name]
