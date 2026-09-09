@@ -108,7 +108,10 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   check('n1: SourceDB drives a FungiDB gene link', h.some((x) => x.includes('fungidb.org')), h.join(' '));
   check('n1: NCBI_TaxID gives a direct taxid lookup',
         h.some((x) => x.includes('wwwtax.cgi?id=367110')), h.join(' '));
-  check('n1: Pfam chip carries its E-value', /4\.5e-09/.test(detail().textContent));
+  // fmtEvalue() (lib/report_common.py) formats via Number(ev).toPrecision(4), which
+  // reformats "4.5e-09" to "4.500e-9" (4 sig figs, no leading zero in the exponent) --
+  // match the actual rendered form, not the raw fixture string (issue #81).
+  check('n1: Pfam chip carries its E-value', /4\.500e-9/.test(detail().textContent));
   check('n1: annotated row gets no remote-homology cluster',
         !h.some((x) => x.includes('hhpred')));
   check('n1: a 1803 aa query is a POST button, not an over-long URL',
@@ -169,7 +172,9 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   rows[0].dispatchEvent(ev(w, 'click'));
   const det = d.getElementById('detail');
   check('core: external links render', hrefs(det).length > 0);
-  check('core: Pfam E-value reaches the page', /1e-20/.test(det.textContent),
+  // fmtEvalue() reformats "1e-20" to "1.000e-20" (Number(ev).toPrecision(4)) --
+  // match the actual rendered form (issue #81).
+  check('core: Pfam E-value reaches the page', /1\.000e-20/.test(det.textContent),
         det.textContent.slice(0, 200));
   check('core: embeds no sequences, so offers no sequence tools',
         !btns(det).some((x) => /Copy FASTA/.test(x)));
