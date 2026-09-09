@@ -535,7 +535,13 @@ LINKOUT_HELPERS_JS = r"""
     });
     return b;
   }
+"""
 
+# Every report resolves a protein to the same external record via this one
+# builder, so this lives alongside LINKOUT_HELPERS_JS (imported/concatenated
+# together at each template's <script> assembly site) rather than inside it,
+# purely so the DR-cross-reference registry has its own named block.
+EXTERNAL_LINKS_JS = r"""
   // ---- the whole "External resources" block ------------------------------
   // One builder for all three reports so they can no longer drift apart.
   //   o.id        protein ID
@@ -550,6 +556,90 @@ LINKOUT_HELPERS_JS = r"""
   //   o.fsrcName  annotation source label ('' if none)
   //   o.seq       protein sequence ('' when the payload carries no sequences)
   //   o.proteome  payload proteomes[] entry for the row's source species
+  //   o.xrefs     UniProt DR-line cross-references, "DB:id|DB:id" ('' if none)
+  // ---- generic UniProt DR-cross-reference linkouts ------------------------
+  // o.xrefs is "DB:id|DB:id" (NII bin/extract_dat_annotations.py's DR-line
+  // extraction, lib/report_data.py's 'xrefs' field) -- split each entry on
+  // the FIRST colon only (never a fixed-arity split like goChipsNode's
+  // go_ids parsing): KEGG ("ncr:NCU10683") and VEuPathDB ("FungiDB:NCU10683")
+  // ids carry their own colons and must not be truncated.
+  var VEUPATHDB_HOSTS = {
+    FungiDB: "fungidb.org/fungidb",
+    PlasmoDB: "plasmodb.org/plasmo",
+    ToxoDB: "toxodb.org/toxo"
+  };
+  var XREF_LINK_TEMPLATES = {
+    VEuPathDB: {
+      render: function (id) {
+        var i = id.indexOf(":");
+        var project = i === -1 ? "VEuPathDB" : id.slice(0, i);
+        var geneId = i === -1 ? id : id.slice(i + 1);
+        var host = VEUPATHDB_HOSTS[project] || ("veupathdb.org/" + project.toLowerCase());
+        return {
+          label: project + " " + geneId,
+          href: "https://" + host + "/app/record/gene/" + encodeURIComponent(geneId),
+          title: project + " gene record for " + geneId
+        };
+      }
+    },
+    GeneID: {
+      render: function (id) {
+        return { label: "NCBI Gene " + id,
+                 href: "https://www.ncbi.nlm.nih.gov/gene/" + encodeURIComponent(id),
+                 title: "NCBI Gene " + id };
+      }
+    },
+    RefSeq: {
+      render: function (id) {
+        return { label: "RefSeq " + id,
+                 href: "https://www.ncbi.nlm.nih.gov/protein/" + encodeURIComponent(id),
+                 title: "RefSeq protein " + id };
+      }
+    },
+    KEGG: {
+      render: function (id) {
+        return { label: "KEGG " + id,
+                 href: "https://www.genome.jp/dbget-bin/www_bget?" + encodeURIComponent(id),
+                 title: "KEGG entry " + id };
+      }
+    },
+    EnsemblFungi: {
+      render: function (id) {
+        return { label: "Ensembl Fungi " + id,
+                 href: "https://fungi.ensembl.org/id/" + encodeURIComponent(id),
+                 title: "Ensembl Fungi gene " + id };
+      }
+    },
+    EnsemblBacteria: {
+      render: function (id) {
+        return { label: "Ensembl Bacteria " + id,
+                 href: "https://bacteria.ensembl.org/id/" + encodeURIComponent(id),
+                 title: "Ensembl Bacteria gene " + id };
+      }
+    }
+  };
+  // Returns {links: [<a> node, ...], hasVEuPathDB: bool} -- the caller (see
+  // externalLinksNode below) needs to know whether a VEuPathDB xref fired so
+  // it can suppress genomeDbLink's separate, UniProt-accession-keyed FungiDB
+  // link for the same row (that one resolves against o.id, which for a
+  // UniProt-sourced protein is the wrong ID space -- see the dedup comment in
+  // externalLinksNode below).
+  function xrefLinkNodes(xrefsStr) {
+    var links = [];
+    var hasVEuPathDB = false;
+    (xrefsStr ? xrefsStr.split("|") : []).filter(Boolean).forEach(function (entry) {
+      var i = entry.indexOf(":");
+      if (i === -1) return;
+      var db = entry.slice(0, i);
+      var id = entry.slice(i + 1);
+      var tmpl = XREF_LINK_TEMPLATES[db];
+      if (!tmpl || !id) return;
+      var r = tmpl.render(id);
+      links.push(extLink(r.label, r.href, r.title));
+      if (db === "VEuPathDB") hasVEuPathDB = true;
+    });
+    return { links: links, hasVEuPathDB: hasVEuPathDB };
+  }
   function externalLinksNode(o) {
     var box = document.createDocumentFragment();
     var links = el("div", "links");
@@ -562,7 +652,17 @@ LINKOUT_HELPERS_JS = r"""
         "Predicted structure for " + acc));
     }
     var db = genomeDbLink(o.proteome && o.proteome.source_db, o.id);
-    if (db) links.appendChild(db);
+    var xrefResult = xrefLinkNodes(o.xrefs);
+    // FungiDB dedup: genomeDbLink's "fungidb" branch resolves against
+    // geneIdFromProteinId(o.id), which for a UniProt-sourced protein is the
+    // UniProt accession, not a real FungiDB gene ID -- that link is already
+    // broken for these rows. When the xrefs-derived VEuPathDB link is
+    // present, it is the correct one; suppress genomeDbLink's instead of
+    // showing both (one dead) side by side.
+    var suppressGenomeDbFungiDb = xrefResult.hasVEuPathDB && db &&
+      /fungidb\.org/.test(db.href || "");
+    if (db && !suppressGenomeDbFungiDb) links.appendChild(db);
+    xrefResult.links.forEach(function (a) { links.appendChild(a); });
     // Model-org gene lookup (modelorgs.yaml) is a *different* external record
     // than the candidate's own genome-db entry above: it's a lookup into
     // whatever database the model organism's gene_names_csv itself came from

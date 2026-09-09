@@ -22,6 +22,7 @@ between the three reports.
 
 from report_common import (
     EL_HELPER_JS,
+    EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
     LINKOUT_HELPERS_JS,
     LOGO_CSS,
@@ -911,7 +912,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   // ---- detail panel -------------------------------------------------------
   var detailEl = document.getElementById("detail");
 
-""" + LINKOUT_HELPERS_JS + r"""
+""" + LINKOUT_HELPERS_JS + EXTERNAL_LINKS_JS + r"""
 
   function field(label, valueNode) {
     var f = el("div", "field");
@@ -1087,6 +1088,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       gene: row[F.gene],
       sprot: row[F.sprot],
       geneUrl: row[F.gene_url],
+      xrefs: row[F.xrefs],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: seq,

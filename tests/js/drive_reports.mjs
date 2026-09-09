@@ -106,6 +106,17 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   pick(rows, 'n1').dispatchEvent(ev(w, 'click'));
   let h = hrefs(detail()), b = btns(detail());
   check('n1: SourceDB drives a FungiDB gene link', h.some((x) => x.includes('fungidb.org')), h.join(' '));
+  const fungidbHrefs = h.filter((x) => x.includes('fungidb.org'));
+  check('n1: xrefs-derived FungiDB link replaces genomeDbLink\'s, not both',
+        fungidbHrefs.length === 1, fungidbHrefs.join(' '));
+  check('n1: the surviving FungiDB link uses the xrefs gene ID, not the UniProt/protein_id',
+        fungidbHrefs[0] && fungidbHrefs[0].includes('/gene/NCU10683'), fungidbHrefs[0]);
+  check('n1: GeneID xref renders an NCBI Gene link',
+        h.some((x) => x.includes('ncbi.nlm.nih.gov/gene/5847462')), h.join(' '));
+  check('n1: KEGG xref renders a URL-encoded link (colon -> %3A)',
+        h.some((x) => x.includes('ncr%3ANCU10683')), h.join(' '));
+  check('n1: an unrecognized xref DB renders no link',
+        !h.some((x) => x.includes('xyz')), h.join(' '));
   check('n1: NCBI_TaxID gives a direct taxid lookup',
         h.some((x) => x.includes('wwwtax.cgi?id=367110')), h.join(' '));
   // fmtEvalue() (lib/report_common.py) formats via Number(ev).toPrecision(4), which

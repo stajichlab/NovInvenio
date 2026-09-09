@@ -63,7 +63,7 @@ OUT,Saccharomyces cerevisiae,S288c,Scer.pep.fa,Scer.dna.fa,Scer,Saccharomycotina
 MATRIX = (
     "protein_id\tsource_proteome\tNcra\tAfum\tDrome\tSpom\tScer\tgene_name\t"
     "product_description\tfunction_source\tBest_Swissprot\tPfam_Names\t"
-    "Pfam_Accessions\tPfam_Evalues\n"
+    "Pfam_Accessions\tPfam_Evalues\tuniprot_xrefs\n"
     # n1/n2 stay present across ALL THREE ingroup species (Ncra/Afum/Drome),
     # not just the original two -- with a 3rd ingroup species now in play,
     # the default ingroup_min_frac recomputation needs their ingroup coverage
@@ -78,11 +78,11 @@ MATRIX = (
     # 4/4 before Drome existed) -- 4/5=0.8 would silently drop it below
     # 0.9 and empty the whole core report.
     "n1\tNcra\t1\t1\t1\t0\t0\tada-1\tall development altered-1\tModelOrg_Ncra\t\t"
-    "bZIP_1\tPF00170.27\t4.5e-09\n"
-    "n2\tAfum\t1\t1\t1\t0\t0\t\t\t\t\t\t\t\n"
-    "n3\tDrome\t0\t0\t1\t0\t0\t\t\t\t\t\t\t\n"
+    "bZIP_1\tPF00170.27\t4.5e-09\tVEuPathDB:FungiDB:NCU10683|GeneID:5847462|KEGG:ncr:NCU10683|UnknownDB:xyz\n"
+    "n2\tAfum\t1\t1\t1\t0\t0\t\t\t\t\t\t\t\t\n"
+    "n3\tDrome\t0\t0\t1\t0\t0\t\t\t\t\t\t\t\t\n"
     "shared\tNcra\t1\t1\t1\t1\t1\t\tconserved thing\tPfam\t"
-    "sp|P12345|TEST_YEAST Some protein\tAAA\tPF00004.31\t1e-20\n"
+    "sp|P12345|TEST_YEAST Some protein\tAAA\tPF00004.31\t1e-20\t\n"
 )
 TBLASTN = "protein_id\tSpom\tScer\nn1\t0\t0\nn2\t0\t1\nn3\t0\t0\n"
 

@@ -17,6 +17,7 @@ from report_common import (
     BASE_PAGE_CSS,
     DOWNLOAD_JS,
     EL_HELPER_JS,
+    EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
     LINKOUT_HELPERS_JS,
     LOGO_CSS,
@@ -125,7 +126,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
   var FAMILIES = DATA.families || [];
   var nRows = ROWS.length;
 
-""" + EL_HELPER_JS + LINKOUT_HELPERS_JS + DOWNLOAD_JS + r"""
+""" + EL_HELPER_JS + LINKOUT_HELPERS_JS + EXTERNAL_LINKS_JS + DOWNLOAD_JS + r"""
 
   function familyLabel(fam) {
     return fam.rep + " (" + fam.size + " in " + fam.species.length +
@@ -446,6 +447,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       gene: row[F.gene],
       sprot: row[F.sprot],
       geneUrl: row[F.gene_url],
+      xrefs: row[F.xrefs],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: "",
