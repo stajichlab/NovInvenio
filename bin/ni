@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""
+ni -- scaffold a new NovInvenio-analysis-style deploy repo (what
+NovInvenio_Investigations already is), so a new comparative-genomics study
+repo doesn't hand-assemble this setup from scratch (issue #76).
+
+Design: `ni init` copies a fixed manifest of files from a REFERENCE checkout
+(a real, already-working NovInvenio_Investigations-style repo) rather than
+embedding a frozen snapshot inside NovInvenio itself. A frozen copy drifts
+silently -- that is exactly what happened to bin/sync_reports.sh's view/
+path after NovInvenio's own docs/ rename (see NovInvenio_Investigations
+issue #5): the reference implementation moved on, the frozen copy didn't,
+and nothing broke loudly. Always copying from a live, working reference
+means `ni init` can never be more stale than whatever repo you point it at.
+
+The reference repo is given via --reference or the NI_REFERENCE_REPO
+environment variable -- no hardcoded default, since a cluster-local absolute
+path baked into this script would itself become exactly the kind of stale
+reference this design is trying to avoid.
+
+Usage:
+  ni init <target-dir> [--reference /path/to/NovInvenio_Investigations]
+  NI_REFERENCE_REPO=/path/to/NovInvenio_Investigations ni init <target-dir>
+
+MVP scope (issue #76): `init` only. Not in scope: a generic templating
+engine, an interactive add-species/config-builder menu (a real gap --
+resolving a species name to its UniProt Proteome ID/Taxon ID/GCA accession
+still has no automated lookup anywhere in this toolchain -- but a separate
+follow-on, not scaffolding), or anything beyond copy-with-substitution.
+"""
+from __future__ import annotations
+
+import argparse
+import shutil
+import sys
+from pathlib import Path
+
+# Every file copied verbatim from --reference. Directories are copied
+# recursively. This is nf_NovInvenio issue #76's "full scope" manifest --
+# not just the deploy/CI plumbing (.gitignore, static.yml, the publish
+# script) but the whole reusable study-building toolchain (species.csv ->
+# fetch -> config -> run -> publish), since a scaffolded repo that can only
+# deploy but not actually build a study isn't useful on its own.
+REFERENCE_FILES = [
+    # Deploy/CI plumbing
+    ".gitignore",
+    ".github/workflows/static.yml",
+    "bin/publish_alignment_release.sh",
+    "bin/sync_reports.sh",
+    "bin/generate_docs.py",
+    "bin/run_study.sh",
+    "lib/site_pages.py",
+    # UniProt-sourced study-building toolchain
+    "bin/build_study_config.py",
+    "bin/fetch_uniprot_proteome.py",
+    "bin/fetch_genome_assembly.py",
+    "bin/fetch_go_obo.py",
+    "bin/extract_dat_annotations.py",
+    "bin/merge_uniprot_annotations.py",
+    "bin/go_enrichment.py",
+    "bin/domain_enrichment.py",
+    "lib/provenance.py",
+    "lib/stats_util.py",
+    "lib/uniprot_ids.py",
+    # lib/site_pages.py embeds these as base64 data URIs at import time (see
+    # its own module docstring for why -- not a relative path) -- caught by
+    # actually running the scaffolded generate_docs.py against a fresh repo,
+    # not by inspection; a real reason this manifest is a list of files
+    # rather than "everything site_pages.py imports".
+    "assets/logo",
+]
+
+# Rendered rather than copied verbatim -- these carry reference-repo-specific
+# content (a literal repo name, a literal set of populated domain tabs) that
+# a fresh repo should start clean instead of inheriting.
+PIXI_TOML_TEMPLATE = """\
+[workspace]
+authors = ["{author}"]
+channels = ["conda-forge", "bioconda"]
+name = "{repo_name}"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+test = "pytest tests/ -v"
+
+[dependencies]
+python = "3.12.*"
+pandas = ">=2.2,<3"
+biopython = ">=1.84,<2"
+pyyaml = ">=6.0.3,<7"
+goatools = ">=1.4,<2"
+scipy = ">=1.14,<2"
+duckdb = ">=1.1,<2"
+ncbi-datasets-cli = ">=18,<19"
+pytest = ">=8.0,<9"
+nextflow = ">=25,<26"
+"""
+
+DOMAINS_YAML_TEMPLATE = """\
+# Top-level docs/ gallery domain registry (DESIGN.md Sec 3/8), read by
+# bin/generate_docs.py. Edit desc here (and re-run bin/generate_docs.py) as a
+# domain's first study lands or its blurb needs updating; no code change
+# needed. Order here is the tab order on docs/index.html.
+- slug: fungi
+  name: Fungal
+  desc: Not yet populated.
+- slug: animal
+  name: Animal
+  desc: Not yet populated.
+- slug: plant
+  name: Plant
+  desc: Not yet populated.
+- slug: bacteria
+  name: Bacteria
+  desc: Not yet populated.
+- slug: other
+  name: Other
+  desc: Not yet populated.
+"""
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    target = Path(args.target_dir).resolve()
+    reference = Path(args.reference).resolve() if args.reference else None
+    if reference is None:
+        sys.exit(
+            "ERROR: no reference repo given -- pass --reference or set "
+            "NI_REFERENCE_REPO to a real, working NovInvenio_Investigations-"
+            "style checkout. There is deliberately no hardcoded default."
+        )
+    if not reference.is_dir():
+        sys.exit(f"ERROR: --reference {reference} is not a directory")
+
+    if target.exists() and any(target.iterdir()):
+        sys.exit(f"ERROR: {target} already exists and is not empty")
+    target.mkdir(parents=True, exist_ok=True)
+
+    copied, missing = [], []
+    for rel in REFERENCE_FILES:
+        src = reference / rel
+        if not src.exists():
+            missing.append(rel)
+            continue
+        dst = target / rel
+        if src.is_dir():
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            dst.chmod(src.stat().st_mode)
+        copied.append(rel)
+
+    if missing:
+        print(
+            f"WARNING: {len(missing)} file(s) not found in reference repo "
+            f"{reference} (skipped): {', '.join(missing)}",
+            file=sys.stderr,
+        )
+
+    (target / "pixi.toml").write_text(
+        PIXI_TOML_TEMPLATE.format(author=args.author, repo_name=target.name)
+    )
+    (target / "conf").mkdir(exist_ok=True)
+    (target / "conf" / "domains.yaml").write_text(DOMAINS_YAML_TEMPLATE)
+    (target / "studies").mkdir(exist_ok=True)
+    (target / "studies" / ".gitkeep").touch()
+
+    print(
+        f"Scaffolded {target} from {reference} "
+        f"({len(copied)} file(s) copied, pixi.toml/conf/domains.yaml rendered fresh).",
+        file=sys.stderr,
+    )
+    print(
+        "Next: `cd` into the new repo, `git init` if it isn't one already, "
+        "`pixi install`, then write studies/<domain>/<set>/species.csv by hand "
+        "(no automated species->UniProt-ID lookup exists yet -- see this "
+        "script's module docstring) and run bin/run_study.sh <domain>/<set>.",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="command", required=True)
+
+    init_ap = sub.add_parser("init", help="Scaffold a new analysis-deploy repo")
+    init_ap.add_argument("target_dir", help="Directory to create and scaffold (must not exist or be empty)")
+    init_ap.add_argument(
+        "--reference",
+        default=None,
+        help="Path to a working NovInvenio_Investigations-style checkout to copy from "
+             "(default: $NI_REFERENCE_REPO)",
+    )
+    init_ap.add_argument(
+        "--author",
+        default="Jason Stajich <jason.stajich@ucr.edu>",
+        help="pixi.toml authors entry for the new repo",
+    )
+    init_ap.set_defaults(func=cmd_init)
+
+    args = ap.parse_args()
+    if args.command == "init" and args.reference is None:
+        import os
+        args.reference = os.environ.get("NI_REFERENCE_REPO")
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
