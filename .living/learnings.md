@@ -458,3 +458,51 @@ time. Worth grepping for `task.index`/`task.hash` inside any `output:`/interpola
 script block when adding new scatter-gather stages.
 
 **Tags**: nextflow, resume, caching, gotcha, scatter-gather, slurm, param-sweep
+
+### [2026-09-08] diamond cluster's UniProt ID handling and CLI quirks (vs mmseqs2)
+
+**Category**: gotcha
+
+**What happened**: While benchmarking `diamond cluster` against mmseqs2 as a possible
+alternative clustering engine for `--cluster_tool mmseqs` (see `.living/decisions.md`'s
+2026-09-08 entry for the full comparison), two tool-specific surprises surfaced:
+1. `diamond cluster`'s output TSV keeps the **full first-token header**
+   (`tr|A8PCG9|A8PCG9_ASPNG`) as its sequence id for UniProt-style deflines — it does
+   NOT do mmseqs2's own accession-only extraction (see issue #85 / `lib/fasta.py`'s
+   `mmseqs_id()`). Comparing the two tools' cluster TSVs directly gave **zero
+   overlapping ids** until both were normalized through the same `mmseqs_id()`
+   function. This is the opposite-direction version of #85's bug: diamond's
+   convention actually matches the rest of this pipeline's own id handling
+   (Biopython, `SEED_PROTEIN_MAP`'s shell extraction) better than mmseqs2 does.
+2. `diamond cluster` **rejects** the ordinary blastp sensitivity flags —
+   `--sensitive`/`--more-sensitive`/`--very-sensitive`/`--ultra-sensitive`/
+   `--mid-sensitive` all fail with `Error: Option is not permitted for this
+   workflow`. Sensitivity for the `cluster` subcommand is controlled instead via
+   `--cluster-steps`/`--round-approx-id`/`--round-coverage` (cascaded multi-round
+   parameters), which were not tuned/explored in this pass — the comparison used
+   diamond's default (single-pass) sensitivity and still got respectable
+   concordance (ARI 0.79) against mmseqs2's `-s 7`, but a properly-tuned cascade
+   might close some of the recall gap.
+
+**Why it matters**: anyone revisiting a diamond-based clustering path for this
+pipeline needs to (a) apply the same `mmseqs_id()`-style normalization if joining
+diamond's cluster output against anything using this pipeline's normal id
+convention, or better, just don't normalize at all and update every OTHER consumer
+to match diamond's fuller-token convention instead (worth deciding deliberately,
+not defaulting into whichever tool happens to be added second); and (b) budget time
+to find the right `--cluster-steps` recipe rather than assuming diamond's default
+sensitivity is representative of its best-case clustering quality.
+
+**Resolution**: not resolved/mitigated in code — this was a pure investigation, no
+`--cluster_tool diamond` pathway was built. Decision was to keep mmseqs2 for now (see
+linked decision entry).
+
+**Tags**: diamond, mmseqs, cluster-tool, uniprot, id-normalization, benchmarking,
+cli-quirk
+
+**mitigation_type**: ambient-awareness
+
+**structural_mitigation_candidate**: if a diamond-based `--cluster_tool` path is ever
+built, a unit test mirroring `tests/test_fasta.py::test_mmseqs_id_is_a_no_op_for_non_uniprot_headers`
+but asserting diamond's own (different) UniProt-header id convention would catch this
+class of mismatch the same way the #85 regression tests do for mmseqs2.
