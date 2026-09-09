@@ -802,3 +802,64 @@ regenerate (not just copy) the `docs/` flavor with the alignment-popup fragment 
 
 **Tags**: report, tblastn, github-pages, alignment, release-asset, ci, repo-bloat,
 docs, storeDir, cache-versioning
+
+## [2026-09-08] Stick with mmseqs2 (not diamond cluster) for --cluster_tool mmseqs
+
+**Context**: diamond added its own `cluster`/`linclust` subcommands (present since at
+least v2.2.0, the version already vendored via `pixi.toml`'s `diamond = ">=2.2.0,<3"`
+pin). Since diamond is already a hard pipeline dependency (`--run_tool diamond`'s
+pairwise search + self-search paralog lookup), a diamond-based family-clustering path
+was worth a real look as a way to simplify the tool matrix and potentially drop the
+separate `mmseqs2` dependency `--cluster_tool mmseqs` currently requires.
+
+**Investigation**: ran `diamond cluster` (v2.2.0, `--approx-id 30 --mutual-cover 80`,
+matching mmseqs's `--min-seq-id 0.3 -c 0.8`) against the real 51,803-protein ingroup
+`seed_all.faa` from NovInvenio_Investigations' `pezizo_set1_cluster` study (real UniProt
+reference-proteome data), and compared it to that same run's actual mmseqs2
+`easy-cluster -s 7 --min-seq-id 0.3 -c 0.8 --cov-mode 0` output.
+
+Findings:
+- **Aggregate cluster counts/size distributions were nearly identical**: mmseqs2 —
+  28,623 total clusters, 7,281 multi-member families; diamond — 30,996 total, 6,907
+  multi-member. Size-bucket shapes matched closely (e.g. size-5 families: 2,181 vs
+  1,915).
+- **Real pairwise co-clustering concordance** (the metric that actually matters — do
+  the *same proteins* land together, not just similar aggregate counts): Adjusted Rand
+  Index 0.79. Diamond recovers 72% of mmseqs's co-clustered pairs (recall) at 87%
+  precision — diamond is measurably more conservative/less complete, not wildly
+  different.
+- **Speed was a wash once normalized for core count**: mmseqs executed in ~39s using
+  ~25 cores (per the real pipeline run's own trace); diamond took ~115s on 8 threads —
+  roughly comparable core-seconds (~975 vs ~920), not a clear win either way at this
+  data scale (51K proteins). diamond's advantage is designed for much larger inputs.
+- **diamond's `cluster` subcommand restricts the usual blastp sensitivity flags**
+  (`--sensitive`/`--very-sensitive`/`--ultra-sensitive` all error "Option is not
+  permitted for this workflow") — sensitivity has to be tuned via
+  `--cluster-steps`/`--round-approx-id`/`--round-coverage` instead, which was not
+  explored further here (see `.living/learnings.md`'s 2026-09-08 entry for the
+  ID-convention gotcha this comparison also surfaced).
+
+**Decision**: keep mmseqs2 as the `--cluster_tool mmseqs` pathway's clustering engine.
+Diamond `cluster` is a real, usable alternative — not obviously worse — but the ~28%
+concordance gap at matched thresholds is exactly the kind of divergence that could
+plausibly flip a borderline family's novelty/loss call, and that specific
+consequence (does it change real novelty/loss calls, not just clustering-quality
+metrics) was not validated here.
+
+**Alternatives considered**:
+- *Switch the default `--cluster_tool mmseqs` clustering engine to diamond* — rejected
+  for now: real, measured concordance gap (ARI 0.79, 72% recall) with no validation of
+  whether that gap changes actual novelty/loss outcomes on data where the mmseqs-based
+  answer is already trusted.
+- *Add diamond clustering as a same-run comparison signal* (mirroring the existing
+  cross-method `support` column that already compares `pairwise` vs `mmseqs`) — not
+  rejected, deferred: a reasonable follow-up if diamond clustering is revisited, but
+  needs its own `--cluster_tool` wiring (see `todo/` if this gets picked up later).
+
+**Consequences**: no code changed as a result of this investigation — it was a pure
+tooling comparison. If diamond clustering is revisited later, the real next step is
+comparing novelty/loss *candidate lists* between the two clustering engines on a
+config with an already-trusted answer, not just clustering-quality metrics like ARI.
+
+**Tags**: cluster-tool, mmseqs, diamond, benchmarking, family-clustering, ADR-0002,
+tooling-comparison, novelty-discovery
