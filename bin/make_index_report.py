@@ -5,16 +5,18 @@ NovInvenio result reports — novelties.html, core.html, losses.html — and
 records what job produced them: the ingroup and outgroup proteomes, the search
 tool, and the presence-fraction thresholds.
 
-Designed to sit in view/<project>/ next to copies of the three reports, so a
-whole result set can be opened from one file:// URL and shared as a folder.
-No network access is required to open any of the pages.
+Designed to sit in docs/<project>/ next to the three reports, so a whole
+result set can be opened from one URL and shared as a folder. Also writes
+alignment.html alongside report.html -- the standalone "open in new tab"
+TBLASTN-alignment-popup page (issue #86), which carries no per-project
+payload of its own so one write here covers every project.
 
 Example:
   make_index_report.py \
       --config configs/pezio4_asco.csv \
       --project pezio4_asco \
       --run_tool phmmer \
-      --output view/pezio4_asco/report.html
+      --output docs/pezio4_asco/report.html
 """
 import argparse
 import sys
@@ -22,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
-from index_page import render_project_page  # noqa: E402
+from index_page import render_alignment_viewer_page, render_project_page  # noqa: E402
 from report_data import INGROUP_ROLES, OUTGROUP_ROLES  # noqa: E402
 
 # Each entry: (relative filename, title, one-line description).
@@ -113,6 +115,10 @@ def main():
     out.write_text(doc, encoding='utf-8')
     print(f'Wrote {out}: index of {len(available)} reports '
           f'({n_in} ingroup, {n_out} outgroup proteomes)', file=sys.stderr)
+
+    alignment_out = out.parent / 'alignment.html'
+    alignment_out.write_text(render_alignment_viewer_page(), encoding='utf-8')
+    print(f'Wrote {alignment_out}', file=sys.stderr)
 
 
 if __name__ == '__main__':

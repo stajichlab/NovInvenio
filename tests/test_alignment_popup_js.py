@@ -19,7 +19,10 @@ REPO = Path(__file__).resolve().parent.parent
 DRIVER = Path(__file__).parent / 'js' / 'drive_alignment_popup.mjs'
 
 sys.path.insert(0, str(REPO / 'lib'))
+from index_page import render_alignment_viewer_page  # noqa: E402
 from report_common import ALIGNMENT_POPUP_HTML, ALIGNMENT_POPUP_JS  # noqa: E402
+
+VIEWER_DRIVER = Path(__file__).parent / 'js' / 'drive_alignment_viewer_page.mjs'
 
 _RESOLVE_JSDOM_JS = (
     'import {createRequire} from "node:module";'
@@ -69,3 +72,34 @@ def test_alignment_popup_js_behaviour(tmp_path):
     failed = [ln for ln in proc.stdout.splitlines() if ln.startswith('FAIL')]
     assert proc.returncode == 0 and not failed, 'jsdom behaviour checks failed:\n' + report
     assert proc.stdout.count('PASS ') >= 8, report
+
+
+def test_alignment_viewer_page_syntax_parses():
+    node = shutil.which('node')
+    if not node:
+        pytest.skip('node not available')
+    doc = render_alignment_viewer_page()
+    import re
+    scripts = re.findall(r'<script>\n?(.*?)</script>', doc, re.S)
+    assert len(scripts) == 2  # SKIN_BOOT_JS (head) + ALIGNMENT_POPUP_JS/boot (body)
+    for script in scripts:
+        proc = subprocess.run([node, '--check', '-'], input=script,
+                              capture_output=True, text=True, check=False)
+        assert proc.returncode == 0, proc.stderr
+
+
+def test_alignment_viewer_page_behaviour(tmp_path):
+    jsdom = _find_jsdom()
+    if not jsdom:
+        pytest.skip('jsdom not installed (see tests/test_report_js_behaviour.py docstring)')
+    node = shutil.which('node')
+
+    page = tmp_path / 'alignment.html'
+    page.write_text(render_alignment_viewer_page())
+
+    proc = subprocess.run([node, str(VIEWER_DRIVER), str(page), jsdom],
+                          capture_output=True, text=True, check=False)
+    report = proc.stdout + proc.stderr
+    failed = [ln for ln in proc.stdout.splitlines() if ln.startswith('FAIL')]
+    assert proc.returncode == 0 and not failed, 'jsdom behaviour checks failed:\n' + report
+    assert proc.stdout.count('PASS ') >= 3, report

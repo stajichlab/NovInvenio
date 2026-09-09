@@ -315,10 +315,10 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
           if (gi > 0) td.appendChild(document.createTextNode(", "));
           var btn = el("button", "btn-ghost tb-hit-btn", g);
           btn.type = "button";
-          btn.title = "View TBLASTN alignment vs " + g;
+          btn.title = "View TBLASTN alignment vs " + g + " (Ctrl/Cmd-click to open in a new tab)";
           btn.addEventListener("click", function (e) {
             e.stopPropagation();
-            window.NIAlignments.open("loss_alignments/", g, ROWS[r][F.id]);
+            window.NIAlignments.openOrNewTab("loss_alignments/", g, ROWS[r][F.id], e);
           });
           td.appendChild(btn);
         });

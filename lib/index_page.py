@@ -14,6 +14,9 @@ from __future__ import annotations
 import html
 
 from report_common import (
+    ALIGNMENT_POPUP_CSS,
+    ALIGNMENT_POPUP_HTML,
+    ALIGNMENT_POPUP_JS,
     BASE_PAGE_CSS,
     FAVICON_LINK_HTML,
     LOGO_CSS,
@@ -185,8 +188,48 @@ def render_project_page(
     return _page(f'{project} — NovInvenio reports', body)
 
 
+def render_alignment_viewer_page() -> str:
+    """Standalone docs/-only page (issue #86): a real, bookmarkable
+    ``alignment.html?dir=&genome=&protein=&hit=`` URL for the same TBLASTN
+    pairwise alignment the table tab's click-to-dialog popup shows inline
+    (``lib/report_common.py``'s ``ALIGNMENT_POPUP_JS``, issue #74) -- an
+    "open in new tab" affordance instead of only ever seeing it in a modal.
+
+    Reads its own query string at runtime (this page carries no per-project
+    payload, so the same generated file works for every project/genome/
+    protein combination); wired up by ``bin/make_index_report.py`` as a
+    fourth file alongside ``report.html``. ``dir``/``genome``/``protein``
+    build a client-side fetch() URL exactly like the in-page popup already
+    does -- no new trust boundary versus that existing code path.
+    """
+    boot_js = (
+        '(function () {\n'
+        '  var params = new URLSearchParams(location.search);\n'
+        '  var dir = params.get("dir") || "alignments/";\n'
+        '  var genome = params.get("genome");\n'
+        '  var protein = params.get("protein");\n'
+        '  var hitIndex = params.get("hit") ? parseInt(params.get("hit"), 10) : 0;\n'
+        '  if (genome && protein) {\n'
+        '    document.title = protein + " vs " + genome + " — TBLASTN alignment";\n'
+        '    window.NIAlignments.open(dir, genome, protein, hitIndex);\n'
+        '  }\n'
+        '})();\n'
+    )
+    return (
+        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        '<title>TBLASTN alignment</title>\n'
+        + FAVICON_LINK_HTML + '\n'
+        '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + ALIGNMENT_POPUP_CSS + '</style>\n'
+        '<script>' + SKIN_BOOT_JS + '</script>\n'
+        '</head>\n<body>\n'
+        + ALIGNMENT_POPUP_HTML +
+        '\n<script>\n' + ALIGNMENT_POPUP_JS + '\n' + boot_js + '\n</script>\n</body>\n</html>\n'
+    )
+
+
 def render_gallery_page(*, projects: list[dict], footer: str = '') -> str:
-    """Render the top-level ``view/index.html``.
+    """Render the top-level ``docs/index.html`` gallery.
 
     ``projects`` entries are ``{title, href, meta, tiles, subpages}`` where
     ``subpages`` is a list of ``{href, title}``. This is the GitHub Pages front
