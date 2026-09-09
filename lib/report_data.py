@@ -81,6 +81,11 @@ ROW_FIELDS = [
     'start',     # GFF3-derived 1-based gene/mRNA start coordinate (int), or null/None when
                  # unknown (same conditions as 'chrom'). Per-protein-record as currently
                  # modeled -- see CLAUDE.md's GFF3 chrom/start note on splice isoforms.
+    'xrefs',     # uniprot_xrefs -- NII bin/extract_dat_annotations.py's DR-line
+                 # cross-reference extraction (FungiDB/NCBI Gene/RefSeq/KEGG/
+                 # Ensembl), packed "DB:id|DB:id" -- see lib/report_common.py's
+                 # XREF_LINK_TEMPLATES for the render side. Not interned: 1:1
+                 # with the protein like 'ec'/'af', nothing to compress.
 ]
 
 class _StringTable:
@@ -535,6 +540,7 @@ def build_payload(
             ev,
             chrom,
             start,
+            row.get('uniprot_xrefs', '') or '',
         ])
 
     return {
@@ -585,6 +591,7 @@ CORE_ROW_FIELDS = [
     'fam',       # index into payload['families'], or -1 if not part of a multi-member cluster
     'chrom',     # GFF3-derived chromosome/scaffold/contig name (see ROW_FIELDS' 'chrom')
     'start',     # GFF3-derived 1-based start coordinate, int or null (see ROW_FIELDS' 'start')
+    'xrefs',     # uniprot_xrefs, or '' -- see ROW_FIELDS' 'xrefs'
 ]
 
 
@@ -683,6 +690,7 @@ def build_core_payload(
             fam_i,
             chrom,
             start,
+            row.get('uniprot_xrefs', '') or '',
         ])
 
     return {
@@ -737,6 +745,7 @@ LOSSES_ROW_FIELDS = [
     'chrom',       # GFF3-derived chromosome/scaffold/contig name, resolved against the
                    # *outgroup* protein's GFF3 (that's where the gene is) — see ROW_FIELDS
     'start',       # GFF3-derived 1-based start coordinate, int or null — see ROW_FIELDS
+    'xrefs',       # uniprot_xrefs, or '' -- see ROW_FIELDS' 'xrefs'
 ]
 
 
@@ -896,6 +905,7 @@ def build_losses_payload(
             fam_i,
             chrom,
             start,
+            row.get('uniprot_xrefs', '') or '',
         ])
 
     return {

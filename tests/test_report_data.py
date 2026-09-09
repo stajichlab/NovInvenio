@@ -115,6 +115,14 @@ n1\tNcra\t1\t1\t0\t0
 n2\tAfum\t1\t1\t1\t0
 """
 
+# Adds a uniprot_xrefs column to exercise the xrefs passthrough (n1 carries
+# one, n2 has none -- the empty-string default path).
+XREF_MATRIX = """\
+protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\tgene_name\tproduct_description\tfunction_source\tuniprot_xrefs
+n1\tNcra\t1\t1\t0\t0\tada-1\tall development altered-1\tModelOrg_Ncra\tGeneID:5847462|KEGG:ncr:NCU10683
+n2\tAfum\t1\t1\t0\t0\t\t\t\t
+"""
+
 
 @pytest.fixture
 def run_dir(tmp_path):
@@ -833,3 +841,34 @@ def test_make_report_escapes_a_script_tag_hiding_in_novelty_category(run_dir):
     cat_idx = payload['fields'].index('category')
     categories = [r[cat_idx] for r in payload['rows']]
     assert '</script><script>alert(1)</script>' in categories
+
+
+def test_payload_carries_xrefs_field(tmp_path, samples):
+    (tmp_path / 'matrix.tsv').write_text(XREF_MATRIX)
+    payload = build_payload(tmp_path / 'matrix.tsv', samples, candidates_fa=None,
+                             tblastn_path=None)
+    idx = payload['fields'].index('xrefs')
+    rows = {r[payload['fields'].index('id')]: r for r in payload['rows']}
+    assert rows['n1'][idx] == 'GeneID:5847462|KEGG:ncr:NCU10683'
+    assert rows['n2'][idx] == ''
+
+
+def test_core_payload_carries_xrefs_field(tmp_path, samples):
+    core_matrix = XREF_MATRIX.replace('n1\tNcra\t1\t1\t0\t0', 'n1\tNcra\t1\t1\t1\t1') \
+                             .replace('n2\tAfum\t1\t1\t0\t0', 'n2\tAfum\t1\t1\t1\t1')
+    (tmp_path / 'core.tsv').write_text(core_matrix)
+    payload = build_core_payload(tmp_path / 'core.tsv', samples, core_min_frac=0.95)
+    idx = payload['fields'].index('xrefs')
+    rows = {r[payload['fields'].index('id')]: r for r in payload['rows']}
+    assert rows['n1'][idx] == 'GeneID:5847462|KEGG:ncr:NCU10683'
+
+
+def test_losses_payload_carries_xrefs_field(tmp_path, samples):
+    losses_matrix = ("protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\t"
+                      "gene_name\tproduct_description\tfunction_source\tuniprot_xrefs\n"
+                      "loss1\tSpom\t0\t0\t1\t1\t\t\t\tGeneID:999\n")
+    (tmp_path / 'losses.tsv').write_text(losses_matrix)
+    payload = build_losses_payload(tmp_path / 'losses.tsv', samples)
+    idx = payload['fields'].index('xrefs')
+    rows = {r[payload['fields'].index('id')]: r for r in payload['rows']}
+    assert rows['loss1'][idx] == 'GeneID:999'
