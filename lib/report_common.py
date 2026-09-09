@@ -815,6 +815,25 @@ ALIGNMENT_POPUP_JS = r"""
       }
     }
 
+    // Shared click-handler entry point (issue #86): a plain click opens the
+    // in-page dialog; Ctrl/Cmd-click opens the standalone alignment.html
+    // page in a new tab instead -- a real bookmarkable URL, same convention
+    // as any ordinary link's modifier-click behaviour. alignment.html lives
+    // alongside the calling report (docs/<project>/alignment.html), so a
+    // bare relative href resolves correctly from either novelties.html or
+    // losses.html.
+    function openOrNewTab(baseUrl, genome, proteinId, ev, hitIndex) {
+      if (ev && (ev.ctrlKey || ev.metaKey)) {
+        var qs = "dir=" + encodeURIComponent(baseUrl) +
+          "&genome=" + encodeURIComponent(genome) +
+          "&protein=" + encodeURIComponent(proteinId) +
+          (hitIndex ? "&hit=" + encodeURIComponent(hitIndex) : "");
+        window.open("alignment.html?" + qs, "_blank", "noopener");
+        return;
+      }
+      open(baseUrl, genome, proteinId, hitIndex);
+    }
+
     function wireClose() {
       var els = dialogEls();
       if (!els.dialog) return;
@@ -830,6 +849,6 @@ ALIGNMENT_POPUP_JS = r"""
       wireClose();
     }
 
-    window.NIAlignments = { open: open, fetchDataShard: fetchDataShard };
+    window.NIAlignments = { open: open, openOrNewTab: openOrNewTab, fetchDataShard: fetchDataShard };
   })();
 """

@@ -312,6 +312,7 @@ process COLLATE_REPORTS {
 
     output:
     path("report.html"),     emit: index
+    path("alignment.html"),  emit: alignment
     path(novelties_html),    emit: novelties
     path(core_html),         emit: core
     path(losses_html),       emit: losses

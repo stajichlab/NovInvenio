@@ -884,6 +884,9 @@ HTML_TEMPLATE = r"""<!doctype html>
             ? "Context proteome — not scored for novelty"
             : (col.group === "IN" ? "Ingroup proteome" : "Outgroup proteome"))
         : "Outgroup genome"));
+      if (col.kind === "tb" && on && DATA.online) {
+        tipEl.appendChild(el("div", "tip-row", "Click for alignment (Ctrl/Cmd-click: new tab)"));
+      }
     }
 
     tipEl.appendChild(el("div", "tip-id",
@@ -1167,10 +1170,10 @@ HTML_TEMPLATE = r"""<!doctype html>
         if (!hit) { td.textContent = "0"; return; }
         var btn = el("button", "btn-ghost tb-hit-btn", "1");
         btn.type = "button";
-        btn.title = "View TBLASTN alignment vs " + g;
+        btn.title = "View TBLASTN alignment vs " + g + " (Ctrl/Cmd-click to open in a new tab)";
         btn.addEventListener("click", function (e) {
           e.stopPropagation();
-          window.NIAlignments.open("alignments/", g, ROWS[r][F.id]);
+          window.NIAlignments.openOrNewTab("alignments/", g, ROWS[r][F.id], e);
         });
         td.appendChild(btn);
       } : undefined
@@ -1473,7 +1476,22 @@ HTML_TEMPLATE = r"""<!doctype html>
   });
   scrollEl.addEventListener("click", function (e) {
     var vi = rowAt(e.clientY);
-    if (vi >= 0) select(view[vi]);
+    if (vi < 0) return;
+    var ri = view[vi];
+    // A click on a lit TBLASTN cell opens the alignment popup instead of
+    // (just) selecting the row -- issue #82, the canvas-heatmap follow-up to
+    // #74/#75/#86's table-tab click affordance. DATA.online gates this the
+    // same way the table tab's cells already are; offline builds keep the
+    // heatmap's original select-only click behaviour untouched.
+    if (DATA.online) {
+      var ci = colAt(e.clientX);
+      var col = ci >= 0 ? COLS[ci] : null;
+      if (col && col.kind === "tb" && ROWS[ri][F.tb].charCodeAt(col.idx) === 49) {
+        window.NIAlignments.openOrNewTab("alignments/", col.label, ROWS[ri][F.id], e);
+        return;
+      }
+    }
+    select(ri);
   });
   // Keyboard parity: arrows move the selection and surface the same detail as hover.
   scrollEl.addEventListener("keydown", function (e) {

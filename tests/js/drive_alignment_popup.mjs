@@ -117,6 +117,28 @@ async function run() {
     check('close button closes the dialog', !doc.getElementById('alignment-dialog').hasAttribute('open'));
   }
 
+  // --- openOrNewTab: plain click opens the dialog, modifier-click opens a new tab ---
+  {
+    const dom = boot(fetchOk(new Uint8Array(GZIP_BYTES)));
+    let openedUrl = null;
+    dom.window.open = (url) => { openedUrl = url; return null; };
+
+    await dom.window.NIAlignments.openOrNewTab('alignments/', 'Afum', 'memberA', { ctrlKey: false });
+    await new Promise((r) => setTimeout(r, 20));
+    check('openOrNewTab: plain click opens the in-page dialog',
+      dom.window.document.getElementById('alignment-title').textContent === 'memberA vs Afum');
+    check('openOrNewTab: plain click does not call window.open', openedUrl === null);
+
+    dom.window.NIAlignments.openOrNewTab('alignments/', 'Afum', 'memberA', { ctrlKey: true });
+    check('openOrNewTab: Ctrl-click opens alignment.html in a new tab',
+      openedUrl === 'alignment.html?dir=alignments%2F&genome=Afum&protein=memberA', openedUrl);
+
+    openedUrl = null;
+    dom.window.NIAlignments.openOrNewTab('loss_alignments/', 'Ncra', 'memberB', { metaKey: true }, 2);
+    check('openOrNewTab: Cmd-click includes a non-zero hit index',
+      openedUrl === 'alignment.html?dir=loss_alignments%2F&genome=Ncra&protein=memberB&hit=2', openedUrl);
+  }
+
   console.log(failures === 0 ? 'ALL PASSED' : (failures + ' FAILURE(S)'));
   process.exit(failures === 0 ? 0 : 1);
 }
