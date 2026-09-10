@@ -52,7 +52,7 @@ async function run() {
   check('viewer page: auto-opens the dialog from the URL query string',
     doc.getElementById('alignment-dialog').hasAttribute('open'));
   check('viewer page: title reflects the query params, no click needed',
-    doc.getElementById('alignment-title').textContent === 'memberA vs Afum',
+    doc.getElementById('alignment-title').textContent === 'memberA vs s1 (Afum)',
     doc.getElementById('alignment-title').textContent);
   check('viewer page: sets document.title', dom.window.document.title.includes('memberA vs Afum'));
 

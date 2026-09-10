@@ -757,6 +757,10 @@ ALIGNMENT_POPUP_CSS = r"""
     padding: 14px 18px; border-bottom: 1px solid var(--border);
   }
   dialog.alignment .align-head h3 { margin: 0; font-size: 14px; font-weight: 600; flex: 1; min-width: 0; }
+  dialog.alignment .align-head h3 .align-uniprot-link {
+    font-weight: 400; font-size: 12px; color: var(--text-secondary); text-decoration: none;
+  }
+  dialog.alignment .align-head h3 .align-uniprot-link:hover { text-decoration: underline; }
   dialog.alignment .align-stats {
     padding: 10px 18px; font-size: 12px; color: var(--text-secondary);
     border-bottom: 1px solid var(--border);
@@ -834,42 +838,95 @@ ALIGNMENT_POPUP_JS = r"""
     }
 
     // Query coordinates advance left-to-right per block (proteins have no
-    // strand). Subject coordinates are shown once, whole-HSP, in the stats
-    // line -- sframe/minus-strand direction makes per-block subject numbering
-    // more complex than a v1 popup needs; sstart/send/sframe together are
-    // enough to locate the hit in the genome.
-    function chunkAlignment(qseq, sseq, qstart, width) {
+    // strand, so they always increase). Subject coordinates are genomic
+    // nucleotide positions -- each residue of sseq corresponds to one codon
+    // (3 nt) -- and move in the direction given by sframe: increasing for a
+    // plus-strand hit (sframe > 0), decreasing for a minus-strand hit
+    // (sframe < 0). Gap columns ('-') consume a query/subject residue on one
+    // side only, so per-block spans are computed from each side's own
+    // non-gap character count, not the raw slice width.
+    function chunkAlignment(qseq, sseq, qstart, sstart, sframe, width) {
       width = width || 60;
       var mid = midline(qseq, sseq);
+      var strand = sframe < 0 ? -1 : 1;
       var blocks = [];
       var qi = qstart;
+      var si = sstart;
       for (var off = 0; off < qseq.length; off += width) {
         var qc = qseq.slice(off, off + width);
         var sc = sseq.slice(off, off + width);
         var mc = mid.slice(off, off + width);
-        blocks.push({ qstart: qi, qseq: qc, mid: mc, sseq: sc });
-        qi += qc.replace(/-/g, "").length;
+        var qConsumed = qc.replace(/-/g, "").length;
+        var sConsumed = sc.replace(/-/g, "").length;
+        var sSpanNt = sConsumed * 3;
+        var qBlockStart = qi;
+        var qBlockEnd = qi + qConsumed - 1;
+        var sBlockStart = si;
+        var sBlockEnd = strand > 0 ? si + sSpanNt - 1 : si - sSpanNt + 1;
+        blocks.push({
+          qstart: qBlockStart, qend: qBlockEnd, qseq: qc, mid: mc, sseq: sc,
+          sstart: sBlockStart, send: sBlockEnd,
+        });
+        qi += qConsumed;
+        si = strand > 0 ? sBlockEnd + 1 : sBlockEnd - 1;
       }
       return blocks;
     }
 
+    // UniProt FASTA-header-style IDs look like "sp|P12345|NAME_ORG" or
+    // "tr|P12345|NAME_ORG" -- pull the accession out so the title can link
+    // straight to the UniProt entry (that's the fastest way to get the
+    // protein's real name today, short of embedding gene_name/description
+    // into the shard itself). Not every proteinId matches (e.g. test
+    // fixtures, or a future non-UniProt-sourced protein set), so this is a
+    // best-effort addition, not a required field.
+    function uniprotAccession(proteinId) {
+      var m = /^(?:sp|tr)\|([^|]+)\|/.exec(proteinId);
+      return m ? m[1] : null;
+    }
+
     function renderHit(dialogEls, proteinId, hit) {
-      dialogEls.title.textContent = proteinId + " vs " + hit.genome;
+      dialogEls.title.textContent = "";
+      dialogEls.title.appendChild(document.createTextNode(proteinId));
+      var acc = uniprotAccession(proteinId);
+      if (acc) {
+        dialogEls.title.appendChild(document.createTextNode(" "));
+        var link = document.createElement("a");
+        link.href = "https://www.uniprot.org/uniprotkb/" + encodeURIComponent(acc);
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.className = "align-uniprot-link";
+        link.textContent = "(UniProt ↗)";
+        dialogEls.title.appendChild(link);
+      }
+      dialogEls.title.appendChild(document.createTextNode(" vs " + hit.sseqid + " (" + hit.genome + ")"));
       var alignedNote = hit.aligned_as ? (" (shown via cluster representative " + hit.aligned_as + ")") : "";
       dialogEls.stats.textContent =
-        "evalue=" + hit.evalue + "  bitscore=" + hit.bitscore + "  pident=" + hit.pident.toFixed(1) + "%" +
-        "  length=" + hit.length + "  subject=" + hit.sseqid + ":" + hit.sstart + "-" + hit.send +
+        "Subject= " + hit.sseqid + "  evalue=" + hit.evalue + "  bitscore=" + hit.bitscore +
+        "  pident=" + hit.pident.toFixed(1) + "%" +
+        "  length=" + hit.length + "  range=" + hit.sstart + "-" + hit.send +
         " (frame " + hit.sframe + ")" + alignedNote;
       dialogEls.body.textContent = "";
-      var blocks = chunkAlignment(hit.qseq, hit.sseq, hit.qstart);
+      var blocks = chunkAlignment(hit.qseq, hit.sseq, hit.qstart, hit.sstart, hit.sframe);
+      // Pad every block's position numbers to the same width (the widest
+      // number seen across the whole HSP), so Query/Sbjct columns line up
+      // block to block the way NCBI BLAST's own text output does.
+      var numWidth = Math.max(
+        String(hit.qstart).length, String(hit.qend).length,
+        String(hit.sstart).length, String(hit.send).length
+      );
       blocks.forEach(function (b) {
         var pre = document.createElement("pre");
         pre.className = "align-block";
-        var qLabel = "Q " + String(b.qstart).padStart(6, " ") + "  ";
+        var qLabel = "Query  " + String(b.qstart).padStart(numWidth, " ") + "  ";
+        var sLabel = "Sbjct  " + String(b.sstart).padStart(numWidth, " ") + "  ";
+        var labelWidth = Math.max(qLabel.length, sLabel.length);
+        qLabel = qLabel.padEnd(labelWidth, " ");
+        sLabel = sLabel.padEnd(labelWidth, " ");
         pre.textContent =
-          qLabel + b.qseq + "\n" +
-          " ".repeat(qLabel.length) + b.mid + "\n" +
-          " ".repeat(qLabel.length) + b.sseq;
+          qLabel + b.qseq + "  " + b.qend + "\n" +
+          " ".repeat(labelWidth) + b.mid + "\n" +
+          sLabel + b.sseq + "  " + b.send;
         dialogEls.body.appendChild(pre);
       });
     }

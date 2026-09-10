@@ -66,14 +66,14 @@ async function run() {
     await dom.window.NIAlignments.open('alignments/', 'Afum', 'memberA');
     await new Promise((r) => setTimeout(r, 20));
     const doc = dom.window.document;
-    check('happy path: title set', doc.getElementById('alignment-title').textContent === 'memberA vs Afum');
+    check('happy path: title set', doc.getElementById('alignment-title').textContent === 'memberA vs scaffold_1 (Afum)');
     const stats = doc.getElementById('alignment-stats').textContent;
-    check('happy path: stats include evalue/pident/aligned_as', /evalue=1e-40/.test(stats) && /pident=75.0%/.test(stats) && /rep1/.test(stats), stats);
+    check('happy path: stats include Subject/evalue/pident/aligned_as', /Subject= scaffold_1/.test(stats) && /evalue=1e-40/.test(stats) && /pident=75.0%/.test(stats) && /rep1/.test(stats), stats);
     const body = doc.getElementById('alignment-body').textContent;
     // qseq='MKVL-ACDEFGHI' sseq='MKVLQACDEFGHX' -> midline: match except at
     // the gap column (pos 4, space) and the final X/I mismatch (space).
-    check('happy path: body contains query line', body.includes('MKVL-ACDEFGHI'), body);
-    check('happy path: body contains subject line', body.includes('MKVLQACDEFGHX'), body);
+    check('happy path: body contains query line with Query label + coords', body.includes('Query') && body.includes('MKVL-ACDEFGHI'), body);
+    check('happy path: body contains subject line with Sbjct label + coords', body.includes('Sbjct') && body.includes('MKVLQACDEFGHX'), body);
     // qseq='MKVL-ACDEFGHI' sseq='MKVLQACDEFGHX': gap at position 4 (blank),
     // mismatch I/X at position 12 (blank), '|' everywhere else.
     check('happy path: midline blanks the gap and the mismatch, matches elsewhere', body.includes('|||| ||||||| '), JSON.stringify(body));
@@ -104,7 +104,7 @@ async function run() {
     await dom.window.NIAlignments.open('alignments/', 'Afum', 'memberA');
     await new Promise((r) => setTimeout(r, 20));
     const title = dom.window.document.getElementById('alignment-title').textContent;
-    check('plain (non-gzip) response parses directly', title === 'memberA vs Afum', title);
+    check('plain (non-gzip) response parses directly', title === 'memberA vs scaffold_1 (Afum)', title);
   }
 
   // --- close button + backdrop click wiring ---
@@ -126,7 +126,7 @@ async function run() {
     await dom.window.NIAlignments.openOrNewTab('alignments/', 'Afum', 'memberA', { ctrlKey: false });
     await new Promise((r) => setTimeout(r, 20));
     check('openOrNewTab: plain click opens the in-page dialog',
-      dom.window.document.getElementById('alignment-title').textContent === 'memberA vs Afum');
+      dom.window.document.getElementById('alignment-title').textContent === 'memberA vs scaffold_1 (Afum)');
     check('openOrNewTab: plain click does not call window.open', openedUrl === null);
 
     dom.window.NIAlignments.openOrNewTab('alignments/', 'Afum', 'memberA', { ctrlKey: true });
