@@ -28,7 +28,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
-from fasta import mmseqs_id, read_fasta  # noqa: E402
+from fasta import read_fasta  # noqa: E402
 
 
 def load_clusters(cluster_tsv):
@@ -66,13 +66,11 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     records = read_fasta(args.fasta)
-    # Look up by mmseqs's own id convention (see lib/fasta.py's mmseqs_id
-    # docstring, issue #85): a plain header normalizes to itself here, so
-    # this is a no-op for non-UniProt-shaped headers. First-id-wins on a
-    # normalization collision, matching read_fasta()'s own dedup policy.
-    by_mmseqs_id = {}
-    for rid, rec in records.items():
-        by_mmseqs_id.setdefault(mmseqs_id(rid), rec)
+    # cluster.tsv member ids now match this FASTA's own headers directly --
+    # bin/restore_mmseqs_cluster_ids.py corrects mmseqs's own *_cluster.tsv
+    # output to full-header form immediately after it's produced (see that
+    # script's docstring). No normalization needed here any more.
+    records_by_id = records
     clusters = load_clusters(args.cluster_tsv)
 
     index_rows = []
@@ -88,11 +86,11 @@ def main():
         fam_path = outdir / f'fam_{fam_idx:06d}.faa'
         with open(fam_path, 'w') as out:
             for m in members:
-                if m not in by_mmseqs_id:
+                if m not in records_by_id:
                     # A member id absent from the FASTA means a mismatch between the
                     # cluster tsv and the sequences it was built from — fail loud.
                     sys.exit(f"ERROR: cluster member '{m}' not found in {args.fasta}")
-                out.write(f'>{m}\n{by_mmseqs_id[m].seq}\n')
+                out.write(f'>{m}\n{records_by_id[m].seq}\n')
         index_rows.append((fam_idx, rep, len(members)))
 
     with open(outdir / 'families.tsv', 'w') as fh:

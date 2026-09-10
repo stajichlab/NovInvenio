@@ -80,14 +80,19 @@ def test_fam_fasta_written_only_for_in_range_families(tmp_path):
     assert fam_files[0].read_text() == '>mid\nMB\n>mid2\nMC\n'
 
 
-def test_uniprot_style_headers_resolve_via_mmseqs_id(tmp_path):
-    """Regression test for issue #85: mmseqs2 reports the bare accession (not
-    the full "sp|ACC|NAME"/"tr|ACC|NAME" token) as a member's id in its own
-    *_cluster.tsv -- confirmed empirically against a real mmseqs2 build. The
-    FASTA the clustering was run on still has the full original header, so
-    the lookup here must normalize before failing loud on a real mismatch."""
+def test_uniprot_style_headers_join_directly_no_normalization_needed(tmp_path):
+    """Post mmseqs-cluster-ID-restoration fix (2026-09-09): --cluster-tsv now
+    holds the SAME full "sp|ACC|NAME"/"tr|ACC|NAME" token every other
+    artifact uses as protein_id (bin/restore_mmseqs_cluster_ids.py corrects
+    mmseqs's own *_cluster.tsv output immediately after it's produced -- see
+    that script's docstring). This replaces the old mmseqs_id()-based
+    regression test (issue #85), which encoded the pre-fix, bare-accession
+    cluster.tsv contract this script no longer needs to compensate for."""
     cluster_tsv = tmp_path / 'cluster.tsv'
-    cluster_tsv.write_text("O74225\tO74225\nO74225\tA8PCG9\n")
+    cluster_tsv.write_text(
+        "sp|O74225|YCF1_SCHPO\tsp|O74225|YCF1_SCHPO\n"
+        "sp|O74225|YCF1_SCHPO\ttr|A8PCG9|A8PCG9_ASPNG\n"
+    )
     fasta = tmp_path / 'seed.faa'
     fasta.write_text(
         ">sp|O74225|YCF1_SCHPO Uncharacterized OS=S. pombe OX=284812 GN=x PE=1 SV=1\nMKVLA\n"
@@ -106,6 +111,6 @@ def test_uniprot_style_headers_resolve_via_mmseqs_id(tmp_path):
     assert r.returncode == 0, r.stderr
     fam_files = sorted(outdir.glob('fam_*.faa'))
     assert len(fam_files) == 1
-    # Written under the mmseqs-native (bare-accession) id, matching families.tsv's
-    # representative_id and everything downstream that keys off cluster.tsv.
-    assert fam_files[0].read_text() == '>O74225\nMKVLA\n>A8PCG9\nMKVLB\n'
+    assert fam_files[0].read_text() == (
+        '>sp|O74225|YCF1_SCHPO\nMKVLA\n>tr|A8PCG9|A8PCG9_ASPNG\nMKVLB\n'
+    )
