@@ -42,3 +42,40 @@ def test_mmseqs_id_is_a_no_op_for_non_uniprot_headers():
     # never surfaced this mismatch.
     assert mmseqs_id('Ncra_00001') == 'Ncra_00001'
     assert mmseqs_id('Pchr|PCH_Pc18g05710.1') == 'Pchr|PCH_Pc18g05710.1'
+
+
+def test_mmseqs_id_handles_ncbi_style_prefixes():
+    # Empirically confirmed against a real mmseqs2 easy-cluster run (this
+    # session's spec review): mmseqs recognizes several more single-pipe
+    # NCBI-style prefixes beyond sp|/tr|, all taking the second field.
+    assert mmseqs_id('gb|AAA12345.1|') == 'AAA12345.1'
+    assert mmseqs_id('ref|XP_000002.1|') == 'XP_000002.1'
+    assert mmseqs_id('pdb|1ABC|A') == '1ABC'
+    assert mmseqs_id('bbs|123456') == '123456'
+    assert mmseqs_id('lcl|NC_000001.1_prot_XP_1_1') == 'NC_000001.1_prot_XP_1_1'
+    assert mmseqs_id('pat|US|123456') == 'US'
+    assert mmseqs_id('cl|some_locus') == 'some_locus'
+
+
+def test_mmseqs_id_handles_gnl_and_double_pipe_prefixes():
+    # "gnl|db|LOCUS" takes the THIRD field (not the second, unlike the
+    # single-pipe prefixes above) -- confirmed empirically.
+    assert mmseqs_id('gnl|DB|LOCUS_001') == 'LOCUS_001'
+    # "pir||ACCESSION" / "prf||ACCESSION" -- the middle field is empty by
+    # convention; the accession is the third field.
+    assert mmseqs_id('pir||S12345') == 'S12345'
+    assert mmseqs_id('prf||1234567A') == '1234567A'
+
+
+def test_mmseqs_id_handles_ncbi_compound_gi_header():
+    # "gi|N|db|ACCESSION|..." -- NCBI's classic compound defline; mmseqs
+    # reports the accession (4th field), not the gi number.
+    assert mmseqs_id('gi|12345|ref|XP_000001.1|') == 'XP_000001.1'
+
+
+def test_mmseqs_id_unrecognized_prefix_is_a_no_op():
+    # A pipe-containing header whose first field is NOT one of mmseqs's
+    # known prefixes is left completely unchanged -- confirmed empirically
+    # (mmseqs does not special-case this).
+    assert mmseqs_id('Pchr|PCH_Pc18g05710.1') == 'Pchr|PCH_Pc18g05710.1'
+    assert mmseqs_id('UniRef90_A0A000') == 'UniRef90_A0A000'
