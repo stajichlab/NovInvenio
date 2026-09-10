@@ -95,6 +95,29 @@ async function run() {
     check('missing protein: shows no-archive message', /No archived alignment/.test(body), body);
   }
 
+  // --- schema v1 shard (bare hits array, no gene_name/description wrapper) --
+  // a shard built before the v2 upgrade, or not yet rebuilt by a real pipeline run
+  // since -- must still render, not silently report "no archived alignment".
+  {
+    const v1Shard = {
+      memberA: [{
+        genome: 'Afum', sseqid: 'scaffold_1', evalue: 1e-40, bitscore: 150, pident: 75.0,
+        length: 10, qstart: 1, qend: 10, sstart: 1000, send: 1120, sframe: 1,
+        qseq: 'MKVLACDEFGHI', sseq: 'MKVLACDEFGHI',
+      }],
+    };
+    const v1Gzip = zlib.gzipSync(Buffer.from(JSON.stringify(v1Shard), 'utf8'));
+    const dom = boot(fetchOk(new Uint8Array(v1Gzip)));
+    await dom.window.NIAlignments.open('alignments/', 'Afum', 'memberA');
+    await new Promise((r) => setTimeout(r, 20));
+    const doc = dom.window.document;
+    const body = doc.getElementById('alignment-body').textContent;
+    check('schema v1 shard: renders the archived hit instead of "no archived alignment"',
+      !/No archived alignment/.test(body) && body.includes('MKVLACDEFGHI'), body);
+    check('schema v1 shard: title still set (no query gene_name/description available)',
+      doc.getElementById('alignment-title').textContent === 'memberA vs scaffold_1 (Afum)');
+  }
+
   // --- DecompressionStream unsupported: plain fallback message, no throw ---
   {
     const dom = boot(fetchOk(new Uint8Array(GZIP_BYTES)), { withDecompression: false });

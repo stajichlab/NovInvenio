@@ -982,13 +982,27 @@ ALIGNMENT_POPUP_JS = r"""
       try {
         var shard = await fetchDataShard(baseUrl + genome + ".json.gz");
         // Schema v2: shard[proteinId] = {hits: [...], gene_name?, description?}.
-        var entry = shard[proteinId];
-        var hits = entry && entry.hits;
+        // Schema v1 (pre-existing shards not yet rebuilt by a real pipeline run since
+        // the v2 upgrade -- the report HTML embedding this script can be regenerated
+        // standalone by bin/sync_reports.sh well before the shard files themselves
+        // are, since those only come from an actual BUILD_ALIGNMENT_SHARDS run):
+        // shard[proteinId] is the bare hits array itself, with no query name/
+        // description available. Detect which shape this is rather than assuming
+        // v2 and silently reporting "no archived alignment" for real v1 data.
+        var raw = shard[proteinId];
+        var hits, queryDesc;
+        if (Array.isArray(raw)) {
+          hits = raw;
+          queryDesc = null;
+        } else {
+          hits = raw && raw.hits;
+          queryDesc = raw;
+        }
         if (!hits || !hits.length) {
           renderEmpty(els, "No archived alignment for " + proteinId + " vs " + genome + ".");
           return;
         }
-        renderHit(els, proteinId, hits[hitIndex || 0], entry);
+        renderHit(els, proteinId, hits[hitIndex || 0], queryDesc);
       } catch (err) {
         if (err && err.message === "DECOMPRESSION_UNSUPPORTED") {
           renderEmpty(els, "Alignment viewer requires a modern browser (Chrome/Firefox/Safari, last ~2 years).");
