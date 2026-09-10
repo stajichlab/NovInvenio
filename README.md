@@ -49,6 +49,10 @@ The presence/absence matrix is the heart of the pipeline, and there are two ways
 it. Pick one with `--cluster_tool`. Both emit the *same* matrix/candidates contract, so
 validation, annotation, and the reports are byte-for-byte the same pipeline downstream.
 
+(Both pathways cluster with mmseqs2, which has a header-parsing quirk that
+needs correcting after every clustering step — see `METHOD_DESCRIPTION.md`
+for the full explanation.)
+
 ### `--cluster_tool pairwise` (default) — exact, best for small clades
 
 Searches every ingroup proteome against every other proteome (phmmer/diamond/blast),

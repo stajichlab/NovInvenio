@@ -113,6 +113,20 @@ hit is reported as a column, not used to disqualify a candidate, because the
 significance-filtered, paralog-competition-checked absence call is already trusted. Pfam (`hmmscan`) and
 SwissProt (`diamond blastp`) annotate every row in the final matrix.
 
+mmseqs recognizes several FASTA defline conventions (UniProt's
+`sp|ACC|NAME`/`tr|ACC|NAME`, and a handful of NCBI-style ones) and reports a
+collapsed field as the sequence ID in its own `*_cluster.tsv` output
+specifically (not in `*_rep_seq.fasta`), while every other artifact in this
+pipeline keeps the full header token as `protein_id`. Uncorrected, this
+silently defeats gene-family grouping, TBLASTN rep→member hit expansion,
+and the report's alignment-shard feature for any UniProt-sourced study.
+`bin/restore_mmseqs_cluster_ids.py` runs immediately after every `mmseqs
+easy-cluster` invocation (both here and in the `mmseqs`/`novelty_discovery`
+pathway below) to restore the full header before anything else reads the
+file — see that script's docstring, and
+`docs/superpowers/specs/2026-09-09-mmseqs-cluster-id-restoration-design.md`
+for the full design record.
+
 ### Cost / sensitivity trade-off
 
 Diamond tolerates the O(N²) job count; phmmer does not scale past small-to-
@@ -143,6 +157,10 @@ family-HMM database at once).
    outgroup for loss) into gene families. This is clustering as *seeding*,
    not as the candidate-cluster step used in the pairwise pathway (ADR-0002
    is explicit these are two different concepts sharing the word "cluster").
+
+   (Same `*_cluster.tsv` ID-restoration step as the `pairwise` pathway above
+   applies here too — see that section.)
+
 2. Families with ≥2 members are kept (`--family_min_members`,
    `--family_max_members`); singletons are dropped — a true single-copy
    ingroup-specific gene either gets recovered because a shattered-family
