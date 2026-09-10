@@ -132,6 +132,20 @@ def fixture_dir(tmp_path_factory):
     (d / 'matrix.tsv').write_text(MATRIX)
     (d / 'tblastn.tsv').write_text(TBLASTN)
     (d / 'candidates.fa').write_text(_fasta())
+    # n1's Afum hit -- exercises the presence-chip click popup (e-value + target
+    # protein name, resolved through descriptions.tsv).
+    (d / 'evalues.tsv').write_text(
+        'protein_id\tsource_proteome\tNcra\tAfum\tDrome\tSpom\tScer\n'
+        'n1\tNcra\t\t3.2e-40\t\t\t\n'
+    )
+    (d / 'targets.tsv').write_text(
+        'protein_id\tsource_proteome\tNcra\tAfum\tDrome\tSpom\tScer\n'
+        'n1\tNcra\t\ttr|Q1|Q1_AFUM\t\t\t\n'
+    )
+    (d / 'descriptions.tsv').write_text(
+        'protein_id\tgene_name\tdescription\n'
+        'tr|Q1|Q1_AFUM\tafuA\tSome Aspergillus protein\n'
+    )
 
     def run(script, *args):
         proc = subprocess.run(
@@ -144,7 +158,8 @@ def fixture_dir(tmp_path_factory):
               '--tblastn_summary', str(d / 'tblastn.tsv'),
               '--candidates_fa', str(d / 'candidates.fa')]
     run('make_report.py', '--config', str(d / 'config.csv'),
-        *common, '--output', str(d / 'novelties.html'))
+        *common, '--evalues', str(d / 'evalues.tsv'), '--targets', str(d / 'targets.tsv'),
+        '--descriptions', str(d / 'descriptions.tsv'), '--output', str(d / 'novelties.html'))
     run('make_report.py', '--config', str(d / 'hostile_config.csv'),
         *common, '--output', str(d / 'hostile.html'))
     run('make_core_report.py', '--matrix', str(d / 'matrix.tsv'),

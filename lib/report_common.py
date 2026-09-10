@@ -1049,3 +1049,130 @@ ALIGNMENT_POPUP_JS = r"""
     window.NIAlignments = { open: open, openOrNewTab: openOrNewTab, fetchDataShard: fetchDataShard };
   })();
 """
+
+# Small, synchronous popup for a single presence-chip's search-hit evidence
+# (e-value, target protein) -- everything it shows is already embedded in the
+# report payload, so unlike ALIGNMENT_POPUP_* above it needs no fetch/loading
+# state and works in both the online (docs/) and offline (results/) report
+# copies alike. Percent identity is deliberately not shown yet -- the pairwise
+# search pathway (lib/hits.py's Hit/parse_tabular) doesn't capture it.
+HIT_INFO_POPUP_CSS = r"""
+  dialog.hitinfo {
+    max-width: min(92vw, 440px);
+    width: 100%;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-1);
+    color: var(--text-primary);
+    box-shadow: var(--shadow);
+  }
+  dialog.hitinfo::backdrop { background: rgba(0, 0, 0, 0.45); }
+  dialog.hitinfo .hi-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+  }
+  dialog.hitinfo .hi-head h3 { margin: 0; font-size: 14px; font-weight: 600; flex: 1; min-width: 0; }
+  dialog.hitinfo .hi-body { padding: 14px 18px; }
+  dialog.hitinfo .hi-row { margin-bottom: 10px; }
+  dialog.hitinfo .hi-row:last-child { margin-bottom: 0; }
+  dialog.hitinfo .hi-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-secondary); margin-bottom: 3px;
+  }
+  dialog.hitinfo .hi-value { font-size: 13px; word-break: break-word; }
+"""
+
+HIT_INFO_POPUP_HTML = r"""
+  <dialog class="hitinfo" id="hitinfo-dialog">
+    <div class="hi-head">
+      <h3 id="hitinfo-title"></h3>
+      <button type="button" class="btn-ghost" id="hitinfo-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="hi-body" id="hitinfo-body"></div>
+  </dialog>
+"""
+
+# Public surface: window.NIHitInfo.open(info) -- info: {proteomeLabel, present,
+# contextNote, evalue, targetId, targetLabel}. Every field is optional except
+# proteomeLabel/present; the popup only renders rows it actually has data for.
+HIT_INFO_POPUP_JS = r"""
+  (function () {
+    // Self-contained, deliberately not sharing LINKOUT_HELPERS_JS's uniprotAcc/
+    // uniprotLinkNode -- this fragment can be spliced into a page at a point
+    // outside whatever scope those happen to be declared in (report_template.py
+    // wraps its whole main script in one big IIFE; this fragment is appended
+    // after it closes), so it carries its own tiny copy instead of risking a
+    // ReferenceError depending on insertion order.
+    function uniprotAcc(id) {
+      var m = /(?:^|\|)([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})(?:\||\s|$)/.exec(id || "");
+      return m ? m[1] : "";
+    }
+
+    function dialogEls() {
+      return {
+        dialog: document.getElementById("hitinfo-dialog"),
+        title: document.getElementById("hitinfo-title"),
+        body: document.getElementById("hitinfo-body"),
+      };
+    }
+
+    function row(body, label, valueNode) {
+      var r = document.createElement("div");
+      r.className = "hi-row";
+      var l = document.createElement("div");
+      l.className = "hi-label";
+      l.textContent = label;
+      var v = document.createElement("div");
+      v.className = "hi-value";
+      if (typeof valueNode === "string") v.textContent = valueNode;
+      else v.appendChild(valueNode);
+      r.appendChild(l);
+      r.appendChild(v);
+      body.appendChild(r);
+    }
+
+    function open(info) {
+      var els = dialogEls();
+      if (!els.dialog) return; // page didn't include HIT_INFO_POPUP_HTML
+      els.title.textContent = info.proteomeLabel;
+      els.body.textContent = "";
+      row(els.body, "Status", info.present ? "Present" + (info.contextNote || "") : "Absent" + (info.contextNote || ""));
+      if (info.evalue) row(els.body, "Hit e-value (" + info.searchLabel + " search)", info.evalue);
+      if (info.targetId) {
+        var acc = uniprotAcc(info.targetId);
+        var label = (info.targetLabel && info.targetLabel !== info.targetId)
+          ? info.targetLabel + " (" + info.targetId + ")" : info.targetId;
+        var node;
+        if (acc) {
+          node = document.createElement("a");
+          node.href = "https://www.uniprot.org/uniprotkb/" + acc + "/entry";
+          node.target = "_blank";
+          node.rel = "noopener noreferrer";
+          node.textContent = label;
+        } else {
+          node = label;
+        }
+        row(els.body, "Target protein", node);
+      }
+      els.dialog.showModal();
+    }
+
+    function wireClose() {
+      var els = dialogEls();
+      if (!els.dialog) return;
+      var closeBtn = document.getElementById("hitinfo-close");
+      if (closeBtn) closeBtn.addEventListener("click", function () { els.dialog.close(); });
+      els.dialog.addEventListener("click", function (ev) {
+        if (ev.target === els.dialog) els.dialog.close(); // click on backdrop
+      });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", wireClose);
+    } else {
+      wireClose();
+    }
+
+    window.NIHitInfo = { open: open };
+  })();
+"""

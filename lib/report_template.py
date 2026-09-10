@@ -24,6 +24,9 @@ from report_common import (
     EL_HELPER_JS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
+    HIT_INFO_POPUP_CSS,
+    HIT_INFO_POPUP_HTML,
+    HIT_INFO_POPUP_JS,
     LINKOUT_HELPERS_JS,
     LOGO_CSS,
     LOGO_IMG_HTML,
@@ -229,12 +232,21 @@ HTML_TEMPLATE = r"""<!doctype html>
   }
   .presence-mini { display: flex; flex-wrap: wrap; gap: 4px; }
   .pm {
+    font: inherit;
     font-size: 11px;
     padding: 2px 6px;
     border-radius: 4px;
     border: 1px solid var(--border);
     font-variant-numeric: tabular-nums;
+    background: none;
+    color: inherit;
+    margin: 0;
   }
+  /* .pm is also used on plain <span> (TBLASTN genome chips, not clickable) --
+     the pointer cursor/hover only makes sense on the <button> presence chips. */
+  button.pm { cursor: pointer; }
+  button.pm:hover { filter: brightness(0.95); }
+  button.pm:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 1px; }
   .pm.on-pres { background: var(--series-1); color: var(--on-series); border-color: transparent; }
   .pm.on-tb { background: var(--series-2); color: var(--on-series); border-color: transparent; }
   .pm.off { color: var(--muted); }
@@ -283,6 +295,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .explorer { grid-template-columns: 1fr; }
   }
   /*__ALIGNMENT_CSS__*/
+""" + HIT_INFO_POPUP_CSS + r"""
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
@@ -297,7 +310,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 """ + SKIN_PICKER_HTML + r"""
   </header>
   <!--__ALIGNMENT_HTML__-->
-
+""" + HIT_INFO_POPUP_HTML + r"""
   <!-- Run summary describes the whole run; the filter row below scopes only the explorer. -->
   <section class="card">
     <h2 class="card-title">Run summary</h2>
@@ -1002,11 +1015,27 @@ HTML_TEMPLATE = r"""<!doctype html>
     PROTEOMES.forEach(function (p, i) {
       var on = row[F.pres].charCodeAt(i) === 49;
       var ev = fmtEvalue(rowEv[i] || "");
-      var tgt = targetLabel(rowTgt[i] || "");
-      var chip = el("span", "pm " + (on ? "on-pres" : "off"), p.short);
+      var targetId = rowTgt[i] || "";
+      var tgt = targetLabel(targetId);
+      // A <button>, not a <span> -- clicking it opens the hit-evidence popup
+      // (e-value + target protein), so it needs to be a real focusable/
+      // keyboard-and-touch-operable control, not just a hover target.
+      var chip = el("button", "pm " + (on ? "on-pres" : "off"), p.short);
+      chip.type = "button";
       chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "absent") +
         (p.context ? " (context, not scored)" : "") + (ev ? " (E=" + ev + ")" : "") +
         (tgt ? " [hit: " + tgt + "]" : "");
+      chip.addEventListener("click", function () {
+        window.NIHitInfo.open({
+          proteomeLabel: p.species + (p.strain ? " " + p.strain : "") + " (" + p.short + ")",
+          present: on,
+          contextNote: p.context ? " (context, not scored)" : "",
+          searchLabel: DATA.methods[0],
+          evalue: ev,
+          targetId: targetId,
+          targetLabel: tgt,
+        });
+      });
       if (p.context) {
         ctxMini.appendChild(chip);
         if (on && ev) ctxEvPairs.push(p.short + ": " + ev);
@@ -1549,6 +1578,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   refresh(true);
   renderDetail();
 })();
+""" + HIT_INFO_POPUP_JS + r"""
 /*__ALIGNMENT_JS__*/
 </script>
 </body>

@@ -50,6 +50,9 @@ function boot(file) {
         beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
       };
       window.HTMLCanvasElement.prototype.getContext = () => ctx;
+      // jsdom doesn't implement <dialog>'s modal methods.
+      window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+      window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
     },
   });
 }
@@ -128,6 +131,23 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   check('n1: a 1803 aa query is a POST button, not an over-long URL',
         b.some((x) => /BLASTP/.test(x)) && !h.some((x) => x.includes('blast.ncbi.nlm.nih.gov')),
         'buttons=' + b.join(',') + ' hrefs=' + h.filter((x) => x.includes('blast.ncbi')).join(','));
+
+  // ---- presence-chip click popup (e-value + target protein) ----
+  {
+    const chips = [...detail().querySelectorAll('button.pm.on-pres')];
+    const afumChip = chips.find((c) => c.textContent === 'Afum');
+    check('n1: Afum presence chip is a clickable button', !!afumChip, chips.map((c) => c.textContent).join(','));
+    afumChip.dispatchEvent(ev(w, 'click'));
+    const hiDialog = d.getElementById('hitinfo-dialog');
+    check('presence chip click: opens the hit-info dialog', hiDialog && hiDialog.hasAttribute('open'));
+    const hiText = d.getElementById('hitinfo-body').textContent;
+    check('presence chip click: shows Present status', /Present/.test(hiText), hiText);
+    check('presence chip click: shows the e-value', /3\.200e-40/.test(hiText), hiText);
+    check('presence chip click: shows the resolved target name (gene_name + description)',
+          /afuA/.test(hiText) && /Some Aspergillus protein/.test(hiText), hiText);
+    d.getElementById('hitinfo-close').dispatchEvent(ev(w, 'click'));
+    check('presence chip click: close button closes the dialog', !hiDialog.hasAttribute('open'));
+  }
 
   // n2 -- SourceDB "mycocosm:<portal>", no annotation at all, 120 aa.
   pick(rows, 'n2').dispatchEvent(ev(w, 'click'));
