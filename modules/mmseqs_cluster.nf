@@ -36,5 +36,13 @@ process MMSEQS_CLUSTER {
         --min-seq-id 0.3 \
         -c 0.8 \
         --cov-mode 0
+
+    # mmseqs collapses certain FASTA header conventions to a shorter field in
+    # its own *_cluster.tsv (not in *_rep_seq.fasta/*_all_seqs.fasta) -- see
+    # bin/restore_mmseqs_cluster_ids.py's docstring. Restore it here, before
+    # this process's output is published and any downstream script reads it.
+    restore_mmseqs_cluster_ids.py \
+        --input-fasta !{candidates_fa} \
+        --cluster-tsv !{out_prefix}_cluster.tsv
     '''
 }

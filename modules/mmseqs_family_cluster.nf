@@ -37,5 +37,11 @@ process MMSEQS_FAMILY_CLUSTER {
         -c !{params.family_cov} \
         --cov-mode !{params.family_cov_mode} \
         --cluster-mode !{params.family_cluster_mode}
+
+    # See modules/mmseqs_cluster.nf's identical comment / bin/restore_mmseqs_
+    # cluster_ids.py's docstring -- same correction, same reason.
+    restore_mmseqs_cluster_ids.py \
+        --input-fasta !{seed_fa} \
+        --cluster-tsv families_cluster.tsv
     '''
 }
