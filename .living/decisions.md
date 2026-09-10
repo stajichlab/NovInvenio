@@ -863,3 +863,25 @@ config with an already-trusted answer, not just clustering-quality metrics like 
 
 **Tags**: cluster-tool, mmseqs, diamond, benchmarking, family-clustering, ADR-0002,
 tooling-comparison, novelty-discovery
+
+## [2026-09-09] `bin/ni` stays copy-from-live-checkout; GitHub-release-based fetch deferred
+
+**Context**: `bin/ni init` (issue #76) scaffolds a new NII-style analysis-deploy repo by
+copying a fixed file manifest from a `--reference`/`NI_REFERENCE_REPO` local checkout —
+deliberately a *live* copy, not a frozen template, specifically to avoid the staleness
+class of bug that caused NII issue #5 (a frozen `view/` path surviving NovInvenio's own
+`docs/` rename). Asked whether `ni` should instead pull a template from a GitHub Release.
+
+**Decision**: leave as-is for now. Checked first: NII has zero git tags and its only
+GitHub Release (`reports-fungi-pezizo_set1`) is a TBLASTN-alignment-shard data artifact,
+not a versioned template snapshot — so a release-based `ni` would require standing up a
+new release-cutting process that doesn't exist today, for a use case (portability without
+a local NII clone) that hasn't been requested yet.
+
+**Deferred direction, for when this comes up again**: don't default to a *pinned* release
+(that reintroduces the exact staleness risk this design avoided) — instead add a
+`--reference owner/repo[@ref]` form that fetches via `git archive`/`gh api` directly from
+GitHub, defaulting `ref` to `main` so the "always live" property is preserved, while still
+letting someone deliberately pin a tag/commit when they want reproducibility over
+freshness. User's own words: "I think in time we will make a github archive to pull from
+but can leave as is for now."
