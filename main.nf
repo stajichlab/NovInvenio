@@ -126,9 +126,14 @@ workflow {
                        'IN', params.ingroup_min_frac, 0.0, '')
         novelty_matrix     = PROFILE_SEARCH.out.matrix
         novelty_candidates = PROFILE_SEARCH.out.candidates
-        // mmseqs/PROFILE_SEARCH doesn't track hit e-values yet (issue #44 follow-up).
+        // mmseqs/PROFILE_SEARCH doesn't track hit e-values (or target IDs, or protein
+        // descriptions) yet (issue #44 follow-up) -- one empty stub file covers all
+        // three (read_evalues()/read_targets()/read_descriptions() all treat an empty
+        // file as "no evidence available").
         EMPTY_EVALUES_STUB()
-        novelty_evalues    = EMPTY_EVALUES_STUB.out.evalues
+        novelty_evalues      = EMPTY_EVALUES_STUB.out.evalues
+        novelty_targets      = EMPTY_EVALUES_STUB.out.evalues
+        novelty_descriptions = EMPTY_EVALUES_STUB.out.evalues
         // NEAR_INGROUP/BROAD_OUTGROUP context search (issue #48) is pairwise-only for now
         // -- mmseqs/PROFILE_SEARCH has no self-vs-self paralog cutoffs to filter against.
         EMPTY_CONTEXT_MATRIX_STUB()
@@ -178,6 +183,11 @@ workflow {
         novelty_candidates = NOVELTY_SCREEN.out.candidates
         // Phase-1-scoped e-value evidence (issue #44) -- see NOVELTY_DISCOVERY's emit: block.
         novelty_evalues    = NOVELTY_DISCOVERY.out.evalues
+        // novelty_discovery doesn't track target IDs or protein descriptions yet either --
+        // same empty-stub convention as the mmseqs branch above.
+        EMPTY_EVALUES_STUB()
+        novelty_targets      = EMPTY_EVALUES_STUB.out.evalues
+        novelty_descriptions = EMPTY_EVALUES_STUB.out.evalues
         // novelty_discovery already has its own NEAR_INGROUP/BROAD_OUTGROUP screen
         // (NOVELTY_SCREEN) -- the pairwise-only context search (issue #48) doesn't apply.
         EMPTY_CONTEXT_MATRIX_STUB()
@@ -216,9 +226,11 @@ workflow {
     }
     else {
         SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
-        novelty_matrix     = SEARCH.out.matrix
-        novelty_candidates = SEARCH.out.candidates
-        novelty_evalues    = SEARCH.out.evalues
+        novelty_matrix       = SEARCH.out.matrix
+        novelty_candidates   = SEARCH.out.candidates
+        novelty_evalues      = SEARCH.out.evalues
+        novelty_targets      = SEARCH.out.targets
+        novelty_descriptions = SEARCH.out.descriptions
 
         CLUSTER(novelty_candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
         cand_fa          = CLUSTER.out.candidates_fa
@@ -246,7 +258,7 @@ workflow {
     // cluster_tool paths still need the generic VALIDATE (TBLASTN vs the OUT proteomes' DNA).
     if (params.cluster_tool != 'novelty_discovery') {
         VALIDATE(cand_reps, outgroup_dna_ch, cand_cluster_tsv, 'tblastn_summary.tsv',
-                 novelty_candidates, 'alignments')
+                 novelty_candidates, 'alignments', novelty_descriptions)
         novelty_tblastn_summary = VALIDATE.out.summary
     }
 
@@ -303,7 +315,7 @@ workflow {
 
     if (params.cluster_tool != 'novelty_discovery') {
         LOSS_VALIDATE(loss_cand_reps, ingroup_dna_ch, loss_cand_cluster_tsv, 'loss_tblastn_summary.tsv',
-                      loss_candidates, 'loss_alignments')
+                      loss_candidates, 'loss_alignments', novelty_descriptions)
         LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
         loss_annotated_matrix = LOSS_ANNOTATE.out.annotated_matrix
         loss_tblastn_summary  = LOSS_VALIDATE.out.summary
@@ -316,6 +328,8 @@ workflow {
         cand_fa,
         cand_cluster_tsv,
         novelty_evalues,
+        novelty_targets,
+        novelty_descriptions,
         context_matrix,
         context_evalues,
         loss_annotated_matrix,

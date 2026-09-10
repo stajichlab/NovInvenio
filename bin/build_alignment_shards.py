@@ -17,16 +17,21 @@ per genome in the config) instead of hundreds/thousands. A manifest.json
 alongside the shards records a schema version and generation timestamp so the
 client can detect a stale/mismatched shard before trusting it.
 
-Shard schema: {protein_id: [hit, ...]} -- a list, never a single object, since
-one candidate can have multiple HSPs/scaffolds against the same genome. Each
-hit: {genome, sseqid, evalue, bitscore, pident, length, qstart, qend, sstart,
-send, sframe, qseq, sseq[, aligned_as]}.
+Shard schema (v2): {protein_id: {"hits": [hit, ...], "gene_name"?, "description"?}}.
+"hits" is always a list, never a single object, since one candidate can have
+multiple HSPs/scaffolds against the same genome. Each hit: {genome, sseqid,
+evalue, bitscore, pident, length, qstart, qend, sstart, send, sframe, qseq,
+sseq[, aligned_as]}. "gene_name"/"description" are the *query* protein's own
+name/description (from --descriptions, e.g. bin/extract_protein_descriptions.py's
+output) -- omitted when no match was found, so a v1 consumer that only ever
+read `shard[id]` as a list needs updating for v2's {"hits": [...]} wrapper.
 
 Usage:
   build_alignment_shards.py \
       --hits results/<project>/tblastn/*.tblastn.tsv \
       --candidates results/<project>/candidates.txt \
       --cluster_tsv results/<project>/clusters/clusters_cluster.tsv \
+      --descriptions results/<project>/descriptions.tsv \
       --evalue 1e-5 \
       --project pezizo5 \
       --outdir results/<project>/alignments
@@ -39,7 +44,7 @@ import sys
 import time
 from collections import defaultdict
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Column order emitted by modules/tblastn.nf's -outfmt 6 string (see issue #70):
 # qseqid sseqid evalue bitscore pident length qstart qend sstart send sframe qseq sseq
@@ -72,6 +77,26 @@ def load_candidate_ids(candidates_txt):
                 continue
             ids.add(line.split('::', 1)[-1])
     return ids
+
+
+def load_descriptions(path):
+    """{protein_id: (gene_name, description)} from bin/extract_protein_descriptions.py's
+    output TSV. Returns {} when path is None/missing/empty (e.g. an EMPTY_EVALUES_STUB-style
+    zero-byte stub file for a run with no descriptions available) -- descriptions are
+    always optional, never an error."""
+    descriptions = {}
+    if not path or not os.path.exists(path) or not os.path.getsize(path):
+        return descriptions
+    with open(path) as fh:
+        header = fh.readline()
+        assert header.rstrip('\n').split('\t') == ['protein_id', 'gene_name', 'description']
+        for line in fh:
+            parts = line.rstrip('\n').split('\t')
+            if len(parts) < 3:
+                continue
+            pid, gene_name, description = parts[0], parts[1], parts[2]
+            descriptions[pid] = (gene_name, description)
+    return descriptions
 
 
 def genome_short(tsv_path):
@@ -146,6 +171,10 @@ def main():
                     help='candidates.txt or loss_candidates.txt')
     ap.add_argument('--cluster_tsv', required=True,
                     help='mmseqs easy-cluster *_cluster.tsv mapping rep -> member')
+    ap.add_argument('--descriptions', default=None,
+                    help='Optional bin/extract_protein_descriptions.py output TSV '
+                         '(protein_id/gene_name/description) -- embeds the query '
+                         "protein's own name/description into its shard entry")
     ap.add_argument('--evalue', type=float, default=1e-5,
                     help='E-value cutoff for archiving a hit (default: 1e-5)')
     ap.add_argument('--project', required=True,
@@ -158,6 +187,7 @@ def main():
 
     candidate_ids = load_candidate_ids(args.candidates)
     member_to_rep = parse_cluster_tsv(args.cluster_tsv)
+    descriptions = load_descriptions(args.descriptions)
 
     shard_files = []
     total_hits = 0
@@ -168,8 +198,18 @@ def main():
             continue
         total_hits += sum(len(hits) for hits in protein_hits.values())
 
+        shard = {}
+        for pid, hits in protein_hits.items():
+            entry = {'hits': hits}
+            gene_name, description = descriptions.get(pid, ('', ''))
+            if gene_name:
+                entry['gene_name'] = gene_name
+            if description:
+                entry['description'] = description
+            shard[pid] = entry
+
         shard_name = f'{gid}.json.gz'
-        payload = json.dumps(protein_hits, separators=(',', ':')).encode('utf-8')
+        payload = json.dumps(shard, separators=(',', ':')).encode('utf-8')
         # mtime=0 keeps the gzip header byte-identical across reruns with the
         # same content, so a rebuilt shard with unchanged data doesn't look
         # like a new file to anything hashing/diffing the published tree.

@@ -994,6 +994,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     // {context:true}) columns get separate mini-grids -- context columns are always
     // appended after N_SCORED, so a single split point covers both.
     var rowEv = row[F.ev] ? row[F.ev].split(",") : [];
+    var rowTgt = row[F.tgt] ? row[F.tgt].split(",") : [];
     var mini = el("div", "presence-mini");
     var evPairs = [];
     var ctxMini = el("div", "presence-mini");
@@ -1001,15 +1002,17 @@ HTML_TEMPLATE = r"""<!doctype html>
     PROTEOMES.forEach(function (p, i) {
       var on = row[F.pres].charCodeAt(i) === 49;
       var ev = fmtEvalue(rowEv[i] || "");
+      var tgt = targetLabel(rowTgt[i] || "");
       var chip = el("span", "pm " + (on ? "on-pres" : "off"), p.short);
       chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "absent") +
-        (p.context ? " (context, not scored)" : "") + (ev ? " (E=" + ev + ")" : "");
+        (p.context ? " (context, not scored)" : "") + (ev ? " (E=" + ev + ")" : "") +
+        (tgt ? " [hit: " + tgt + "]" : "");
       if (p.context) {
         ctxMini.appendChild(chip);
         if (on && ev) ctxEvPairs.push(p.short + ": " + ev);
       } else {
         mini.appendChild(chip);
-        if (on && ev) evPairs.push(p.short + ": " + ev);
+        if (on && ev) evPairs.push(p.short + ": " + ev + (tgt ? " (" + tgt + ")" : ""));
       }
     });
     detailEl.appendChild(field("Presence (protein search) · ingroup " + inN[ri] + "/" + N_IN +

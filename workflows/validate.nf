@@ -18,6 +18,12 @@ workflow VALIDATE {
     alignments_dir_name   // val: output directory name, e.g. 'alignments' or
                            //   'loss_alignments' (kept separate so the two directions'
                            //   docs/-published shards never collide)
+    descriptions          // path: bin/extract_protein_descriptions.py output TSV, embedded
+                           //   into each shard entry as the query protein's own gene_name/
+                           //   description (schema v2). May be an empty stub file --
+                           //   build_alignment_shards.py's load_descriptions() treats that
+                           //   as "no descriptions available", same convention as the
+                           //   evalues/targets sidecars elsewhere in this pipeline.
 
     main:
     // Build each target genome DB once (storeDir-cached, keyed by meta.id so the
@@ -32,7 +38,7 @@ workflow VALIDATE {
 
     // Per-genome alignment shards for the report's TBLASTN alignment popup
     // (docs/-only feature — see CLAUDE.md's report constraints and issue #72).
-    BUILD_ALIGNMENT_SHARDS(tblastn_tsv_ch, candidates_file, cluster_tsv, alignments_dir_name)
+    BUILD_ALIGNMENT_SHARDS(tblastn_tsv_ch, candidates_file, cluster_tsv, alignments_dir_name, descriptions)
 
     emit:
     tblastn_hits    = TBLASTN.out.tsv
@@ -79,6 +85,10 @@ process BUILD_ALIGNMENT_SHARDS {
     path(candidates_file)
     path(cluster_tsv)
     val(outdir_name)
+    // May be an empty stub file (e.g. EMPTY_EVALUES_STUB's output, reused) when no
+    // descriptions are available -- build_alignment_shards.py's load_descriptions()
+    // treats that as "embed nothing", never an error.
+    path(descriptions, stageAs: 'descriptions.tsv')
 
     output:
     path("${outdir_name}"), emit: dir
@@ -89,6 +99,7 @@ process BUILD_ALIGNMENT_SHARDS {
         --hits ${tblastn_tsvs} \
         --candidates ${candidates_file} \
         --cluster_tsv ${cluster_tsv} \
+        --descriptions ${descriptions} \
         --evalue ${params.evalue} \
         --project ${Helpers.projectName(params)} \
         --outdir ${outdir_name}

@@ -54,6 +54,17 @@ def main():
                          '--matrix, e-value per proteome cell instead of 0/1) -- shown in the '
                          'detail panel to help validate a presence call. Missing/empty file '
                          'means no e-value evidence available for this run.')
+    ap.add_argument('--targets',
+                    help='presence_matrix.targets.tsv sidecar (optional; same shape as '
+                         '--evalues, target protein ID per proteome cell instead of an '
+                         "e-value) -- resolved via --descriptions and shown next to each "
+                         'e-value in the detail panel. Missing/empty means no target-ID '
+                         'evidence for this run (e.g. --cluster_tool other than pairwise).')
+    ap.add_argument('--descriptions',
+                    help='bin/extract_protein_descriptions.py output TSV (protein_id/'
+                         'gene_name/description) -- resolves --targets\' target protein IDs '
+                         'into a display name. Only entries --targets actually references end '
+                         "up in the report payload, not the whole proteome set.")
     ap.add_argument('--context_matrix',
                     help='context_presence.tsv (optional; issue #48) -- NEAR_INGROUP/'
                          'BROAD_OUTGROUP presence for the candidate list only, report-only, '
@@ -111,6 +122,8 @@ def main():
         candidates_fa=args.candidates_fa,
         cluster_tsv=args.cluster_tsv,
         evalues_path=args.evalues,
+        targets_path=args.targets,
+        descriptions_path=args.descriptions,
         context_matrix_path=args.context_matrix,
         context_evalues_path=args.context_evalues,
         ingroup_min_frac=args.ingroup_min_frac,

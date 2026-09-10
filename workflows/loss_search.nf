@@ -74,7 +74,8 @@ workflow LOSS_SEARCH {
         params.loss_ingroup_max_frac,
         'loss_presence_matrix.tsv',
         'loss_candidates.txt',
-        'loss_presence_matrix.evalues.tsv'
+        'loss_presence_matrix.evalues.tsv',
+        'loss_presence_matrix.targets.tsv'
     )
 
     emit:
@@ -82,5 +83,9 @@ workflow LOSS_SEARCH {
     matrix      = BUILD_PRESENCE_MATRIX.out.matrix
     candidates  = BUILD_PRESENCE_MATRIX.out.candidates
     evalues     = BUILD_PRESENCE_MATRIX.out.evalues
+    // targets: not currently threaded into REPORT (losses.html has no e-value/target
+    // evidence UI yet, matching MAKE_LOSSES_REPORT's existing scope) -- emitted anyway
+    // since BUILD_PRESENCE_MATRIX always produces it now.
+    targets     = BUILD_PRESENCE_MATRIX.out.targets
     self_hits   = PARSE_SELF_HITS.out.tsv    // [meta, self_hits_tsv] — one per outgroup proteome
 }

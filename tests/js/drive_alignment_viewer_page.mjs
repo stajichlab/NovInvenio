@@ -21,9 +21,9 @@ function check(name, cond, extra) {
 }
 
 const SHARD_JSON = JSON.stringify({
-  memberA: [{ genome: 'Afum', sseqid: 's1', evalue: 1e-30, bitscore: 100, pident: 80.0,
+  memberA: { hits: [{ genome: 'Afum', sseqid: 's1', evalue: 1e-30, bitscore: 100, pident: 80.0,
               length: 5, qstart: 1, qend: 5, sstart: 10, send: 15, sframe: 1,
-              qseq: 'MKVLA', sseq: 'MKVLA' }],
+              qseq: 'MKVLA', sseq: 'MKVLA' }] },
 });
 const GZIP_BYTES = new Uint8Array(zlib.gzipSync(Buffer.from(SHARD_JSON, 'utf8')));
 

@@ -260,6 +260,19 @@ LINKOUT_HELPERS_JS = r"""
   function fromTable(table, i) {
     return i >= 0 && table ? (table[i] || "") : "";
   }
+  // Resolve a search-hit target protein ID (row[F.tgt], comma-split per proteome --
+  // see lib/report_data.py's ROW_FIELDS 'tgt' docs) to a display label via
+  // payload['protein_names'] (built from bin/extract_protein_descriptions.py's
+  // output). Falls back to the bare ID when there's no matching entry (not every
+  // target_id resolves -- non-UniProt-sourced proteomes, or a run with no
+  // --descriptions given at all), and to "" when there's no target_id at all.
+  function targetLabel(targetId) {
+    if (!targetId) return "";
+    var info = DATA.protein_names && DATA.protein_names[targetId];
+    if (!info) return targetId;
+    var parts = [info.gene_name, info.description].filter(Boolean);
+    return parts.length ? parts.join(" ") : targetId;
+  }
   // Format a numeric-string E-value to 4 significant figures for display (e.g.
   // "4.549999999999999e-230" -> "4.550e-230") -- the raw strings survive
   // float->str round-tripping through the TSV sidecars with full double
@@ -885,7 +898,12 @@ ALIGNMENT_POPUP_JS = r"""
       return m ? m[1] : null;
     }
 
-    function renderHit(dialogEls, proteinId, hit) {
+    // queryDesc: the shard entry's own {gene_name?, description?} (schema v2) --
+    // the query protein's real name, not the target's (see lib/build_alignment_
+    // shards.py's module docstring). Undefined/empty fields are simply omitted,
+    // so a shard built before --descriptions was wired in (or a query with no
+    // matching FASTA header) still renders exactly as before.
+    function renderHit(dialogEls, proteinId, hit, queryDesc) {
       dialogEls.title.textContent = "";
       dialogEls.title.appendChild(document.createTextNode(proteinId));
       var acc = uniprotAccession(proteinId);
@@ -901,7 +919,13 @@ ALIGNMENT_POPUP_JS = r"""
       }
       dialogEls.title.appendChild(document.createTextNode(" vs " + hit.sseqid + " (" + hit.genome + ")"));
       var alignedNote = hit.aligned_as ? (" (shown via cluster representative " + hit.aligned_as + ")") : "";
+      var queryNote = "";
+      if (queryDesc && (queryDesc.gene_name || queryDesc.description)) {
+        queryNote = "Query= " +
+          [queryDesc.gene_name, queryDesc.description].filter(Boolean).join(" ") + "  ";
+      }
       dialogEls.stats.textContent =
+        queryNote +
         "Subject= " + hit.sseqid + "  evalue=" + hit.evalue + "  bitscore=" + hit.bitscore +
         "  pident=" + hit.pident.toFixed(1) + "%" +
         "  length=" + hit.length + "  range=" + hit.sstart + "-" + hit.send +
@@ -957,12 +981,14 @@ ALIGNMENT_POPUP_JS = r"""
       renderEmpty(els, "Loading alignment...");
       try {
         var shard = await fetchDataShard(baseUrl + genome + ".json.gz");
-        var hits = shard[proteinId];
+        // Schema v2: shard[proteinId] = {hits: [...], gene_name?, description?}.
+        var entry = shard[proteinId];
+        var hits = entry && entry.hits;
         if (!hits || !hits.length) {
           renderEmpty(els, "No archived alignment for " + proteinId + " vs " + genome + ".");
           return;
         }
-        renderHit(els, proteinId, hits[hitIndex || 0]);
+        renderHit(els, proteinId, hits[hitIndex || 0], entry);
       } catch (err) {
         if (err && err.message === "DECOMPRESSION_UNSUPPORTED") {
           renderEmpty(els, "Alignment viewer requires a modern browser (Chrome/Firefox/Safari, last ~2 years).");

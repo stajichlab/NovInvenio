@@ -13,11 +13,13 @@ process BUILD_PRESENCE_MATRIX {
     val(matrix_name)          // output matrix filename
     val(candidates_name)      // output candidates filename
     val(evalues_name)         // output e-value sidecar filename (report evidence only)
+    val(targets_name)         // output target-protein-ID sidecar filename (report evidence only)
 
     output:
     path("${matrix_name}"),     emit: matrix
     path("${candidates_name}"), emit: candidates
     path("${evalues_name}"),    emit: evalues
+    path("${targets_name}"),    emit: targets
 
     script:
     """
@@ -31,6 +33,7 @@ process BUILD_PRESENCE_MATRIX {
         --paralog-competition-scope ${params.paralog_competition_scope} \
         --output-matrix ${matrix_name} \
         --output-candidates ${candidates_name} \
-        --output-evalues ${evalues_name}
+        --output-evalues ${evalues_name} \
+        --output-targets ${targets_name}
     """
 }

@@ -11,6 +11,7 @@ include { PHMMER_SELF           } from '../modules/self_search'
 include { DIAMOND_SELF          } from '../modules/self_search'
 include { BLAST_SELF            } from '../modules/self_search'
 include { PARSE_SELF_HITS       } from '../modules/parse_self_hits'
+include { EXTRACT_PROTEIN_DESCRIPTIONS } from '../modules/protein_descriptions'
 
 workflow SEARCH {
     take:
@@ -68,13 +69,22 @@ workflow SEARCH {
         0.0,
         'presence_matrix.tsv',
         'candidates.txt',
-        'presence_matrix.evalues.tsv'
+        'presence_matrix.evalues.tsv',
+        'presence_matrix.targets.tsv'
     )
 
+    // Shared protein_id -> gene_name/description lookup (issue: TBLASTN popup query
+    // name + pairwise-hit target name) -- one pass over every proteome's own FASTA
+    // headers, reused by both BUILD_ALIGNMENT_SHARDS (validate.nf) and REPORT
+    // (report.nf) so it's built exactly once per run, not once per consumer.
+    EXTRACT_PROTEIN_DESCRIPTIONS(all_proteomes_ch.map { meta, fa -> fa }.collect())
+
     emit:
-    hits        = PARSE_HITS.out             // [meta_pair, parsed_tsv]
-    matrix      = BUILD_PRESENCE_MATRIX.out.matrix
-    candidates  = BUILD_PRESENCE_MATRIX.out.candidates
-    evalues     = BUILD_PRESENCE_MATRIX.out.evalues
-    self_hits   = PARSE_SELF_HITS.out.tsv    // [meta, self_hits_tsv] — one per ingroup proteome
+    hits          = PARSE_HITS.out             // [meta_pair, parsed_tsv]
+    matrix        = BUILD_PRESENCE_MATRIX.out.matrix
+    candidates    = BUILD_PRESENCE_MATRIX.out.candidates
+    evalues       = BUILD_PRESENCE_MATRIX.out.evalues
+    targets       = BUILD_PRESENCE_MATRIX.out.targets
+    self_hits     = PARSE_SELF_HITS.out.tsv    // [meta, self_hits_tsv] — one per ingroup proteome
+    descriptions  = EXTRACT_PROTEIN_DESCRIPTIONS.out.tsv
 }

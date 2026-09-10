@@ -7,7 +7,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / 'bin'))
 
 from build_alignment_shards import (  # noqa: E402
-    build_genome_shard, genome_short, load_candidate_ids, main, parse_cluster_tsv,
+    build_genome_shard, genome_short, load_candidate_ids, load_descriptions, main, parse_cluster_tsv,
 )
 
 # Column order matching modules/tblastn.nf's -outfmt 6 string (issue #70):
@@ -122,12 +122,56 @@ def test_end_to_end_writes_shard_and_manifest(tmp_path, monkeypatch):
 
     manifest = json.loads((outdir / 'manifest.json').read_text())
     assert manifest['project'] == 'demo'
-    assert manifest['schema_version'] == 1
+    assert manifest['schema_version'] == 2
     assert manifest['shards'] == ['Afum.json.gz']
 
     with gzip.open(outdir / 'Afum.json.gz', 'rt') as fh:
         shard = json.load(fh)
-    assert shard['memberA'][0]['aligned_as'] == 'rep1'
+    assert shard['memberA']['hits'][0]['aligned_as'] == 'rep1'
+    assert 'gene_name' not in shard['memberA']
+    assert 'description' not in shard['memberA']
+
+
+def test_end_to_end_embeds_query_protein_description_when_given(tmp_path, monkeypatch):
+    hits = tmp_path / 'Afum.tblastn.tsv'
+    hits.write_text(_row() + '\n')
+    candidates = tmp_path / 'candidates.txt'
+    candidates.write_text('Ncra::memberA\n')
+    cluster_tsv = tmp_path / 'clusters.tsv'
+    cluster_tsv.write_text('rep1\trep1\nrep1\tmemberA\n')
+    descriptions = tmp_path / 'descriptions.tsv'
+    descriptions.write_text('protein_id\tgene_name\tdescription\nmemberA\tNCU00001\tSome protein\n')
+    outdir = tmp_path / 'alignments'
+
+    argv = [
+        'build_alignment_shards.py',
+        '--hits', str(hits),
+        '--candidates', str(candidates),
+        '--cluster_tsv', str(cluster_tsv),
+        '--descriptions', str(descriptions),
+        '--project', 'demo',
+        '--outdir', str(outdir),
+    ]
+    monkeypatch.setattr(sys, 'argv', argv)
+    main()
+
+    with gzip.open(outdir / 'Afum.json.gz', 'rt') as fh:
+        shard = json.load(fh)
+    assert shard['memberA']['gene_name'] == 'NCU00001'
+    assert shard['memberA']['description'] == 'Some protein'
+    assert shard['memberA']['hits'][0]['aligned_as'] == 'rep1'
+
+
+def test_load_descriptions_returns_empty_dict_when_no_path():
+    assert load_descriptions(None) == {}
+
+
+def test_load_descriptions_returns_empty_dict_for_empty_stub_file(tmp_path):
+    # An EMPTY_EVALUES_STUB-style zero-byte stub file -- must not crash on the
+    # header assertion when there's no header line to read at all.
+    stub = tmp_path / 'empty_evalues.tsv'
+    stub.write_text('')
+    assert load_descriptions(stub) == {}
 
 
 def test_end_to_end_skips_genomes_with_no_candidate_hits(tmp_path, monkeypatch):

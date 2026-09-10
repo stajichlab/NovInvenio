@@ -22,6 +22,14 @@ workflow REPORT {
                               //   report-only search-hit e-value evidence, same shape as the
                               //   matrix. May be an empty stub (EMPTY_EVALUES_STUB) when the
                               //   producer pathway doesn't track e-values yet.
+    targets                  // path: presence_matrix.targets.tsv sidecar -- target protein ID
+                              //   per qualifying hit, aligned with `evalues`. --cluster_tool
+                              //   pairwise only for now; empty stub otherwise (same
+                              //   EMPTY_EVALUES_STUB reused -- read_targets()==read_evalues(),
+                              //   same "empty means no evidence" contract).
+    descriptions              // path: bin/extract_protein_descriptions.py output TSV, used to
+                              //   resolve `targets`' IDs into a display name. Same empty-stub
+                              //   convention when unavailable.
     context_matrix           // path: context_presence.tsv (issue #48) -- NEAR_INGROUP/
                               //   BROAD_OUTGROUP presence for the candidate list only,
                               //   report-only, never used for novelty calling. Empty stub
@@ -42,7 +50,7 @@ workflow REPORT {
     // results/ copy: offline, file://-safe, never carries the TBLASTN
     // alignment popup (issue #74's ALIGNMENT_POPUP_JS).
     MAKE_REPORT(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
-               evalues, context_matrix, context_evalues, config_csv, data_dir)
+               evalues, targets, descriptions, context_matrix, context_evalues, config_csv, data_dir)
     MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv, data_dir)
     MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
 
@@ -52,7 +60,7 @@ workflow REPORT {
     // column at all (MAKE_CORE_REPORT never takes a tblastn_summary input), so
     // it never diverges between the two copies and is reused as-is.
     MAKE_REPORT_ONLINE(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
-                       evalues, context_matrix, context_evalues, config_csv, data_dir)
+                       evalues, targets, descriptions, context_matrix, context_evalues, config_csv, data_dir)
     MAKE_LOSSES_REPORT_ONLINE(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
 
     // Publication-quality PDF summary (static figures) alongside the interactive HTML.
@@ -127,11 +135,15 @@ process MAKE_REPORT {
     path(novelties)
     path(candidates_fa)
     path(cluster_tsv)
-    // evalues/context_matrix/context_evalues can all be the same stub process's
+    // evalues/targets/context_matrix/context_evalues can all be the same stub process's
     // literal "empty_evalues.tsv" output when unused (EMPTY_EVALUES_STUB /
     // EMPTY_CONTEXT_MATRIX_STUB / EMPTY_CONTEXT_EVALUES_STUB) -- stageAs disambiguates
-    // so Nextflow doesn't reject them as an input file name collision.
+    // so Nextflow doesn't reject them as an input file name collision. descriptions can
+    // likewise be the same empty stub file -- read_descriptions() treats an empty file
+    // as "no descriptions" the same way read_evalues() does.
     path(evalues, stageAs: 'evalues.tsv')
+    path(targets, stageAs: 'targets.tsv')
+    path(descriptions, stageAs: 'descriptions.tsv')
     path(context_matrix, stageAs: 'context_matrix.tsv')
     path(context_evalues, stageAs: 'context_evalues.tsv')
     path(config_csv)
@@ -141,9 +153,10 @@ process MAKE_REPORT {
     path("novelties.html"), emit: report
 
     script:
-    // evalues/context_matrix/context_evalues may be empty stub files -- make_report.py's
-    // read_evalues()/read_context() treat a missing/empty/header-only file as "no evidence
-    // available" (issue #44/#48).
+    // evalues/targets/descriptions/context_matrix/context_evalues may be empty stub
+    // files -- make_report.py's read_evalues()/read_targets()/read_descriptions()/
+    // read_context() treat a missing/empty/header-only file as "no evidence available"
+    // (issue #44/#48).
     """
     make_report.py \
         --matrix ${annotated_matrix} \
@@ -153,6 +166,8 @@ process MAKE_REPORT {
         --candidates_fa ${candidates_fa} \
         --cluster_tsv ${cluster_tsv} \
         --evalues ${evalues} \
+        --targets ${targets} \
+        --descriptions ${descriptions} \
         --context_matrix ${context_matrix} \
         --context_evalues ${context_evalues} \
         --project ${Helpers.projectName(params)} \
@@ -179,6 +194,8 @@ process MAKE_REPORT_ONLINE {
     path(candidates_fa)
     path(cluster_tsv)
     path(evalues, stageAs: 'evalues.tsv')
+    path(targets, stageAs: 'targets.tsv')
+    path(descriptions, stageAs: 'descriptions.tsv')
     path(context_matrix, stageAs: 'context_matrix.tsv')
     path(context_evalues, stageAs: 'context_evalues.tsv')
     path(config_csv)
@@ -197,6 +214,8 @@ process MAKE_REPORT_ONLINE {
         --candidates_fa ${candidates_fa} \
         --cluster_tsv ${cluster_tsv} \
         --evalues ${evalues} \
+        --targets ${targets} \
+        --descriptions ${descriptions} \
         --context_matrix ${context_matrix} \
         --context_evalues ${context_evalues} \
         --project ${Helpers.projectName(params)} \

@@ -224,6 +224,48 @@ def test_payload_has_evalues_false_without_evalues_path(run_dir, samples):
     assert row[ev_idx] == ',' * (len(payload['proteomes']) - 1)
 
 
+def test_payload_targets_align_with_presence_bitstring_and_resolve_a_name(run_dir, samples):
+    (run_dir / 'targets.tsv').write_text(
+        'protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\n'
+        'n1\tNcra\t\ttr|Q1|Q1_AFUM\t\t\n'
+    )
+    (run_dir / 'descriptions.tsv').write_text(
+        'protein_id\tgene_name\tdescription\n'
+        'tr|Q1|Q1_AFUM\tafuA\tSome Aspergillus protein\n'
+    )
+    payload = payload_for(run_dir, samples, targets_path=run_dir / 'targets.tsv',
+                          descriptions_path=run_dir / 'descriptions.tsv')
+    assert payload['has_targets'] is True
+    row = rows_by_id(payload)['n1']
+    tgt_idx = payload['fields'].index('tgt')
+    shorts = [p['short'] for p in payload['proteomes']]
+    assert row[tgt_idx].split(',')[shorts.index('Afum')] == 'tr|Q1|Q1_AFUM'
+    assert row[tgt_idx].split(',')[shorts.index('Ncra')] == ''
+    assert payload['protein_names']['tr|Q1|Q1_AFUM'] == {
+        'gene_name': 'afuA', 'description': 'Some Aspergillus protein',
+    }
+
+
+def test_payload_protein_names_omits_ids_with_no_description_data(run_dir, samples):
+    # A target_id with no matching descriptions.tsv row (or a matching row that's
+    # entirely blank) contributes nothing to payload['protein_names'] -- the client
+    # falls back to showing the bare ID rather than an empty name/description.
+    (run_dir / 'targets.tsv').write_text(
+        'protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\n'
+        'n1\tNcra\t\tunknownID\t\t\n'
+    )
+    payload = payload_for(run_dir, samples, targets_path=run_dir / 'targets.tsv')
+    assert payload['protein_names'] == {}
+
+
+def test_payload_has_targets_false_without_targets_path(run_dir, samples):
+    payload = payload_for(run_dir, samples)
+    assert payload['has_targets'] is False
+    row = rows_by_id(payload)['n1']
+    tgt_idx = payload['fields'].index('tgt')
+    assert row[tgt_idx] == ',' * (len(payload['proteomes']) - 1)
+
+
 def test_payload_appends_context_columns_without_affecting_novelty_stats(run_dir, samples):
     # issue #48: NEAR_INGROUP/BROAD_OUTGROUP context columns are appended after the
     # scored ingroup+outgroup columns, tagged {'context': True}, and 'pres'/'ev' extend

@@ -184,3 +184,37 @@ def test_output_evalues_sidecar_matches_presence_calls(run_dir):
     assert row['In2'] == '1e-10'
     assert row['In1'] == ''   # source proteome: presence is definitional, not a hit
     assert row['Out1'] == ''  # absent: no qualifying hit
+
+
+def test_output_targets_sidecar_names_the_winning_hits_target_id(run_dir):
+    # --output-targets mirrors --output-evalues' shape, but records the *target_id*
+    # of the best (lowest-evalue) qualifying hit instead of its e-value -- so the
+    # report can resolve and show which target protein a presence call came from.
+    hits_path = run_dir / 'hits.tsv'
+    hits_path.write_text(
+        HIT_HEADER +
+        'g1\tg1_in2_weak\t1e-8\t80\tIn1\tIn2\n'
+        'g1\tg1_in2_strong\t1e-30\t300\tIn1\tIn2\n'
+    )
+    matrix_out = run_dir / 'matrix.tsv'
+    candidates_out = run_dir / 'candidates.txt'
+    evalues_out = run_dir / 'evalues.tsv'
+    targets_out = run_dir / 'targets.tsv'
+    subprocess.run([
+        sys.executable, str(SCRIPT),
+        '--hits', str(hits_path),
+        '--config', str(run_dir / 'config.csv'),
+        '--ingroup-min-frac', '1.0',
+        '--query-group', 'IN',
+        '--other-max-frac', '0.0',
+        '--output-matrix', str(matrix_out),
+        '--output-candidates', str(candidates_out),
+        '--output-evalues', str(evalues_out),
+        '--output-targets', str(targets_out),
+    ], check=True, capture_output=True, text=True)
+
+    targets = pd.read_csv(targets_out, sep='\t', dtype=str, keep_default_na=False)
+    row = targets[targets['protein_id'] == 'g1'].iloc[0]
+    assert row['In2'] == 'g1_in2_strong'  # the lower-evalue hit's target, not the weaker one
+    assert row['In1'] == ''
+    assert row['Out1'] == ''

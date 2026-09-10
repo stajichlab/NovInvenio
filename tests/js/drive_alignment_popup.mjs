@@ -27,11 +27,14 @@ function check(name, cond, extra) {
 }
 
 const HIT_MEMBER = {
-  memberA: [{
-    genome: 'Afum', sseqid: 'scaffold_1', evalue: 1e-40, bitscore: 150, pident: 75.0,
-    length: 10, qstart: 1, qend: 10, sstart: 1000, send: 1120, sframe: 1,
-    qseq: 'MKVL-ACDEFGHI', sseq: 'MKVLQACDEFGHX', aligned_as: 'rep1',
-  }],
+  memberA: {
+    gene_name: 'NCU00001', description: 'Some query protein',
+    hits: [{
+      genome: 'Afum', sseqid: 'scaffold_1', evalue: 1e-40, bitscore: 150, pident: 75.0,
+      length: 10, qstart: 1, qend: 10, sstart: 1000, send: 1120, sframe: 1,
+      qseq: 'MKVL-ACDEFGHI', sseq: 'MKVLQACDEFGHX', aligned_as: 'rep1',
+    }],
+  },
 };
 const SHARD_JSON = JSON.stringify(HIT_MEMBER);
 const GZIP_BYTES = zlib.gzipSync(Buffer.from(SHARD_JSON, 'utf8'));
@@ -68,7 +71,10 @@ async function run() {
     const doc = dom.window.document;
     check('happy path: title set', doc.getElementById('alignment-title').textContent === 'memberA vs scaffold_1 (Afum)');
     const stats = doc.getElementById('alignment-stats').textContent;
-    check('happy path: stats include Subject/evalue/pident/aligned_as', /Subject= scaffold_1/.test(stats) && /evalue=1e-40/.test(stats) && /pident=75.0%/.test(stats) && /rep1/.test(stats), stats);
+    check('happy path: stats include Subject/evalue/pident/aligned_as',
+      /Subject= scaffold_1/.test(stats) && /evalue=1e-40/.test(stats) && /pident=75.0%/.test(stats) && /rep1/.test(stats), stats);
+    check('happy path: stats include query gene_name/description',
+      /Query= NCU00001 Some query protein/.test(stats), stats);
     const body = doc.getElementById('alignment-body').textContent;
     // qseq='MKVL-ACDEFGHI' sseq='MKVLQACDEFGHX' -> midline: match except at
     // the gap column (pos 4, space) and the final X/I mismatch (space).

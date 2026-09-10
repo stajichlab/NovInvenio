@@ -130,6 +130,12 @@ def main():
                          'best qualifying hit e-value per (protein, proteome) cell instead '
                          'of 0/1 (empty when absent or self-sourced) — report-only evidence, '
                          'does not affect candidate calling.')
+    ap.add_argument('--output-targets', default=None, dest='output_targets',
+                    help='Optional sidecar TSV, same shape as --output-matrix/--output-evalues, '
+                         "holding the best qualifying hit's target protein ID per (protein, "
+                         'proteome) cell (empty when absent or self-sourced) — report-only '
+                         "evidence (resolved to a name via bin/extract_protein_descriptions.py's "
+                         'output downstream), does not affect candidate calling.')
     args = ap.parse_args()
 
     samples      = parse_config(args.config)
@@ -190,12 +196,22 @@ def main():
     for qp, qid, tp in zip(ing['query_proteome'], ing['query_id'], ing['target_proteome']):
         presence[(qp, qid)].add(tp)
 
-    # Best (lowest) qualifying-hit e-value per (query_proteome, query_id, target_proteome) —
-    # report-only evidence for the e-value sidecar; does not affect candidate calling.
+    # Best (lowest) qualifying-hit e-value (and that hit's target_id) per (query_proteome,
+    # query_id, target_proteome) — report-only evidence for the e-value/targets sidecars;
+    # does not affect candidate calling. idxmin (not a plain groupby().min()) so hit_target
+    # names the actual winning row's target, not just an independently-computed min value.
     hit_evalue: dict[tuple, float] = {}
+    hit_target: dict[tuple, str] = {}
     if not ing.empty:
-        hit_evalue = (ing.groupby(['query_proteome', 'query_id', 'target_proteome'])
-                         ['evalue'].min().to_dict())
+        best_idx = (ing.groupby(['query_proteome', 'query_id', 'target_proteome'])
+                       ['evalue'].idxmin())
+        best_rows = ing.loc[best_idx]
+        for qp, pid, tp, ev, tid in zip(
+            best_rows['query_proteome'], best_rows['query_id'], best_rows['target_proteome'],
+            best_rows['evalue'], best_rows['target_id'],
+        ):
+            hit_evalue[(qp, pid, tp)] = ev
+            hit_target[(qp, pid, tp)] = tid
 
     # Build the full matrix (always emit the id columns + one column per proteome,
     # so an empty result still writes a well-formed header).
@@ -203,15 +219,19 @@ def main():
     columns = ['protein_id', 'source_proteome'] + sorted_ids
     rows = []
     evalue_rows = []
+    target_rows = []
     for (qp, pid), hit_proteomes in presence.items():
         all_present = hit_proteomes | {qp}
         row = {'protein_id': pid, 'source_proteome': qp}
         ev_row = {'protein_id': pid, 'source_proteome': qp}
+        tgt_row = {'protein_id': pid, 'source_proteome': qp}
         for sp in sorted_ids:
             row[sp] = int(sp in all_present)
             ev_row[sp] = '' if sp == qp else hit_evalue.get((qp, pid, sp), '')
+            tgt_row[sp] = '' if sp == qp else hit_target.get((qp, pid, sp), '')
         rows.append(row)
         evalue_rows.append(ev_row)
+        target_rows.append(tgt_row)
 
     matrix = pd.DataFrame(rows, columns=columns)
     matrix.to_csv(args.output_matrix, sep='\t', index=False)
@@ -219,6 +239,10 @@ def main():
     if args.output_evalues:
         evalues_df = pd.DataFrame(evalue_rows, columns=columns)
         evalues_df.to_csv(args.output_evalues, sep='\t', index=False)
+
+    if args.output_targets:
+        targets_df = pd.DataFrame(target_rows, columns=columns)
+        targets_df.to_csv(args.output_targets, sep='\t', index=False)
 
     n_query     = len(query_ids)
     query_cols  = sorted(query_ids)

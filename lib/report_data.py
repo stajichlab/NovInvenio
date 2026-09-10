@@ -86,6 +86,14 @@ ROW_FIELDS = [
                  # Ensembl), packed "DB:id|DB:id" -- see lib/report_common.py's
                  # XREF_LINK_TEMPLATES for the render side. Not interned: 1:1
                  # with the protein like 'ec'/'af', nothing to compress.
+    'tgt',       # search-hit target protein IDs, aligned position-for-position with
+                 # 'pres'/'ev' (bin/build_presence_matrix.py's --output-targets,
+                 # --cluster_tool pairwise only -- '' for every column on a run whose
+                 # pathway doesn't track this yet, e.g. mmseqs/novelty_discovery).
+                 # Comma-separated, one entry per payload['proteomes'] column, '' where
+                 # there's no qualifying hit. Resolved to a display name client-side via
+                 # payload['protein_names'] (falls back to the bare ID when unresolved).
+                 # Report-only, same as 'ev': never affects presence/novelty calls.
 ]
 
 class _StringTable:
@@ -204,6 +212,35 @@ def read_evalues(path: str | Path | None) -> dict[str, dict[str, str]]:
             if not pid:
                 continue
             out[pid] = {c: row.get(c, '') or '' for c in cols}
+    return out
+
+
+def read_targets(path: str | Path | None) -> dict[str, dict[str, str]]:
+    """Return {protein_id: {proteome_short: target_id}} from a targets sidecar TSV --
+    same shape as read_evalues(), just a different sidecar (bin/build_presence_matrix.py's
+    --output-targets): the *target protein ID* of the best qualifying hit per (protein,
+    proteome) cell, instead of its e-value. Report-only, same "empty dict means no
+    evidence" contract as read_evalues().
+    """
+    return read_evalues(path)
+
+
+def read_descriptions(path: str | Path | None) -> dict[str, tuple[str, str]]:
+    """Return {protein_id: (gene_name, description)} from bin/extract_protein_
+    descriptions.py's output TSV -- used to resolve a target_id (from read_targets())
+    into a human-readable name for the report, the same lookup build_alignment_shards.py
+    uses for the TBLASTN popup's query-protein name. Missing/empty file returns {}.
+    """
+    if not path or not Path(path).exists() or not Path(path).stat().st_size:
+        return {}
+    with open(path, newline='') as fh:
+        reader = csv.DictReader(fh, delimiter='\t')
+        out: dict[str, tuple[str, str]] = {}
+        for row in reader:
+            pid = row.get('protein_id', '')
+            if not pid:
+                continue
+            out[pid] = (row.get('gene_name', '') or '', row.get('description', '') or '')
     return out
 
 
@@ -348,6 +385,8 @@ def build_payload(
     candidates_fa=None,
     cluster_tsv=None,
     evalues_path=None,
+    targets_path=None,
+    descriptions_path=None,
     context_matrix_path=None,
     context_evalues_path=None,
     ingroup_min_frac=0.75,
@@ -391,6 +430,20 @@ def build_payload(
     help judge whether a presence call is a strong or marginal hit. Missing or
     empty means no evidence available; never affects presence/novelty calls.
 
+    targets_path: optional presence_matrix.targets.tsv sidecar (bin/build_
+    presence_matrix.py's --output-targets, --cluster_tool pairwise only) —
+    the target protein ID of each qualifying hit, aligned with 'ev'. Paired
+    with descriptions_path to resolve a display name; report-only, same as
+    evalues_path. Missing/empty means no evidence (e.g. an mmseqs/
+    novelty_discovery run, which doesn't produce this sidecar yet).
+
+    descriptions_path: optional bin/extract_protein_descriptions.py output
+    TSV (protein_id/gene_name/description), used to resolve targets_path's
+    target IDs into a real name for payload['protein_names'] -- only entries
+    actually referenced by some row's 'tgt' are included, not the whole
+    proteome set, keeping the payload from ballooning with unrelated protein
+    descriptions.
+
     context_matrix_path / context_evalues_path (issue #48): optional
     context_presence.tsv pair — NEAR_INGROUP/BROAD_OUTGROUP presence for the
     candidate list only (bin/context_presence.py, --cluster_tool pairwise
@@ -406,6 +459,9 @@ def build_payload(
     """
     header, rows = read_matrix(matrix_path)
     evalue_lookup = read_evalues(evalues_path)
+    target_lookup = read_targets(targets_path)
+    descriptions_lookup = read_descriptions(descriptions_path)
+    referenced_target_ids: set[str] = set()
     gff3_paths = gff3_paths or {}
     gff3_cache: dict[str, dict] = {}
 
@@ -481,6 +537,12 @@ def build_payload(
             [_round_evalue(row_evalues.get(s, '')) for s in shorts] +
             [_round_evalue(row_context_ev.get(s, '')) for s in context_shorts]
         )
+        row_targets = target_lookup.get(pid, {})
+        row_target_ids = [row_targets.get(s, '') for s in shorts]
+        referenced_target_ids.update(t for t in row_target_ids if t)
+        # No context-column target IDs -- read_context() doesn't track them (see
+        # targets_path's docstring); 'tgt' still needs one entry per 'pres'/'ev' slot.
+        tgt = ','.join(row_target_ids + ['' for _ in context_shorts])
         hit_genomes = tb_hits.get(pid, set())
         tb = ''.join('1' if g in hit_genomes else '0' for g in tb_genomes)
 
@@ -541,6 +603,7 @@ def build_payload(
             chrom,
             start,
             row.get('uniprot_xrefs', '') or '',
+            tgt,
         ])
 
     return {
@@ -564,7 +627,13 @@ def build_payload(
         'ipr_sets': ipr_sets.table,
         'novelty_categories': sorted(categories),
         'has_evalues': bool(evalue_lookup),
+        'has_targets': bool(target_lookup),
         'has_context': bool(context_shorts),
+        'protein_names': {
+            tid: {'gene_name': descriptions_lookup[tid][0], 'description': descriptions_lookup[tid][1]}
+            for tid in referenced_target_ids if tid in descriptions_lookup
+            and (descriptions_lookup[tid][0] or descriptions_lookup[tid][1])
+        },
         'families': fam_index.payload(),
         'rows': out_rows,
     }
