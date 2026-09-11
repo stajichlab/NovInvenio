@@ -6,6 +6,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 NovInvenio identifies lineage-specific genes: proteins present in a defined ingroup (≥N% of members) but absent from all outgroup proteomes. It uses pairwise protein searches (phmmer/diamond/blast), self-vs-self paralog lookup, mmseqs2 clustering, TBLASTN validation against outgroup genomes, functional annotation (Pfam + SwissProt), and model-organism gene-name lookup to produce per-species novelty candidate tables.
 
+## This repo never holds analysis results (hard rule, 2026-09-11)
+
+NovInvenio is pipeline **source code only**. No real or test analysis run's output
+(`results/<project>/`, `docs/<project>/`) belongs anywhere in this checkout, even
+transiently — `results/` is gitignored but `docs/` is not (it holds this repo's own
+real, hand-written ADRs/agent docs/Sphinx site), and `Helpers.docsDir()` resolves the
+GitHub-Pages report copy as **a sibling of `--outdir`'s parent** — so an in-repo
+`--outdir` (even the gitignored `results/`) also writes a real project's report bundle
+straight into this repo's tracked `docs/`, indistinguishable at a glance from the real
+documentation living there. This happened for real on 2026-09-10/11 running a
+comparison study directly against this checkout; caught before anything was committed,
+but avoid it structurally instead of relying on catching it every time:
+
+- **Always route `--outdir` outside this checkout** for any real analysis run —
+  `NovInvenio_Investigations` (NII)'s `bin/run_study.sh` already does this correctly
+  (`--outdir "$NII_ROOT/results"`, a different repo entirely) and is the preferred way
+  to run a real study. If launching directly against this checkout for pipeline
+  development (`-profile test`, a throwaway smoke test), pass an explicit `--outdir`
+  pointing somewhere outside this repo (e.g. under `/tmp`, `$SCRATCH`, or NII's own
+  `results/`) — never the default or a path under this repo root.
+- **NII has its own, stricter rule about *how* it publishes those results** (release
+  -asset push for anything that grows with candidate/sequence data, never a git commit)
+  — see NII's own `CLAUDE.md`/`DESIGN.md` Sec 8. That rule exists precisely because
+  results *do* belong in NII, just never as committed git blobs; the rule here is
+  narrower and simpler: results don't belong in *this* repo at all, committed or not.
+
 ## Commands
 
 ```bash
