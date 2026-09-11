@@ -17,11 +17,23 @@ process SUMMARIZE_TBLASTN {
     path("${summary_name}"), emit: tsv
 
     script:
+    // Guard on tblastn_tsvs actually having entries: zero genomes is always a real
+    // config error for VALIDATE's own outgroup_dna (pairwise/mmseqs direction), but a
+    // legitimate, documented case for NOVELTY_SCREEN's BROAD_OUTGROUP (a config with no
+    // BROAD_OUTGROUP rows degrades gracefully -- see workflows/novelty_screen.nf).
+    // bin/summarize_tblastn.py's --hits is required/nargs='+', so an empty list
+    // interpolates to "--hits " (no value) and argparse hard-fails before the script's
+    // own "no genomes" check ever runs -- touch the (empty) output instead, same
+    // "empty means no evidence" pattern ANNOTATE_MATRIX already uses for candidates_fa.
     """
-    summarize_tblastn.py \
-        --hits ${tblastn_tsvs} \
-        --cluster_tsv ${cluster_tsv} \
-        --evalue ${params.evalue} \
-        --output ${summary_name}
+    if [ -n "${tblastn_tsvs}" ]; then
+        summarize_tblastn.py \
+            --hits ${tblastn_tsvs} \
+            --cluster_tsv ${cluster_tsv} \
+            --evalue ${params.evalue} \
+            --output ${summary_name}
+    else
+        touch ${summary_name}
+    fi
     """
 }
