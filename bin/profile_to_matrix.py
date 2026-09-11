@@ -120,6 +120,12 @@ def main():
                     dest='min_covered_residues',
                     help='Alternative to --min-coverage for long, multi-domain HMMs -- see '
                          'lib/family_presence.py\'s module docstring (default 0 = no effect)')
+    ap.add_argument('--min-domain-evalue', type=float, default=None,
+                    dest='min_domain_evalue',
+                    help='Exclude a domain hit from the coverage/--min-covered-residues '
+                         'merge unless its own independent E-value is below this (default '
+                         'None = disabled) -- see lib/family_presence.py\'s module '
+                         'docstring, 2026-09-10 entry.')
     ap.add_argument('--ingroup-min-frac', type=float, default=0.75,
                     dest='ingroup_min_frac',
                     help="Presence threshold within --query-group")
@@ -153,7 +159,7 @@ def main():
     for dom_path in args.domtblout:
         short = short_from_domtblout_name(dom_path)
         for rep in parse_domtblout(dom_path, args.evalue, args.min_coverage,
-                                   args.min_covered_residues):
+                                   args.min_covered_residues, args.min_domain_evalue):
             family_presence[rep].add(short)
 
     sorted_ids = sorted(all_ids)

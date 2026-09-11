@@ -33,6 +33,7 @@ process PROFILE_PRESENCE_MATRIX {
         --evalue ${params.hmm_presence_evalue} \
         --min-coverage ${params.hmm_presence_cov} \
         --min-covered-residues ${params.hmm_presence_min_residues} \
+        ${params.hmm_presence_domain_evalue != null ? "--min-domain-evalue ${params.hmm_presence_domain_evalue}" : ''} \
         --ingroup-min-frac ${query_min_frac} \
         --query-group ${query_group} \
         --other-max-frac ${other_max_frac} \

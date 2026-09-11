@@ -9,12 +9,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'lib'))
 from family_presence import family_presence_by_proteome, parse_domtblout  # noqa: E402
 
 
-def _domtblout_line(target, query, full_e=1e-10, qlen=100, hmm_from=1, hmm_to=60):
+def _domtblout_line(target, query, full_e=1e-10, qlen=100, hmm_from=1, hmm_to=60,
+                    domain_e=1e-10):
     f = ['-'] * 23
     f[0] = target
     f[3] = query
     f[5] = str(qlen)
     f[6] = f'{full_e:g}'
+    f[12] = f'{domain_e:g}'
     f[15] = str(hmm_from)
     f[16] = str(hmm_to)
     return ' '.join(f)
@@ -137,3 +139,87 @@ def test_family_presence_by_proteome_min_residues(tmp_path):
     presence = family_presence_by_proteome([dom], default_evalue=1e-5, min_coverage=0.5,
                                            min_residues=100)
     assert 'famLong' in presence['D1']
+
+
+# --- min_domain_evalue: real ada-1/ham-5 promiscuous-domain false positive ---------
+
+def _domtblout_row_with_domain_e(target, query, hmm_from, hmm_to, domain_e,
+                                 full_e=1e-6, qlen=647):
+    f = ['-'] * 23
+    f[0], f[3] = target, query
+    f[5] = str(qlen)
+    f[6] = f'{full_e:g}'
+    f[12] = f'{domain_e:g}'
+    f[15], f[16] = str(hmm_from), str(hmm_to)
+    return ' '.join(f)
+
+
+def test_min_domain_evalue_disabled_reproduces_ada1_false_positive(tmp_path):
+    # Real case (pezizo_set1_cluster, ada-1 family rep vs Mcir S2JBT0, 2026-09-10): two
+    # domains, 37aa (i-Evalue 2.5e+03 -- noise) and 74aa (i-Evalue 1.3e-06 -- plausible).
+    # Neither alone clears min_residues=100, but the OLD behaviour (no domain-evalue
+    # gate) merges both spans -> 111aa, wrongly passing. This test pins that this is
+    # exactly what happens with min_domain_evalue left disabled (the pre-fix default).
+    dom = tmp_path / 'ada1_mcir.domtblout'
+    with open(dom, 'w') as fh:
+        fh.write('# hmmsearch domtblout\n')
+        fh.write(_domtblout_row_with_domain_e('S2JBT0', 'ada1_fam', 160, 197, 2.5e3) + '\n')
+        fh.write(_domtblout_row_with_domain_e('S2JBT0', 'ada1_fam', 260, 334, 1.3e-6) + '\n')
+    result = parse_domtblout(dom, default_evalue=1e-3, min_coverage=0.5, min_residues=100)
+    assert 'ada1_fam' in result  # the bug, reproduced
+
+
+def test_min_domain_evalue_excludes_insignificant_domain_fixing_ada1_case(tmp_path):
+    # Same data as above; with min_domain_evalue=0.01 the noise domain (i-Evalue 2.5e+03)
+    # is excluded from the merge, leaving only 74aa -- below both the coverage fraction
+    # and the 100-residue floor, correctly calling it absent.
+    dom = tmp_path / 'ada1_mcir.domtblout'
+    with open(dom, 'w') as fh:
+        fh.write('# hmmsearch domtblout\n')
+        fh.write(_domtblout_row_with_domain_e('S2JBT0', 'ada1_fam', 160, 197, 2.5e3) + '\n')
+        fh.write(_domtblout_row_with_domain_e('S2JBT0', 'ada1_fam', 260, 334, 1.3e-6) + '\n')
+    result = parse_domtblout(dom, default_evalue=1e-3, min_coverage=0.5, min_residues=100,
+                             min_domain_evalue=0.01)
+    assert 'ada1_fam' not in result
+
+
+def test_min_domain_evalue_does_not_block_a_single_significant_domain(tmp_path):
+    # The case min_residues exists to rescue must be unaffected: one real, individually
+    # significant 150aa domain on a 2000aa multi-domain HMM.
+    dom = tmp_path / 'x.domtblout'
+    with open(dom, 'w') as fh:
+        fh.write('# hmmsearch domtblout\n')
+        fh.write(_domtblout_row_with_domain_e('targetA', 'famLong', 1, 150, 1e-30,
+                                              full_e=1e-30, qlen=2000) + '\n')
+    result = parse_domtblout(dom, default_evalue=1e-5, min_coverage=0.5, min_residues=100,
+                             min_domain_evalue=0.01)
+    assert result['famLong'] == 1e-30
+
+
+def test_min_domain_evalue_unparseable_field_excludes_domain(tmp_path):
+    # A domtblout line with no i-Evalue recorded (placeholder '-') can't have its
+    # significance confirmed, so it must be excluded whenever the gate is active,
+    # not silently included.
+    dom = tmp_path / 'x.domtblout'
+    line = _domtblout_line('targetA', 'famX', full_e=1e-10, qlen=100, hmm_from=1, hmm_to=60)
+    parts = line.split()
+    parts[12] = '-'  # blank out the domain i-Evalue field
+    with open(dom, 'w') as fh:
+        fh.write('# hmmsearch domtblout\n')
+        fh.write(' '.join(parts) + '\n')
+    result = parse_domtblout(dom, default_evalue=1e-5, min_coverage=0.5,
+                             min_domain_evalue=0.01)
+    assert 'famX' not in result
+
+
+def test_min_domain_evalue_none_is_a_true_no_op(tmp_path):
+    # Default (disabled) must reproduce every existing test's behaviour unchanged --
+    # spot check against the any-target regression test above.
+    dom = tmp_path / 'x.domtblout'
+    _write_domtblout(dom, [
+        ('targetA', 'famX', 1e-50, 100, 1, 20),
+        ('targetB', 'famX', 1e-10, 100, 1, 90),
+    ])
+    result = parse_domtblout(dom, default_evalue=1e-5, min_coverage=0.5,
+                             min_domain_evalue=None)
+    assert result['famX'] == 1e-10

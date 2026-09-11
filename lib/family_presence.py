@@ -22,6 +22,24 @@ a substantial aligned span (default 100 aa) is real evidence of homology regardl
 fraction of a long multi-domain HMM it represents -- without penalizing long proteins purely
 for being long. See CLAUDE.md/nextflow.config's `hmm_presence_min_residues`.
 
+**2026-09-10 fix: `min_domain_evalue` -- per-domain significance gate before merging
+spans.** Found via `configs/controls/pezizo_set1.controls_verification.md` (ada-1/ham-5
+false "present" calls on `pezizo_set1_cluster`): `_merged_span()` was folding in EVERY
+reported domain hit's HMM coordinates regardless of that individual domain's own
+significance. A real case: ada-1's family rep's best Mcir hit had two domains -- domain 1
+(37 aa, its own independent E-value 2.5e+03 -- pure noise) and domain 2 (74 aa, i-Evalue
+1.3e-06 -- plausible on its own). Neither alone reaches the 100-residue floor, but merged
+(111 aa) they cleared it, calling a promiscuous shared bZIP-like motif "present" in an
+unrelated Mcir transcription factor with no real full-protein homology behind it -- the
+same failure class ham-5 (an unrelated WD40-domain cross-hit) also hit. `min_domain_evalue`
+excludes a domain's span from the merge entirely unless that domain's OWN independent
+E-value clears this gate -- so noise fragments can no longer pad a real hit's merged
+residue count past `min_residues`, while a genuinely significant single-domain match on a
+long multi-domain protein (the case `min_residues` exists to rescue) is unaffected, since
+its own i-Evalue is good on its own. Default `None` = disabled (exact prior behaviour,
+matching `min_residues=0`'s own no-op convention) until swept/validated -- see
+`todo/validate-hmm-presence-coverage-broader-sweep.md`.
+
 Presence is deliberately NOT gated by bin/calibrate_family_hmms.py's per-family
 "negative-control" threshold. That threshold is derived from the best E-value the family's
 own HMM scores against DISCOVERY_OUT, and presence-in-a-DISCOVERY_OUT-proteome was then
@@ -56,7 +74,8 @@ def _merged_span(intervals):
     return sum(end - start + 1 for start, end in merged)
 
 
-def parse_domtblout(path, default_evalue, min_coverage, min_residues=0):
+def parse_domtblout(path, default_evalue, min_coverage, min_residues=0,
+                    min_domain_evalue=None):
     """Return dict: query(HMM name) -> best qualifying full-sequence E-value.
 
     A query "qualifies" on a target when THAT SAME target's own hit clears both gates --
@@ -76,8 +95,17 @@ def parse_domtblout(path, default_evalue, min_coverage, min_residues=0):
     full coverage (2026-09-03 review finding). A query with no qualifying target is
     omitted from the result.
 
+    min_domain_evalue (default None, i.e. disabled) gates which individual domain hits are
+    even eligible to contribute their span to the merged-coverage/min_residues
+    calculation: a domain is excluded unless ITS OWN independent E-value (column 13,
+    "i-Evalue") is < min_domain_evalue. Without this gate, a statistically meaningless
+    domain fragment (i-Evalue in the thousands) still pads the merged span -- see the
+    2026-09-10 module-docstring entry for the real ada-1/ham-5 false-positive case this
+    fixes. A domain whose i-Evalue can't be parsed (e.g. a `-` placeholder) is treated as
+    failing this gate when it's active, since its significance can't be confirmed.
+
     hmmsearch --domtblout columns (0-indexed): 0=target, 3=query, 5=qlen,
-    6=full E-value, 15=hmm_from, 16=hmm_to.
+    6=full E-value, 12=domain i-Evalue, 15=hmm_from, 16=hmm_to.
     """
     per_target: dict[tuple, list] = {}
     with open(path) as fh:
@@ -96,6 +124,13 @@ def parse_domtblout(path, default_evalue, min_coverage, min_residues=0):
                 hmm_to = int(parts[16])
             except ValueError:
                 continue
+            if min_domain_evalue is not None:
+                try:
+                    domain_e = float(parts[12])
+                except ValueError:
+                    continue  # can't confirm significance -- exclude this domain's span
+                if not (domain_e < min_domain_evalue):
+                    continue
             key = (query, target)
             if key not in per_target:
                 per_target[key] = [qlen, full_e, []]
@@ -133,7 +168,7 @@ def load_cluster_membership(cluster_tsv):
 
 
 def family_presence_by_proteome(domtblout_paths, default_evalue, min_coverage,
-                                 min_residues=0,
+                                 min_residues=0, min_domain_evalue=None,
                                  domtblout_suffixes=('.family.domtblout',
                                                       '.domtblout')):
     """Return dict: proteome_short -> set of family rep IDs "present" in it.
@@ -141,7 +176,8 @@ def family_presence_by_proteome(domtblout_paths, default_evalue, min_coverage,
     A family is present in a proteome when any target sequence's own hit clears the
     flat E-value threshold (default_evalue -- see module docstring for why this is not
     per-family calibrated) and the coverage gate (fraction OR absolute residues) --
-    see parse_domtblout.
+    see parse_domtblout. min_domain_evalue (default None = disabled) additionally gates
+    which individual domain hits may contribute to that coverage/residue calculation.
     """
     presence = defaultdict(set)
     for dom_path in domtblout_paths:
@@ -150,6 +186,7 @@ def family_presence_by_proteome(domtblout_paths, default_evalue, min_coverage,
             if short.endswith(suffix):
                 short = short[:-len(suffix)]
                 break
-        for query in parse_domtblout(dom_path, default_evalue, min_coverage, min_residues):
+        for query in parse_domtblout(dom_path, default_evalue, min_coverage, min_residues,
+                                     min_domain_evalue):
             presence[short].add(query)
     return presence
