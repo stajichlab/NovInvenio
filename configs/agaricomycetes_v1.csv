@@ -1,0 +1,8 @@
+GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup,SourceDB,NCBI_TaxID,UniProtDatGz
+IN,Schizophyllum commune,H4-8,Schizophyllum_commune.faa,Schizophyllum_commune.fna,Schizophyllum_commune.gff3,Scom,Agaricales,ncbipep,578458,
+IN,Coprinopsis cinerea,Okayama7#130,Coprinopsis_cinerea.faa,Coprinopsis_cinerea.fna,Coprinopsis_cinerea.gff3,Ccin,Agaricales,ncbipep,5346,Coprinopsis_cinerea.dat.gz
+IN,Agaricus bisporus,var. burnettii JB137-S8,Agaricus_bisporus.faa,Agaricus_bisporus.fna,Agaricus_bisporus.gff3,Agbi,Agaricales,ncbipep,597362,Agaricus_bisporus.dat.gz
+IN,Laccaria bicolor,S238N-H82,Laccaria_bicolor.faa,Laccaria_bicolor.fna,Laccaria_bicolor.gff3,Lbic,Agaricales,ncbipep,29883,Laccaria_bicolor.dat.gz
+OUT,Cryptococcus neoformans,H99,Cryptococcus_neoformans.faa,Cryptococcus_neoformans.fna,Cryptococcus_neoformans.gff3,Cneo,Tremellomycetes,ncbipep,5207,Cryptococcus_neoformans.dat.gz
+OUT,Ustilago maydis,521,Ustilago_maydis.faa,Ustilago_maydis.fna,Ustilago_maydis.gff3,Umay,Ustilaginomycotina,ncbipep,5270,Ustilago_maydis.dat.gz
+OUT,Rhodotorula toruloides,NP11,Rhodotorula_toruloides.faa,Rhodotorula_toruloides.fna,Rhodotorula_toruloides.gff3,Rtor,Pucciniomycotina,ncbipep,5286,Rhodotorula_toruloides.dat.gz
