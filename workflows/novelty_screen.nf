@@ -61,6 +61,7 @@ process NOVELTY_SCREEN_CLASSIFY {
     val(default_family_evalue)
     val(min_coverage)
     val(min_covered_residues)
+    val(min_domain_evalue)
     path(near_singleton_hits)
     path(broad_singleton_hits)
     path(paralog_cutoffs)
@@ -77,6 +78,7 @@ process NOVELTY_SCREEN_CLASSIFY {
     def near_singleton_arg = near_singleton_hits ? "--near-in-singleton-hits ${near_singleton_hits}" : ''
     def broad_singleton_arg = broad_singleton_hits ? "--broad-out-singleton-hits ${broad_singleton_hits}" : ''
     def paralog_arg = paralog_cutoffs ? "--paralog-cutoffs ${paralog_cutoffs}" : ''
+    def domain_evalue_arg = min_domain_evalue ? "--min-domain-evalue ${min_domain_evalue}" : ''
     """
     novelty_screen.py \
         --discovery-matrix ${discovery_matrix} \
@@ -88,6 +90,7 @@ process NOVELTY_SCREEN_CLASSIFY {
         --default-family-evalue ${default_family_evalue} \
         --min-coverage ${min_coverage} \
         --min-covered-residues ${min_covered_residues} \
+        ${domain_evalue_arg} \
         ${near_singleton_arg} \
         ${broad_singleton_arg} \
         ${paralog_arg} \
@@ -195,6 +198,7 @@ workflow NOVELTY_SCREEN {
         params.hmm_presence_evalue,
         params.hmm_presence_cov,
         params.hmm_presence_min_residues,
+        (params.hmm_presence_domain_evalue ?: ''),  // val() can't carry raw null
         near_singleton_hits_ch,
         broad_singleton_hits_ch,
         paralog_cutoffs,

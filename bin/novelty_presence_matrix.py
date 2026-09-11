@@ -124,6 +124,14 @@ def main():
                          'many residues, even if that is below --min-coverage as a '
                          'fraction (0 = no effect, fraction-only). See '
                          'lib/family_presence.py\'s module docstring.')
+    ap.add_argument('--min-domain-evalue', type=float, default=None,
+                    dest='min_domain_evalue',
+                    help='Exclude a domain hit from the coverage/--min-covered-residues '
+                         'merge unless its OWN independent E-value is below this (default '
+                         'None = disabled/no effect). Fixes a real false-positive case '
+                         '(promiscuous shared domain, two insignificant partial hits '
+                         'merging past --min-covered-residues) -- see '
+                         'lib/family_presence.py\'s module docstring, 2026-09-10 entry.')
     ap.add_argument('--target-min-frac', type=float, default=0.75,
                     dest='target_min_frac',
                     help='Minimum fraction of target proteomes a family/protein must be present in')
@@ -171,7 +179,7 @@ def main():
                 short = short[:-len(suffix)]
                 break
         hits = parse_domtblout(dom_path, args.default_family_evalue, args.min_coverage,
-                               args.min_covered_residues)
+                               args.min_covered_residues, args.min_domain_evalue)
         for query, evalue in hits.items():
             family_presence[short].add(query)
             family_evalue[(short, query)] = evalue

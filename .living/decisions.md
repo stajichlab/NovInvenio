@@ -983,3 +983,59 @@ targeted bug fix — tracked separately as
 
 **Tags**: novelty-discovery, bug-fix, correctness, paralog-competition, diamond,
 sensitivity, self-search, hex-1, pezizo_set1
+
+## [2026-09-10] Fixed: promiscuous-domain fragments merging past hmm_presence_min_residues (min_domain_evalue)
+
+**Context**: `configs/controls/pezizo_set1.controls.csv` scoring against `pezizo_set1_cluster`
+(the `--cluster_tool mmseqs` family-profile pathway) found two real, root-caused false
+"present" calls: **ada-1** and **ham-5** (both confirmed lineage-restricted genes) were
+missed because their family reps' best Mcir hit was a cross-reactive match to an
+unrelated protein (a bZIP-domain transcription factor for ada-1, a WD40-domain protein
+for ham-5). `lib/family_presence.py`'s `_merged_span()` was folding in EVERY reported
+HMM domain hit's coordinates, with no check on that individual domain's own significance
+-- so for ada-1, a statistically meaningless 37aa fragment (its own independent
+i-Evalue 2.5e+03 -- pure noise) merged with a real-looking 74aa fragment (i-Evalue
+1.3e-06) to clear `hmm_presence_min_residues=100`, when neither alone would have.
+
+**Fix**: `parse_domtblout()`/`family_presence_by_proteome()` gained `min_domain_evalue`
+(default `None` = disabled, exact prior behaviour) -- a domain's `(hmm_from, hmm_to)`
+span is now excluded from the merge unless that domain's own independent E-value clears
+this gate. Wired through all three consumers (`bin/profile_to_matrix.py`,
+`bin/novelty_presence_matrix.py`, `bin/novelty_screen.py`), their Nextflow processes
+(`modules/profile_presence_matrix.nf`, `workflows/novelty_discovery.nf`,
+`workflows/novelty_screen.nf`), and `nextflow.config` (new
+`hmm_presence_domain_evalue`, default `null`). One real bug caught by the existing
+end-to-end integration test while wiring this: Nextflow `val()` process inputs cannot
+carry raw Groovy `null` (`A process input channel evaluates to null`) -- fixed by
+passing `(params.hmm_presence_domain_evalue ?: '')` at the two call sites that declare
+an explicit `val()` input, matching the same empty-string/empty-list-is-falsy idiom
+already used for `singleton_hits`/`paralog_cutoffs` elsewhere in these same files.
+15 unit tests added (`tests/test_family_presence.py`), full suite 403 passed / 3 skipped.
+
+**Confirmed on real data**: regenerated `pezizo_set1_cluster`'s presence matrix directly
+from its already-computed `family_hmmsearch/*.domtblout` (no pipeline rerun needed) with
+`--min-domain-evalue 0.01` on top of the shipped defaults, re-scored against
+`configs/controls/pezizo_set1.controls.csv`: **recall 0.400 -> 0.600 (3/5), fp_rate
+unchanged at 0.000 (0/9)**. `ada-1` flipped miss -> hit exactly as predicted. `ham-5`
+remains a miss -- root-caused as a genuinely different, harder case: its cross-hit's
+best domain (114aa) is INDEPENDENTLY significant (i-Evalue 6.1e-05) and independently
+clears the residue floor alone, no fragment-merging involved, so no per-domain
+significance filter can distinguish it from real orthology. That would need a different
+mechanism (e.g. requiring the hit also cover a substantial fraction of the TARGET
+protein, a reciprocal-coverage check) -- flagged in
+`configs/controls/pezizo_set1.controls_verification.md` as an open follow-up, not
+solved here.
+
+**Scope**: this fix and its false-positive mechanism are confined entirely to the HMM/
+family-profile pathways (`--cluster_tool mmseqs` and `--cluster_tool novelty_discovery`,
+both sharing `lib/family_presence.py` since the 2026-09-03 consolidation, decision #11).
+The pairwise pathway (`bin/build_presence_matrix.py`, `pezizo_set1`'s own default
+`--cluster_tool`) has no HMM/domain-coverage concept at all -- architecturally immune,
+different failure mode entirely (paralog cross-reactivity, the HEX-1/eIF-5A case fixed
+earlier this session).
+
+Not yet swept/validated against a broader dataset before considering a default change
+(new param ships disabled) -- see `todo/validate-hmm-presence-coverage-broader-sweep.md`.
+
+**Tags**: novelty-discovery, bug-fix, correctness, family-hmm, coverage, promiscuous-domain,
+min-domain-evalue, controls, pezizo_set1, tdd

@@ -265,6 +265,7 @@ process NOVELTY_PRESENCE_MATRIX {
     val(default_family_evalue)
     val(min_coverage)
     val(min_covered_residues)
+    val(min_domain_evalue)
     val(target_min_frac)
     val(disc_out_max_frac)
     val(singleton_evalue)
@@ -279,9 +280,11 @@ process NOVELTY_PRESENCE_MATRIX {
     script:
     // singleton_hits/paralog_cutoffs are [] when there were no singletons / no paralogs
     // detected at all -- omit the flag rather than pass an empty Groovy list literal
-    // ("[]") on the command line.
+    // ("[]") on the command line. min_domain_evalue is null (disabled) by default --
+    // same omit-rather-than-pass-null treatment (Python argparse default is None).
     def singleton_arg = singleton_hits ? "--singleton-hits ${singleton_hits}" : ''
     def paralog_arg = paralog_cutoffs ? "--paralog-cutoffs ${paralog_cutoffs}" : ''
+    def domain_evalue_arg = min_domain_evalue ? "--min-domain-evalue ${min_domain_evalue}" : ''
     """
     novelty_presence_matrix.py \
         --family-domtblout ${family_domtblouts} \
@@ -293,6 +296,7 @@ process NOVELTY_PRESENCE_MATRIX {
         --default-family-evalue ${default_family_evalue} \
         --min-coverage ${min_coverage} \
         --min-covered-residues ${min_covered_residues} \
+        ${domain_evalue_arg} \
         --target-min-frac ${target_min_frac} \
         --disc-out-max-frac ${disc_out_max_frac} \
         --singleton-evalue ${singleton_evalue} \
@@ -420,6 +424,7 @@ workflow NOVELTY_DISCOVERY {
         params.hmm_presence_evalue,
         params.hmm_presence_cov,
         params.hmm_presence_min_residues,
+        (params.hmm_presence_domain_evalue ?: ''),  // val() can't carry raw null
         params.ingroup_min_frac,
         0.0,  // disc_out_max_frac: strictly absent from DISCOVERY_OUT
         params.evalue,  // singleton_evalue: flat significance cutoff for every singleton hit

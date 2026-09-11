@@ -205,6 +205,53 @@ automated and reusable for any future rerun or param-sweep grid point. Output:
 One BUSCO negative (`100036at4751`, eIF3 subunit, `NCU03876`) is still unresolved --
 the one deliberately-not-guessed busco_map entry from the mismatch-chasing above.
 
+## Fix implemented and confirmed: `min_domain_evalue` (2026-09-10)
+
+Implemented in `lib/family_presence.py` (`parse_domtblout`/`family_presence_by_proteome`
+gained a `min_domain_evalue` parameter), wired through `bin/profile_to_matrix.py`,
+`bin/novelty_presence_matrix.py`, `bin/novelty_screen.py`, `modules/profile_presence_matrix.nf`,
+`workflows/novelty_discovery.nf`, `workflows/novelty_screen.nf`, and `nextflow.config`
+(new `hmm_presence_domain_evalue`, default `null` = disabled, exact prior behaviour).
+15 unit tests added/passing in `tests/test_family_presence.py` (including two that pin
+the exact ada-1 domtblout data as a regression case), full suite 403 passed / 3 skipped
+(one real Nextflow `val()`-can't-carry-`null` bug caught and fixed by the existing
+end-to-end integration test -- see commit).
+
+**Confirmed on real data**: regenerated `pezizo_set1_cluster`'s presence matrix directly
+from the already-computed `family_hmmsearch/*.domtblout` files (no full rerun needed)
+with `--min-domain-evalue 0.01`, added on top of the shipped
+`--evalue 1e-3 --min-coverage 0.5 --min-covered-residues 100`, then re-scored:
+
+**recall improved 0.400 -> 0.600 (3/5 resolved), fp_rate unchanged at 0.000 (0/9)**.
+
+- **ada-1: miss -> hit**, exactly as predicted. Its Mcir cross-hit was two fragments
+  (37aa, i-Evalue 2.5e+03 noise; 74aa, i-Evalue 1.3e-06) that only cleared
+  `min_residues=100` when merged. The fix excludes the noise fragment, leaving 74aa --
+  correctly below both gates now.
+- **ham-5: still a miss** -- a genuinely different, harder case. Its Mcir cross-hit
+  (`S2JCL3_MUCC1`, "Anaphase-promoting complex subunit 4 WD40 domain-containing
+  protein") has domain 1 (120aa, i-Evalue 0.13 -- now correctly excluded) AND domain 2
+  (114aa, i-Evalue 6.1e-05 -- INDEPENDENTLY significant and independently clears
+  `min_residues=100` alone, no merging involved). No per-domain-significance filter can
+  distinguish "genuinely significant 114aa domain match" from "shared promiscuous fold,
+  not real orthology" -- that would need a different mechanism entirely (e.g. requiring
+  the match also cover a substantial fraction of the TARGET protein, not just the query
+  HMM -- a reciprocal-coverage check). Flagged as a follow-up, not solved here.
+
+## Which pathways this touches (asked 2026-09-10)
+
+`lib/family_presence.py` (and therefore this whole fix) is used ONLY by the HMM/
+family-profile pathways: `--cluster_tool mmseqs` (`bin/profile_to_matrix.py`) and the
+two-phase `--cluster_tool novelty_discovery` (`bin/novelty_presence_matrix.py`,
+`bin/novelty_screen.py`) -- both consolidated onto this one shared library by the
+2026-09-03 fix (decision #11). **The pairwise pathway
+(`bin/build_presence_matrix.py`, `pezizo_set1`'s own default `--cluster_tool pairwise`)
+is architecturally immune**: it has no HMM, no per-target domain-coverage/span concept
+at all -- a pairwise hit is a flat E-value plus the paralog-competition filter, with
+nothing analogous to "merge multiple domain spans" for a promiscuous domain to exploit.
+Its own failure mode is different (paralog cross-reactivity, the HEX-1/eIF-5A case
+fixed earlier this session), not this one.
+
 ## Caveats
 
 - `-` (no hit at e<=1 under `--very-sensitive`) is strong but not absolute evidence of
