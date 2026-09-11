@@ -1,10 +1,12 @@
+import csv
+import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / 'bin'))
 
-from annotate_presence_matrix import parse_pfam_tblout  # noqa: E402
+from annotate_presence_matrix import UNIPROT_XREF_COLS, load_uniprot_xrefs, parse_pfam_tblout  # noqa: E402
 
 # A real hmmsearch --tblout line (target = candidate protein, query = Pfam-A HMM). Column
 # positions that matter to the parser:
@@ -47,3 +49,70 @@ def test_parse_pfam_tblout_dedupes_repeated_domain(tmp_path):
     hits = parse_pfam_tblout(str(tblout))
 
     assert hits['candidate1'] == [('Protein_kinase', 'PF00069.28', '1.2e-30')]
+
+
+def _write_xref_tsv(path, rows):
+    with open(path, 'w', newline='') as fh:
+        fieldnames = ['protein_id'] + UNIPROT_XREF_COLS
+        w = csv.DictWriter(fh, fieldnames=fieldnames, delimiter='\t', lineterminator='\n')
+        w.writeheader()
+        for row in rows:
+            w.writerow(row)
+
+
+def test_load_uniprot_xrefs_merges_multiple_species_files_by_protein_id(tmp_path):
+    f1 = tmp_path / 'Ccin.tsv'
+    f2 = tmp_path / 'Agbi.tsv'
+    _write_xref_tsv(f1, [{'protein_id': 'XP_001.1', 'uniprot_accession': 'A8MZR5',
+                          'uniprot_xrefs': 'RefSeq:XP_001.1|GeneID:123'}])
+    _write_xref_tsv(f2, [{'protein_id': 'XP_002.1', 'uniprot_accession': 'K5VHC4',
+                          'uniprot_xrefs': 'RefSeq:XP_002.1|GeneID:456'}])
+
+    merged = load_uniprot_xrefs([str(f1), str(f2)])
+
+    assert set(merged) == {'XP_001.1', 'XP_002.1'}
+    assert merged['XP_001.1']['uniprot_accession'] == 'A8MZR5'
+    assert merged['XP_002.1']['uniprot_xrefs'] == 'RefSeq:XP_002.1|GeneID:456'
+
+
+def test_annotate_presence_matrix_cli_adds_uniprot_columns(tmp_path):
+    matrix = tmp_path / 'presence_matrix.tsv'
+    matrix.write_text(
+        "protein_id\tsource_proteome\tSpeciesA\n"
+        "XP_001.1\tSpeciesA\t1\n"
+        "XP_999.1\tSpeciesA\t1\n"
+    )
+    xref_tsv = tmp_path / 'SpeciesA.uniprot_xref.tsv'
+    _write_xref_tsv(xref_tsv, [{'protein_id': 'XP_001.1', 'uniprot_accession': 'A8MZR5',
+                                'uniprot_gene_name': 'CC1G_13429',
+                                'uniprot_xrefs': 'RefSeq:XP_001.1|GeneID:123'}])
+    output = tmp_path / 'presence_matrix.function.tsv'
+
+    subprocess.run(
+        [sys.executable, str(REPO / 'bin' / 'annotate_presence_matrix.py'),
+         '--matrix', str(matrix), '--uniprot_xref_files', str(xref_tsv),
+         '--output', str(output)],
+        check=True,
+    )
+
+    rows = {r['protein_id']: r for r in csv.DictReader(open(output), delimiter='\t')}
+    assert rows['XP_001.1']['uniprot_accession'] == 'A8MZR5'
+    assert rows['XP_001.1']['uniprot_xrefs'] == 'RefSeq:XP_001.1|GeneID:123'
+    # A protein with no crosswalk match gets empty uniprot_* columns, not an error.
+    assert rows['XP_999.1']['uniprot_accession'] == ''
+    assert rows['XP_999.1']['uniprot_xrefs'] == ''
+
+
+def test_annotate_presence_matrix_cli_without_uniprot_flag_omits_columns(tmp_path):
+    matrix = tmp_path / 'presence_matrix.tsv'
+    matrix.write_text("protein_id\tsource_proteome\tSpeciesA\nXP_001.1\tSpeciesA\t1\n")
+    output = tmp_path / 'presence_matrix.function.tsv'
+
+    subprocess.run(
+        [sys.executable, str(REPO / 'bin' / 'annotate_presence_matrix.py'),
+         '--matrix', str(matrix), '--output', str(output)],
+        check=True,
+    )
+
+    header = open(output).readline().rstrip('\n').split('\t')
+    assert 'uniprot_xrefs' not in header

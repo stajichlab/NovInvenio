@@ -14,6 +14,7 @@ include { VALIDATE } from './workflows/validate'
 include { VALIDATE as LOSS_VALIDATE } from './workflows/validate'
 include { ANNOTATE } from './workflows/annotate'
 include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
+include { UNIPROT_XREF } from './modules/uniprot_xref'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
@@ -92,6 +93,25 @@ workflow {
             [ meta, protein_fa, dna_fa ]
         }
 
+    // Optional UniProt cross-reference lookup (issue #92): a species may set an
+    // optional UniProtDatGz config-CSV column pointing at a UniProt {proteome}.dat.gz
+    // (resolved under --data_dir, also checked under uniprot_dat/). Parsed as its own
+    // channel, independent of samples_ch's [meta, protein_fa, dna_fa] tuple shape, so
+    // every existing samples_ch consumer above is unaffected by this addition. A
+    // species with no UniProtDatGz value (the common case -- most proteomes have no
+    // UniProt reference, e.g. Schizophyllum commune, checked 2026-09-10) is filtered
+    // out here, not an error.
+    uniprot_xref_ch = Channel
+        .fromPath(params.config)
+        .splitCsv(header: true)
+        .map { row ->
+            def dat_gz_name = row.UniProtDatGz?.trim()
+            if (!dat_gz_name) return null
+            [ [id: row.Short], resolve_fa(row.Protein, ['pep', 'proteins']),
+              resolve_fa(dat_gz_name, ['uniprot_dat', 'uniprot']) ]
+        }
+        .filter { it != null }
+
     ingroup_prot_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'IN' }
                                    .map    { meta, prot, dna -> [ meta, prot ] }
     outgroup_prot_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'OUT' }
@@ -114,6 +134,14 @@ workflow {
                                    .map    { meta, prot, dna -> [ meta, prot ] }
     broad_out_dna_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUTGROUP' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
+
+    // UniProt cross-reference lookup (issue #92) -- run once for every species that
+    // set UniProtDatGz, regardless of IN/OUT/direction, and hand the whole collected
+    // list to both ANNOTATE calls below (see workflows/annotate.nf's take: comment for
+    // why passing it unfiltered to both directions is correct). Empty when no species
+    // in the config has a UniProtDatGz value.
+    UNIPROT_XREF(uniprot_xref_ch)
+    uniprot_xref_files = UNIPROT_XREF.out.tsv.collect().ifEmpty([])
 
     // Novelty-direction presence matrix + candidates. --cluster_tool selects the producer:
     //   pairwise (default) — the O(N^2) phmmer/diamond/blast SEARCH workflow.
@@ -262,7 +290,7 @@ workflow {
         novelty_tblastn_summary = VALIDATE.out.summary
     }
 
-    ANNOTATE(cand_fa, novelty_matrix, pfam_abs, sprot_abs, morgs_abs, '')
+    ANNOTATE(cand_fa, novelty_matrix, pfam_abs, sprot_abs, morgs_abs, '', uniprot_xref_files)
 
     SUMMARIZE(ANNOTATE.out.annotated_matrix, novelty_tblastn_summary, cand_cluster_tsv, file(params.config))
 
@@ -316,7 +344,7 @@ workflow {
     if (params.cluster_tool != 'novelty_discovery') {
         LOSS_VALIDATE(loss_cand_reps, ingroup_dna_ch, loss_cand_cluster_tsv, 'loss_tblastn_summary.tsv',
                       loss_candidates, 'loss_alignments', novelty_descriptions)
-        LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_')
+        LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_', uniprot_xref_files)
         loss_annotated_matrix = LOSS_ANNOTATE.out.annotated_matrix
         loss_tblastn_summary  = LOSS_VALIDATE.out.summary
     }
