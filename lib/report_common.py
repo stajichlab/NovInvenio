@@ -58,6 +58,43 @@ LOGO_CSS = r"""
   header.top .logo { width: 40px; height: 40px; border-radius: 8px; flex: 0 0 auto; }
 """
 
+# Top-of-page "up" navigation for the published two-tier gallery layout NII's
+# bin/sync_reports.sh/generate_docs.py relocates these pages into --
+# docs/<domain>/<set>/*.html sitting under docs/<domain>/index.html sitting
+# under docs/index.html (see that repo's DESIGN.md Sec 3/8). Every report page
+# a study produces (report.html, novelties.html, core.html, losses.html,
+# alignment.html) lives in the same <set> directory, so the relative paths
+# below are the same from any of them -- no per-page computation needed.
+# Degrades harmlessly (a dead relative link, nothing else on the page depends
+# on it) when a page is opened outside that layout, e.g. NovInvenio's own flat
+# results/<project>/ copies, or this repo's own -profile test smoke output --
+# same self-contained-but-context-optional philosophy as the rest of these
+# pages (they already assume no server, no guaranteed sibling files beyond
+# what each page embeds itself).
+BREADCRUMB_NAV_CSS = r"""
+  nav.breadcrumb { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  nav.breadcrumb a {
+    font-size: 11px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px;
+    text-decoration: none; color: var(--text-secondary); background: var(--surface-1);
+  }
+  nav.breadcrumb a:hover { border-color: var(--series-1); color: var(--text-primary); }
+"""
+
+
+def breadcrumb_nav_html(*, study: bool = True) -> str:
+    """The nav bar itself: Study folder -> Group gallery -> All studies (site root).
+
+    ``study=False`` omits the study-folder link -- pass it on report.html
+    itself, where linking to "report.html" would just point at the current
+    page.
+    """
+    links = []
+    if study:
+        links.append('<a href="report.html">&#128193; Study</a>')
+    links.append('<a href="../index.html">&#128194; Group</a>')
+    links.append('<a href="../../index.html">&#127968; All studies</a>')
+    return '<nav class="breadcrumb">' + ''.join(links) + '</nav>'
+
 # <head> snippet -- must run before first paint so a stored skin choice does
 # not flash the default palette. Wrap in <script>...</script> at the call site.
 SKIN_BOOT_JS = skin_boot_js()

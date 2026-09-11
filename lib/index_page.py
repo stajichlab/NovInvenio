@@ -18,6 +18,7 @@ from report_common import (
     ALIGNMENT_POPUP_HTML,
     ALIGNMENT_POPUP_JS,
     BASE_PAGE_CSS,
+    BREADCRUMB_NAV_CSS,
     FAVICON_LINK_HTML,
     LOGO_CSS,
     LOGO_IMG_HTML,
@@ -25,6 +26,7 @@ from report_common import (
     SKIN_PICKER_HTML,
     SKIN_PICKER_JS,
     SKIN_VARS_CSS,
+    breadcrumb_nav_html,
 )
 
 # What NovInvenio is, for a reader who arrived at the gallery from a link and
@@ -62,16 +64,17 @@ _EXTRA_CSS = r"""
 """
 
 
-def _page(title: str, body: str) -> str:
+def _page(title: str, body: str, *, nav_html: str = '') -> str:
     return (
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f'<title>{html.escape(title)}</title>\n'
         + FAVICON_LINK_HTML + '\n'
-        '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + _EXTRA_CSS + '</style>\n'
+        '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS
+        + _EXTRA_CSS + '</style>\n'
         '<script>' + SKIN_BOOT_JS + '</script>\n'
         '</head>\n<body>\n<div class="wrap">\n'
-        + body +
+        + nav_html + body +
         '\n</div>\n<script>\n(function () {\n  "use strict";\n'
         + SKIN_PICKER_JS +
         '})();\n</script>\n</body>\n</html>\n'
@@ -185,7 +188,8 @@ def render_project_page(
           '  </div>\n'
         + (f'  <footer>{html.escape(footer)}</footer>\n' if footer else '')
     )
-    return _page(f'{project} — NovInvenio reports', body)
+    return _page(f'{project} — NovInvenio reports', body,
+                 nav_html=breadcrumb_nav_html(study=False))
 
 
 def render_alignment_viewer_page() -> str:
@@ -220,11 +224,13 @@ def render_alignment_viewer_page() -> str:
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         '<title>TBLASTN alignment</title>\n'
         + FAVICON_LINK_HTML + '\n'
-        '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + ALIGNMENT_POPUP_CSS + '</style>\n'
+        '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + ALIGNMENT_POPUP_CSS
+        + BREADCRUMB_NAV_CSS + '</style>\n'
         '<script>' + SKIN_BOOT_JS + '</script>\n'
-        '</head>\n<body>\n'
+        '</head>\n<body>\n<div class="wrap">\n'
+        + breadcrumb_nav_html() + '\n'
         + ALIGNMENT_POPUP_HTML +
-        '\n<script>\n' + ALIGNMENT_POPUP_JS + '\n' + boot_js + '\n</script>\n</body>\n</html>\n'
+        '\n</div>\n<script>\n' + ALIGNMENT_POPUP_JS + '\n' + boot_js + '\n</script>\n</body>\n</html>\n'
     )
 
 

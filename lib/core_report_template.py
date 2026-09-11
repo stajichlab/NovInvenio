@@ -15,6 +15,7 @@ the canvas-based grid, built on the shared fragments in lib/report_common.py.
 
 from report_common import (
     BASE_PAGE_CSS,
+    BREADCRUMB_NAV_CSS,
     DOWNLOAD_JS,
     EL_HELPER_JS,
     EXTERNAL_LINKS_JS,
@@ -26,6 +27,7 @@ from report_common import (
     SKIN_PICKER_HTML,
     SKIN_PICKER_JS,
     SKIN_VARS_CSS,
+    breadcrumb_nav_html,
 )
 
 CORE_HTML_TEMPLATE = r"""<!doctype html>
@@ -36,12 +38,13 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 <title>__PROJECT_TITLE__ — NovInvenio core genes</title>
 """ + FAVICON_LINK_HTML + r"""
 <style>
-""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + r"""
+""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + r"""
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
 <div class="wrap">
+  """ + breadcrumb_nav_html() + r"""
   <header class="top">
     """ + LOGO_IMG_HTML + r"""
     <div class="titles">
