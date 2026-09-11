@@ -3,6 +3,19 @@
 Add gene_name, product_description, function_source, Best_Swissprot,
 Pfam_Names, and Model_Org_Gene_URL columns to presence_matrix.tsv.
 
+--uniprot_xref_files (optional, repeatable) adds a further, independent set of
+uniprot_*-prefixed columns (uniprot_accession, uniprot_gene_name, ..., uniprot_xrefs)
+from bin/build_uniprot_refseq_xref.py's per-species crosswalk TSVs -- keyed by
+protein_id, globally unique across species, so files from every proteome in the run
+can be passed together with no risk of collision. This is deliberately independent of
+the gene_name/product_description/Pfam_Names columns above (which come from this
+pipeline's own Pfam/SwissProt/modelorgs annotation, not UniProt's precomputed one) --
+uniprot_xrefs specifically is what lib/report_data.py's ROW_FIELDS reads to render the
+generic external-linkout registry in lib/report_common.py (see
+docs/superpowers/specs/2026-09-09-uniprot-xref-linkout-design.md). A protein with no
+matching crosswalk row (no UniProt proteome configured for its species, or no RefSeq
+DR-line match) simply gets empty uniprot_* columns -- never an error.
+
 Model_Org_Gene_URL is '' unless the modelorgs.yaml entry that resolved
 gene_name also sets gene_url_template (see lib/model_organisms.py) -- there is
 no default gene-lookup database to assume, since that varies per model
@@ -71,6 +84,30 @@ def parse_swissprot_hits(tsv_path):
     return hits
 
 
+UNIPROT_XREF_COLS = ['uniprot_accession', 'uniprot_gene_name', 'uniprot_description',
+                      'uniprot_go_ids', 'uniprot_pfam_ids', 'uniprot_pfam_names',
+                      'uniprot_interpro_ids', 'uniprot_ec_numbers', 'uniprot_alphafold_id',
+                      'uniprot_xrefs']
+
+
+def load_uniprot_xrefs(paths):
+    """Merge one or more bin/build_uniprot_refseq_xref.py TSVs, keyed by protein_id.
+
+    protein_id (an NCBI RefSeq accession) is globally unique across species, so files
+    from every proteome in a run can be merged with no collision risk -- a later file
+    overwriting an earlier one for the same protein_id would only ever happen if the
+    same accession were listed twice, which is itself worth surfacing rather than
+    silently picking one, but is not checked here (matches this script's existing
+    "first hit wins" style elsewhere, e.g. parse_swissprot_hits).
+    """
+    merged = {}
+    for path in paths:
+        with open(path) as fh:
+            for row in csv.DictReader(fh, delimiter='\t'):
+                merged[row['protein_id']] = row
+    return merged
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--matrix', required=True,
@@ -87,6 +124,10 @@ def main():
                     help='Diamond blastp outfmt "6 qseqid sseqid stitle" vs SwissProt')
     ap.add_argument('--candidates_fa',
                     help='FASTA file of candidate proteins; adds protein_sequence column when provided')
+    ap.add_argument('--uniprot_xref_files', nargs='+', default=[],
+                    help='One or more bin/build_uniprot_refseq_xref.py output TSVs '
+                         '(one per species with a configured UniProtDatGz); adds '
+                         'uniprot_*-prefixed columns, keyed by protein_id')
     ap.add_argument('--output', required=True,
                     help='Output TSV: presence_matrix.function.tsv')
     args = ap.parse_args()
@@ -109,6 +150,10 @@ def main():
     if args.candidates_fa:
         sequences = {rec_id: str(rec.seq) for rec_id, rec in read_fasta(args.candidates_fa).items()}
 
+    uniprot_xrefs: dict[str, dict] = {}
+    if args.uniprot_xref_files:
+        uniprot_xrefs = load_uniprot_xrefs(args.uniprot_xref_files)
+
     # --- annotate ---
     with open(args.matrix) as fin, open(args.output, 'w', newline='') as fout:
         reader = csv.DictReader(fin, delimiter='\t')
@@ -117,6 +162,8 @@ def main():
                       'Model_Org_Gene_URL']
         if args.candidates_fa:
             extra_cols.append('protein_sequence')
+        if args.uniprot_xref_files:
+            extra_cols.extend(UNIPROT_XREF_COLS)
         out_fields = list(reader.fieldnames) + extra_cols
         writer = csv.DictWriter(fout, fieldnames=out_fields, delimiter='\t',
                                 extrasaction='ignore', lineterminator='\n')
@@ -171,6 +218,10 @@ def main():
             row['Model_Org_Gene_URL'] = gene_url
             if args.candidates_fa:
                 row['protein_sequence'] = sequences.get(pid, '')
+            if args.uniprot_xref_files:
+                xref_row = uniprot_xrefs.get(pid, {})
+                for col in UNIPROT_XREF_COLS:
+                    row[col] = xref_row.get(col, '')
             writer.writerow(row)
 
 

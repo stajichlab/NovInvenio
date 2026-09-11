@@ -29,9 +29,16 @@ workflow ANNOTATE {
     output_prefix    // val: '' (novelty direction) or 'loss_' (loss direction) —
                       //   prefixes all three output filenames so a second ANNOTATE
                       //   call does not overwrite the first
+    uniprot_xref_files // path list: UNIPROT_XREF output TSVs, one per species with a
+                        //   configured UniProtDatGz (possibly empty — see main.nf's
+                        //   uniprot_xref_ch). Passed to both the novelty- and loss-
+                        //   direction ANNOTATE calls unfiltered; a file only matches
+                        //   rows whose protein_id came from that same species anyway,
+                        //   so there's no need to split it by direction.
 
     main:
-    ANNOTATE_MATRIX(candidates_fa, matrix, pfam_hmm, swissprot_dmnd, morgs_config, output_prefix)
+    ANNOTATE_MATRIX(candidates_fa, matrix, pfam_hmm, swissprot_dmnd, morgs_config,
+                    output_prefix, uniprot_xref_files)
 
     emit:
     annotated_matrix = ANNOTATE_MATRIX.out.matrix
@@ -54,6 +61,8 @@ process ANNOTATE_MATRIX {
     val(swissprot_dmnd)  // absolute path to SwissProt .dmnd, or ''
     val(morgs_config)    // absolute path to modelorgs YAML, or ''
     val(output_prefix)   // '' or 'loss_'
+    path(uniprot_xref_files) // UNIPROT_XREF TSVs, one per species (filenames are
+                              // already unique — meta.id is unique per config); [] when none
 
     output:
     path("${output_prefix}presence_matrix.function.tsv"), emit: matrix
@@ -107,9 +116,10 @@ process ANNOTATE_MATRIX {
         fi
         """ : "touch ${sprot_out}"
 
-    def pfam_flag  = pfam_hmm      ? "--pfam_hits ${pfam_out}"   : ''
-    def sprot_flag = swissprot_dmnd ? "--swissprot_hits ${sprot_out}" : ''
-    def morgs_flag = morgs_config  ? "--modelorgs_config ${morgs_config} --launch_dir ${projectDir}" : ''
+    def pfam_flag    = pfam_hmm      ? "--pfam_hits ${pfam_out}"   : ''
+    def sprot_flag   = swissprot_dmnd ? "--swissprot_hits ${sprot_out}" : ''
+    def morgs_flag   = morgs_config  ? "--modelorgs_config ${morgs_config} --launch_dir ${projectDir}" : ''
+    def uniprot_flag = uniprot_xref_files ? "--uniprot_xref_files ${uniprot_xref_files.join(' ')}" : ''
     """
     ${pfam_search}
     ${sprot_search}
@@ -119,6 +129,7 @@ process ANNOTATE_MATRIX {
         ${morgs_flag} \\
         ${pfam_flag} \\
         ${sprot_flag} \\
+        ${uniprot_flag} \\
         --output ${output_prefix}presence_matrix.function.tsv
     """
 }

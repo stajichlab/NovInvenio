@@ -21,6 +21,7 @@ between the three reports.
 """
 
 from report_common import (
+    BREADCRUMB_NAV_CSS,
     EL_HELPER_JS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
@@ -34,6 +35,7 @@ from report_common import (
     SKIN_PICKER_HTML,
     SKIN_PICKER_JS,
     SKIN_VARS_CSS,
+    breadcrumb_nav_html,
 )
 
 HTML_TEMPLATE = r"""<!doctype html>
@@ -295,12 +297,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     .explorer { grid-template-columns: 1fr; }
   }
   /*__ALIGNMENT_CSS__*/
-""" + HIT_INFO_POPUP_CSS + r"""
+""" + HIT_INFO_POPUP_CSS + BREADCRUMB_NAV_CSS + r"""
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
 <div class="wrap">
+  """ + breadcrumb_nav_html() + r"""
   <header class="top">
     """ + LOGO_IMG_HTML + r"""
     <div class="titles">

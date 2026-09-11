@@ -6,6 +6,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 NovInvenio identifies lineage-specific genes: proteins present in a defined ingroup (≥N% of members) but absent from all outgroup proteomes. It uses pairwise protein searches (phmmer/diamond/blast), self-vs-self paralog lookup, mmseqs2 clustering, TBLASTN validation against outgroup genomes, functional annotation (Pfam + SwissProt), and model-organism gene-name lookup to produce per-species novelty candidate tables.
 
+## This repo never holds analysis results (hard rule, 2026-09-11)
+
+NovInvenio is pipeline **source code only**. No real or test analysis run's output
+(`results/<project>/`, `docs/<project>/`) belongs anywhere in this checkout, even
+transiently — `results/` is gitignored but `docs/` is not (it holds this repo's own
+real, hand-written ADRs/agent docs/Sphinx site), and `Helpers.docsDir()` resolves the
+GitHub-Pages report copy as **a sibling of `--outdir`'s parent** — so an in-repo
+`--outdir` (even the gitignored `results/`) also writes a real project's report bundle
+straight into this repo's tracked `docs/`, indistinguishable at a glance from the real
+documentation living there. This happened for real on 2026-09-10/11 running a
+comparison study directly against this checkout; caught before anything was committed,
+but avoid it structurally instead of relying on catching it every time:
+
+- **Always route `--outdir` outside this checkout** for any real analysis run —
+  `NovInvenio_Investigations` (NII)'s `bin/run_study.sh` already does this correctly
+  (`--outdir "$NII_ROOT/results"`, a different repo entirely) and is the preferred way
+  to run a real study. If launching directly against this checkout for pipeline
+  development (`-profile test`, a throwaway smoke test), pass an explicit `--outdir`
+  pointing somewhere outside this repo (e.g. under `/tmp`, `$SCRATCH`, or NII's own
+  `results/`) — never the default or a path under this repo root.
+- **NII has its own, stricter rule about *how* it publishes those results** (release
+  -asset push for anything that grows with candidate/sequence data, never a git commit)
+  — see NII's own `CLAUDE.md`/`DESIGN.md` Sec 8. That rule exists precisely because
+  results *do* belong in NII, just never as committed git blobs; the rule here is
+  narrower and simpler: results don't belong in *this* repo at all, committed or not.
+
 ## Commands
 
 ```bash
@@ -46,7 +72,8 @@ NovInvenio/
 │   ├── mmseqs_cluster.nf          # MMSEQS_CLUSTER — mmseqs2 easy-cluster of candidates
 │   ├── tblastn.nf                 # TBLASTN — translated search vs outgroup genomes
 │   ├── hmmbuild.nf                # HMMBUILD (imported but not yet wired into cluster workflow)
-│   └── hmmsearch.nf               # HMMSEARCH (imported but not yet wired into cluster workflow)
+│   ├── hmmsearch.nf               # HMMSEARCH (imported but not yet wired into cluster workflow)
+│   └── uniprot_xref.nf            # UNIPROT_XREF — bin/build_uniprot_refseq_xref.py per species with a config UniProtDatGz column (issue #92)
 ├── workflows/
 │   ├── search.nf                  # SEARCH — pairwise search + self-hits + presence matrix (ingroup query)
 │   ├── loss_search.nf             # LOSS_SEARCH — same, outgroup query (loss-search direction)
@@ -62,7 +89,8 @@ NovInvenio/
 │   ├── build_presence_matrix.py   # Paralog-aware matrix construction + candidates.txt; --query-group IN|OUT
 │   ├── extract_candidates.py      # Pull candidate sequences from the given proteome FASTAs (ingroup or outgroup)
 │   ├── summarize_tblastn.py       # Aggregate per-genome TBLASTN TSVs → protein × genome matrix
-│   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns
+│   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns; --uniprot_xref_files adds uniprot_* columns (issue #92)
+│   ├── build_uniprot_refseq_xref.py# Cross-walk an NCBI RefSeq protein_id to its UniProt record via the DR RefSeq line (lib/uniprot_dat.py); feeds annotate_presence_matrix.py --uniprot_xref_files
 │   ├── make_novelties.py          # Per-species novelties.<SHORT>.tsv (with --skip_tblastn_filter option)
 │   ├── make_report.py             # Self-contained interactive novelties.html
 │   ├── make_core_report.py        # Self-contained interactive core.html (near-universal genes)
@@ -81,6 +109,7 @@ NovInvenio/
 │   ├── config_parser.py           # parse_config() → list[Sample]; short_to_group()
 │   ├── fasta.py                   # FASTA utilities
 │   ├── model_organisms.py         # ModelOrgAnnotator — YAML-driven gene name lookup
+│   ├── uniprot_dat.py             # parse_dat_gz() — UniProt .dat.gz DR-line parser (GO/Pfam/InterPro/AlphaFold/xrefs), ported from NovInvenio_Investigations' extract_dat_annotations.py
 │   ├── clusters.py                # build_families() + FamilyIndex — mmseqs cluster -> gene-family grouping
 │   ├── report_data.py             # build_payload() / build_core_payload() / build_losses_payload()
 │   ├── report_template.py         # HTML_TEMPLATE — the novelties.html page (canvas heatmap, HTML/CSS/JS, no deps)
@@ -185,6 +214,26 @@ view/                              # sibling of results/ — one shareable folde
      2. Pfam domain names (all unique domains per protein).
      3. SwissProt description (best hit, `sp|ACCN|ID` prefix stripped).
    - Adds columns: `gene_name`, `product_description`, `function_source`, `Best_Swissprot`, `Pfam_Names`.
+   - **UniProt cross-reference lookup (issue #92, optional).** For each species with a
+     `UniProtDatGz` config-CSV column set, `main.nf` runs `UNIPROT_XREF`
+     (`modules/uniprot_xref.nf` → `bin/build_uniprot_refseq_xref.py`), which cross-walks
+     that species' NCBI RefSeq protein IDs to their UniProt record via the record's own
+     `DR RefSeq;` line (parsed by `lib/uniprot_dat.py::parse_dat_gz`, not a sequence
+     search) — this is the reverse direction of a UniProt-native dataset, where
+     protein_id already equals the UniProt accession. All species' crosswalk TSVs are
+     collected and passed to `annotate_presence_matrix.py --uniprot_xref_files`, adding
+     `uniprot_accession`, `uniprot_gene_name`, `uniprot_description`, `uniprot_go_ids`,
+     `uniprot_pfam_ids`, `uniprot_pfam_names`, `uniprot_interpro_ids`,
+     `uniprot_ec_numbers`, `uniprot_alphafold_id`, and `uniprot_xrefs` columns —
+     deliberately independent of the `gene_name`/`Pfam_Names`/etc. columns above (which
+     come from this pipeline's own Pfam/SwissProt/modelorgs annotation, not UniProt's
+     precomputed one). `uniprot_xrefs` is what `lib/report_data.py`/`lib/report_common.py`
+     already render as the generic external-linkout registry (VEuPathDB/GeneID/RefSeq/
+     KEGG/EnsemblFungi — see `docs/superpowers/specs/2026-09-09-uniprot-xref-linkout-design.md`).
+     A species with no `UniProtDatGz` set (the common case — many proteomes have no
+     UniProt reference at all, e.g. *Schizophyllum commune*, checked 2026-09-10) is
+     simply absent from the crosswalk, not an error; real coverage on
+     `configs/agaricomycetes_v1.csv`'s other six species measured 89-100%.
    - Produces `presence_matrix.function.tsv`.
 
 6. **SUMMARIZE workflow** (`workflows/summarize.nf`):
@@ -737,6 +786,12 @@ IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,,Cimm,Pezi
   either (or the whole column) is never an error — see `lib/report_common.py`'s
   `genomeDbLink()`/`taxonomyLink()`.
 - `Strain` may be empty.
+- `UniProtDatGz` (issue #92) is optional, report/annotation-only, and never affects a
+  presence/novelty call. A basename resolved relative to `--data_dir` (also checked
+  under `uniprot_dat/`, `uniprot/`), pointing at a UniProt `{proteome}_{taxid}.dat.gz`
+  for that species — enables the UniProt cross-reference lookup described in the
+  ANNOTATE workflow section above. Omitting it is never an error; most species have no
+  UniProt reference proteome at all.
 - The config CSV filename (without `.csv`) becomes the results output subdirectory name.
 - `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs).
 - `GFF3` is optional (may be an empty cell, or the column may be omitted entirely from

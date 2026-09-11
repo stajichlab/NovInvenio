@@ -16,6 +16,7 @@ fraction, TBLASTN-vs-ingroup-genome flag) in place of the presence fraction.
 
 from report_common import (
     BASE_PAGE_CSS,
+    BREADCRUMB_NAV_CSS,
     DOWNLOAD_JS,
     EL_HELPER_JS,
     EXTERNAL_LINKS_JS,
@@ -27,6 +28,7 @@ from report_common import (
     SKIN_PICKER_HTML,
     SKIN_PICKER_JS,
     SKIN_VARS_CSS,
+    breadcrumb_nav_html,
 )
 
 LOSSES_HTML_TEMPLATE = r"""<!doctype html>
@@ -37,7 +39,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
 <title>__PROJECT_TITLE__ — NovInvenio candidate losses</title>
 """ + FAVICON_LINK_HTML + r"""
 <style>
-""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + r"""
+""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + r"""
   /* .badge / .badge.warn now live in BASE_PAGE_CSS and read var(--warn), so a
      skin owns the colour instead of this page hardcoding a light/dark pair. */
   /*__ALIGNMENT_CSS__*/
@@ -46,6 +48,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
 </head>
 <body>
 <div class="wrap">
+  """ + breadcrumb_nav_html() + r"""
   <header class="top">
     """ + LOGO_IMG_HTML + r"""
     <div class="titles">

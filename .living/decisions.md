@@ -1039,3 +1039,43 @@ Not yet swept/validated against a broader dataset before considering a default c
 
 **Tags**: novelty-discovery, bug-fix, correctness, family-hmm, coverage, promiscuous-domain,
 min-domain-evalue, controls, pezizo_set1, tdd
+
+## [2026-09-11] Directive update: no analysis results in NovInvenio; NII release-asset publishing extended beyond alignment shards
+
+**Context**: while running a real 7-species agaricomycetes comparison (pairwise/mmseqs/
+novelty_discovery `--cluster_tool` smoke test) directly against this checkout for
+convenience, `--outdir "$REPO_ROOT/results"` (this repo's own root) caused
+`Helpers.docsDir()` to resolve the GitHub-Pages report copy as a sibling of `results/`'s
+parent — i.e. straight into this repo's own real, git-tracked `docs/` (ADRs/agent
+docs/Sphinx site), not just the already-gitignored `results/`. Caught and deleted
+(untracked, nothing committed) before it did any real damage, but it's exactly the
+mistake the NovInvenio/NovInvenio_Investigations (NII) two-repo split exists to make
+structurally hard, and this repo's `CLAUDE.md` didn't say anything explicit against it.
+
+Separately, NII's own `.gitignore` had already been updated (ahead of its `DESIGN.md`/
+`CLAUDE.md` prose catching up) to extend the 2026-09-08 alignment-shard-only
+release-asset decision to the report bundle itself: `novelties.html`/`core.html`/
+`losses.html`/`summary.pdf` are release-asset-only now too (one real case reached
+105MB, over GitHub's 100MB file limit, 2026-09-10) via a new
+`bin/publish_report_release.sh`, alongside the existing `bin/publish_alignment_release.sh`.
+`report.html`/`alignment.html`/`archive/*.tsv.gz` stay committed (small, stable, don't
+grow with candidate data).
+
+**Decision**:
+1. NovInvenio's own `CLAUDE.md` now states explicitly: this repo never holds analysis
+   run output, committed or not — always route `--outdir` outside this checkout (NII's
+   `bin/run_study.sh` is the preferred path; a direct dev/smoke-test run must still pass
+   an explicit out-of-repo `--outdir`).
+2. NII's `DESIGN.md` Sec 8 and `CLAUDE.md`'s data-provenance rules were updated to
+   document the already-implemented `.gitignore` state accurately: the dividing line
+   for what's release-asset-only vs. committed is "does this file's size scale with
+   candidate/sequence count," not "is it under `docs/`."
+
+**Consequences**: no code changes, only directive/documentation updates in both repos
+(`NovInvenio/CLAUDE.md`; `NovInvenio_Investigations/CLAUDE.md` + `DESIGN.md` Sec 8).
+Prior real runs already migrated into NII this session (`agaricomycetes_pairwise`)
+follow the corrected convention automatically since they were published via
+`bin/run_study.sh`'s `-resume` against the already-updated `.gitignore`.
+
+**Tags**: repo-bloat, release-asset, docs, github-pages, two-repo-split, directive,
+provenance, publishing
