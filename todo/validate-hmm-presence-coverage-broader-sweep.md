@@ -5,7 +5,7 @@
 | **Date** | 2026-09-03 |
 | **Author** | Jason Stajich |
 | **Priority** | idea |
-| **Status** | open |
+| **Status** | partially resolved — see decision #17 |
 | **Category** | validation |
 | **Related analyses** | `.living/decisions.md` entries #12 and #13; `results/sweep_pezizo5_coverage/` |
 | **Related data** | `configs/pezizo5.csv`; `busco_pezizo5/` (5 IN-group + 6 OUT-group BUSCO runs) |
@@ -64,14 +64,32 @@ presence would be a bad trade we currently can't see.
 
 ## Acceptance Criteria
 
-- [ ] Broader grid run completed on at least pezizo5 (and ideally a second clade)
+- [x] Broader grid run completed on at least pezizo5 (and ideally a second clade) —
+      done: pezizo5 (decision #13) and `sordariales_shallow` (decision #17) both
+      independently rank `hmm_presence_cov=0.3, min_residues=100` best. A third clade,
+      `deep_broad_1kfg`, was attempted at real ADR-0002 scale (130 taxa) but is
+      confounded by an unrelated clustering-identity failure (`busco_recovery` 0.011,
+      see decision #17) — not usable evidence for this criterion either way, and its
+      remaining 2 grid points were deliberately not run for that reason.
 - [ ] `configs/controls/<clade>.controls.csv` populated for at least one clade, with
-      `recall`/`fp_rate` genuinely measured (not blank) in the sweep output
+      `recall`/`fp_rate` genuinely measured (not blank) in the sweep output — still
+      blocked on `bin/score_controls.py`, which remains Phase 2 / not yet built.
 - [ ] A `nextflow.config` default change for `--hmm_presence_cov` (or an explicit
       decision not to change it) backed by this broader evidence, logged in
-      `.living/decisions.md`
+      `.living/decisions.md` — evidence now supports changing the default to `0.3`
+      (two clades agree, every measured axis improves), but decision #17 deliberately
+      deferred pulling that trigger pending the `recall`/`fp_rate` signal above. Needs
+      an explicit go/no-go from the user.
 
 ## Notes
+
+**2026-09-10 update (decision #17):** the first bullet above is now satisfied for
+moderate/shallow divergence. The open work left under this todo is (a) build
+`bin/score_controls.py` + at least one clade's controls CSV, and (b) decide whether to
+flip the shipped default now on `presence_recovery`/`tblastn_removed` evidence alone, or
+wait for (a). `deep_broad_1kfg`'s clustering-identity failure is a separate, new
+follow-up (needs its own `min_seq_id`/`cov` sweep) and should get its own todo rather
+than staying folded into this one.
 
 Full background, the original bug reports (false novelty calls for real conserved
 genes), and the initial 4-point sweep's exact numbers are in `.living/decisions.md`
