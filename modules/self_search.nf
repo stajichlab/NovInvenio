@@ -4,6 +4,16 @@ nextflow.enable.dsl=2
 // with a relaxed e-value, so that the best non-self (rank-2) hit is captured
 // even when it would normally fail the significance threshold.
 // Results are stored in search_cache alongside regular pairwise hits.
+//
+// DIAMOND_SELF runs at --very-sensitive (not diamond's default fast mode used
+// by the pairwise DIAMOND_SEARCH/DIAMOND_SELF-equivalent cross-species search):
+// confirmed on real data (pezizo_set1, N. crassa) that default/--sensitive/
+// --more-sensitive modes miss the true HEX-1/eIF-5A within-genome paralog pair
+// entirely (zero hits even at -e 100), so the paralog-competition filter had no
+// paralog to compare against and a spurious HEX-1 "presence" call (from its
+// distant cross-hit to an outgroup's eIF-5A) went uncaught. --very-sensitive
+// finds the real pair (E=2.8e-06). Only 11 self-searches per study (one per
+// proteome, not O(species^2)), so the extra sensitivity cost is negligible.
 
 process PHMMER_SELF {
     label 'med_cpu'
@@ -54,6 +64,7 @@ process DIAMOND_SELF {
         --outfmt 6 qseqid sseqid evalue bitscore \
         --max-target-seqs 2 \
         --evalue 100 \
+        --very-sensitive \
         --threads ${task.cpus} \
         --quiet \
         --out ${prefix}.diamond.tsv

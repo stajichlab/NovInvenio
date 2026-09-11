@@ -43,6 +43,168 @@ Mcir, Scer, Spom. `ingroup_min_frac` default is 0.75 (>=4/5).
 | wsc | 5/5 | **strong** hits in Ccin (4.1e-48) and Mcir (4.4e-46) | **excluded from controls.csv** — contradicts clean lineage restriction; likely a broader WSC-domain family issue, not a paralog the competition filter would catch |
 | so/soft | 5/5 | **strong** hits in CneoH99/Ccin/Mcir/Scer (e-41 to e-58) | **excluded from controls.csv** — contradicts literature claim of Basidiomycota/yeast absence; needs its own investigation before reuse anywhere |
 
+## 2026-09-10 update: checked against the real post-fix rerun
+
+After the `DIAMOND_SELF --very-sensitive` fix and a fresh `pezizo_set1` run
+(`candidates.txt`, `presence_matrix.tsv`, `self_hits/Ncra.paralog_cutoffs.tsv`):
+
+- **hex-1**: confirmed fixed. Self-search now pairs hex-1 with eIF-5A (2.84e-06); the
+  Mcir presence column flipped 1->0; hex-1 is back in `candidates.txt`. Moved to
+  "ready to use" in `pezizo_set1.controls.csv`.
+- **lah, ada-1, ham-5, ham-8, spa-1**: all clean and all correctly present in
+  `candidates.txt` on the real run. Ready to use.
+- **spa-18**: re-flagged as **excluded**, not just "watch." Nirr's presence-matrix
+  column is `1` on the real run -- the paralog-competition filter did NOT disqualify
+  that weak cross-hit, so spa-18 does not make it into `candidates.txt` at all. Needs
+  its own root-cause before reuse (real distant ortholog in Nirr vs. an uncaught
+  paralog artifact).
+- **so/soft**: the real `presence_matrix.tsv` shows it as clean (absent in all 6
+  outgroup) -- but this **contradicts** the standalone `--very-sensitive` diamond
+  check above, which found strong hits (e-41 to e-58) in 4 outgroup species. The
+  pipeline's main pairwise search (`DIAMOND_SEARCH`, `modules/diamond.nf`) still runs
+  at diamond's *default* sensitivity, unlike the self-search (fixed to
+  `--very-sensitive`). so/soft's clean appearance in real output is most likely a
+  **false negative for outgroup presence caused by search insensitivity**, not
+  genuine lineage-restriction -- concrete evidence for
+  `todo/diamond-very-sensitive-main-search.md`, added there.
+
+## Negative controls (2026-09-10)
+
+Added 10 BUSCO-anchored negative controls (`NEG_BUSCO01`-`10`) to `pezizo_set1.controls.csv`,
+`anchor_type: busco`, `expected_call: core` (must never be called novel).
+
+**Used `fungi_odb12`, not `ascomycota_odb12`** (the user asked about ascomycota_odb12
+specifically): `ascomycota_odb12`'s single-copy guarantee only holds within Ascomycota.
+Three of `pezizo_set1`'s own outgroup proteomes are NOT Ascomycota (Ccin, CneoH99 =
+Basidiomycota; Mcir = Mucoromycota) -- an ascomycota_odb12 BUSCO gene has no guaranteed
+presence in those, so it wouldn't be a valid "must be universally present" negative for
+this specific 11-species panel. `fungi_odb12` (pan-fungal) is the correct choice for a
+negative control that must hold across the whole ingroup+outgroup set, and this study
+already has real `fungi_odb12` BUSCO runs for all 11 species (`NovInvenio/busco_pezizo5/`,
+BUSCO 6.0.0) -- no new BUSCO run was needed.
+
+Computed the intersection of "Complete" (single-copy) BUSCO IDs across all 11 species'
+`run_fungi_odb12/full_table.tsv`: **315 of 1122** BUSCOs are universally single-copy in
+this exact panel (a real, non-trivial floor below 1122 -- Nirr and Scer recover
+noticeably fewer BUSCOs overall, 713 and 780 of 1122, plausibly real reduced-genome
+biology for those two lineages, not just annotation completeness). 10 were picked as an
+initial representative sample (functional categories: translation, DNA replication/
+repair, transcription, proteasome, tRNA synthetase, vacuolar ATPase, general metabolism)
+-- easy to extend from the same 315-ID intersection later if a larger negative set is
+wanted.
+
+`anchor_type: busco` was used specifically because BUSCO's own per-species `Sequence`
+column ID (e.g. `NCU07852-t26_1-p1`) does NOT match this study's UniProt-sourced
+`Ncra.pep.fa` protein IDs (`sp|...|..._NEUCR`) -- the `busco_pezizo5/` BUSCO run was
+against a different (older, BFD/FGSC-era) Ncra gene-model set. `anchor_type: busco` sidesteps
+this ID mismatch entirely (the scorer is expected to resolve BUSCO ID -> family/candidate
+independent of which specific protein-ID scheme a run used), which is exactly why the
+controls-file template recommends it for negatives.
+
+## First real score_controls.py run (2026-09-10) -- against pezizo_set1_cluster (mmseqs pathway)
+
+`bin/score_controls.py` already existed (committed 2026-09-05, `66be3a2` era) but was
+built specifically for `--cluster_tool mmseqs`, not the pairwise pathway `pezizo_set1`
+itself uses -- so it was run against `pezizo_set1_cluster` (the mmseqs comparison study,
+same species/data) instead. Command + full per-control output:
+`results/pezizo_set1_cluster/controls_scoring/pezizo_set1.controls_scored.tsv` (+
+`.summary.tsv`, + `Ncra.busco_map.partial.tsv`, the busco_id->protein_id crosswalk built
+for this run -- only 5/10 BUSCO negatives resolved, see below).
+
+**Result: recall 0.400 (2/5 resolved), fp_rate 0.000 (0/5 resolved).**
+
+Per-control breakdown:
+
+| control | resolved family (rep) | call | outcome |
+|---|---|---|---|
+| hex-1 | Amega rep (A0ACF5BXR3) | not_novel | **miss** |
+| lah | -- | unresolved | protein not in any profiled family |
+| ada-1 | Amega rep (A0ACF5CBF7) | not_novel | **miss** |
+| ham-5 | itself (V5IN79) | not_novel | **miss** |
+| ham-8 | Cimm rep (J3K3I3) | novel | hit |
+| spa-1 | Cimm rep (J3K8R1) | novel | hit |
+| NEG_BUSCO02/03/04/05/08 | (resolved) | not_novel | tn (all 5 correct) |
+| NEG_BUSCO01/06/07/09/10 | -- | unresolved | NCU locus number didn't match any `GN=` tag in `Ncra.pep.fa` -- needs a real crosswalk (e.g. `config_support/modelorgs/Ncra_self_id_crosswalk.tsv`), not yet chased down |
+
+**Interpretation, not yet root-caused further**:
+- **hex-1 miss is expected, not a bug in the scorer**: the mmseqs/family-profile pathway
+  has no self-vs-self paralog-competition filter at all (ADR-0002's own stated
+  limitation), so it has no mechanism to disqualify the eIF-5A cross-hit the way the
+  pairwise pathway's fixed `DIAMOND_SELF` now does. This is real, first-hand evidence of
+  the tradeoff flagged earlier in this investigation: HMM-pathway sensitivity helps
+  *outgroup absence* detection but has no defense against *paralog* cross-reactivity --
+  a structurally different failure mode from pairwise's, not a strictly better one.
+- **lah unresolved** likely means it didn't cluster into a >=2-member family at all
+  (mmseqs `--cluster_tool mmseqs` drops true singletons per ADR-0002 decision 6) -- not
+  confirmed by inspecting the cluster TSV directly, just the most likely explanation.
+- **ada-1/ham-5 misses**: not investigated further. Could be real outgroup homology the
+  family HMM detects that pairwise diamond (even `--very-sensitive`) didn't, or a
+  clustering over-merge pulling in an unrelated family member. Open question.
+- Only 5/10 BUSCO negatives resolved because the BUSCO run's own protein IDs
+  (`NCU07852-t26_1-p1` style, from an older/different Ncra gene-model set) don't all
+  match this UniProt-sourced proteome's `GN=NCU#####` tags 1:1 -- 5 NCU numbers had no
+  `GN=` match at all in `Ncra.pep.fa`. Not chased further this session.
+
+## Root-caused: ada-1 / ham-5 misses, and the 5 remaining BUSCO ID mismatches (2026-09-10)
+
+**BUSCO ID mismatches**: chased down 9 of the original 10 via the real NCU locus tag ->
+gene-symbol lookup (`Ncra.gff3`) then a `GN=<symbol>` search in `Ncra.pep.fa` (5 matched
+directly on the bare NCU number; `rpn-6`/`leu-6`/`vma-4`/`mbf-1` needed the gene-symbol
+hop; `mbf-1` specifically was found by matching the BUSCO's own description text,
+"multiprotein bridging factor", not the locus tag). The 10th (`100036at4751`, generic
+"eukaryotic translation initiation factor 3", locus `NCU03876` has no assigned gene
+name and this genome has ~13 different eIF3-subunit proteins) was deliberately left
+unresolved rather than guessed -- `results/pezizo_set1_cluster/controls_scoring/Ncra.busco_map.partial.tsv`
+now has 9/10.
+
+**ada-1 and ham-5 misses, root-caused via the raw `family_hmmsearch/*.domtblout` files**:
+both are real, and both trace to the SAME mechanism -- a **promiscuous shared domain**
+fragmenting into two separate weak partial-domain hits whose *merged* span clears
+`hmm_presence_min_residues=100` even though neither individual domain match is
+biologically meaningful:
+
+- **ada-1**'s family rep's best Mcir hit (`S2JBT0_MUCC1`, "BZIP domain-containing
+  protein") has two HMM domain hits at hmm-coords 160-197 (37 aa, not independently
+  significant, domain i-Evalue 2.5e+03) and 260-334 (74 aa, i-Evalue 1.3e-06). Neither
+  alone reaches 100 residues or 50% of the 647-aa query length, but merged (111 aa
+  total) they clear the `min_residues=100` floor. Nearly every one of Mcir's dozen-plus
+  weak hits to this family is independently annotated "BZIP domain-containing protein"
+  -- ada-1 almost certainly carries a small, common bZIP-like motif shared by many
+  unrelated Mcir transcription factors, not a real ortholog.
+- **ham-5**'s family rep's best Mcir hit (`S2JCL3_MUCC1`, "Anaphase-promoting complex
+  subunit 4 WD40 domain-containing protein") shows the identical pattern: two weak
+  partial domain hits (110-230, 603-717 in HMM coordinates) to an unrelated WD40-repeat
+  protein, again likely a shared common motif, not orthology.
+
+This is a real, concrete false-positive-enabling side effect of the
+`hmm_presence_min_residues=100` alternative-to-coverage floor (added, per
+`nextflow.config`'s own comment, specifically to stop penalizing long multi-domain
+proteins for having only one conserved region) -- it can also let two *disjoint, weak,
+promiscuous-domain* partial hits merge past the same floor with no real full-protein
+homology behind them. This is exactly the kind of `fp_rate` evidence
+`todo/validate-hmm-presence-coverage-broader-sweep.md` has been missing (it only had a
+curation-free false-*absence* proxy via BUSCO recovery, never a real false-*presence*
+example) -- worth folding into that sweep's evidence before any default change.
+
+## Extended score_controls.py for the pairwise pathway (2026-09-10)
+
+`bin/score_controls.py` was family-mode-only (`--cluster-tsv`/`--families` required,
+hardcoding the mmseqs family-expansion step). Extended it to also support the pairwise
+pathway directly: if `--cluster-tsv`/`--families` are both omitted, every protein is
+treated as its own one-member "family" (`identity_membership()`), so the exact same
+`family_presence_vector()`/`family_call()` scoring path is reused unchanged for both
+producers -- consistent with ADR-0002's "same pivot, free UI" design (`fasta` anchors
+are the one exception: not yet supported in pairwise mode, no family HMM db exists to
+hmmsearch against; reported unresolved).
+
+Ran it against `pezizo_set1` itself (the pairwise run all these controls were originally
+verified against by hand): **recall 1.000 (6/6), fp_rate 0.000 (0/9)** -- exactly matches
+the manual `candidates.txt`/`presence_matrix.tsv` spot-checks earlier in this file, now
+automated and reusable for any future rerun or param-sweep grid point. Output:
+`results/pezizo_set1/controls_scoring/pezizo_set1.controls_scored.tsv` (+ `.summary.tsv`).
+One BUSCO negative (`100036at4751`, eIF3 subunit, `NCU03876`) is still unresolved --
+the one deliberately-not-guessed busco_map entry from the mismatch-chasing above.
+
 ## Caveats
 
 - `-` (no hit at e<=1 under `--very-sensitive`) is strong but not absolute evidence of

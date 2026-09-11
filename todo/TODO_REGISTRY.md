@@ -33,5 +33,6 @@ All future work items, ideas, and planned improvements for this project are trac
 | Rename novelty_discovery/novelty_screen GROUP labels for clarity | low | complete | chore | 2026-07-28 | Jason Stajich | [rename-novelty-discovery-group-labels.md](rename-novelty-discovery-group-labels.md) |
 | Dedup/filter alternative splice isoforms in GFF3-derived chrom/start rows | low | open | chore | 2026-08-07 | Jason Stajich | [gff3-isoform-dedup.md](gff3-isoform-dedup.md) |
 | Validate hmm_presence_cov/hmm_presence_min_residues against a broader grid + controls | idea | open | validation | 2026-09-03 | Jason Stajich | [validate-hmm-presence-coverage-broader-sweep.md](validate-hmm-presence-coverage-broader-sweep.md) |
+| Evaluate --very-sensitive for the main pairwise DIAMOND_SEARCH | medium | open | validation | 2026-09-10 | Jason Stajich | [diamond-very-sensitive-main-search.md](diamond-very-sensitive-main-search.md) |
 
 <!-- Add new entries above this line -->

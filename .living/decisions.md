@@ -676,6 +676,54 @@ sweep
 **Tags**: novelty-discovery, infrastructure, nextflow, slurm, session-lock, sweep,
 site-config, bug-fix
 
+17. **Broader-grid sweep results: `hmm_presence_cov=0.3, min_residues=100` confirmed on
+    a second clade; deep_broad_1kfg reveals a separate, unrelated clustering-identity
+    failure at large/deep scale (2026-09-10)** — closing out the sweep round started in
+    #14/#16. Final state of the three `hmm_presence_cov`{0.5,0.3}×`min_residues`{0,100}
+    grids (clustering params held at shipped `--min_seq_id 0.3 -c 0.8` throughout, per
+    #12's design — `busco_recovery` is blind to this grid by construction):
+    - **pezizo5** (4/4 points, 2026-09-03, from decision #13): best point `hc=0.3,r=100`
+      — `presence_recovery` 0.995, `tblastn_removed` 21/1107 (1.9%) vs shipped
+      `hc=0.5,r=0` at 0.960/554/1961 (28.2%).
+    - **sordariales_shallow** (4/4 points, 2026-09-03/04): reproduces the same ranking —
+      `hc=0.3,r=100` gives `presence_recovery` 1.0, `tblastn_removed` 27 (lowest of its 3
+      valid rows); `hc=0.5,r=0` came back fully zeroed (`run_ok=0`, a failed run for that
+      one grid point, not a parameter signal). Second independent clade, same direction
+      as pezizo5 — satisfies `todo/validate-hmm-presence-coverage-broader-sweep.md`'s
+      acceptance criterion of validating beyond one clade.
+    - **deep_broad_1kfg** (2/4 points; the other 2, `hc=0.3_r0`/`hc=0.3_r100`, never ran —
+      driver job cancelled 2026-09-08 with repeated `BUILD_FAMILY_PROFILES:BUILD_CHUNK`
+      errors). The one grid point with real metrics (`hc=0.5,r=0`) shows `busco_recovery`
+      collapsing to **0.011** (12/1122 single-copy BUSCOs recovered as one family, 636
+      split across multiple families, vs pezizo5's 845/1122 at 0.753) and `run_ok=0` on
+      both completed rows. Since `min_seq_id`/`cov` are fixed across this whole grid, this
+      is a clustering-identity failure at 130-taxon/broad-divergence scale, orthogonal to
+      the `hmm_cov`/`min_residues` parameters this sweep tests — `busco_recovery`'s
+      insensitivity to this grid (the same property decision #13 relied on to confirm it
+      *isn't* measuring presence-calling) means it also can't be rescued by finishing the
+      remaining 2 points. **Decision: do not run deep_broad_1kfg's remaining 2 grid
+      points as currently configured** — they would inherit the same broken family
+      assignment and add no evidence either way on `hmm_cov`/`min_residues`. If
+      deep_broad_1kfg is revisited, it needs its own `min_seq_id`/`cov` sweep first (a
+      different question from this todo), logged separately.
+    - **What this still does not establish** (todo's second acceptance criterion,
+      unchanged from #13): `recall`/`fp_rate` from curated controls remain unmeasured on
+      all three clades — `bin/score_controls.py` is still Phase 2/not built
+      (`configs/controls/README.md`), and no `pezizo5.controls.csv` /
+      `sordariales_shallow.controls.csv` / `deep_broad_1kfg.controls.csv` exist (only
+      `Chaetothyriales.controls.csv` does, unused by these three sweeps). The ranking
+      above still rests on `presence_recovery` + `tblastn_removed` read by eye, not a
+      precision-aware composite.
+    - **Shipped default left unchanged**: `nextflow.config`'s `hmm_presence_cov=0.5` /
+      `hmm_presence_min_residues=100` still stand. Two clades now agree
+      `hmm_presence_cov=0.3` is better on every measured axis, but per the same
+      conservative reasoning as decision #13 (real precision signal still missing),
+      flipping the shipped default is a separate decision requiring an explicit
+      go/no-go, not a byproduct of closing out this sweep round.
+
+**Tags**: novelty-discovery, coverage-floor, hmm-presence, sweep, busco, clustering,
+sordariales-shallow, deep-broad-1kfg, adr-0002, parameter-tuning, todo-closeout
+
 ---
 
 ### [2026-09-05] Report presentation: one skin registry, one linkout builder, one landing-page design
@@ -885,3 +933,53 @@ GitHub, defaulting `ref` to `main` so the "always live" property is preserved, w
 letting someone deliberately pin a tag/commit when they want reproducibility over
 freshness. User's own words: "I think in time we will make a github archive to pull from
 but can leave as is for now."
+
+## [2026-09-10] Fixed: DIAMOND_SELF's default sensitivity missed the HEX-1/eIF-5A paralog pair, defeating the paralog-competition filter
+
+**Context**: Investigating why `pezizo_set1` (in `NovInvenio_Investigations`) doesn't
+report **HEX1_NEUCR** (`P87252`, Woronin body major protein, `hex-1`) as a novelty
+candidate — the same gene/paralog pair behind the original HEX-1/eIF-5A false-positive
+fix (decision above, "Singleton screening"). This time the failure mode is different:
+HEX1_NEUCR is called *present* in the outgroup Mcir (`presence_matrix.tsv`,
+`evalue=3.37e-12` against `S2K710_MUCC1`), which I confirmed by direct FASTA header
+lookup is **Mucor's eIF-5A**, not a real HEX1 ortholog (Mucorales lack Woronin bodies) —
+a genuine cross-hit to the ancestral eIF-5A duplication this species retains.
+
+The paralog-competition filter (`lib/singleton_presence.py`/`build_presence_matrix.py`
+filter 2) exists exactly to catch this: disqualify a hit if the query's own
+within-genome paralog scores better against the same target. It requires the self-vs-self
+search (`DIAMOND_SELF`, `modules/self_search.nf`) to correctly identify eIF-5A
+(`IF5A_NEUCR`, `P38672`) as HEX1's within-*N. crassa* paralog. It didn't:
+`results/pezizo_set1/search_cache/Ncra_vs_Ncra.diamond.tsv.gz` shows HEX1's only recorded
+non-self hit is noise (`Q7S1X2_NEUCR`, E=25.3) — **eIF-5A never appears as a hit at all**,
+even at the self-search's permissive `-e 100` cutoff.
+
+Reproduced directly with `diamond blastp` against the real *N. crassa* proteome
+(`data_dir/pep/Ncra.pep.fa`): default mode and `--sensitive`/`--more-sensitive` all miss
+the HEX1/eIF-5A pair entirely (zero hits, any e-value); `--very-sensitive` and
+`--ultra-sensitive` both find it (E=2.84e-06). This is a real diamond default-mode
+sensitivity gap for this specific divergent, short, ancient paralog pair — not a filter-logic
+bug; filter 2 itself is unaffected.
+
+**Fix**: `DIAMOND_SELF` now runs with `--very-sensitive` (was diamond's default fast
+mode). Only 11 self-searches for `pezizo_set1` (one per proteome, not the O(species^2)
+pairwise searches), so the sensitivity cost is negligible — confirmed this is isolated
+from the main pairwise `DIAMOND_SEARCH` (`modules/diamond.nf`), which still runs default
+mode and is unaffected by this change.
+
+**All studies using `--cluster_tool pairwise`/`novelty_discovery`/`novelty_screen` with
+`--run_tool diamond` should be considered for re-run** — any protein whose true
+within-genome paralog was previously undetected (like HEX1) could have had a spurious
+outgroup "presence" call slip past filter 2 uncaught. Not yet re-run project-wide as of
+this entry.
+
+**Deferred**: whether the *main* pairwise `DIAMOND_SEARCH` should also move to
+`--very-sensitive` — benchmarked on real data (Ncra vs Mcir): ~3.9x slower (2.4s → 9.1s)
+and 1,302 additional Ncra proteins (~13% of the proteome) gain a Mcir hit under
+`--very-sensitive` that default mode misses entirely, plus 362 more change their best-hit
+target. That's a project-wide, all-studies-affecting change at real compute cost, not a
+targeted bug fix — tracked separately as
+`todo/diamond-very-sensitive-main-search.md` rather than decided here.
+
+**Tags**: novelty-discovery, bug-fix, correctness, paralog-competition, diamond,
+sensitivity, self-search, hex-1, pezizo_set1

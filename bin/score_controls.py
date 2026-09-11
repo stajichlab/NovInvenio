@@ -15,6 +15,18 @@ compares it to the control's `expected_call`:
 One recall + FP number per run, so the parameter sweep (issue #6) can score each grid
 point on biology, not just candidate counts.
 
+Supports both presence-matrix producers, since both emit the same matrix/candidates
+contract (ADR-0002 "same pivot, free UI"):
+
+  * **family mode** (`--cluster_tool mmseqs`) — pass --cluster-tsv and --families; a
+    control's protein anchor is expanded to its whole gene family (via cluster
+    membership) before reading presence, matching profile_to_matrix.py's keep-rule.
+  * **pairwise mode** (`--cluster_tool pairwise`, the default pathway) — omit both
+    --cluster-tsv and --families; a control's protein anchor is scored directly against
+    its own presence_matrix.tsv row (one row per protein, no family expansion), matching
+    build_presence_matrix.py's keep-rule. `fasta` anchors are not yet supported in this
+    mode (no family HMM db to hmmsearch against) and are reported unresolved.
+
 Anchor resolution (`anchor_type` column):
   * protein_id — direct: the protein's gene family (via the mmseqs cluster membership).
   * fasta      — a sequence under configs/controls/seqs/: hmmsearch the family HMM db
@@ -99,6 +111,18 @@ def load_family_membership(cluster_tsv, keep_reps):
             if rep in keep_reps:
                 member_to_rep[member] = rep
                 rep_to_members[rep].append(member)
+    return member_to_rep, rep_to_members
+
+
+def identity_membership(matrix):
+    """Pairwise-mode (member_to_rep, rep_to_members): every protein is its own
+    one-member 'family' — build_presence_matrix.py already produces one row per
+    protein with its own novelty verdict, so no cluster expansion is needed; this just
+    lets score_controls() reuse the exact same family_presence_vector()/family_call()
+    path as family mode (ADR-0002's "same pivot" contract)."""
+    ids = matrix['protein_id'].tolist()
+    member_to_rep = {pid: pid for pid in ids}
+    rep_to_members = {pid: [pid] for pid in ids}
     return member_to_rep, rep_to_members
 
 
@@ -290,10 +314,12 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--controls', required=True, help='configs/controls/<clade>.controls.csv')
     ap.add_argument('--matrix', required=True, help="run's presence_matrix.tsv")
-    ap.add_argument('--cluster-tsv', required=True, dest='cluster_tsv',
-                    help='mmseqs *_cluster.tsv (rep_id<TAB>member_id)')
-    ap.add_argument('--families', required=True,
-                    help='families.tsv (profiled families index)')
+    ap.add_argument('--cluster-tsv', default=None, dest='cluster_tsv',
+                    help='mmseqs *_cluster.tsv (rep_id<TAB>member_id) — family mode only; '
+                         'omit together with --families to score a pairwise-pathway run')
+    ap.add_argument('--families', default=None,
+                    help='families.tsv (profiled families index) — family mode only; '
+                         'omit together with --cluster-tsv to score a pairwise-pathway run')
     ap.add_argument('--config', required=True, help='analysis description CSV (IN/OUT groups)')
     ap.add_argument('--profiles', default=None,
                     help='family_profiles.hmm — required only for fasta anchors')
@@ -307,11 +333,18 @@ def main():
                     help='optional summary TSV (defaults next to --output as *.summary.tsv)')
     args = ap.parse_args()
 
+    if bool(args.cluster_tsv) != bool(args.families):
+        sys.exit('--cluster-tsv and --families must be given together (family mode) '
+                 'or both omitted (pairwise mode)')
+
     controls, n_skipped = load_controls(args.controls)
     matrix = pd.read_csv(args.matrix, sep='\t')
     samples = parse_config(args.config)
-    profiled_reps = load_profiled_reps(args.families)
-    member_to_rep, rep_to_members = load_family_membership(args.cluster_tsv, profiled_reps)
+    if args.cluster_tsv:
+        profiled_reps = load_profiled_reps(args.families)
+        member_to_rep, rep_to_members = load_family_membership(args.cluster_tsv, profiled_reps)
+    else:
+        member_to_rep, rep_to_members = identity_membership(matrix)
     busco_map = load_busco_map(args.busco_map)
     controls_dir = Path(args.controls).resolve().parent
 
