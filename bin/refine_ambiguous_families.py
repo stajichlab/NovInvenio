@@ -156,5 +156,170 @@ def split_family(members, edges, paralog_map):
     return connected_components(members, remaining)
 
 
+# ------------------------------------------------------------------- sequences
+def extract_needed_sequences(pep_paths, needed_ids):
+    """protein_id -> sequence, scanning each --Short.pep.fa once, keeping only ids
+    in needed_ids (the union of every ambiguous family's members) -- avoids loading
+    whole proteomes when only a small fraction of their proteins are needed."""
+    seqs = {}
+    remaining = set(needed_ids)
+    for path in pep_paths.values():
+        if not remaining:
+            break
+        current_id, chunks = None, []
+        with open(path) as fh:
+            for line in fh:
+                line = line.rstrip('\n')
+                if line.startswith('>'):
+                    if current_id in remaining:
+                        seqs[current_id] = ''.join(chunks)
+                        remaining.discard(current_id)
+                    current_id = line[1:].split()[0]
+                    chunks = []
+                else:
+                    chunks.append(line)
+            if current_id in remaining:
+                seqs[current_id] = ''.join(chunks)
+                remaining.discard(current_id)
+    return seqs
+
+
+def write_fasta(seqs, path):
+    with open(path, 'w') as fh:
+        for pid, seq in seqs.items():
+            fh.write(f'>{pid}\n{seq}\n')
+
+
+def run_diamond_within_family(fasta_path, cpus=1):
+    """One diamond makedb + blastp all-vs-all over the combined ambiguous-family
+    FASTA (not per-family -- process-startup overhead would dominate at ~1000+
+    families). Returns the path to the raw outfmt-6 hits file."""
+    db_path = fasta_path.with_suffix('.dmnd')
+    subprocess.run(['diamond', 'makedb', '--in', str(fasta_path), '--db', str(db_path)],
+                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    hits_path = fasta_path.with_suffix('.hits.tsv')
+    subprocess.run([
+        'diamond', 'blastp', '--very-sensitive', '--threads', str(cpus),
+        '--query', str(fasta_path), '--db', str(db_path),
+        '--outfmt', '6', 'qseqid', 'sseqid', 'evalue', 'bitscore',
+        '--out', str(hits_path),
+    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return hits_path
+
+
+# --------------------------------------------------------------------- output
+def write_refined_families(fam_members, ambiguous_reps, subfamilies_by_rep,
+                           out_cluster_tsv, out_families_tsv):
+    """Same rep<TAB>member / families.tsv-index shape as the pipeline's own
+    families_cluster.tsv + families.tsv, so score_controls.py's existing
+    --cluster-tsv/--families loaders consume this file unmodified. Non-ambiguous
+    families pass through verbatim; ambiguous ones are replaced by their split
+    subfamilies, each keyed by its own first member as the new representative."""
+    with open(out_cluster_tsv, 'w') as cfh, open(out_families_tsv, 'w') as ffh:
+        ffh.write('family_index\trepresentative_id\tn_members\n')
+        idx = 0
+        for rep, members in fam_members.items():
+            if rep not in ambiguous_reps:
+                idx += 1
+                ffh.write(f'fam_{idx:06d}\t{rep}\t{len(members)}\n')
+                for m in members:
+                    cfh.write(f'{rep}\t{m}\n')
+                continue
+            for subfamily in subfamilies_by_rep.get(rep, [members]):
+                new_rep = subfamily[0]
+                idx += 1
+                ffh.write(f'fam_{idx:06d}\t{new_rep}\t{len(subfamily)}\n')
+                for m in subfamily:
+                    cfh.write(f'{new_rep}\t{m}\n')
+
+
+# ------------------------------------------------------------------------ main
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--cluster-tsv', required=True, dest='cluster_tsv',
+                    help="run's families_cluster.tsv (rep<TAB>member)")
+    ap.add_argument('--families', required=True,
+                    help="run's families.tsv (profiled families index)")
+    ap.add_argument('--matrix', required=True,
+                    help="run's presence_matrix.tsv (for protein_id -> source_proteome "
+                         "and the near-miss-novelty check)")
+    ap.add_argument('--oversized-families', default=None, dest='oversized_families',
+                    help="run's oversized_families.tsv (excluded from refinement)")
+    ap.add_argument('--config', required=True, help='Analysis description CSV')
+    ap.add_argument('--pep', nargs='+', required=True,
+                    help='Short=path.pep.fa pairs for every ingroup proteome')
+    ap.add_argument('--self-hits', nargs='+', required=True, dest='self_hits',
+                    help='self_hits/<Short>.paralog_cutoffs.tsv files (already '
+                         'published by the pairwise run for these same genomes)')
+    ap.add_argument('--ingroup-min-frac', type=float, default=0.75, dest='ingroup_min_frac')
+    ap.add_argument('--other-max-frac', type=float, default=0.0, dest='other_max_frac')
+    ap.add_argument('--diamond-evalue', type=float, default=DEFAULT_DIAMOND_EVALUE,
+                    dest='diamond_evalue')
+    ap.add_argument('--cpus', type=int, default=1)
+    ap.add_argument('--tmp-dir', default=None, dest='tmp_dir')
+    ap.add_argument('--output-cluster-tsv', required=True, dest='output_cluster_tsv')
+    ap.add_argument('--output-families', required=True, dest='output_families')
+    args = ap.parse_args()
+
+    import pandas as pd  # local import: only main() needs it, unlike the pure fns above
+
+    samples = parse_config(args.config)
+    ingroup_ids = {s.short for s in samples if s.group in INGROUP_ROLES}
+    outgroup_ids = {s.short for s in samples if s.group in OUTGROUP_ROLES}
+    pep_paths = {}
+    for pair in args.pep:
+        short, path = pair.split('=', 1)
+        pep_paths[short] = Path(path)
+
+    matrix = pd.read_csv(args.matrix, sep='\t')
+    protein_to_proteome = dict(zip(matrix['protein_id'], matrix['source_proteome']))
+
+    fam_members = defaultdict(list)
+    with open(args.cluster_tsv) as fh:
+        for line in fh:
+            rep, member = line.rstrip('\n').split('\t')[:2]
+            fam_members[rep].append(member)
+    fam_members = dict(fam_members)
+
+    oversized_reps = set()
+    if args.oversized_families:
+        with open(args.oversized_families) as fh:
+            header = fh.readline()
+            del header
+            for line in fh:
+                parts = line.rstrip('\n').split('\t')
+                if parts and parts[0]:
+                    oversized_reps.add(parts[0])
+
+    ambiguous = detect_ambiguous_families(
+        fam_members, protein_to_proteome, ingroup_ids, outgroup_ids,
+        oversized_reps, args.ingroup_min_frac, args.other_max_frac)
+    print(f'{len(ambiguous)} / {len(fam_members)} families flagged ambiguous', file=sys.stderr)
+
+    paralog_map = load_paralog_map(args.self_hits)
+
+    tmp_dir = Path(args.tmp_dir) if args.tmp_dir else Path(tempfile.mkdtemp())
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    needed_ids = {m for rep in ambiguous for m in fam_members[rep]}
+    seqs = extract_needed_sequences(pep_paths, needed_ids)
+    combined_fasta = tmp_dir / 'ambiguous_family_members.fa'
+    write_fasta(seqs, combined_fasta)
+
+    subfamilies_by_rep = {}
+    if ambiguous:
+        hits_path = run_diamond_within_family(combined_fasta, cpus=args.cpus)
+        with open_input(hits_path) as fh:
+            all_edges = build_within_family_edges(PARSERS['diamond'](fh), args.diamond_evalue)
+        for rep in ambiguous:
+            members = fam_members[rep]
+            member_set = set(members)
+            family_edges = {e for e in all_edges if e <= member_set}
+            subfamilies_by_rep[rep] = split_family(members, family_edges, paralog_map)
+
+    write_refined_families(fam_members, ambiguous, subfamilies_by_rep,
+                           args.output_cluster_tsv, args.output_families)
+
+
 if __name__ == '__main__':
-    pass  # main() wired in Task 4
+    main()

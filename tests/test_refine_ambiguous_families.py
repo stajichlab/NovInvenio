@@ -56,3 +56,45 @@ def test_detect_ambiguous_families_excludes_oversized():
         fam_members, p2p, {'In1', 'In2'}, {'Out1'}, oversized_reps={'big_rep'},
         ingroup_min_frac=0.75, other_max_frac=0.0)
     assert ambiguous == set()
+
+
+def test_extract_needed_sequences(tmp_path):
+    fa1 = tmp_path / 'In1.pep.fa'
+    fa1.write_text(">a desc one\nMKV\n>b desc two\nMKL\n")
+    fa2 = tmp_path / 'In2.pep.fa'
+    fa2.write_text(">c desc three\nMKA\n>d desc four\nMKD\n")
+    seqs = raf.extract_needed_sequences({'In1': fa1, 'In2': fa2}, needed_ids={'a', 'd'})
+    assert seqs == {'a': 'MKV', 'd': 'MKD'}
+
+
+def test_write_fasta(tmp_path):
+    out = tmp_path / 'out.fa'
+    raf.write_fasta({'a': 'MKV', 'b': 'MKL'}, out)
+    text = out.read_text()
+    assert text == ">a\nMKV\n>b\nMKL\n"
+
+
+def test_write_refined_families_passthrough_and_split(tmp_path):
+    fam_members = {'rep1': ['x', 'y'], 'hex1_rep': ['hex1', 'eif5a', 'orth_in2']}
+    ambiguous = {'hex1_rep'}
+    subfamilies = {'hex1_rep': [['hex1', 'orth_in2'], ['eif5a']]}
+    out_cluster = tmp_path / 'refined_cluster.tsv'
+    out_families = tmp_path / 'refined_families.tsv'
+    raf.write_refined_families(fam_members, ambiguous, subfamilies, out_cluster, out_families)
+
+    cluster_lines = set(out_cluster.read_text().splitlines())
+    # rep1 passes through unchanged (not ambiguous).
+    assert 'rep1\tx' in cluster_lines
+    assert 'rep1\ty' in cluster_lines
+    # hex1_rep is split: each subfamily keyed by its own first member as new rep.
+    assert 'hex1\thex1' in cluster_lines
+    assert 'hex1\torth_in2' in cluster_lines
+    assert 'eif5a\teif5a' in cluster_lines
+    assert 'hex1_rep\thex1' not in cluster_lines  # old rep gone for the split family
+
+    families_lines = out_families.read_text().splitlines()
+    assert families_lines[0] == 'family_index\trepresentative_id\tn_members'
+    body = {line.split('\t')[1]: line.split('\t')[2] for line in families_lines[1:]}
+    assert body['rep1'] == '2'
+    assert body['hex1'] == '2'
+    assert body['eif5a'] == '1'
