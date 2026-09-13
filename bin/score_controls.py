@@ -235,15 +235,35 @@ def resolve_anchor(row, member_to_rep, busco_map, controls_dir, profiles_hmm, cp
     return None, f'unknown anchor_type: {atype!r}'
 
 
+def build_cluster_membership_presence(rep_to_members, protein_to_proteome, proteome_cols):
+    """rep -> {proteome_short: 0/1} from raw cluster membership alone (no HMM/matrix).
+
+    Tier C (raw mmseqs membership) and Tier R (refined membership) both call
+    score_controls() with presence_mode='cluster_membership' and this as the
+    precomputed presence source -- the only difference between the two tiers is
+    which --cluster-tsv/--families files were loaded into rep_to_members upstream.
+    """
+    presence = {}
+    for rep, members in rep_to_members.items():
+        proteomes = {protein_to_proteome[m] for m in members if m in protein_to_proteome}
+        presence[rep] = {p: int(p in proteomes) for p in proteome_cols}
+    return presence
+
+
 def score_controls(controls, matrix, member_to_rep, rep_to_members, samples,
                    ingroup_min_frac, other_max_frac, busco_map, controls_dir,
-                   profiles_hmm, cpus):
+                   profiles_hmm, cpus, presence_mode='hmm', protein_to_proteome=None):
     proteome_cols = [c for c in matrix.columns if c not in META_COLS]
     # Coarse banding (see config_parser.INGROUP_ROLES/OUTGROUP_ROLES): must match
     # profile_to_matrix.py's/build_presence_matrix.py's keep-rule groups exactly, or
     # recall/FP-rate here silently diverge from what the pipeline itself called.
     ingroup_ids = [s.short for s in samples if s.group in INGROUP_ROLES and s.short in proteome_cols]
     outgroup_ids = [s.short for s in samples if s.group in OUTGROUP_ROLES and s.short in proteome_cols]
+
+    cluster_presence = None
+    if presence_mode == 'cluster_membership':
+        cluster_presence = build_cluster_membership_presence(
+            rep_to_members, protein_to_proteome or {}, proteome_cols)
 
     results = []
     for row in controls:
@@ -255,11 +275,16 @@ def score_controls(controls, matrix, member_to_rep, rep_to_members, samples,
 
         actual = 'unresolved'
         if rep is not None:
-            presence = family_presence_vector(matrix, rep_to_members.get(rep, []),
-                                              proteome_cols)
-            if presence is None:
-                rep, note = None, 'family has no matrix rows'
+            if presence_mode == 'cluster_membership':
+                presence = cluster_presence.get(rep)
+                if presence is None:
+                    rep, note = None, 'family has no cluster members'
             else:
+                presence = family_presence_vector(matrix, rep_to_members.get(rep, []),
+                                                  proteome_cols)
+                if presence is None:
+                    rep, note = None, 'family has no matrix rows'
+            if presence is not None:
                 actual = family_call(presence, ingroup_ids, outgroup_ids,
                                      ingroup_min_frac, other_max_frac)
 
@@ -328,6 +353,13 @@ def main():
     ap.add_argument('--ingroup-min-frac', type=float, default=0.75, dest='ingroup_min_frac')
     ap.add_argument('--other-max-frac', type=float, default=0.0, dest='other_max_frac')
     ap.add_argument('--cpus', type=int, default=1, help='hmmsearch --cpu for fasta anchors')
+    ap.add_argument('--presence-mode', choices=['hmm', 'cluster_membership'],
+                    default='hmm', dest='presence_mode',
+                    help="'hmm' (default): read presence from --matrix (unchanged "
+                         "behavior). 'cluster_membership': ignore --matrix's presence "
+                         "columns and build presence purely from --cluster-tsv "
+                         "membership (Tier C/Tier R scoring) -- requires --cluster-tsv/"
+                         "--families (family mode only).")
     ap.add_argument('--output', required=True, help='per-control results TSV')
     ap.add_argument('--summary', default=None,
                     help='optional summary TSV (defaults next to --output as *.summary.tsv)')
@@ -345,13 +377,18 @@ def main():
         member_to_rep, rep_to_members = load_family_membership(args.cluster_tsv, profiled_reps)
     else:
         member_to_rep, rep_to_members = identity_membership(matrix)
+    if args.presence_mode == 'cluster_membership' and not args.cluster_tsv:
+        sys.exit('--presence-mode cluster_membership requires --cluster-tsv/--families '
+                 '(family mode only)')
+    protein_to_proteome = dict(zip(matrix['protein_id'], matrix['source_proteome']))
     busco_map = load_busco_map(args.busco_map)
     controls_dir = Path(args.controls).resolve().parent
 
     results = score_controls(
         controls, matrix, member_to_rep, rep_to_members, samples,
         args.ingroup_min_frac, args.other_max_frac, busco_map, controls_dir,
-        args.profiles, args.cpus,
+        args.profiles, args.cpus, presence_mode=args.presence_mode,
+        protein_to_proteome=protein_to_proteome,
     )
 
     fields = ['control_id', 'class', 'expected_call', 'anchor_type',

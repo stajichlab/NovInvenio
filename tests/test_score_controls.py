@@ -173,3 +173,45 @@ def test_fasta_anchor_missing_file_is_unresolved(tmp_path):
     results, _ = _run(tmp_path)
     assert results.loc['FASTA01', 'actual_call'] == 'unresolved'
     assert 'not found' in results.loc['FASTA01', 'note']
+
+
+def test_build_cluster_membership_presence_from_membership_alone():
+    # fam rep pA1 has members pA1(In1), pA2(In2) -- present in In1+In2, absent Out1.
+    # fam rep pB1 has members pB1(In1), pB1x(Out1) -- present in In1+Out1.
+    rep_to_members = {'pA1': ['pA1', 'pA2'], 'pB1': ['pB1', 'pB1x']}
+    protein_to_proteome = {'pA1': 'In1', 'pA2': 'In2', 'pB1': 'In1', 'pB1x': 'Out1'}
+    cols = ['In1', 'In2', 'Out1']
+    presence = sc.build_cluster_membership_presence(rep_to_members, protein_to_proteome, cols)
+    assert presence == {
+        'pA1': {'In1': 1, 'In2': 1, 'Out1': 0},
+        'pB1': {'In1': 1, 'In2': 0, 'Out1': 1},
+    }
+
+
+def test_score_controls_cluster_membership_mode_ignores_matrix_presence_columns(tmp_path):
+    # Matrix says pA1/pA2 are present everywhere (as if HMM over-called) but raw
+    # cluster membership (pA-family has only In1/In2 members) must win in this mode.
+    matrix = pd.read_csv(pd.io.common.StringIO(
+        "protein_id\tsource_proteome\tIn1\tIn2\tOut1\n"
+        "pA1\tIn1\t1\t1\t1\n"
+        "pA2\tIn2\t1\t1\t1\n"
+    ), sep='\t')
+    member_to_rep = {'pA1': 'pA1', 'pA2': 'pA1'}
+    rep_to_members = {'pA1': ['pA1', 'pA2']}
+    from config_parser import Sample
+    samples = [
+        Sample(group='IN', species='s1', strain='', protein='', dna='', short='In1', taxon_group=''),
+        Sample(group='IN', species='s2', strain='', protein='', dna='', short='In2', taxon_group=''),
+        Sample(group='OUT', species='s3', strain='', protein='', dna='', short='Out1', taxon_group=''),
+    ]
+    controls = [{'control_id': 'POS1', 'class': 'positive', 'expected_call': 'novel',
+                 'anchor_type': 'protein_id', 'anchor': 'pA1'}]
+    protein_to_proteome = {'pA1': 'In1', 'pA2': 'In2'}
+    results = sc.score_controls(
+        controls, matrix, member_to_rep, rep_to_members, samples,
+        ingroup_min_frac=0.75, other_max_frac=0.0, busco_map={}, controls_dir=tmp_path,
+        profiles_hmm=None, cpus=1, presence_mode='cluster_membership',
+        protein_to_proteome=protein_to_proteome,
+    )
+    assert results[0]['actual_call'] == 'novel'
+    assert results[0]['outcome'] == 'hit'
