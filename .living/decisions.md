@@ -1079,3 +1079,59 @@ follow the corrected convention automatically since they were published via
 
 **Tags**: repo-bloat, release-asset, docs, github-pages, two-repo-split, directive,
 provenance, publishing
+
+## [2026-09-12] `min_domain_evalue` sweep on real data: `1e-5` is the breakpoint that also fixes ham-5, not just ada-1
+
+**Context**: follow-up to decision #18 (2026-09-10), which fixed `ada-1` but left `ham-5`
+as an apparently unfixable miss at `--min-domain-evalue 0.01` -- reasoned at the time that
+ham-5's cross-hit's best single domain (114aa, i-Evalue 6.1e-05) was independently
+significant and independently cleared `hmm_presence_min_residues=100` alone, so no
+per-domain significance gate could touch it. That reasoning under-shot: `6.1e-05` is a
+number, not a law -- it just needed a tighter gate than `0.01` (or the `1e-3` first tried
+here) to fail.
+
+**Method**: regenerated `pezizo_set1_cluster`'s `presence_matrix.tsv` directly from its
+already-computed `family_hmmsearch/*.domtblout` (no pipeline rerun) via
+`bin/profile_to_matrix.py --min-domain-evalue <x>` at `x` in {1e-3, 1e-5, 1e-6, 1e-8,
+1e-10, 1e-15}, keeping `--min-coverage 0.5 --min-covered-residues 100` (shipped
+defaults) fixed, then re-scored each with `bin/score_controls.py` against
+`configs/controls/pezizo_set1.controls.csv`.
+
+**Result**:
+
+| `min_domain_evalue` | recall | fp_rate | candidates passing novelty filter |
+|---|---|---|---|
+| disabled (shipped default) | 0.400 (2/5) | 0.000 (0/9) | 1082 |
+| 1e-3 | 0.600 (3/5) | 0.000 (0/9) | 1281 |
+| **1e-5** | **0.800 (4/5)** | **0.000 (0/9)** | **1440** |
+| 1e-6 | 0.800 (4/5) | 0.000 (0/9) | 1537 |
+| 1e-8 | 0.800 (4/5) | 0.000 (0/9) | 1654 |
+| 1e-10 | 0.800 (4/5) | 0.000 (0/9) | 1799 |
+| 1e-15 | 0.800 (4/5) | 0.000 (0/9) | 2151 |
+
+`ham-5` flips miss -> hit exactly at `1e-5` (its fragment's own i-Evalue, 6.1e-05, clears
+`< 1e-3` but not `< 1e-5`) -- not a structurally different case from `ada-1` after all,
+just a tighter breakpoint on the same mechanism. `hex-1` stays a miss at every setting
+tested (expected: this pathway has no self-vs-self paralog-competition filter at all, an
+unrelated failure mode). `lah` stays unresolved at every setting (never clustered into a
+profiled family, unrelated to this parameter).
+
+`1e-5` is the evidenced choice, not an arbitrary pick: it's the exact value at which
+ham-5's fragment fails, and tightening further (1e-6 through 1e-15) adds no more recall
+against the 5 resolved positive controls while candidate count keeps climbing (1440 ->
+2151) -- those extra candidates are unvalidated by this control set (could be genuine
+novelties freed the same way, could be false positives this thin 9-control negative set
+doesn't happen to catch). `fp_rate` stayed exactly 0.0 across the whole sweep, but that is
+"no measured cost on 9 BUSCO negatives," not "no cost."
+
+**Decision**: log this refined finding; do NOT flip `nextflow.config`'s
+`hmm_presence_domain_evalue` default (still `null`) from this alone -- still only one
+clade's controls, and `todo/validate-hmm-presence-coverage-broader-sweep.md` already
+calls for a second clade before any project-wide default change. `1e-5` is now the
+number to carry into that broader sweep instead of guessing a starting point.
+
+**Scope**: same as decision #18 -- HMM/family-profile pathways only
+(`--cluster_tool mmseqs` / `novelty_discovery`), pairwise pathway architecturally immune.
+
+**Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, pezizo_set1,
+parameter-sweep, promiscuous-domain, validation

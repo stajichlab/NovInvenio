@@ -264,3 +264,34 @@ fixed earlier this session), not this one.
 - `wsc`/`so` results were a surprise relative to general Pezizomycotina-vs-outgroup
   literature statements; not deeply investigated further (e.g. whether the outgroup hit
   is to a real ortholog, a shared domain, or a same-genome paralog) — flagged, not solved.
+
+## Correction (2026-09-12): ham-5 is NOT a harder case — `1e-5` fixes it too
+
+The "ham-5 still a miss" conclusion above (from the `--min-domain-evalue 0.01` test)
+under-shot: `ham-5`'s cross-hit domain 2 (114aa, i-Evalue 6.1e-05) clears `< 0.01` and
+`< 1e-3`, but NOT `< 1e-5`. Re-ran the full sweep against real
+`pezizo_set1_cluster` data (`bin/profile_to_matrix.py --min-domain-evalue <x>` for x in
+{1e-3, 1e-5, 1e-6, 1e-8, 1e-10, 1e-15}, `--min-coverage 0.5 --min-covered-residues 100`
+held at shipped defaults, rescored with `bin/score_controls.py`):
+
+| `min_domain_evalue` | recall | fp_rate | candidates passing novelty filter |
+|---|---|---|---|
+| disabled (shipped default) | 0.400 (2/5) | 0.000 (0/9) | 1082 |
+| 1e-3 | 0.600 (3/5) | 0.000 (0/9) | 1281 |
+| **1e-5** | **0.800 (4/5)** | **0.000 (0/9)** | **1440** |
+| 1e-6 | 0.800 (4/5) | 0.000 (0/9) | 1537 |
+| 1e-8 | 0.800 (4/5) | 0.000 (0/9) | 1654 |
+| 1e-10 | 0.800 (4/5) | 0.000 (0/9) | 1799 |
+| 1e-15 | 0.800 (4/5) | 0.000 (0/9) | 2151 |
+
+`ham-5` flips miss → hit exactly at `1e-5` — same mechanism as ada-1, just a tighter
+breakpoint, not a structurally different failure. `hex-1` (no self-search filter in this
+pathway) and `lah` (never clustered into a profiled family) are unaffected at every
+setting, as expected. `1e-5` is the evidenced choice: it's the exact value at which
+ham-5's fragment stops qualifying, and tightening further (1e-6 → 1e-15) buys no more
+recall on the 5 resolved positive controls while candidate count keeps climbing (1440 →
+2151) — those extras are unvalidated by this thin (9-resolved) negative-control set.
+`fp_rate` held at 0.0 across the whole sweep. Logged as `.living/decisions.md`'s
+2026-09-12 entry; default left disabled pending the second-clade sweep
+(`todo/validate-hmm-presence-coverage-broader-sweep.md`) — `1e-5` is now the value to
+carry into that sweep rather than guessing a starting point.
