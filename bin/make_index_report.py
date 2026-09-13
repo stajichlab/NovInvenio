@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
 from index_page import render_alignment_viewer_page, render_project_page  # noqa: E402
+from report_common import NOVINVENIO_DISPLAY_VERSION, NOVINVENIO_RELEASE_STATUS  # noqa: E402
 from report_data import INGROUP_ROLES, OUTGROUP_ROLES  # noqa: E402
 
 # Each entry: (relative filename, title, one-line description).
@@ -65,6 +66,12 @@ def _param_tiles(args, n_in, n_out):
     ):
         if value is not None:
             tiles.append((label, f'{value:g}'))
+    # A dev-status tag matters here (unlike the footer's one-line credit): it
+    # tells someone re-running this exact analysis later whether the pipeline
+    # version is the released tag or a since-moved-on commit that needs the
+    # hash, not just the fixed version, to reproduce.
+    status_suffix = {'release': ' (release)', 'dev': ' (dev)', 'unknown': ''}[NOVINVENIO_RELEASE_STATUS]
+    tiles.append(('Pipeline version', f'v{NOVINVENIO_DISPLAY_VERSION}{status_suffix}'))
     return tiles
 
 

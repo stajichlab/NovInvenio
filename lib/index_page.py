@@ -20,6 +20,8 @@ from report_common import (
     BASE_PAGE_CSS,
     BREADCRUMB_NAV_CSS,
     FAVICON_LINK_HTML,
+    FOOTER_CSS,
+    FOOTER_HTML,
     LOGO_CSS,
     LOGO_IMG_HTML,
     SKIN_BOOT_JS,
@@ -71,10 +73,10 @@ def _page(title: str, body: str, *, nav_html: str = '') -> str:
         f'<title>{html.escape(title)}</title>\n'
         + FAVICON_LINK_HTML + '\n'
         '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS
-        + _EXTRA_CSS + '</style>\n'
+        + _EXTRA_CSS + FOOTER_CSS + '</style>\n'
         '<script>' + SKIN_BOOT_JS + '</script>\n'
         '</head>\n<body>\n<div class="wrap">\n'
-        + nav_html + body +
+        + nav_html + body + '\n' + FOOTER_HTML +
         '\n</div>\n<script>\n(function () {\n  "use strict";\n'
         + SKIN_PICKER_JS +
         '})();\n</script>\n</body>\n</html>\n'
@@ -225,11 +227,11 @@ def render_alignment_viewer_page() -> str:
         '<title>TBLASTN alignment</title>\n'
         + FAVICON_LINK_HTML + '\n'
         '<style>\n' + SKIN_VARS_CSS + BASE_PAGE_CSS + ALIGNMENT_POPUP_CSS
-        + BREADCRUMB_NAV_CSS + '</style>\n'
+        + BREADCRUMB_NAV_CSS + FOOTER_CSS + '</style>\n'
         '<script>' + SKIN_BOOT_JS + '</script>\n'
         '</head>\n<body>\n<div class="wrap">\n'
         + breadcrumb_nav_html() + '\n'
-        + ALIGNMENT_POPUP_HTML +
+        + ALIGNMENT_POPUP_HTML + '\n' + FOOTER_HTML +
         '\n</div>\n<script>\n' + ALIGNMENT_POPUP_JS + '\n' + boot_js + '\n</script>\n</body>\n</html>\n'
     )
 

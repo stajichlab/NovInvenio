@@ -21,6 +21,8 @@ from report_common import (
     EL_HELPER_JS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
+    FOOTER_CSS,
+    FOOTER_HTML,
     LINKOUT_HELPERS_JS,
     LOGO_CSS,
     LOGO_IMG_HTML,
@@ -43,6 +45,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   /* .badge / .badge.warn now live in BASE_PAGE_CSS and read var(--warn), so a
      skin owns the colour instead of this page hardcoding a light/dark pair. */
   /*__ALIGNMENT_CSS__*/
+""" + FOOTER_CSS + r"""
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
@@ -126,6 +129,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       <p class="placeholder">Select a protein in the table to see its annotation and database links.</p>
     </aside>
   </div>
+""" + FOOTER_HTML + r"""
 </div>
 
 <script type="application/json" id="payload">/*__PAYLOAD__*/</script>

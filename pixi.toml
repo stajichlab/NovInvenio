@@ -3,7 +3,7 @@ authors = ["Jason Stajich <jason.stajich@ucr.edu>"]
 channels = ["conda-forge", "bioconda"]
 name = "NovInvenio"
 platforms = ["linux-64"]
-version = "0.5.0"
+version = "0.6.0"
 
 [tasks]
 test = "pytest tests/ -v"

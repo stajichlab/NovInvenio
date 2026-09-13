@@ -20,6 +20,8 @@ from report_common import (
     EL_HELPER_JS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
+    FOOTER_CSS,
+    FOOTER_HTML,
     LINKOUT_HELPERS_JS,
     LOGO_CSS,
     LOGO_IMG_HTML,
@@ -38,7 +40,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 <title>__PROJECT_TITLE__ — NovInvenio core genes</title>
 """ + FAVICON_LINK_HTML + r"""
 <style>
-""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + r"""
+""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + FOOTER_CSS + r"""
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
@@ -113,6 +115,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       <p class="placeholder">Select a protein in the table to see its annotation and database links.</p>
     </aside>
   </div>
+""" + FOOTER_HTML + r"""
 </div>
 
 <script type="application/json" id="payload">/*__PAYLOAD__*/</script>

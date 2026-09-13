@@ -25,6 +25,8 @@ from report_common import (
     EL_HELPER_JS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
+    FOOTER_CSS,
+    FOOTER_HTML,
     HIT_INFO_POPUP_CSS,
     HIT_INFO_POPUP_HTML,
     HIT_INFO_POPUP_JS,
@@ -297,7 +299,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .explorer { grid-template-columns: 1fr; }
   }
   /*__ALIGNMENT_CSS__*/
-""" + HIT_INFO_POPUP_CSS + BREADCRUMB_NAV_CSS + r"""
+""" + HIT_INFO_POPUP_CSS + BREADCRUMB_NAV_CSS + FOOTER_CSS + r"""
 </style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
@@ -421,6 +423,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       <p class="placeholder">Select a protein in the heatmap or table to see its annotation and database links.</p>
     </aside>
   </div>
+""" + FOOTER_HTML + r"""
 </div>
 
 <div class="tip" id="tip" role="tooltip"></div>
