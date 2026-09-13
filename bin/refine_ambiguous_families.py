@@ -51,31 +51,58 @@ def has_species_duplication(members, protein_to_proteome):
     return len(species) != len(set(species))
 
 
-def family_fractions(rep, members, protein_to_proteome, ingroup_ids, outgroup_ids):
-    """(ingroup_frac, outgroup_frac) present, from raw cluster membership -- mirrors
-    build_cluster_membership_presence()'s notion of presence (member's own genome
-    counts as present), i.e. this is Tier C's own presence call for this family,
-    reused here purely to find near-miss novelty candidates worth refining."""
-    proteomes = {species_of(m, protein_to_proteome) for m in members}
-    proteomes.discard(None)
-    ing = len(proteomes & ingroup_ids) / len(ingroup_ids) if ingroup_ids else 0.0
-    out = len(proteomes & outgroup_ids) / len(outgroup_ids) if outgroup_ids else 0.0
+def family_fractions(rep, members, presence_by_protein, ingroup_ids, outgroup_ids):
+    """(ingroup_frac, outgroup_frac) present, from the run's ACTUAL Tier C+H presence
+    (presence_matrix.tsv), looked up via the family representative's own row -- per the
+    spec's ambiguous-family definition ("near-miss novelty candidate in the EXISTING
+    presence_matrix.tsv"), NOT from raw cluster membership. Raw membership is always
+    ingroup-only under this pipeline's clustering (ADR-0002), so an outgroup-fraction
+    check against it can never be > 0 -- this was a real bug found running against real
+    data (0/28623 families ever flagged ambiguous); ledgered 2026-09-13.
+    """
+    presence = presence_by_protein.get(rep, {})
+    ing = sum(presence.get(s, 0) for s in ingroup_ids) / len(ingroup_ids) if ingroup_ids else 0.0
+    out = sum(presence.get(s, 0) for s in outgroup_ids) / len(outgroup_ids) if outgroup_ids else 0.0
     return ing, out
 
 
-def detect_ambiguous_families(fam_members, protein_to_proteome, ingroup_ids, outgroup_ids,
-                              oversized_reps, ingroup_min_frac, other_max_frac):
+def detect_ambiguous_families(fam_members, protein_to_proteome, presence_by_protein,
+                              ingroup_ids, outgroup_ids, oversized_reps,
+                              ingroup_min_frac, other_max_frac):
     ambiguous = set()
     for rep, members in fam_members.items():
         if rep in oversized_reps:
             continue
         if not has_species_duplication(members, protein_to_proteome):
             continue
-        ing_frac, out_frac = family_fractions(rep, members, protein_to_proteome,
+        ing_frac, out_frac = family_fractions(rep, members, presence_by_protein,
                                               ingroup_ids, outgroup_ids)
         if ing_frac >= ingroup_min_frac and out_frac > other_max_frac:
             ambiguous.add(rep)
     return ambiguous
+
+
+def load_profiled_reps(families_tsv):
+    """representative_id set for families that were actually profiled (>= min members) --
+    i.e. the pipeline's own families.tsv, which is narrower than raw --cluster-tsv
+    membership. Mirrors score_controls.py's load_profiled_reps()."""
+    reps = set()
+    with open(families_tsv) as fh:
+        fh.readline()  # header: family_index, representative_id, n_members
+        for line in fh:
+            parts = line.rstrip('\n').split('\t')
+            if len(parts) >= 2 and parts[1]:
+                reps.add(parts[1])
+    return reps
+
+
+def filter_to_profiled(fam_members, profiled_reps):
+    """Restrict fam_members (rep -> [member, ...]) to reps that were actually profiled
+    by the real pipeline (in profiled_reps) -- without this, Tier R's family universe
+    silently includes unprofiled singletons/small clusters the real pipeline excluded,
+    a real bug found running against real data (POS_LAH's singleton cluster was
+    incorrectly resurrected this way)."""
+    return {rep: members for rep, members in fam_members.items() if rep in profiled_reps}
 
 
 # ---------------------------------------------------------------- graph splitting
@@ -274,6 +301,8 @@ def main():
 
     matrix = pd.read_csv(args.matrix, sep='\t')
     protein_to_proteome = dict(zip(matrix['protein_id'], matrix['source_proteome']))
+    proteome_cols = [c for c in matrix.columns if c not in ('protein_id', 'source_proteome')]
+    presence_by_protein = matrix.set_index('protein_id')[proteome_cols].astype(int).to_dict('index')
 
     fam_members = defaultdict(list)
     with open(args.cluster_tsv) as fh:
@@ -281,6 +310,9 @@ def main():
             rep, member = line.rstrip('\n').split('\t')[:2]
             fam_members[rep].append(member)
     fam_members = dict(fam_members)
+
+    profiled_reps = load_profiled_reps(args.families)
+    fam_members = filter_to_profiled(fam_members, profiled_reps)
 
     oversized_reps = set()
     if args.oversized_families:
@@ -293,7 +325,7 @@ def main():
                     oversized_reps.add(parts[0])
 
     ambiguous = detect_ambiguous_families(
-        fam_members, protein_to_proteome, ingroup_ids, outgroup_ids,
+        fam_members, protein_to_proteome, presence_by_protein, ingroup_ids, outgroup_ids,
         oversized_reps, args.ingroup_min_frac, args.other_max_frac)
     print(f'{len(ambiguous)} / {len(fam_members)} families flagged ambiguous', file=sys.stderr)
 

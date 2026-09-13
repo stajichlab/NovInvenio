@@ -17,8 +17,9 @@ def test_has_species_duplication():
 
 
 def test_family_fractions():
-    p2p = {'a': 'In1', 'b': 'In2', 'c': 'Out1'}
-    ing, out = raf.family_fractions('a', ['a', 'b', 'c'], p2p, {'In1', 'In2'}, {'Out1', 'Out2'})
+    presence_by_protein = {'a': {'In1': 1, 'In2': 1, 'Out1': 1, 'Out2': 0}}
+    ing, out = raf.family_fractions('a', ['a', 'b', 'c'], presence_by_protein,
+                                    {'In1', 'In2'}, {'Out1', 'Out2'})
     assert ing == 1.0   # both In1, In2 present
     assert out == 0.5   # Out1 present, Out2 absent
 
@@ -37,11 +38,11 @@ def test_detect_ambiguous_families_matches_hex1_ada1_split():
     # Fake presence: both families present in all ingroup + all outgroup (Out1).
     # (family_fractions is computed from cluster membership + a presence lookup in the
     # real pipeline via presence_matrix.tsv; here we inject it directly via a stub.)
-    def fake_fractions(rep, members, p2p, ingroup_ids, outgroup_ids):
+    def fake_fractions(rep, members, presence_by_protein, ingroup_ids, outgroup_ids):
         return (1.0, 1.0)
     raf.family_fractions = fake_fractions
     ambiguous = raf.detect_ambiguous_families(
-        fam_members, p2p, ingroup_ids, outgroup_ids, oversized_reps=set(),
+        fam_members, p2p, {}, ingroup_ids, outgroup_ids, oversized_reps=set(),
         ingroup_min_frac=0.75, other_max_frac=0.0)
     assert ambiguous == {'hex1_rep'}
 
@@ -49,11 +50,11 @@ def test_detect_ambiguous_families_matches_hex1_ada1_split():
 def test_detect_ambiguous_families_excludes_oversized():
     fam_members = {'big_rep': ['a', 'b', 'c']}
     p2p = {'a': 'In1', 'b': 'In1', 'c': 'In2'}
-    def fake_fractions(rep, members, p2p, ingroup_ids, outgroup_ids):
+    def fake_fractions(rep, members, presence_by_protein, ingroup_ids, outgroup_ids):
         return (1.0, 1.0)
     raf.family_fractions = fake_fractions
     ambiguous = raf.detect_ambiguous_families(
-        fam_members, p2p, {'In1', 'In2'}, {'Out1'}, oversized_reps={'big_rep'},
+        fam_members, p2p, {}, {'In1', 'In2'}, {'Out1'}, oversized_reps={'big_rep'},
         ingroup_min_frac=0.75, other_max_frac=0.0)
     assert ambiguous == set()
 
@@ -72,6 +73,24 @@ def test_write_fasta(tmp_path):
     raf.write_fasta({'a': 'MKV', 'b': 'MKL'}, out)
     text = out.read_text()
     assert text == ">a\nMKV\n>b\nMKL\n"
+
+
+def test_load_profiled_reps(tmp_path):
+    families_tsv = tmp_path / 'families.tsv'
+    families_tsv.write_text(
+        'family_index\trepresentative_id\tn_members\n'
+        'fam_000001\trep_a\t3\n'
+        'fam_000002\trep_b\t2\n'
+    )
+    reps = raf.load_profiled_reps(families_tsv)
+    assert reps == {'rep_a', 'rep_b'}
+
+
+def test_filter_to_profiled():
+    fam_members = {'rep_a': ['x', 'y'], 'rep_b': ['z'], 'rep_c': ['w']}
+    profiled_reps = {'rep_a', 'rep_b'}
+    filtered = raf.filter_to_profiled(fam_members, profiled_reps)
+    assert filtered == {'rep_a': ['x', 'y'], 'rep_b': ['z']}
 
 
 def test_write_refined_families_passthrough_and_split(tmp_path):
