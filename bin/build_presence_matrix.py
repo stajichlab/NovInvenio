@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build a protein × proteome presence/absence matrix and emit candidate IDs.
 
-Presence scoring uses one flat significance filter plus one paralog-aware filter:
+Presence scoring uses one flat significance filter plus one paralog-aware filter,
+with an optional absolute-evalue override on the second:
 
   1. Significance filter: hit e-value < --default-evalue (flat, 1e-5).
 
@@ -18,6 +19,25 @@ Presence scoring uses one flat significance filter plus one paralog-aware filter
        target — the paralog out-scores the query on the *same target protein*.
          Preserves a hit when the paralog wins only on a different gene, so the
          HEX-1 ortholog call survives.
+
+     --paralog-rescue-evalue (optional, disabled by default) puts a floor under
+     filter 2: a hit is never disqualified if the query's own e-value against
+     that target is already <= this threshold, regardless of how much harder the
+     paralog hits. Filter 2 alone only compares the query against its paralog, so
+     it can discard a hit that is independently strong evidence of homology --
+     e.g. NCU11312/A7UWR3_NEUCR (a CorA-family Mg2+ transporter) hits every
+     outgroup proteome at ~1e-93..1e-97, but its in-genome paralog Q7SEN2 wins
+     head-to-head on every one of those same targets (~1e-98..1e-131), so filter
+     2 alone zeroes out all six outgroup cells and calls it a lineage-specific
+     novelty. That differs from the HEX-1/eIF5A case filter 2 is designed
+     around: HEX-1 has no raw hit at all in five of six outgroups, and only a
+     marginal one (~1e-9..1e-12) in the sixth -- filter 2 has essentially
+     nothing to override there, so its "novel" call is a real absence-of-signal
+     result, not a competition artifact. --paralog-rescue-evalue distinguishes
+     the two: set it (e.g. 1e-20) to keep a hit like A7UWR3's -- strong on its
+     own merits -- counted as present even though its paralog wins the
+     head-to-head, while leaving marginal hits like HEX-1's still subject to
+     filter 2.
 
   (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value
   must beat the query's own within-proteome paralog e-value, falling back to
@@ -123,6 +143,13 @@ def main():
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue',
                     help='Flat e-value significance cutoff (filter 1), applied to every hit')
+    ap.add_argument('--paralog-rescue-evalue', type=float, default=None,
+                    dest='paralog_rescue_evalue',
+                    help='Optional floor under filter 2 (paralog-competition): a hit is never '
+                         'disqualified if the query\'s own e-value against that target is '
+                         'already <= this threshold, no matter how much harder the paralog '
+                         'hits (see module docstring for the A7UWR3-vs-HEX1 motivating case). '
+                         'Disabled (None) by default -- filter 2 runs unconditionally.')
     ap.add_argument('--output-matrix',     required=True)
     ap.add_argument('--output-candidates', required=True)
     ap.add_argument('--output-evalues', default=None, dest='output_evalues',
@@ -189,6 +216,10 @@ def main():
         ]
         paralog_ev = pd.Series(paralog_ev, index=ing.index, dtype='float64')
         disqualified = paralog_ev.notna() & (paralog_ev < ing['evalue'])
+        if args.paralog_rescue_evalue is not None:
+            # A hit strong enough on its own is kept regardless of the paralog's margin --
+            # see --paralog-rescue-evalue's help / the module docstring's A7UWR3 case.
+            disqualified &= ing['evalue'] > args.paralog_rescue_evalue
         ing = ing[~disqualified]
 
     # protein_key (query_proteome, protein_id) -> set of target proteomes with qualifying hits

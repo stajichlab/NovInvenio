@@ -31,6 +31,7 @@ process BUILD_PRESENCE_MATRIX {
         --query-group ${query_group} \
         --other-max-frac ${other_max_frac} \
         --paralog-competition-scope ${params.paralog_competition_scope} \
+        ${params.paralog_rescue_evalue != null ? "--paralog-rescue-evalue ${params.paralog_rescue_evalue}" : ''} \
         --output-matrix ${matrix_name} \
         --output-candidates ${candidates_name} \
         --output-evalues ${evalues_name} \

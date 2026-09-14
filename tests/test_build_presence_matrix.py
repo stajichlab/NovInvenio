@@ -28,7 +28,7 @@ PARALOG_HEADER = 'protein_ID\tparalog_protein_ID\tbitscore\tevalue\n'
 
 
 def run(run_dir, hits_text, query_group='IN', min_frac='1.0', other_max_frac='0.0',
-        paralog_text=None, competition_scope=None):
+        paralog_text=None, competition_scope=None, rescue_evalue=None):
     hits_path = run_dir / 'hits.tsv'
     hits_path.write_text(HIT_HEADER + hits_text)
     matrix_out = run_dir / 'matrix.tsv'
@@ -47,6 +47,8 @@ def run(run_dir, hits_text, query_group='IN', min_frac='1.0', other_max_frac='0.
         cmd += ['--paralog-cutoffs', str(paralog_path)]
     if competition_scope is not None:
         cmd += ['--paralog-competition-scope', competition_scope]
+    if rescue_evalue is not None:
+        cmd += ['--paralog-rescue-evalue', rescue_evalue]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
     matrix = pd.read_csv(matrix_out, sep='\t')
     candidates = candidates_out.read_text().splitlines() if candidates_out.stat().st_size else []
@@ -157,6 +159,58 @@ def test_competition_target_scope_keeps_hexa_like_ortholog(run_dir):
     row = matrix[matrix['protein_id'] == 'hexA'].iloc[0]
     assert row['In1'] == 1 and row['In2'] == 1
     assert 'In1::hexA' in candidates
+
+
+# --- Filter 2 rescue (--paralog-rescue-evalue) ------------------------------
+#
+# Mirrors the pezizo_set1 A7UWR3/NCU11312-vs-HEX1 case: A7UWR3 (In1) hits Out1's
+# target at 1e-95 -- independently strong evidence of homology -- but its
+# in-genome paralog Q7SEN2 (here `strongParalog`) hits the *same* Out1 target
+# even harder (1e-131), so 'target'-scope filter 2 disqualifies A7UWR3's hit on
+# its own. HEX1 (weakQuery), by contrast, only reaches Out1 at a marginal 1e-9,
+# with its own paralog (IF5A) again winning head-to-head -- there's no
+# independently strong signal to rescue.
+RESCUE_HITS = (
+    'a7uwr3\ttarget1\t1e-95\t310\tIn1\tOut1\n'   # strong on its own; paralog still wins here
+    'q7sen2\ttarget1\t1e-131\t409\tIn1\tOut1\n'  # in-genome paralog: wins head-to-head
+    'hex1\ttarget2\t1e-9\t53\tIn1\tOut1\n'       # marginal; paralog wins by a wide margin too
+    'if5a\ttarget2\t1e-69\t204\tIn1\tOut1\n'
+)
+RESCUE_PARALOGS = (
+    'a7uwr3\tq7sen2\t303\t1e-92\nq7sen2\ta7uwr3\t297\t1e-90\n'
+    'hex1\tif5a\t44\t2.8e-6\nif5a\thex1\t39\t1.1e-4\n'
+)
+
+
+def test_target_scope_disqualifies_a7uwr3_like_hit_without_rescue(run_dir):
+    # a7uwr3's only hit is disqualified outright -> no qualifying hit anywhere -> no
+    # matrix row at all for it (same "fully disqualified" shape as test_flat_default_
+    # evalue_rejects_a_weak_hit above).
+    matrix, candidates = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                             competition_scope='target')
+    assert (matrix['protein_id'] == 'a7uwr3').sum() == 0
+    assert 'In1::a7uwr3' not in candidates
+
+
+def test_paralog_rescue_evalue_keeps_a7uwr3_like_hit(run_dir):
+    # 1e-20 floor: a7uwr3's own 1e-95 clears it, so its hit survives filter 2 despite
+    # q7sen2 winning head-to-head -- a7uwr3 is no longer called a lineage-specific novelty.
+    matrix, candidates = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                             competition_scope='target', rescue_evalue='1e-20')
+    row = matrix[matrix['protein_id'] == 'a7uwr3'].iloc[0]
+    assert row['Out1'] == 1
+    assert 'In1::a7uwr3' not in candidates  # present in Out1 now -> no longer an IN-only novelty
+
+
+def test_paralog_rescue_evalue_still_drops_hex1_like_marginal_hit(run_dir):
+    # Same 1e-20 floor: hex1's own hit is only 1e-9, well above the floor, so it still
+    # doesn't clear the rescue and stays disqualified -- unlike a7uwr3, there's no
+    # independently strong signal here for the floor to protect, so hex1's Out1 hit is
+    # dropped exactly as it is without --paralog-rescue-evalue at all.
+    matrix, candidates = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                             competition_scope='target', rescue_evalue='1e-20')
+    assert (matrix['protein_id'] == 'hex1').sum() == 0
+    assert 'In1::hex1' not in candidates
 
 
 def test_output_evalues_sidecar_matches_presence_calls(run_dir):
