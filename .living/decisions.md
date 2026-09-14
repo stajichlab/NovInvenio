@@ -1220,3 +1220,63 @@ mechanics confirmation.
 
 **Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, pezizo_set1,
 default-change, slurm, end-to-end-verification, confirmed
+
+## [2026-09-14] Second-clade check for `min_domain_evalue`: Agaricales controls show no regression, but don't replicate the pezizo_set1 breakpoint
+
+**Context**: `todo/validate-hmm-presence-coverage-broader-sweep.md` calls for validating
+the `hmm_presence_domain_evalue=1e-5` default (set 2026-09-12/13, see the two entries
+above) against a second clade before treating it as project-wide. `agaricomycetes_mmseqs`
+(`--cluster_tool mmseqs`, IN: Scom/Ccin/Agbi/Lbic (Agaricales), OUT:
+Cneo/Umay/Rtor) already had real `family_hmmsearch/*.domtblout` from a completed run
+(its own `run_params.txt` had used `--hmm_presence_domain_evalue 0.01`, predating this
+default), so the same real-domtblout sweep method as the 2026-09-12 pezizo_set1 entry
+was reused here rather than rerunning the full pipeline.
+
+**Controls used**: `configs/controls/Agaricales.controls.csv` only had 2 positive
+controls (SPC33/SPC14, septal-pore-complex genes, fasta anchors) and no negatives.
+Added 5 negative controls this session: `NEG_ACTIN`, `NEG_EF1A`, `NEG_RPB1`, `NEG_RPS9`,
+`NEG_RPS27` -- real housekeeping genes (actin-2, translation elongation factor 1-alpha,
+RNA polymerase II large subunit, two 40S ribosomal proteins), identified from `Ccin`'s
+protein FASTA headers and confirmed present (1) in all 7 study proteomes (both ingroup
+and outgroup) in the study's own `presence_matrix.tsv` before being added -- not
+placeholders.
+
+**Method**: regenerated `agaricomycetes_mmseqs`'s presence matrix directly from its
+`family_hmmsearch/*.domtblout` via `bin/profile_to_matrix.py` at
+`--min-coverage 0.3 --min-covered-residues 100` (this study's own shipped pairing) across
+`--min-domain-evalue` in {disabled, 0.01, 1e-3, 1e-5, 1e-6, 1e-8}, then scored each with
+`bin/score_controls.py --profiles families/family_profiles.hmm` (fasta anchors need
+`hmmsearch` from the pixi env, not on PATH by default -- `eval "$(pixi shell-hook -s
+bash --manifest-path pixi.toml)"` first).
+
+**Result**: recall 1.0 (2/2) and fp_rate 0.0 (0/5) at **every** threshold tested,
+including `disabled`. Total candidate count *does* respond to the parameter (4812 ->
+5344 -> 5441 -> 5670 -> 5809 -> 5927 as the threshold tightens from disabled through
+0.01/1e-3/1e-5/1e-6/1e-8, same direction as the pezizo_set1 sweep and the same
+mechanism: excluding a weak domain hit from an OUTGROUP proteome's coverage total makes
+that proteome look more like "absent," which can only ever gain candidates, never lose
+them) -- so the parameter is doing something on this clade's data, it just doesn't
+happen to touch these particular 7 controls' outcome.
+
+**Decision**: this is a real, honest **no-regression** result, not a replication of the
+pezizo_set1 finding. `1e-5` doesn't break anything measurable on this clade's controls
+(both before and after are perfect), but this clade's specific positive/negative
+controls don't happen to include a promiscuous-domain false-positive case the way
+ada-1/ham-5 did in pezizo_set1 -- so this check cannot confirm the *mechanism*
+generalizes, only that the *default change* doesn't cost anything here. Combined with
+pezizo_set1's stronger positive result (a real, measured recall improvement), this is
+enough to close the second-clade item in `todo/validate-hmm-presence-coverage-broader-
+sweep.md` as satisfied for the `min_domain_evalue` question specifically, while noting
+the evidence quality differs between the two clades (one shows improvement, one shows
+non-regression).
+
+**Consequences**: `Agaricales.controls.csv`'s control set is thin (7 rows, 2
+positive/5 negative, one species' housekeeping genes for all negatives) compared to
+`pezizo_set1.controls.csv`'s 16. A future, better-resourced pass could look for an
+Agaricales-specific promiscuous-domain case analogous to ada-1/ham-5 to get a true
+replication rather than a no-regression result.
+
+**Scope**: HMM/family-profile pathway only (`--cluster_tool mmseqs`), Agaricales clade.
+
+**Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, agaricomycetes,
+Agaricales, second-clade-validation, parameter-sweep, no-regression
