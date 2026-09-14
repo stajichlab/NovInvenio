@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Performance: batched DIAMOND_SEARCH (0.6.1)
+
+- **`modules/diamond.nf`** — `DIAMOND_SEARCH` now runs one Nextflow task per
+  *query genome* (looping over every target inside the task) instead of one
+  task per (query, target) pair. For an N-ingroup × M-other-genome study this
+  cuts job count from N×M to N — for an 11-genome study, ~110 individual
+  diamond jobs become ~11. Real per-pair diamond compute is small (a few
+  seconds even for the largest proteomes measured); job *count*, not diamond
+  runtime, was the actual cost driver on a shared SLURM queue with a 50/min
+  submission rate limit — the same "trade job count for job size" pattern
+  already used for `FAMILY_HMMSEARCH` (see `hmm_search_chunk_size`).
+  `workflows/search.nf` and `workflows/loss_search.nf` group `pairs_ch` by
+  query genome (`groupTuple`) before calling `DIAMOND_SEARCH`, then
+  reconstruct the `[meta_pair, file]` shape `PARSE_HITS` already expects from
+  each output file's self-describing name — `PARSE_HITS` itself needed no
+  changes. Output file names/format are unchanged.
+
+- Switched `DIAMOND_SEARCH` from `storeDir` to normal resume-based task
+  caching + `publishDir`: `storeDir`'s skip-if-exists check isn't well-defined
+  against a variable-length glob output (the batched job's file count varies
+  per query), so partial-cache correctness wasn't guaranteed under the new
+  shape. This also means this step's real cost is now visible in Nextflow's
+  own trace files — previously a `storeDir` cache hit skipped the task (and
+  its trace row) entirely, so the true all-vs-all search cost was invisible
+  to every trace file from any run after the first.
+
+  Validated on a real, cache-cleared, containerized SLURM rerun of
+  `pezizo_set1` (11 genomes): job count dropped from ~110 to 11
+  (5 `SEARCH:DIAMOND_SEARCH` + 6 `LOSS_SEARCH:DIAMOND_SEARCH`), full
+  SEARCH+LOSS_SEARCH stage completed in under 10 minutes wall-clock, and
+  every output (`presence_matrix.tsv`, `candidates.txt`,
+  `loss_presence_matrix.tsv`, `loss_candidates.txt`) was byte-identical to
+  the previously-published pairwise results.
+
 ### New workflows
 
 - **`workflows/annotate.nf`** — `ANNOTATE_MATRIX` process runs Pfam hmmscan
