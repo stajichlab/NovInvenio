@@ -9,6 +9,8 @@ _spec = importlib.util.spec_from_file_location('refine_ambiguous_families', BIN)
 raf = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(raf)
 
+from hits import Hit  # noqa: E402
+
 
 def test_has_species_duplication():
     p2p = {'a': 'In1', 'b': 'In2', 'c': 'In1'}
@@ -117,3 +119,101 @@ def test_write_refined_families_passthrough_and_split(tmp_path):
     assert body['rep1'] == '2'
     assert body['hex1'] == '2'
     assert body['eif5a'] == '1'
+
+
+# --------------------------------------------------------------- graph splitting
+
+def test_load_paralog_map(tmp_path):
+    cutoffs = tmp_path / 'Ncra.paralog_cutoffs.tsv'
+    cutoffs.write_text(
+        'protein_ID\tparalog_protein_ID\tbitscore\tevalue\n'
+        'HEX1_NEUCR\tIF5A_NEUCR\t512.3\t1e-140\n'
+        'IF5A_NEUCR\tHEX1_NEUCR\t512.3\t1e-140\n'
+        'OTHER_PROT\tANOTHER_PROT\t88.0\t1e-20\n'
+    )
+    paralog_map = raf.load_paralog_map([cutoffs])
+    assert paralog_map == {
+        'HEX1_NEUCR': 'IF5A_NEUCR',
+        'IF5A_NEUCR': 'HEX1_NEUCR',
+        'OTHER_PROT': 'ANOTHER_PROT',
+    }
+
+
+def test_load_paralog_map_merges_multiple_files(tmp_path):
+    f1 = tmp_path / 'Ncra.paralog_cutoffs.tsv'
+    f1.write_text('protein_ID\tparalog_protein_ID\tbitscore\tevalue\nA\tB\t1.0\t1e-5\n')
+    f2 = tmp_path / 'Afum.paralog_cutoffs.tsv'
+    f2.write_text('protein_ID\tparalog_protein_ID\tbitscore\tevalue\nC\tD\t1.0\t1e-5\n')
+    paralog_map = raf.load_paralog_map([f1, f2])
+    assert paralog_map == {'A': 'B', 'C': 'D'}
+
+
+def test_build_within_family_edges_excludes_self_hits_and_high_evalue():
+    hits = [
+        Hit(query_id='a', target_id='b', evalue=1e-13, bitscore=200.0),
+        Hit(query_id='b', target_id='a', evalue=1e-13, bitscore=200.0),  # reverse dup
+        Hit(query_id='a', target_id='a', evalue=1e-50, bitscore=999.0),  # self-hit
+        Hit(query_id='a', target_id='c', evalue=1e-5, bitscore=50.0),   # AT cutoff -> excluded
+        Hit(query_id='a', target_id='d', evalue=1e-4, bitscore=10.0),   # ABOVE cutoff -> excluded
+    ]
+    edges = raf.build_within_family_edges(hits, evalue_cutoff=1e-5)
+    assert edges == {frozenset({'a', 'b'})}
+
+
+def test_find_paralog_edges_to_cut_direct_pair():
+    members = ['hex1', 'eif5a', 'other']
+    paralog_map = {'hex1': 'eif5a', 'eif5a': 'hex1'}
+    cuts = raf.find_paralog_edges_to_cut(members, paralog_map)
+    assert cuts == {frozenset({'hex1', 'eif5a'})}
+
+
+def test_find_paralog_edges_to_cut_ignores_partner_outside_family():
+    # hex1's registered paralog is NOT a member of this family -> no cut edge.
+    members = ['hex1', 'other']
+    paralog_map = {'hex1': 'some_other_genome_paralog'}
+    cuts = raf.find_paralog_edges_to_cut(members, paralog_map)
+    assert cuts == set()
+
+
+def test_connected_components_singleton_with_no_surviving_edges():
+    members = ['a', 'b', 'c']
+    edges = {frozenset({'a', 'b'})}
+    components = raf.connected_components(members, edges)
+    groups = {frozenset(c) for c in components}
+    assert groups == {frozenset({'a', 'b'}), frozenset({'c'})}
+
+
+def test_connected_components_stays_connected_via_redundant_path():
+    # Real HEX1 case: cutting the direct hex1-eif5a edge still leaves them in one
+    # component because both are also independently connected to a shared ortholog
+    # ('bridge') -- the second path that made refinement fail to split on real data.
+    members = ['hex1', 'eif5a', 'bridge']
+    edges = {frozenset({'hex1', 'bridge'}), frozenset({'eif5a', 'bridge'})}  # direct edge already cut
+    components = raf.connected_components(members, edges)
+    assert len(components) == 1
+    assert set(components[0]) == {'hex1', 'eif5a', 'bridge'}
+
+
+def test_split_family_splits_when_only_direct_edge_connects_pair():
+    members = ['hex1', 'eif5a']
+    edges = {frozenset({'hex1', 'eif5a'})}
+    paralog_map = {'hex1': 'eif5a', 'eif5a': 'hex1'}
+    subfamilies = raf.split_family(members, edges, paralog_map)
+    groups = {frozenset(g) for g in subfamilies}
+    assert groups == {frozenset({'hex1'}), frozenset({'eif5a'})}
+
+
+def test_split_family_does_not_split_with_redundant_bridging_edge():
+    # Matches the real HEX1/IF5A_NEUCR finding (task-5-fix-report.md): the direct
+    # registered-paralog edge is cut, but a redundant path through a shared ortholog
+    # keeps the family in one component -- refinement does NOT split it.
+    members = ['hex1', 'eif5a', 'bridge']
+    edges = {
+        frozenset({'hex1', 'eif5a'}),   # direct paralog edge -- will be cut
+        frozenset({'hex1', 'bridge'}),  # redundant path
+        frozenset({'eif5a', 'bridge'}),
+    }
+    paralog_map = {'hex1': 'eif5a', 'eif5a': 'hex1'}
+    subfamilies = raf.split_family(members, edges, paralog_map)
+    assert len(subfamilies) == 1
+    assert set(subfamilies[0]) == {'hex1', 'eif5a', 'bridge'}
