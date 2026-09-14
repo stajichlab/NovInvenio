@@ -1135,3 +1135,47 @@ number to carry into that broader sweep instead of guessing a starting point.
 
 **Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, pezizo_set1,
 parameter-sweep, promiscuous-domain, validation
+
+## [2026-09-13] `hmm_presence_domain_evalue=1e-5` shipped as default despite single-clade evidence; end-to-end pipeline verification attempted but blocked by infrastructure
+
+**Context**: follow-up to the 2026-09-12 sweep entry above. That entry's own "Decision"
+text said not to flip `nextflow.config`'s default from the single-clade sweep alone.
+The user's next message explicitly asked to set `hmm_presence_domain_evalue` to `1e-5`
+as the shipped default anyway and to test it. `nextflow.config` was changed accordingly
+(commit `c603953`).
+
+**End-to-end verification attempt**: relaunched `pezizo_set1_cluster` with `-resume` to
+confirm the new default reproduces the same effect (ada-1/ham-5 flipping to absent in
+`Mcir`) through a real pipeline run, not just the standalone `profile_to_matrix.py` +
+`score_controls.py` test already done. Local executor was too slow (8 cores, ~267
+`BUILD_CHUNK` tasks queued); switched to `-profile slurm -c conf/ucr_hpcc_slurm.config`
+per user direction. The SLURM run ran for ~15 hours (2026-09-12 20:18 to 2026-09-13
+11:46) and then failed: `succeededCount=236, failedCount=103, cachedCount=25,
+pendingCount=21` in `BUILD_FAMILY_PROFILES:BUILD_CHUNK`, never reaching
+`PROFILE_PRESENCE_MATRIX`. Checked `sacct` on 3 of the "failed" job IDs: all 3 show
+`COMPLETED, ExitCode 0:0` on the SLURM side. Nextflow's own log shows `Failed to get
+exit status ... exitStatusReadTimeoutMillis: 900000` -- it polled for the `.exitcode`
+file on the shared filesystem for 15 minutes and gave up, even though the job had
+actually finished. This is a shared-filesystem-latency infrastructure flake under heavy
+cluster load (account had 400+ jobs queued on `AssocGrpCpuLimit`/`AssocGrpMemLimit` at
+launch time), not evidence against the code change.
+
+**Decision**: ship `1e-5` as the default (already committed, `c603953`). Accept the
+existing standalone-script confirmation (real domtblout-derived sweep,
+`.living/decisions.md`'s 2026-09-12 entry: recall 0.400 -> 0.800, fp_rate unchanged at
+0.000) as sufficient evidence for this change, given the user's explicit call not to
+keep chasing a full pipeline rerun after the infrastructure failure. The full
+end-to-end pipeline confirmation (`presence_matrix.tsv` regenerated via a real
+`-resume` run, then rescored) was NOT obtained and remains open if ever needed --
+`results/pezizo_set1_cluster/presence_matrix.tsv` on disk is still the stale, pre-fix
+version (mtime 2026-09-10).
+
+**Consequences**: the single-clade caveat from the 2026-09-12 entry still applies --
+`todo/validate-hmm-presence-coverage-broader-sweep.md`'s second-clade check is still
+open and now more load-bearing, since the default has already shipped ahead of it
+rather than waiting for it.
+
+**Scope**: same as the 2026-09-12 entry -- HMM/family-profile pathways only.
+
+**Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, pezizo_set1,
+default-change, infrastructure-flake, slurm, exit-status-timeout, decision-reversal
