@@ -1179,3 +1179,44 @@ rather than waiting for it.
 
 **Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, pezizo_set1,
 default-change, infrastructure-flake, slurm, exit-status-timeout, decision-reversal
+
+## [2026-09-14] `hmm_presence_domain_evalue=1e-5` end-to-end pipeline verification: confirmed
+
+**Context**: follow-up to the 2026-09-13 entry above, which recorded that the first
+end-to-end SLURM verification attempt failed on an infrastructure issue (shared-
+filesystem exit-status polling timeout) and that the user accepted the standalone
+script-level confirmation as sufficient at that time. The user then asked to retry via
+`-resume`, having split `BUILD_CHUNK`'s SLURM submissions across separate queues to
+reduce contention.
+
+**Result**: the `-resume` retry ran ~8 hours (2026-09-13 21:38 to 2026-09-14 06:00),
+resubmitting the ~103 previously-failed `BUILD_CHUNK` tasks (189 were already cached
+from the first attempt). This time it completed cleanly: `Execution complete --
+Goodbye`, `WorkflowStats[succeededCount=372; failedCount=48 (all auto-retried to
+success, retriesCount=48); cachedCount=14; pendingCount=0]`. A handful of isolated
+preemption-style failures still occurred (each auto-retried and resolved by
+`errorStrategy`/`maxRetries=2`) -- nothing like the systemic ~35% failure rate of the
+first attempt, consistent with the queue split working as intended.
+
+`results/pezizo_set1_cluster/presence_matrix.tsv` was regenerated fresh (mtime
+2026-09-14 05:59, vs. the prior stale 2026-09-10 version) via the real pipeline run
+under the shipped `hmm_presence_domain_evalue=1e-5` default. Confirmed directly in that
+file: both ada-1 (`tr|Q7SE74|Q7SE74_NEUCR`) and ham-5 (`tr|V5IN79|V5IN79_NEUCR`) now
+show `0` (absent) in the `Mcir` column, matching the standalone script-level
+prediction. Rescoring with `bin/score_controls.py` against this real, pipeline-produced
+matrix gives recall 0.800 (4/5) and fp_rate 0.000 (0/9) -- identical to the earlier
+standalone `profile_to_matrix.py`-based test.
+
+**Decision**: the `1e-5` default (`nextflow.config`, commit `c603953`) is now confirmed
+end-to-end through a real pipeline run, not just a standalone script reproduction. No
+further action needed on this specific verification.
+
+**Consequences**: the single-clade caveat still stands -- `todo/validate-hmm-presence-
+coverage-broader-sweep.md`'s second-clade check remains the next open item before
+treating `1e-5` as validated project-wide, independent of this successful pipeline
+mechanics confirmation.
+
+**Scope**: same as the prior two entries -- HMM/family-profile pathways only.
+
+**Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, pezizo_set1,
+default-change, slurm, end-to-end-verification, confirmed
