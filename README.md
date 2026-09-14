@@ -109,6 +109,13 @@ carries a cross-method `support` column that flags candidates found by both meth
 confidence) vs one (threshold-sensitive). Add `-profile slurm` to either to run on the
 cluster ([below](#running-on-slurm)).
 
+**Further reading**: [Two Ways to Call a Gene Novel](https://claude.ai/code/artifact/9100e831-f915-46cd-b77b-0866fa3e5cb0)
+(2026-09-14) — a working comparison of the two presence models with real sweep data:
+why `mmseqs` yields fewer candidates than `pairwise` on identical input (1851 vs 2544,
+pezizo5), the `min_domain_evalue` promiscuous-domain fix and its two-clade validation
+status, and the unrelated `DIAMOND_SELF` sensitivity bug found in the pairwise pathway.
+Compiled from `.living/decisions.md` entries #2 and #22–26.
+
 ## Quick start
 
 ### Run it now (built-in test data)
