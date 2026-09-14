@@ -37,10 +37,22 @@ workflow SEARCH {
     }
     else if (params.run_tool == 'diamond') {
         db_ch = DIAMOND_MAKEDB(all_proteomes_ch)
-        pairs_ch = ingroup_ch
+        // Grouped by query genome (not one channel element per pair) so DIAMOND_SEARCH
+        // runs every target for a query in one job -- see that process's own comment
+        // for why. Reconstruct the [meta_pair, file] shape PARSE_HITS already expects
+        // from each output file's self-describing name, so PARSE_HITS itself needs no
+        // changes at all.
+        grouped_targets_ch = ingroup_ch
             .combine(db_ch)
             .filter { meta_q, fa_q, meta_t, db_t -> meta_q.id != meta_t.id }
-        raw_hits_ch = DIAMOND_SEARCH(pairs_ch)
+            .map { meta_q, fa_q, meta_t, db_t -> tuple(meta_q, fa_q, meta_t, db_t) }
+            .groupTuple(by: [0, 1])
+        raw_hits_ch = DIAMOND_SEARCH(grouped_targets_ch)
+            .flatten()
+            .map { file ->
+                def (query_id, target_id) = file.name.replace('.diamond.tsv.gz', '').split('_vs_')
+                tuple([query_id: query_id, target_id: target_id, tool: 'diamond'], file)
+            }
         raw_self_ch = DIAMOND_SELF(ingroup_ch)
     }
     else if (params.run_tool == 'blast') {

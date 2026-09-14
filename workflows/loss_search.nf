@@ -41,10 +41,19 @@ workflow LOSS_SEARCH {
     }
     else if (params.run_tool == 'diamond') {
         db_ch = DIAMOND_MAKEDB(all_proteomes_ch)
-        pairs_ch = outgroup_ch
+        // Grouped by query genome -- see workflows/search.nf's identical construction
+        // and modules/diamond.nf's DIAMOND_SEARCH for why.
+        grouped_targets_ch = outgroup_ch
             .combine(db_ch)
             .filter { meta_q, fa_q, meta_t, db_t -> meta_q.id != meta_t.id }
-        raw_hits_ch = DIAMOND_SEARCH(pairs_ch)
+            .map { meta_q, fa_q, meta_t, db_t -> tuple(meta_q, fa_q, meta_t, db_t) }
+            .groupTuple(by: [0, 1])
+        raw_hits_ch = DIAMOND_SEARCH(grouped_targets_ch)
+            .flatten()
+            .map { file ->
+                def (query_id, target_id) = file.name.replace('.diamond.tsv.gz', '').split('_vs_')
+                tuple([query_id: query_id, target_id: target_id, tool: 'diamond'], file)
+            }
         raw_self_ch = DIAMOND_SELF(outgroup_ch)
     }
     else if (params.run_tool == 'blast') {
