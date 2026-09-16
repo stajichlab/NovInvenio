@@ -54,7 +54,7 @@ process FAMILY_PFAM_SCAN {
         hmmpress ${pfam_hmm}
     fi
     hmmscan --domtblout pfam.domtblout \
-        -E ${params.pangenome_pfam_domain_evalue} \
+        --domE ${params.pangenome_pfam_domain_evalue} \
         --cpu ${task.cpus} \
         ${pfam_hmm} ${background_reps_fasta} > /dev/null
     """
@@ -80,6 +80,7 @@ process DOMAIN_ENRICHMENT {
         --significant_islands ${significant_islands} \
         --domtblout ${domtblout} \
         --frequency_table ${frequency_table} \
+        --domain_evalue ${params.pangenome_pfam_domain_evalue} \
         --output island_pfam_enrichment.tsv
     """
 }

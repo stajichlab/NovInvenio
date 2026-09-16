@@ -40,6 +40,25 @@ def test_render_report_markdown_handles_zero_enriched_domains():
         strain_gene_counts=[],
     )
     assert "No significantly enriched" in md
+    # classification_counts_dict is empty -> pair_classification_summary.png
+    # is never drawn (plot_classification_counts is only called `if
+    # classification_counts_dict:`), so the markdown must not embed it --
+    # a broken image link otherwise.
+    assert "pair_classification_summary.png" not in md
+
+
+def test_render_report_markdown_embeds_classification_figure_when_present():
+    md = render_report_markdown(
+        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        size_dist={},
+        classification_counts_dict={"trans": 5},
+        top_domains=[],
+        n_islands=0,
+        heaps_fit=None,
+        core_decay=None,
+        strain_gene_counts=[],
+    )
+    assert "![Classification breakdown](figures/pair_classification_summary.png)" in md
 
 
 def test_fit_heaps_law_detects_open_pangenome():

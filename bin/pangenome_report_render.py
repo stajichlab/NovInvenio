@@ -296,7 +296,8 @@ def render_report_markdown(
     lines += ["## Pair classification breakdown", ""]
     for classification, count in sorted(classification_counts_dict.items(), key=lambda kv: -kv[1]):
         lines.append(f"- **{classification}**: {count}")
-    lines += ["", "![Classification breakdown](figures/pair_classification_summary.png)", ""]
+    if classification_counts_dict:
+        lines += ["", "![Classification breakdown](figures/pair_classification_summary.png)", ""]
 
     lines += ["## Pfam domain enrichment", ""]
     if not top_domains:

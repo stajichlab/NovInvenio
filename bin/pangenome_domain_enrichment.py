@@ -112,12 +112,14 @@ def main() -> int:
     ap.add_argument("--significant_islands", required=True)
     ap.add_argument("--domtblout", required=True, action="append")
     ap.add_argument("--frequency_table", required=True)
+    ap.add_argument("--domain_evalue", type=float, default=1e-3,
+                     help="Domain-level i-Evalue cutoff for Pfam domain hits (default: 1e-3).")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
     from pangenome_select_background_reps import select_background_families
 
-    family_domains = parse_domtblout(args.domtblout)
+    family_domains = parse_domtblout(args.domtblout, max_ievalue=args.domain_evalue)
     print(f"pangenome_domain_enrichment: {len(family_domains)} families with >=1 Pfam domain hit",
           file=sys.stderr)
 

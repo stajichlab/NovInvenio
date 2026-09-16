@@ -32,6 +32,7 @@ process REPORT_TABLES {
         --presence_matrix ${presence_matrix} \
         --frequency_table ${frequency_table} \
         --domtblout ${domtblout} \
+        --domain_evalue ${params.pangenome_pfam_domain_evalue} \
         --out_dir .
     """
 }

@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
+import pangenome_domain_enrichment
 from pangenome_domain_enrichment import parse_domtblout, domain_enrichment
 
 
@@ -49,3 +50,48 @@ def test_domain_enrichment_excludes_island_members_outside_background(capsys):
     assert "outside the eligible" in captured.err
     # famZ excluded -> n_island_families should reflect only famA
     assert all(row["n_island_families"] == 1 for row in result)
+
+
+def test_cli_domain_evalue_threads_through_to_parse_domtblout(tmp_path, monkeypatch):
+    # famA has a domain hit at i-Evalue=5.0e-02 -- filtered out under the
+    # default (1e-3) --domain_evalue, but retained under a looser one. This
+    # confirms --domain_evalue is actually wired to parse_domtblout's
+    # max_ievalue, not just accepted and ignored (the bug this test guards
+    # against: the CLI arg previously did not exist at all, and
+    # parse_domtblout's max_ievalue was hardcoded to 1e-3 unconditionally).
+    dtbl = tmp_path / "test.domtblout"
+    dtbl.write_text(
+        "PF00001 - 100 famA - 50 5.0e-02 100.0 20.0 1 1 5.0e-02 5.0e-02 100.0 20.0 10 20 10 20 10 20 0.99\n"
+    )
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text(
+        "family\tfrequency\tbin\n"
+        "famA\t0.5\tshell\n"
+        "famB\t0.5\tshell\n"
+    )
+    significant_islands = tmp_path / "significant_islands.tsv"
+    significant_islands.write_text(
+        "n_strains\texample_strain\tisland_size\tmember_families\t"
+        "n_supporting_pairs\tclassifications\n"
+        "2\ts1\t1\tfamA\t1\ttrans\n"
+    )
+
+    def run(domain_evalue_args):
+        output = tmp_path / f"out_{'_'.join(domain_evalue_args) or 'default'}.tsv"
+        argv = [
+            "pangenome_domain_enrichment.py",
+            "--significant_islands", str(significant_islands),
+            "--domtblout", str(dtbl),
+            "--frequency_table", str(frequency_table),
+            "--output", str(output),
+            *domain_evalue_args,
+        ]
+        monkeypatch.setattr(sys, "argv", argv)
+        pangenome_domain_enrichment.main()
+        return output.read_text()
+
+    default_output = run([])
+    assert "PF00001" not in default_output  # filtered out at default 1e-3
+
+    loose_output = run(["--domain_evalue", "0.1"])
+    assert "PF00001" in loose_output  # retained once threshold is loosened

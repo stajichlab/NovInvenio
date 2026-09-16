@@ -98,6 +98,8 @@ def main() -> int:
     ap.add_argument("--presence_matrix", required=True)
     ap.add_argument("--frequency_table", required=True)
     ap.add_argument("--domtblout", required=True, action="append")
+    ap.add_argument("--domain_evalue", type=float, default=1e-3,
+                     help="Domain-level i-Evalue cutoff for Pfam domain hits (default: 1e-3).")
     ap.add_argument("--out_dir", required=True)
     args = ap.parse_args()
 
@@ -107,11 +109,14 @@ def main() -> int:
     with open(args.significant_islands, newline="") as fh:
         islands_rows = list(csv.DictReader(fh, delimiter="\t"))
 
-    family_domains = parse_domtblout(args.domtblout)
+    family_domains = parse_domtblout(args.domtblout, max_ievalue=args.domain_evalue)
     annotated = annotate_islands_with_domains(islands_rows, family_domains)
     with open(out_dir / "islands_with_domains.tsv", "w", newline="") as out:
-        fieldnames = list(annotated[0].keys()) if annotated else []
-        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t")
+        fieldnames = list(annotated[0].keys()) if annotated else [
+            "n_strains", "example_strain", "island_size", "member_families",
+            "n_supporting_pairs", "classifications", "pfam_domains",
+        ]
+        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         for row in sorted(annotated, key=lambda r: -int(r["island_size"])):
             writer.writerow(row)
@@ -135,7 +140,7 @@ def main() -> int:
     strain_rows = per_strain_summary(args.presence_matrix, family_bin)
     with open(out_dir / "per_strain_summary.tsv", "w", newline="") as out:
         fieldnames = ["Short", "n_genes", "core", "soft_core", "shell", "cloud", "singleton"]
-        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t")
+        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         for row in sorted(strain_rows, key=lambda r: r["n_genes"]):
             writer.writerow(row)
