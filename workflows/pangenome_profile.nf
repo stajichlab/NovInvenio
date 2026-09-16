@@ -147,7 +147,15 @@ workflow PANGENOME_PROFILE {
     COOCCURRENCE(rescued_matrix, FREQUENCY_BINS.out.table, effective_samplesheet, strain_inventory)
 
     // --- 6. Gene/family positions -------------------------------------------
-    GENE_POSITIONS(samplesheet, gff3_dir_abs)
+    // protein_dir_abs is always "<data_dir_abs>/pep" -- the fixed layout
+    // build_study_config.py always produces, same fixed-subdir convention
+    // gff3_dir_abs's own default already uses in pangenome.nf. Needed here
+    // (added alongside the GFF3 protein_id=/Parent= dialect fallback fix)
+    // so GENE_POSITIONS can cross-check resolved GFF3 IDs against each
+    // strain's real protein FASTA headers, rather than trust GFF3 attribute
+    // presence alone.
+    protein_dir_abs = "${data_dir_abs}/pep"
+    GENE_POSITIONS(samplesheet, gff3_dir_abs, protein_dir_abs)
     FAMILY_POSITIONS(GENE_POSITIONS.out.positions, CLUSTER_TIER1.out.cluster_tsv, rescue_positions)
 
     // --- 7. Optional captain/mobile-element marker gene evidence -----------

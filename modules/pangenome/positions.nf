@@ -14,6 +14,7 @@ process GENE_POSITIONS {
     input:
     path(samplesheet)
     val(gff3_dir_abs)
+    val(protein_dir_abs)
 
     output:
     path("gene_positions.tsv"), emit: positions
@@ -22,6 +23,7 @@ process GENE_POSITIONS {
     """
     pangenome_build_gene_positions.py \
         --config ${samplesheet} --gff3_dir ${gff3_dir_abs} \
+        --protein_dir ${protein_dir_abs} \
         --groups '${params.pangenome_ingroup_label},${params.pangenome_outgroup_label}' \
         --output gene_positions.tsv
     """
