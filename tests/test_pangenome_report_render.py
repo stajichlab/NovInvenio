@@ -61,6 +61,30 @@ def test_render_report_markdown_embeds_classification_figure_when_present():
     assert "![Classification breakdown](figures/pair_classification_summary.png)" in md
 
 
+def test_render_report_markdown_includes_marker_section_when_markers_present():
+    md = render_report_markdown(
+        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
+        heaps_fit=None, core_decay=None, strain_gene_counts=[],
+        marker_rows=[{
+            "marker_name": "captain", "n_islands_with_marker": "2",
+            "n_islands_total": "4", "pct_islands_with_marker": "50.0",
+        }],
+    )
+    assert "## Marker co-occurrence" in md
+    assert "captain" in md
+    assert "50.0%" in md
+
+
+def test_render_report_markdown_skips_marker_section_when_no_markers():
+    md = render_report_markdown(
+        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
+        heaps_fit=None, core_decay=None, strain_gene_counts=[], marker_rows=[],
+    )
+    assert "## Marker co-occurrence" not in md
+
+
 def test_fit_heaps_law_detects_open_pangenome():
     # A slowly-still-growing pangenome curve (gamma < 1 -> open)
     n = np.arange(1, 21)

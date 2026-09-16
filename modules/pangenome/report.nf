@@ -21,6 +21,7 @@ process REPORT_TABLES {
     path("islands_with_domains.tsv"), emit: islands_with_domains
     path("island_size_distribution.tsv"), emit: size_distribution
     path("classification_counts.tsv"), emit: classification_counts
+    path("marker_summary.tsv"), emit: marker_summary
     path("per_strain_summary.tsv"), emit: per_strain_summary
 
     script:
@@ -50,6 +51,7 @@ process REPORT_RENDER {
     path(island_size_distribution)
     path(classification_counts)
     path(island_pfam_enrichment)
+    path(marker_summary)
     path(per_strain_summary)
 
     output:
@@ -67,6 +69,7 @@ process REPORT_RENDER {
         --island_size_distribution ${island_size_distribution} \
         --classification_counts ${classification_counts} \
         --island_pfam_enrichment ${island_pfam_enrichment} \
+        --marker_summary ${marker_summary} \
         --per_strain_summary ${per_strain_summary} \
         --n_permutations ${params.pangenome_accumulation_permutations} \
         --seed ${params.pangenome_accumulation_seed} \

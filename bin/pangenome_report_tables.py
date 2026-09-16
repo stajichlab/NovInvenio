@@ -65,6 +65,30 @@ def classification_counts(pair_classification_path: str) -> dict[str, int]:
     return counts
 
 
+def marker_summary(islands_rows: list[dict], fieldnames: list[str]) -> list[dict]:
+    """One row per marker name found in the `has_<marker>` columns of
+    significant_islands.tsv: {marker_name, n_islands_with_marker,
+    n_islands_total, pct_islands_with_marker}. `fieldnames` is
+    significant_islands.tsv's own header (not `islands_rows[0].keys()`, which
+    would be empty/unavailable when there are zero island rows) -- passed
+    in explicitly so a header-only marker_summary.tsv can still be written
+    when no marker search was run for this study (zero `has_<marker>`
+    columns present) without erroring on an empty `islands_rows`."""
+    marker_names = sorted(fn[len("has_"):] for fn in fieldnames if fn.startswith("has_"))
+    n_total = len(islands_rows)
+    rows = []
+    for name in marker_names:
+        n_with = sum(1 for r in islands_rows if r.get(f"has_{name}") == "Y")
+        pct = round(100 * n_with / n_total, 1) if n_total else 0.0
+        rows.append({
+            "marker_name": name,
+            "n_islands_with_marker": n_with,
+            "n_islands_total": n_total,
+            "pct_islands_with_marker": pct,
+        })
+    return rows
+
+
 def per_strain_summary(presence_matrix_path: str, family_bin: dict[str, str]) -> list[dict]:
     """One row per strain: total genes present, plus counts broken down by
     frequency bin (core/soft_core/shell/cloud/singleton). `genome_only`
@@ -107,7 +131,9 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     with open(args.significant_islands, newline="") as fh:
-        islands_rows = list(csv.DictReader(fh, delimiter="\t"))
+        significant_islands_reader = csv.DictReader(fh, delimiter="\t")
+        islands_rows = list(significant_islands_reader)
+        significant_islands_fieldnames = significant_islands_reader.fieldnames or []
 
     family_domains = parse_domtblout(args.domtblout, max_ievalue=args.domain_evalue)
     annotated = annotate_islands_with_domains(islands_rows, family_domains)
@@ -126,6 +152,14 @@ def main() -> int:
         out.write("island_size\tcount\n")
         for size, count in sorted(dist.items()):
             out.write(f"{size}\t{count}\n")
+
+    markers = marker_summary(islands_rows, significant_islands_fieldnames)
+    with open(out_dir / "marker_summary.tsv", "w", newline="") as out:
+        fieldnames = ["marker_name", "n_islands_with_marker", "n_islands_total", "pct_islands_with_marker"]
+        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
+        writer.writeheader()
+        for row in markers:
+            writer.writerow(row)
 
     counts = classification_counts(args.pair_classification)
     with open(out_dir / "classification_counts.tsv", "w") as out:
@@ -147,8 +181,8 @@ def main() -> int:
 
     print(f"pangenome_report_tables: wrote islands_with_domains.tsv "
           f"({len(annotated)} islands), island_size_distribution.tsv, "
-          f"classification_counts.tsv, per_strain_summary.tsv "
-          f"({len(strain_rows)} strains) to {out_dir}", file=sys.stderr)
+          f"classification_counts.tsv, marker_summary.tsv ({len(markers)} markers), "
+          f"per_strain_summary.tsv ({len(strain_rows)} strains) to {out_dir}", file=sys.stderr)
     return 0
 
 

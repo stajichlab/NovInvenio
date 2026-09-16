@@ -8,6 +8,7 @@ from pangenome_report_tables import (
     annotate_islands_with_domains,
     island_size_distribution,
     classification_counts,
+    marker_summary,
     per_strain_summary,
 )
 
@@ -54,6 +55,110 @@ def test_per_strain_summary_counts_genes_and_bins(tmp_path):
     by_strain = {r["Short"]: r for r in result}
     assert by_strain["s1"] == {"Short": "s1", "n_genes": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0}
     assert by_strain["s2"] == {"Short": "s2", "n_genes": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
+
+
+def test_marker_summary_computes_cooccurrence_rate():
+    fieldnames = [
+        "n_strains", "example_strain", "island_size", "member_families",
+        "n_supporting_pairs", "classifications", "has_captain", "has_sm_backbone",
+    ]
+    islands_rows = [
+        {"has_captain": "Y", "has_sm_backbone": "N"},
+        {"has_captain": "N", "has_sm_backbone": "N"},
+        {"has_captain": "Y", "has_sm_backbone": "Y"},
+    ]
+    result = marker_summary(islands_rows, fieldnames)
+    by_name = {r["marker_name"]: r for r in result}
+    assert by_name["captain"] == {
+        "marker_name": "captain", "n_islands_with_marker": 2,
+        "n_islands_total": 3, "pct_islands_with_marker": 66.7,
+    }
+    assert by_name["sm_backbone"] == {
+        "marker_name": "sm_backbone", "n_islands_with_marker": 1,
+        "n_islands_total": 3, "pct_islands_with_marker": 33.3,
+    }
+
+
+def test_marker_summary_zero_marker_columns_returns_empty_list():
+    fieldnames = ["n_strains", "example_strain", "island_size", "member_families"]
+    assert marker_summary([{"n_strains": "1"}], fieldnames) == []
+
+
+def test_main_writes_marker_summary_tsv(tmp_path, monkeypatch):
+    significant_islands = tmp_path / "significant_islands.tsv"
+    significant_islands.write_text(
+        "n_strains\texample_strain\tisland_size\tmember_families\t"
+        "n_supporting_pairs\tclassifications\thas_captain\n"
+        "2\ts1\t2\tfamA,famB\t1\ttrans\tY\n"
+        "1\ts2\t2\tfamC,famD\t1\ttrans\tN\n"
+    )
+    island_pfam_enrichment = tmp_path / "island_pfam_enrichment.tsv"
+    island_pfam_enrichment.write_text("domain\tfisher_p\tfdr_q\n")
+    pair_classification = tmp_path / "pair_classification.tsv"
+    pair_classification.write_text("family_a\tfamily_b\tclassification\n")
+    presence_matrix = tmp_path / "presence_matrix.tsv"
+    presence_matrix.write_text("family\ts1\n")
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text("family\tfrequency\tbin\n")
+    domtblout = tmp_path / "test.domtblout"
+    domtblout.write_text("")
+    out_dir = tmp_path / "out"
+
+    argv = [
+        "pangenome_report_tables.py",
+        "--significant_islands", str(significant_islands),
+        "--island_pfam_enrichment", str(island_pfam_enrichment),
+        "--pair_classification", str(pair_classification),
+        "--presence_matrix", str(presence_matrix),
+        "--frequency_table", str(frequency_table),
+        "--domtblout", str(domtblout),
+        "--out_dir", str(out_dir),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    pangenome_report_tables.main()
+
+    marker_bytes = (out_dir / "marker_summary.tsv").read_bytes()
+    marker_text = marker_bytes.decode()
+    assert marker_text == (
+        "marker_name\tn_islands_with_marker\tn_islands_total\tpct_islands_with_marker\n"
+        "captain\t1\t2\t50.0\n"
+    )
+    assert b"\r\n" not in marker_bytes
+
+
+def test_main_zero_marker_columns_writes_header_only_marker_summary(tmp_path, monkeypatch):
+    significant_islands = tmp_path / "significant_islands.tsv"
+    significant_islands.write_text(
+        "n_strains\texample_strain\tisland_size\tmember_families\t"
+        "n_supporting_pairs\tclassifications\n"
+    )
+    island_pfam_enrichment = tmp_path / "island_pfam_enrichment.tsv"
+    island_pfam_enrichment.write_text("domain\tfisher_p\tfdr_q\n")
+    pair_classification = tmp_path / "pair_classification.tsv"
+    pair_classification.write_text("family_a\tfamily_b\tclassification\n")
+    presence_matrix = tmp_path / "presence_matrix.tsv"
+    presence_matrix.write_text("family\ts1\n")
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text("family\tfrequency\tbin\n")
+    domtblout = tmp_path / "test.domtblout"
+    domtblout.write_text("")
+    out_dir = tmp_path / "out"
+
+    argv = [
+        "pangenome_report_tables.py",
+        "--significant_islands", str(significant_islands),
+        "--island_pfam_enrichment", str(island_pfam_enrichment),
+        "--pair_classification", str(pair_classification),
+        "--presence_matrix", str(presence_matrix),
+        "--frequency_table", str(frequency_table),
+        "--domtblout", str(domtblout),
+        "--out_dir", str(out_dir),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    pangenome_report_tables.main()
+
+    marker_text = (out_dir / "marker_summary.tsv").read_text()
+    assert marker_text == "marker_name\tn_islands_with_marker\tn_islands_total\tpct_islands_with_marker\n"
 
 
 def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monkeypatch):

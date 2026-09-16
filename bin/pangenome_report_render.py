@@ -256,6 +256,7 @@ def render_report_markdown(
     heaps_fit: dict | None,
     core_decay: dict | None,
     strain_gene_counts: list[int],
+    marker_rows: list[dict] | None = None,
 ) -> str:
     total_families = sum(counts.values())
     lines = ["# Pangenome Island + Pfam Enrichment Report", ""]
@@ -293,6 +294,17 @@ def render_report_markdown(
     if size_dist:
         lines += ["![Island sizes](figures/island_size_distribution.png)", ""]
 
+    if marker_rows:
+        lines += ["## Marker co-occurrence", ""]
+        lines += ["| Marker | Islands with marker | Islands total | % with marker |",
+                  "|---|---|---|---|"]
+        for row in marker_rows:
+            lines.append(
+                f"| {row['marker_name']} | {row['n_islands_with_marker']} | "
+                f"{row['n_islands_total']} | {float(row['pct_islands_with_marker']):.1f}% |"
+            )
+        lines.append("")
+
     lines += ["## Pair classification breakdown", ""]
     for classification, count in sorted(classification_counts_dict.items(), key=lambda kv: -kv[1]):
         lines.append(f"- **{classification}**: {count}")
@@ -320,6 +332,7 @@ def main() -> int:
     ap.add_argument("--island_size_distribution", required=True)
     ap.add_argument("--classification_counts", required=True)
     ap.add_argument("--island_pfam_enrichment", required=True)
+    ap.add_argument("--marker_summary", required=True)
     ap.add_argument("--per_strain_summary", required=True)
     ap.add_argument("--fdr_threshold", type=float, default=0.05)
     ap.add_argument("--n_permutations", type=int, default=20)
@@ -361,6 +374,11 @@ def main() -> int:
         for row in csv.DictReader(fh, delimiter="\t"):
             strain_gene_counts.append(int(row["n_genes"]))
 
+    marker_rows: list[dict] = []
+    with open(args.marker_summary, newline="") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            marker_rows.append(row)
+
     plot_frequency_distribution(frequency_table_rows, out_dir)
     plot_frequency_bins(counts, out_dir)
     if size_dist:
@@ -385,7 +403,7 @@ def main() -> int:
 
     markdown = render_report_markdown(
         counts, size_dist, classification_counts_dict, top_domains, n_islands,
-        heaps_fit, core_decay, strain_gene_counts,
+        heaps_fit, core_decay, strain_gene_counts, marker_rows,
     )
     (out_dir / "report.md").write_text(markdown)
 

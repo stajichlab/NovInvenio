@@ -196,12 +196,23 @@ workflow PANGENOME_PROFILE {
     // it into a value reused for every marker task rather than being consumed
     // by only the first one.
     if (params.pangenome_island_pfam_hmm) {
-        def marker_names_list = params.pangenome_marker_names ? params.pangenome_marker_names.split(',') as List : []
+        def marker_names_list = params.pangenome_marker_names ? params.pangenome_marker_names.split(',')*.trim() as List : []
         def marker_hmm_paths_list = params.pangenome_marker_hmm_paths ? params.pangenome_marker_hmm_paths.split(',') as List : []
         if (marker_names_list.size() != marker_hmm_paths_list.size()) {
             error "ERROR: --pangenome_marker_names and --pangenome_marker_hmm_paths must have " +
                   "the same number of comma-separated entries (got ${marker_names_list.size()} names, " +
                   "${marker_hmm_paths_list.size()} paths)"
+        }
+        // Fail fast at parse time (not deep inside a later process, e.g. a
+        // broken output filename or a malformed --marker_tblout CLI arg): a
+        // natural-but-wrong list like 'captain, sm_backbone' (space after
+        // the comma) would otherwise produce a marker literally named
+        // " sm_backbone". Names are trimmed above; validate what remains is
+        // a well-formed identifier.
+        def invalid_marker_names = marker_names_list.findAll { !(it ==~ /^\w+$/) }
+        if (invalid_marker_names) {
+            error "ERROR: --pangenome_marker_names entries must be non-empty and contain only " +
+                  "word characters (letters, digits, underscore) -- invalid: ${invalid_marker_names}"
         }
 
         if (marker_names_list) {
@@ -250,6 +261,7 @@ workflow PANGENOME_PROFILE {
             REPORT_TABLES.out.size_distribution,
             REPORT_TABLES.out.classification_counts,
             DOMAIN_ENRICHMENT.out.enrichment,
+            REPORT_TABLES.out.marker_summary,
             REPORT_TABLES.out.per_strain_summary,
         )
     }
