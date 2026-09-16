@@ -1,5 +1,7 @@
-"""Unit tests for bin/ni (issue #76): scaffolds a new analysis-deploy repo by
-copying a fixed file manifest from a --reference checkout.
+"""Unit tests for bin/ni-init (issue #76, renamed from bin/ni 2026-09-16 to
+avoid colliding with NovInvenio_Investigations' own bin/ni): scaffolds a new
+analysis-deploy repo by copying a fixed file manifest from a --reference
+checkout.
 
 Uses a synthetic minimal reference tree (not the real NovInvenio_Investigations
 checkout) so this test is hermetic and doesn't depend on that repo existing on
@@ -12,10 +14,11 @@ from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-NI = REPO / 'bin' / 'ni'
+NI = REPO / 'bin' / 'ni-init'
 
-# bin/ni has no .py extension (so it reads as `ni init ...` on the command
-# line) -- load it as a module by explicit path rather than a bare `import`.
+# bin/ni-init has no .py extension (so it reads as `ni-init init ...` on the
+# command line) -- load it as a module by explicit path rather than a bare
+# `import`.
 # spec_from_file_location can't infer a loader for an extension-less file, so
 # an explicit SourceFileLoader is required.
 _loader = SourceFileLoader('ni_module', str(NI))
