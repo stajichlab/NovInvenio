@@ -40,7 +40,19 @@ process FAMILY_PFAM_SCAN {
     path("pfam.domtblout"), emit: domtblout
 
     script:
+    // hmmscan requires the target HMM database to be hmmpress-indexed
+    // (.h3f/.h3i/.h3m/.h3p). Nextflow's `path(pfam_hmm)` input only stages
+    // the single named file into the task work dir, not any sibling index
+    // files that may exist alongside the source path -- so a real,
+    // already-pressed Pfam-A.hmm on disk still lands here without its
+    // indices. Press it in the task's own work dir on demand rather than
+    // requiring the caller to pass the index files through as extra
+    // channel inputs (harder to wire, and not every HMM db a study might
+    // point this at is guaranteed pre-pressed).
     """
+    if [ ! -e ${pfam_hmm}.h3f ]; then
+        hmmpress ${pfam_hmm}
+    fi
     hmmscan --domtblout pfam.domtblout \
         -E ${params.pangenome_pfam_domain_evalue} \
         --cpu ${task.cpus} \

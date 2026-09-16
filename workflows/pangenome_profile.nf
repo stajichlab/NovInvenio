@@ -45,6 +45,9 @@ include { FREQUENCY_BINS; COOCCURRENCE }                                    from
 include { GENE_POSITIONS; EXTRACT_RESCUE_POSITIONS; FAMILY_POSITIONS }      from '../modules/pangenome/positions'
 include { HMMFETCH_CAPTAIN; CAPTAIN_HMMSEARCH }                             from '../modules/pangenome/captain'
 include { PAIR_CLASSIFICATION }                                             from '../modules/pangenome/pair_classification'
+include { BUILD_ISLANDS; MARKER_HMMSEARCH }                                from '../modules/pangenome/islands'
+include { SELECT_BACKGROUND_REPS; FAMILY_PFAM_SCAN; DOMAIN_ENRICHMENT }     from '../modules/pangenome/pfam_enrichment'
+include { REPORT_TABLES; REPORT_RENDER }                                   from '../modules/pangenome/report'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_INVENTORY_STUB }        from '../modules/empty_evalues_stub'
@@ -183,6 +186,73 @@ workflow PANGENOME_PROFILE {
         CLUSTER_TIER1.out.cluster_tsv,
         captain_tblout,
     )
+
+    // --- 9. Accessory islands + Pfam functional enrichment (optional) --------
+    // Named marker searches (0+): ONE MARKER_HMMSEARCH invocation over a
+    // Channel.fromList of [name, hmm_path] tuples runs one task per marker via
+    // Nextflow's normal channel-based fan-out -- not a loop calling the process
+    // repeatedly (DSL2 forbids invoking a process more than once per workflow).
+    // CONCAT_PROTEOMES.out.fasta is a single-emission channel; `.first()` turns
+    // it into a value reused for every marker task rather than being consumed
+    // by only the first one.
+    if (params.pangenome_island_pfam_hmm) {
+        def marker_names_list = params.pangenome_marker_names ? params.pangenome_marker_names.split(',') as List : []
+        def marker_hmm_paths_list = params.pangenome_marker_hmm_paths ? params.pangenome_marker_hmm_paths.split(',') as List : []
+        if (marker_names_list.size() != marker_hmm_paths_list.size()) {
+            error "ERROR: --pangenome_marker_names and --pangenome_marker_hmm_paths must have " +
+                  "the same number of comma-separated entries (got ${marker_names_list.size()} names, " +
+                  "${marker_hmm_paths_list.size()} paths)"
+        }
+
+        if (marker_names_list) {
+            marker_input_ch = Channel.fromList(
+                [marker_names_list, marker_hmm_paths_list.collect { file(it) }].transpose()
+            )
+            MARKER_HMMSEARCH(marker_input_ch, CONCAT_PROTEOMES.out.fasta.first())
+            // .toList() (NOT .collect(), which flattens [[n,p],[n,p]] to
+            // [n,p,n,p] by default) keeps each [name, tblout] pair intact as one
+            // list-of-pairs value; .collect{it[0]}/.collect{it[1]} then split
+            // that into the two PARALLEL lists BUILD_ISLANDS's val+path inputs
+            // expect (see Task 4).
+            marker_pairs_ch = MARKER_HMMSEARCH.out.result.toList()
+            marker_names_ch = marker_pairs_ch.map { pairs -> pairs.collect { it[0] } }
+            marker_tblout_files_ch = marker_pairs_ch.map { pairs -> pairs.collect { it[1] } }
+        } else {
+            marker_names_ch = Channel.value([])
+            marker_tblout_files_ch = Channel.value([])
+        }
+
+        BUILD_ISLANDS(
+            FAMILY_POSITIONS.out.positions,
+            FREQUENCY_BINS.out.table,
+            PAIR_CLASSIFICATION.out.classification,
+            CLUSTER_TIER1.out.cluster_tsv,
+            marker_names_ch,
+            marker_tblout_files_ch,
+        )
+
+        SELECT_BACKGROUND_REPS(CLUSTER_TIER1.out.rep_fasta, FREQUENCY_BINS.out.table)
+        FAMILY_PFAM_SCAN(SELECT_BACKGROUND_REPS.out.fasta, file(params.pangenome_island_pfam_hmm))
+        DOMAIN_ENRICHMENT(BUILD_ISLANDS.out.islands, FAMILY_PFAM_SCAN.out.domtblout, FREQUENCY_BINS.out.table)
+
+        REPORT_TABLES(
+            BUILD_ISLANDS.out.islands,
+            DOMAIN_ENRICHMENT.out.enrichment,
+            PAIR_CLASSIFICATION.out.classification,
+            rescued_matrix,
+            FREQUENCY_BINS.out.table,
+            FAMILY_PFAM_SCAN.out.domtblout,
+        )
+        REPORT_RENDER(
+            FREQUENCY_BINS.out.table,
+            rescued_matrix,
+            REPORT_TABLES.out.islands_with_domains,
+            REPORT_TABLES.out.size_distribution,
+            REPORT_TABLES.out.classification_counts,
+            DOMAIN_ENRICHMENT.out.enrichment,
+            REPORT_TABLES.out.per_strain_summary,
+        )
+    }
 
     emit:
     cluster_tsv         = CLUSTER_TIER1.out.cluster_tsv
