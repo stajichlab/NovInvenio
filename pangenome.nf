@@ -78,6 +78,19 @@ def print_help() {
                                        (default: true).
       --pangenome_assign_clades        Assign clades via mash + scipy clustering
                                        (default: true).
+      --pangenome_island_pfam_hmm      Path to Pfam-A.hmm -- enables the accessory-island
+                                       + Pfam functional-enrichment step (off by default).
+                                       Distinct from --pangenome_pfam_hmm, which is only
+                                       used by the captain-by-name branch above.
+      --pangenome_island_min_size      Minimum island size to report (default: 2).
+      --pangenome_pfam_domain_evalue   hmmscan domain-level E-value cutoff (default: 1e-3).
+      --pangenome_marker_names         Comma list of named marker searches (e.g.
+                                       'captain,sm_backbone'), run via MARKER_HMMSEARCH.
+      --pangenome_marker_hmm_paths     Parallel comma list of HMM paths for each named marker.
+      --pangenome_marker_evalue        hmmsearch E-value cutoff for marker searches (default: 1e-5).
+      --pangenome_accumulation_permutations  Random strain-order permutations for the
+                                       rarefaction/accumulation curve (default: 20).
+      --pangenome_accumulation_seed    RNG seed for the accumulation curve (default: 0).
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two
