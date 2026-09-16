@@ -101,3 +101,27 @@ def test_fit_core_decay_returns_asymptote():
     result = fit_core_decay(core_mean)
     assert result["fit_ok"] is True
     assert abs(result["core_inf"] - 50) < 5
+
+
+def test_fit_core_decay_falls_back_gracefully_on_tiny_cohort():
+    # 2 strains -> curve_fit's 3-parameter model has fewer data points than
+    # free parameters, which raises TypeError (not RuntimeError) -- this
+    # previously crashed REPORT_RENDER, the pipeline's last step, uncaught.
+    core_mean = np.array([50.0, 45.0])
+    result = fit_core_decay(core_mean)
+    assert result["fit_ok"] is False
+    assert result["core_inf"] == core_mean[-1]
+    assert np.isnan(result["tau"])
+
+
+def test_fit_heaps_law_short_circuits_below_3_strains():
+    # log-log linear regression degenerates below ~3 strains (2 points fit
+    # a line trivially with a meaningless R^2; 1 point can't fit at all) --
+    # must short-circuit to the not-available sentinel instead of attempting
+    # np.polyfit.
+    pan_mean = np.array([10.0, 15.0])
+    result = fit_heaps_law(pan_mean)
+    assert result["fit_ok"] is False
+    assert np.isnan(result["gamma"])
+    assert np.isnan(result["kappa"])
+    assert np.isnan(result["r_squared"])

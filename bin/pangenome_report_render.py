@@ -147,7 +147,16 @@ def fit_heaps_law(pan_mean: np.ndarray) -> dict:
     an OPEN pangenome (new families keep appearing as more genomes are
     added); gamma >= 1 indicates a closed one. This is the fitted openness
     statistic Afumigatus's own report never computed -- it only asserted
-    openness from the curve's visual shape."""
+    openness from the curve's visual shape.
+
+    Below 3 strains, np.polyfit's log-log linear regression degenerates
+    (2 points fit a line trivially with a meaningless/undefined R^2, 1 point
+    can't fit at all) -- short-circuits to the same not-available sentinel
+    fit_core_decay's own except-path returns, rather than attempting the
+    fit."""
+    if len(pan_mean) < 3:
+        return {"kappa": float("nan"), "gamma": float("nan"), "r_squared": float("nan"),
+                "is_open": False, "fit_ok": False}
     n_strains = np.arange(1, len(pan_mean) + 1)
     log_n = np.log(n_strains)
     log_pan = np.log(pan_mean)
@@ -157,7 +166,8 @@ def fit_heaps_law(pan_mean: np.ndarray) -> dict:
     ss_res = np.sum((log_pan - predicted) ** 2)
     ss_tot = np.sum((log_pan - log_pan.mean()) ** 2)
     r_squared = float(1 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
-    return {"kappa": float(kappa), "gamma": float(gamma), "r_squared": r_squared, "is_open": bool(gamma < 1)}
+    return {"kappa": float(kappa), "gamma": float(gamma), "r_squared": r_squared,
+            "is_open": bool(gamma < 1), "fit_ok": True}
 
 
 def fit_core_decay(core_mean: np.ndarray) -> dict:
@@ -180,7 +190,13 @@ def fit_core_decay(core_mean: np.ndarray) -> dict:
         )
         core_inf, _amplitude, tau = popt
         return {"core_inf": float(core_inf), "tau": float(tau), "fit_ok": True}
-    except RuntimeError:
+    except Exception:
+        # curve_fit raises RuntimeError when the fit doesn't converge, but
+        # also TypeError when there are fewer data points than free
+        # parameters (a real failure mode for a very small strain cohort,
+        # e.g. 2 strains) -- both are non-fatal, fall-back-gracefully cases
+        # for this report's last pipeline step, not something that should
+        # crash REPORT_RENDER.
         return {"core_inf": float(core_mean[-1]), "tau": float("nan"), "fit_ok": False}
 
 
