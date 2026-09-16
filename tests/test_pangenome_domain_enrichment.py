@@ -1,0 +1,51 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
+
+from pangenome_domain_enrichment import parse_domtblout, domain_enrichment
+
+
+def test_parse_domtblout_filters_by_ievalue(tmp_path):
+    dtbl = tmp_path / "test.domtblout"
+    # hmmscan domtblout columns (0-indexed): 0 target_name, 1 target_acc,
+    # 2 tlen, 3 query_name, 4 query_acc, 5 qlen, 6 full_evalue, 7 full_score,
+    # 8 full_bias, 9 dom#, 10 dom_of, 11 c-Evalue, 12 i-Evalue, 13 dom_score,
+    # 14 dom_bias, 15-20 hmm/ali/env coords, 21 acc. parse_domtblout reads
+    # parts[12] -- the i-Evalue must actually sit there, or this test can't
+    # distinguish pass/fail (caught during Opus review: an earlier draft of
+    # this fixture put the discriminating value at index 9/10 instead).
+    dtbl.write_text(
+        "# comment line\n"
+        "PF00001 - 100 famA - 50 1.0e-10 100.0 20.0 1 1 1.0e-10 1.0e-10 100.0 20.0 10 20 10 20 10 20 0.99\n"
+        "PF00002 - 100 famA - 50 5.0e-02 100.0 20.0 1 1 5.0e-02 5.0e-02 100.0 20.0 10 20 10 20 10 20 0.99\n"
+    )
+    hits = parse_domtblout([str(dtbl)], max_ievalue=1e-3)
+    assert hits == {"famA": {"PF00001"}}
+
+
+def test_domain_enrichment_fisher_and_bh(tmp_path):
+    # famA (island) has domainX; 3 background families total (famA, famB, famC),
+    # only famA has domainX -> strong enrichment signal.
+    island_members = {"famA"}
+    background = {"famA", "famB", "famC"}
+    family_domains = {"famA": {"domainX"}}
+    result = domain_enrichment(island_members, background, family_domains)
+    assert len(result) == 1
+    row = result[0]
+    assert row["domain"] == "domainX"
+    assert row["n_with_domain_in_islands"] == 1
+    assert row["n_with_domain_in_background"] == 1
+    assert "fdr_q" in row
+
+
+def test_domain_enrichment_excludes_island_members_outside_background(capsys):
+    # famZ is an island member but a singleton (not in shell+cloud background)
+    island_members = {"famA", "famZ"}
+    background = {"famA", "famB"}
+    family_domains = {"famA": {"domainX"}}
+    result = domain_enrichment(island_members, background, family_domains)
+    captured = capsys.readouterr()
+    assert "outside the eligible" in captured.err
+    # famZ excluded -> n_island_families should reflect only famA
+    assert all(row["n_island_families"] == 1 for row in result)
