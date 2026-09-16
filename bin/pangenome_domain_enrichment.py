@@ -66,6 +66,36 @@ def parse_domtblout(paths: list[str], max_ievalue: float = 1e-3) -> dict[str, se
     return hits
 
 
+def parse_domtblout_accessions(paths: list[str], max_ievalue: float = 1e-3) -> dict[str, str]:
+    """{pfam_domain_name: pfam_accession} from one or more hmmscan
+    --domtblout files, applying the same domain-level i-Evalue cutoff as
+    `parse_domtblout` so only domains that would actually appear in an
+    enrichment result row get an accession recorded. Pfam accession sits at
+    domtblout column index 1 (target accession, e.g. PF00000.1) --
+    immediately after column 0 (target/domain name, e.g. SnoaL_2) --
+    the more stable key for any future cross-reference (e.g. to Pfam2GO,
+    matching how the sibling Afumigatus study already does Pfam2GO
+    cross-validation using accessions, not names)."""
+    accessions: dict[str, str] = {}
+    for path in paths:
+        with open(path) as fh:
+            for line in fh:
+                if line.startswith("#") or not line.strip():
+                    continue
+                parts = line.split()
+                if len(parts) < 13:
+                    continue
+                target_name, target_acc = parts[0], parts[1]
+                try:
+                    i_evalue = float(parts[12])
+                except ValueError:
+                    continue
+                if i_evalue > max_ievalue:
+                    continue
+                accessions.setdefault(target_name, target_acc)
+    return accessions
+
+
 def domain_enrichment(
     island_member_families: set[str],
     background_families: set[str],
@@ -135,6 +165,7 @@ def main() -> int:
     family_domains = parse_domtblout(args.domtblout, max_ievalue=args.domain_evalue)
     print(f"pangenome_domain_enrichment: {len(family_domains)} families with >=1 Pfam domain hit",
           file=sys.stderr)
+    domain_accessions = parse_domtblout_accessions(args.domtblout, max_ievalue=args.domain_evalue)
 
     background = select_background_families(args.frequency_table)
     print(f"pangenome_domain_enrichment: {len(background)} eligible (shell+cloud) background families",
@@ -149,12 +180,13 @@ def main() -> int:
     enrichment = domain_enrichment(island_member_families, background, family_domains)
     with open(args.output, "w") as out:
         out.write(
-            "domain\tn_with_domain_in_islands\tn_with_domain_in_background\t"
+            "domain\tpfam_accession\tn_with_domain_in_islands\tn_with_domain_in_background\t"
             "n_island_families\tn_background_families\tfisher_p\tfdr_q\n"
         )
         for r in enrichment:
             out.write(
-                f"{r['domain']}\t{r['n_with_domain_in_islands']}\t{r['n_with_domain_in_background']}\t"
+                f"{r['domain']}\t{domain_accessions.get(r['domain'], '-')}\t"
+                f"{r['n_with_domain_in_islands']}\t{r['n_with_domain_in_background']}\t"
                 f"{r['n_island_families']}\t{r['n_background_families']}\t"
                 f"{r['fisher_p']:.3e}\t{r['fdr_q']:.3e}\n"
             )

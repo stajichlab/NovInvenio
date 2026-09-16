@@ -90,17 +90,19 @@ def marker_summary(islands_rows: list[dict], fieldnames: list[str]) -> list[dict
 
 
 def per_strain_summary(presence_matrix_path: str, family_bin: dict[str, str]) -> list[dict]:
-    """One row per strain: total genes present, plus counts broken down by
-    frequency bin (core/soft_core/shell/cloud/singleton). `genome_only`
-    counts as present (matches lib/pangenome_matrix.PresenceMatrix.is_present's
-    semantics) -- rescued genome-only calls are real presence evidence, not
-    a weaker state."""
+    """One row per strain: total families present (`n_families` -- paralogs
+    collapse to one family in the presence matrix, so this is a family
+    count, not a raw gene count), plus counts broken down by frequency bin
+    (core/soft_core/shell/cloud/singleton). `genome_only` counts as present
+    (matches lib/pangenome_matrix.PresenceMatrix.is_present's semantics) --
+    rescued genome-only calls are real presence evidence, not a weaker
+    state."""
     with open(presence_matrix_path, newline="") as fh:
         reader = csv.reader(fh, delimiter="\t")
         header = next(reader)
         strains = header[1:]
         totals = {
-            s: {"Short": s, "n_genes": 0, "core": 0, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
+            s: {"Short": s, "n_families": 0, "core": 0, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
             for s in strains
         }
         for row in reader:
@@ -108,7 +110,7 @@ def per_strain_summary(presence_matrix_path: str, family_bin: dict[str, str]) ->
             b = family_bin.get(family)
             for strain, call in zip(strains, row[1:]):
                 if call != "absent":
-                    totals[strain]["n_genes"] += 1
+                    totals[strain]["n_families"] += 1
                     if b in totals[strain]:
                         totals[strain][b] += 1
     return list(totals.values())
@@ -173,10 +175,10 @@ def main() -> int:
             family_bin[row["family"]] = row["bin"]
     strain_rows = per_strain_summary(args.presence_matrix, family_bin)
     with open(out_dir / "per_strain_summary.tsv", "w", newline="") as out:
-        fieldnames = ["Short", "n_genes", "core", "soft_core", "shell", "cloud", "singleton"]
+        fieldnames = ["Short", "n_families", "core", "soft_core", "shell", "cloud", "singleton"]
         writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
         writer.writeheader()
-        for row in sorted(strain_rows, key=lambda r: r["n_genes"]):
+        for row in sorted(strain_rows, key=lambda r: r["n_families"]):
             writer.writerow(row)
 
     print(f"pangenome_report_tables: wrote islands_with_domains.tsv "

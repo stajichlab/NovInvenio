@@ -245,7 +245,8 @@ def plot_island_size_distribution(size_dist: dict[int, int], out_dir: Path) -> N
 
 
 def plot_domain_enrichment(top_domains: list[dict], out_dir: Path, top_n: int = 20) -> None:
-    """Horizontal bar chart of the top-N (by fdr_q) significantly enriched
+    """Horizontal bar chart of the top-N (by fisher_p; `top_domains` arrives
+    already sorted that way from main()) significantly enriched
     Pfam domains among island-member families -- the figure
     (`island_domain_enrichment.png`) Afumigatus's own REPORT.md embedded by
     hand with NO checked-in generator; this makes it reproducible."""
@@ -271,7 +272,7 @@ def render_report_markdown(
     n_islands: int,
     heaps_fit: dict | None,
     core_decay: dict | None,
-    strain_gene_counts: list[int],
+    strain_family_counts: list[int],
     marker_rows: list[dict] | None = None,
 ) -> str:
     total_families = sum(counts.values())
@@ -296,11 +297,11 @@ def render_report_markdown(
         lines += ["![Accumulation curve](figures/accumulation_curve.png)", ""]
         lines += ["![Presence/absence matrix](figures/presence_absence_matrix.png)", ""]
 
-    if strain_gene_counts:
+    if strain_family_counts:
         lines += ["## Per-strain summary", ""]
-        lines += [f"Genes per strain: min={min(strain_gene_counts)}, "
-                  f"median={sorted(strain_gene_counts)[len(strain_gene_counts)//2]}, "
-                  f"max={max(strain_gene_counts)} (n={len(strain_gene_counts)} strains). "
+        lines += [f"Families per strain: min={min(strain_family_counts)}, "
+                  f"median={sorted(strain_family_counts)[len(strain_family_counts)//2]}, "
+                  f"max={max(strain_family_counts)} (n={len(strain_family_counts)} strains). "
                   "See per_strain_summary.tsv for outliers.", ""]
 
     lines += ["## Accessory islands", ""]
@@ -385,10 +386,10 @@ def main() -> int:
                 top_domains.append(row)
     top_domains.sort(key=lambda r: float(r["fisher_p"]))
 
-    strain_gene_counts: list[int] = []
+    strain_family_counts: list[int] = []
     with open(args.per_strain_summary, newline="") as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
-            strain_gene_counts.append(int(row["n_genes"]))
+            strain_family_counts.append(int(row["n_families"]))
 
     marker_rows: list[dict] = []
     with open(args.marker_summary, newline="") as fh:
@@ -419,7 +420,7 @@ def main() -> int:
 
     markdown = render_report_markdown(
         counts, size_dist, classification_counts_dict, top_domains, n_islands,
-        heaps_fit, core_decay, strain_gene_counts, marker_rows,
+        heaps_fit, core_decay, strain_family_counts, marker_rows,
     )
     (out_dir / "report.md").write_text(markdown)
 

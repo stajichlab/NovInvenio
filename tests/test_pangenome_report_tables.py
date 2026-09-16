@@ -53,8 +53,8 @@ def test_per_strain_summary_counts_genes_and_bins(tmp_path):
     family_bin = {"famA": "core", "famB": "shell", "famC": "cloud"}
     result = per_strain_summary(str(pm), family_bin)
     by_strain = {r["Short"]: r for r in result}
-    assert by_strain["s1"] == {"Short": "s1", "n_genes": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0}
-    assert by_strain["s2"] == {"Short": "s2", "n_genes": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
+    assert by_strain["s1"] == {"Short": "s1", "n_families": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0}
+    assert by_strain["s2"] == {"Short": "s2", "n_families": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
 
 
 def test_marker_summary_computes_cooccurrence_rate():

@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
 import pangenome_domain_enrichment
-from pangenome_domain_enrichment import parse_domtblout, domain_enrichment
+from pangenome_domain_enrichment import parse_domtblout, parse_domtblout_accessions, domain_enrichment
 
 
 def test_parse_domtblout_filters_by_ievalue(tmp_path):
@@ -47,6 +47,53 @@ def test_parse_domtblout_no_warning_on_genuinely_empty_file(tmp_path):
         hits = parse_domtblout([str(dtbl)], max_ievalue=1e-3)
     assert hits == {}
     assert not any("0 family/domain hits" in str(w.message) for w in caught)
+
+
+def test_parse_domtblout_accessions_maps_domain_name_to_accession(tmp_path):
+    dtbl = tmp_path / "test.domtblout"
+    dtbl.write_text(
+        "SnoaL_2 PF13577.9 100 famA - 50 1.0e-10 100.0 20.0 1 1 1.0e-10 1.0e-10 100.0 20.0 10 20 10 20 10 20 0.99\n"
+    )
+    accessions = parse_domtblout_accessions([str(dtbl)], max_ievalue=1e-3)
+    assert accessions == {"SnoaL_2": "PF13577.9"}
+
+
+def test_cli_output_includes_pfam_accession_column(tmp_path, monkeypatch):
+    dtbl = tmp_path / "test.domtblout"
+    dtbl.write_text(
+        "SnoaL_2 PF13577.9 100 famA - 50 1.0e-10 100.0 20.0 1 1 1.0e-10 1.0e-10 100.0 20.0 10 20 10 20 10 20 0.99\n"
+    )
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text(
+        "family\tfrequency\tbin\n"
+        "famA\t0.5\tshell\n"
+        "famB\t0.5\tshell\n"
+    )
+    significant_islands = tmp_path / "significant_islands.tsv"
+    significant_islands.write_text(
+        "n_strains\texample_strain\tisland_size\tmember_families\t"
+        "n_supporting_pairs\tclassifications\n"
+        "2\ts1\t1\tfamA\t1\ttrans\n"
+    )
+    output = tmp_path / "island_pfam_enrichment.tsv"
+    argv = [
+        "pangenome_domain_enrichment.py",
+        "--significant_islands", str(significant_islands),
+        "--domtblout", str(dtbl),
+        "--frequency_table", str(frequency_table),
+        "--output", str(output),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    pangenome_domain_enrichment.main()
+    lines = output.read_text().splitlines()
+    header = lines[0].split("\t")
+    assert header == [
+        "domain", "pfam_accession", "n_with_domain_in_islands", "n_with_domain_in_background",
+        "n_island_families", "n_background_families", "fisher_p", "fdr_q",
+    ]
+    data_row = lines[1].split("\t")
+    assert data_row[0] == "SnoaL_2"
+    assert data_row[1] == "PF13577.9"
 
 
 def test_domain_enrichment_fisher_and_bh(tmp_path):

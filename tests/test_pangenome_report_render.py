@@ -16,7 +16,7 @@ def test_render_report_markdown_includes_key_sections():
         n_islands=75,
         heaps_fit={"kappa": 500.0, "gamma": 0.4, "r_squared": 0.95, "is_open": True},
         core_decay={"core_inf": 90.0, "tau": 20.0, "fit_ok": True},
-        strain_gene_counts=[8000, 8100, 8050],
+        strain_family_counts=[8000, 8100, 8050],
     )
     assert "# Pangenome Island + Pfam Enrichment Report" in md
     assert "## Pangenome composition" in md
@@ -37,7 +37,7 @@ def test_render_report_markdown_handles_zero_enriched_domains():
         n_islands=0,
         heaps_fit=None,
         core_decay=None,
-        strain_gene_counts=[],
+        strain_family_counts=[],
     )
     assert "No significantly enriched" in md
     # classification_counts_dict is empty -> pair_classification_summary.png
@@ -56,7 +56,7 @@ def test_render_report_markdown_embeds_classification_figure_when_present():
         n_islands=0,
         heaps_fit=None,
         core_decay=None,
-        strain_gene_counts=[],
+        strain_family_counts=[],
     )
     assert "![Classification breakdown](figures/pair_classification_summary.png)" in md
 
@@ -65,7 +65,7 @@ def test_render_report_markdown_includes_marker_section_when_markers_present():
     md = render_report_markdown(
         counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
         size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
-        heaps_fit=None, core_decay=None, strain_gene_counts=[],
+        heaps_fit=None, core_decay=None, strain_family_counts=[],
         marker_rows=[{
             "marker_name": "captain", "n_islands_with_marker": "2",
             "n_islands_total": "4", "pct_islands_with_marker": "50.0",
@@ -80,7 +80,7 @@ def test_render_report_markdown_skips_marker_section_when_no_markers():
     md = render_report_markdown(
         counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
         size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
-        heaps_fit=None, core_decay=None, strain_gene_counts=[], marker_rows=[],
+        heaps_fit=None, core_decay=None, strain_family_counts=[], marker_rows=[],
     )
     assert "## Marker co-occurrence" not in md
 
