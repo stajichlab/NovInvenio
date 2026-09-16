@@ -68,7 +68,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
-from pangenome_matrix import read_cluster_tsv  # noqa: E402
+from pangenome_matrix import read_cluster_tsv, iter_tblout_family_hits  # noqa: E402
 from compressed_io import open_maybe_compressed  # noqa: E402
 from pangenome_synteny import linkage_fraction  # noqa: E402
 
@@ -101,21 +101,12 @@ def load_captain_families(
     OWN tier-1 family -- every captain-hit protein was part of the same
     all-strains clustering input, so it always has a family assignment
     already. An empty/missing tblout yields {} (no captain evidence
-    anywhere), the documented behavior for a study with no marker gene."""
+    anywhere), the documented behavior for a study with no marker gene.
+    Parsing itself lives in lib/pangenome_matrix.iter_tblout_family_hits
+    (shared with pangenome_build_islands.py's load_hit_families)."""
     captain_families: dict[str, set[str]] = {}
-    with open_maybe_compressed(tblout_path) as fh:
-        for line in fh:
-            if line.startswith("#") or not line.strip():
-                continue
-            target = line.split()[0]
-            if id_sep not in target:
-                continue
-            short, protein_id = target.split(id_sep, 1)
-            member_id = f"{short}{id_sep}{protein_id}"
-            family = member_to_rep.get(member_id)
-            if family is None:
-                continue
-            captain_families.setdefault(short, set()).add(family)
+    for short, family in iter_tblout_family_hits(tblout_path, member_to_rep, id_sep=id_sep):
+        captain_families.setdefault(short, set()).add(family)
     return captain_families
 
 
@@ -198,6 +189,10 @@ def main() -> None:
     ap.add_argument("--min_co_carrying", type=int, default=DEFAULT_MIN_CO_CARRYING)
     ap.add_argument("--perm_alpha", type=float, default=DEFAULT_PERM_ALPHA)
     ap.add_argument("--min_clades", type=int, default=DEFAULT_MIN_CLADES)
+    ap.add_argument("--id_sep", default="|",
+                    help="Short-prefix separator in clustering-input FASTA headers "
+                         "(default: '|'); must match --pangenome_id_sep used "
+                         "everywhere else in this pipeline run.")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -206,7 +201,7 @@ def main() -> None:
     print("Loading cluster membership...", file=sys.stderr)
     member_to_rep = read_cluster_tsv(args.cluster_tsv)
     print("Loading captain-gene evidence...", file=sys.stderr)
-    captain_families = load_captain_families(args.captain_tblout, member_to_rep)
+    captain_families = load_captain_families(args.captain_tblout, member_to_rep, id_sep=args.id_sep)
     print(
         f"{sum(len(v) for v in captain_families.values())} captain-gene family "
         f"assignments across {len(captain_families)} strains", file=sys.stderr,

@@ -35,6 +35,7 @@ process BUILD_ISLANDS {
         --pair_classification ${pair_classification} \
         --cluster_tsv ${cluster_tsv} \
         --min_island_size ${params.pangenome_island_min_size} \
+        --id_sep '${params.pangenome_id_sep}' \
         ${marker_args} \
         --output significant_islands.tsv
     """

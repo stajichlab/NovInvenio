@@ -31,6 +31,7 @@ process PAIR_CLASSIFICATION {
         --min_co_carrying ${params.pangenome_pair_class_min_co_carrying} \
         --perm_alpha ${params.pangenome_pair_class_perm_alpha} \
         --min_clades ${params.pangenome_pair_class_min_clades} \
+        --id_sep '${params.pangenome_id_sep}' \
         --output pair_classification.tsv
     """
 }

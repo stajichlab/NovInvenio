@@ -36,6 +36,34 @@ def read_cluster_tsv(path: str | Path) -> dict[str, str]:
     return member_to_rep
 
 
+def iter_tblout_family_hits(path: str | Path, member_to_rep: dict[str, str], id_sep: str = "|"):
+    """Yield (short, family_id) for every hmmsearch/hmmscan --tblout hit line
+    whose target name resolves (via `member_to_rep`) to a real tier-1
+    family. Generic across any marker tblout (captain, SM-backbone, or any
+    future named marker search).
+
+    Shared parsing core for pangenome_build_islands.py's `load_hit_families`
+    (flat set of families) and pangenome_pair_classification.py's
+    `load_captain_families` ({Short: {family, ...}}) -- previously two
+    near-verbatim copies of this same loop, each with its own hardcoded
+    `id_sep="|"` default and no `--id_sep` CLI passthrough (a study
+    configured with a different `--pangenome_id_sep` silently got zero
+    marker hits in both places).
+    """
+    with open_maybe_compressed(path) as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            target = line.split()[0]
+            if id_sep not in target:
+                continue
+            short, protein_id = target.split(id_sep, 1)
+            family = member_to_rep.get(f"{short}{id_sep}{protein_id}")
+            if family is None:
+                continue
+            yield short, family
+
+
 def build_families(member_to_rep: dict[str, str]) -> dict[str, list[str]]:
     """Return {rep_id: sorted [member_ids]} for every cluster, including
     singletons -- unlike NovInvenio's lib/clusters.py::build_families,

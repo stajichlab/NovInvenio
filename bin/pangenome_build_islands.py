@@ -32,8 +32,7 @@ import warnings
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
-from pangenome_matrix import read_cluster_tsv  # noqa: E402
-from compressed_io import open_maybe_compressed  # noqa: E402
+from pangenome_matrix import read_cluster_tsv, iter_tblout_family_hits  # noqa: E402
 
 
 PHYSICAL_CLASSIFICATIONS = frozenset(
@@ -116,19 +115,12 @@ def load_significant_physical_pairs(pair_classification_path: str) -> dict[froze
 def load_hit_families(tblout_path: str, member_to_rep: dict[str, str], id_sep: str = "|") -> set[str]:
     """Families with >=1 hmmsearch/hmmscan hit anywhere in the cohort --
     generic across any tblout (captain, SM-backbone, or any future named
-    marker search)."""
+    marker search). Parsing itself lives in
+    lib/pangenome_matrix.iter_tblout_family_hits (shared with
+    pangenome_pair_classification.py's load_captain_families)."""
     families: set[str] = set()
-    with open_maybe_compressed(tblout_path) as fh:
-        for line in fh:
-            if line.startswith("#") or not line.strip():
-                continue
-            target = line.split()[0]
-            if id_sep not in target:
-                continue
-            short, protein_id = target.split(id_sep, 1)
-            family = member_to_rep.get(f"{short}{id_sep}{protein_id}")
-            if family is not None:
-                families.add(family)
+    for _short, family in iter_tblout_family_hits(tblout_path, member_to_rep, id_sep=id_sep):
+        families.add(family)
     return families
 
 
@@ -191,6 +183,10 @@ def main() -> None:
         help="Repeatable. e.g. --marker_tblout captain=captain.tblout "
              "--marker_tblout sm_backbone=sm_backbone.tblout",
     )
+    ap.add_argument("--id_sep", default="|",
+                     help="Short-prefix separator in clustering-input FASTA headers "
+                          "(default: '|'); must match --pangenome_id_sep used "
+                          "everywhere else in this pipeline run.")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -216,7 +212,7 @@ def main() -> None:
     if markers:
         member_to_rep = read_cluster_tsv(args.cluster_tsv)
         for name, path in markers.items():
-            marker_families[name] = load_hit_families(path, member_to_rep)
+            marker_families[name] = load_hit_families(path, member_to_rep, id_sep=args.id_sep)
 
     marker_names = sorted(markers)
     with open(args.output, "w") as out:

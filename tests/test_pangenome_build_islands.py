@@ -4,7 +4,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
-from pangenome_build_islands import accessory_islands, build_pair_index, find_significant_islands
+from pangenome_build_islands import (
+    accessory_islands, build_pair_index, find_significant_islands, load_hit_families,
+)
 
 
 def test_accessory_islands_merges_consecutive_noncore_same_contig():
@@ -53,6 +55,16 @@ def test_build_pair_index_indexes_by_both_families():
     index = build_pair_index(pairs)
     assert index["famA"] == [(frozenset({"famA", "famB"}), "unexplained_physical")]
     assert index["famB"] == [(frozenset({"famA", "famB"}), "unexplained_physical")]
+
+
+def test_load_hit_families_threads_custom_id_sep(tmp_path):
+    # F6: a study configured with a non-default --pangenome_id_sep must
+    # actually get marker hits resolved, not silently zero of them.
+    tblout = tmp_path / "captain.tblout"
+    tblout.write_text("s1__proteinA - - - - - - - - - - - - - - - -\n")
+    member_to_rep = {"s1__proteinA": "famA"}
+    assert load_hit_families(str(tblout), member_to_rep) == set()  # default "|" finds nothing
+    assert load_hit_families(str(tblout), member_to_rep, id_sep="__") == {"famA"}
 
 
 def test_find_significant_islands_keeps_only_islands_with_a_supporting_pair():

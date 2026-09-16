@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from pangenome_matrix import (
     PRESENT, GENOME_ONLY, ABSENT,
     read_cluster_tsv, build_families, PresenceMatrix, copy_number_path,
+    iter_tblout_family_hits,
 )
 
 
@@ -37,6 +38,33 @@ def test_presence_matrix_set_and_query():
     assert pm.presence_vector("famA") == [True, True, False]
     assert pm.strain_count("famA") == 2
     assert pm.frequency("famA") == 2 / 3
+
+
+def test_iter_tblout_family_hits_default_id_sep(tmp_path):
+    tblout = tmp_path / "marker.tblout"
+    tblout.write_text(
+        "# comment\n"
+        "s1|proteinA - - - - - - - - - - - - - - - -\n"
+        "s2|proteinB - - - - - - - - - - - - - - - -\n"
+    )
+    member_to_rep = {"s1|proteinA": "famA", "s2|proteinB": "famB"}
+    hits = sorted(iter_tblout_family_hits(str(tblout), member_to_rep))
+    assert hits == [("s1", "famA"), ("s2", "famB")]
+
+
+def test_iter_tblout_family_hits_custom_id_sep(tmp_path):
+    # Confirms a non-default id_sep is actually threaded through, not
+    # hardcoded -- the bug this consolidation fixes (F6): a study configured
+    # with a different --pangenome_id_sep previously got zero marker hits
+    # from either load_hit_families or load_captain_families.
+    tblout = tmp_path / "marker.tblout"
+    tblout.write_text("s1__proteinA - - - - - - - - - - - - - - - -\n")
+    member_to_rep = {"s1__proteinA": "famA"}
+    # Default id_sep "|" finds nothing (no "|" in the target name at all).
+    assert list(iter_tblout_family_hits(str(tblout), member_to_rep)) == []
+    # Custom id_sep "__" correctly resolves the hit.
+    hits = list(iter_tblout_family_hits(str(tblout), member_to_rep, id_sep="__"))
+    assert hits == [("s1", "famA")]
 
 
 def test_presence_matrix_tsv_roundtrip(tmp_path):
