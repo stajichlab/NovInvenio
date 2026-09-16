@@ -16,7 +16,10 @@ from: continuumio/miniconda3:24.9.2-0
         pandas \
         biopython \
         pyyaml \
-        matplotlib
+        matplotlib \
+        scipy \
+        mash \
+        zstd
 
 %environment
     export TMPDIR=/tmp

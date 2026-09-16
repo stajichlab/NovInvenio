@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### New: pangenome cluster-profiling subworkflow (branch `pangenome-profiling-module`)
+
+- **`pangenome.nf`, `workflows/pangenome_profile.nf`, `modules/pangenome/*.nf`,
+  `bin/pangenome_*.py`, `lib/pangenome_*.py`, `lib/compressed_io.py`** — a new,
+  reusable DSL2 subworkflow for pangenome cluster profiling (tier-1
+  clustering, presence/absence, genome-level tblastn rescue pass,
+  strain dedup + clade assignment, frequency binning, co-occurrence, and
+  physical-linkage pair classification), ported from a one-off study script
+  chain (NovInvenio_Investigations' Afumigatus_pangenome study) into a
+  generic module any future species-set study can invoke via its own entry
+  point (`pangenome.nf`, separate from `main.nf`'s novelty/loss workflow).
+  See that study's `NEXTFLOW_MIGRATION_NOTES.md` for the full design record.
+  New `params.pangenome_*` config surface in `nextflow.config`; new
+  `conf/ucr_hpcc_slurm.config` overrides for the tier-1 clustering (AVX2),
+  per-strain tblastn, co-occurrence, and rescue-position-extraction
+  processes.
+
 ### Performance: batched DIAMOND_SEARCH (0.6.1)
 
 - **`modules/diamond.nf`** — `DIAMOND_SEARCH` now runs one Nextflow task per

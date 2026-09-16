@@ -32,7 +32,10 @@ RUN conda config --add channels conda-forge && \
         pandas \
         biopython \
         pyyaml \
-        matplotlib
+        matplotlib \
+        scipy \
+        mash \
+        zstd
 
 # OpenMPI needs a writable /tmp.
 ENV TMPDIR=/tmp
