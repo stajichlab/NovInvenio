@@ -1,4 +1,5 @@
 import sys
+import warnings
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
@@ -23,6 +24,29 @@ def test_parse_domtblout_filters_by_ievalue(tmp_path):
     )
     hits = parse_domtblout([str(dtbl)], max_ievalue=1e-3)
     assert hits == {"famA": {"PF00001"}}
+
+
+def test_parse_domtblout_warns_when_nonempty_input_yields_zero_hits(tmp_path):
+    # A domtblout with real data lines whose format doesn't match what this
+    # parser expects (e.g. an upstream column-layout drift) -> 0 hits parsed
+    # out of nonempty input. This should never fail silently.
+    dtbl = tmp_path / "test.domtblout"
+    dtbl.write_text("this is not a real domtblout line at all\n")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        hits = parse_domtblout([str(dtbl)], max_ievalue=1e-3)
+    assert hits == {}
+    assert any("0 family/domain hits" in str(w.message) for w in caught)
+
+
+def test_parse_domtblout_no_warning_on_genuinely_empty_file(tmp_path):
+    dtbl = tmp_path / "test.domtblout"
+    dtbl.write_text("")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        hits = parse_domtblout([str(dtbl)], max_ievalue=1e-3)
+    assert hits == {}
+    assert not any("0 family/domain hits" in str(w.message) for w in caught)
 
 
 def test_domain_enrichment_fisher_and_bh(tmp_path):

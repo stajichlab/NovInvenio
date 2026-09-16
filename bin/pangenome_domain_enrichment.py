@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+import warnings
 
 import numpy as np
 from scipy.stats import fisher_exact, false_discovery_control
@@ -34,11 +35,13 @@ def parse_domtblout(paths: list[str], max_ievalue: float = 1e-3) -> dict[str, se
     --domtblout files. Domain-level i-Evalue re-checked explicitly (can be
     looser than the sequence-level cutoff hmmscan's own -E already applied)."""
     hits: dict[str, set[str]] = {}
+    n_data_lines = 0
     for path in paths:
         with open(path) as fh:
             for line in fh:
                 if line.startswith("#") or not line.strip():
                     continue
+                n_data_lines += 1
                 parts = line.split()
                 if len(parts) < 13:
                     continue
@@ -50,6 +53,16 @@ def parse_domtblout(paths: list[str], max_ievalue: float = 1e-3) -> dict[str, se
                 if i_evalue > max_ievalue:
                     continue
                 hits.setdefault(query_name, set()).add(target_name)
+    if not hits and paths and n_data_lines > 0:
+        warnings.warn(
+            f"parse_domtblout: {n_data_lines} data line(s) read across "
+            f"{len(paths)} domtblout file(s), but 0 family/domain hits were "
+            "parsed out of them -- either every hit was legitimately filtered "
+            f"by --domain_evalue ({max_ievalue}), or the domtblout format/columns "
+            "have drifted from what this parser expects. Check before trusting "
+            "a downstream \"0 domains tested\" enrichment result.",
+            stacklevel=2,
+        )
     return hits
 
 

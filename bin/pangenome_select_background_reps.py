@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+import warnings
 
 
 def select_background_families(frequency_table_path: str) -> set[str]:
@@ -56,6 +57,15 @@ def main() -> int:
     n = write_background_fasta(args.rep_fasta, background, args.output)
     print(f"pangenome_select_background_reps: {n} shell+cloud family reps written to {args.output}",
           file=sys.stderr)
+    if background and n == 0:
+        warnings.warn(
+            f"pangenome_select_background_reps: {len(background)} shell+cloud families "
+            f"were expected in the background but 0 FASTA records were written to "
+            f"{args.output} -- check for a rep-FASTA-header vs family-ID convention "
+            "mismatch (e.g. an upstream header format change) before trusting downstream "
+            "Pfam enrichment results.",
+            stacklevel=2,
+        )
     return 0
 
 
