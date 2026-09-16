@@ -18,6 +18,26 @@
   `conf/ucr_hpcc_slurm.config` overrides for the tier-1 clustering (AVX2),
   per-strain tblastn, co-occurrence, and rescue-position-extraction
   processes.
+- **Real end-to-end validation (2026-09-15, SLURM job 28428780, AVX2 node)**:
+  the full core chain -- CLUSTER_TIER1 -> PRESENCE_MATRIX -> per-strain
+  rescue (EXTRACT_ABSENT_QUERIES -> TBLASTN_PER_STRAIN -> RESCUE_PASS ->
+  EXTRACT_RESCUE_POSITIONS) -> FREQUENCY_BINS -> COOCCURRENCE ->
+  PAIR_CLASSIFICATION, plus MASH-based DEREPLICATE/ASSIGN_CLADES -- ran to
+  completion against real data (8 *A. fumigatus* ingroup + 2 outgroup
+  strains from the Afumigatus_pangenome study): 57/57 processes succeeded,
+  0 failures. Real, non-trivial outputs (20,043 families binned
+  5,815 core / 4,539 shell / 9,689 singleton). `cooccurring_pairs.tsv`/
+  `pair_classification.tsv` came back empty -- verified via the
+  COOCCURRENCE process log this is the statistically correct outcome (0 of
+  1,011,439 prefilter-surviving pairs clear FDR 0.05 at n=8 representative
+  strains), not a swallowed error. This was the one part of the module an
+  independent review had flagged as unconfirmed (most recently added,
+  least-tested code path); it is no longer unconfirmed. Still open: a
+  real GFF3-parsing gap surfaced testing against a second species
+  (Coccidioides funannotate-style GFF3s use CDS `Parent=`, not
+  `protein_id=` -- fix proposed, in progress on a separate track) and the
+  diamond-backend clustering path remains hard-disabled (unvalidated
+  ID-matching, no `restore_mmseqs_cluster_ids.py` equivalent yet).
 
 ### Performance: batched DIAMOND_SEARCH (0.6.1)
 
