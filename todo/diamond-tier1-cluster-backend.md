@@ -20,17 +20,27 @@ not a pipeline gap — `conf/ucr_hpcc_slurm.config` already pins
 `CLUSTER_TIER1` to AVX2-capable nodes (`-C ryzen|broadwell|cascade`, added
 in commit `3de5252`, predating this smoke test); the comparison run used
 `-profile local` only, which never applies that config. Issue #101 closed
-as not-a-bug. **The concordance benchmark below is unblocked** — it just
-needs to run via `-profile slurm -c conf/ucr_hpcc_slurm.config` (a real
-SLURM submission) instead of `-profile local`, so mmseqs actually lands on
-an AVX2-capable node.
+as not-a-bug.
+
+**Update 2026-09-17 (complete)**: re-ran both backends via real SLURM
+submission (`-profile slurm -c conf/ucr_hpcc_slurm.config`) against the
+identical 5-strain subset. Both completed 37/37 processes, 0 failures.
+diamond: 10,468 families. mmseqs: 11,830 families. Comparing the two
+`tier1_cluster.tsv` outputs over the same 43,239 proteins (pure-stdlib ARI
++ pair recall/precision, no `sklearn` available): **ARI = 0.9403**, pair
+recall (mmseqs pairs recovered by diamond) = **0.8958**, pair precision
+(diamond pairs confirmed by mmseqs) = **0.9895**. Substantially stronger
+than the 2026-09-08 novelty/loss-pathway benchmark (ARI 0.79, 72%/87%) —
+this subworkflow's tier-1 thresholds are much tighter and matched between
+the two tools. Full writeup in `.living/decisions.md`'s 2026-09-17 entry.
+This item is done.
 
 - **Priority**: medium
-- **Status**: open
+- **Status**: complete
 - **Category**: validation
 - **Date**: 2026-09-16
 - **Author**: Jason Stajich
-- **See**: [docs/adr/0003-diamond-tier1-clustering-backend.md](../docs/adr/0003-diamond-tier1-clustering-backend.md), issue #98
+- **See**: [docs/adr/0003-diamond-tier1-clustering-backend.md](../docs/adr/0003-diamond-tier1-clustering-backend.md), `.living/decisions.md` 2026-09-17 entry, issue #98
 
 ## What
 

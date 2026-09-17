@@ -912,6 +912,63 @@ config with an already-trusted answer, not just clustering-quality metrics like 
 **Tags**: cluster-tool, mmseqs, diamond, benchmarking, family-clustering, ADR-0002,
 tooling-comparison, novelty-discovery
 
+## [2026-09-17] diamond tier-1 clustering concordance benchmark (pangenome subworkflow, real SLURM data)
+
+**Context**: docs/adr/0003 added `diamond` as a second tier-1 clustering backend for
+the pangenome subworkflow (`--pangenome_cluster_backend`), alongside the existing
+mmseqs2 path. The 2026-09-08 decision above measured mmseqs-vs-diamond concordance
+on the *novelty/loss* pathway's raw UniProt reference proteomes at that pathway's
+own thresholds (`--min-seq-id 0.3 -c 0.8`); it explicitly did not cover the
+pangenome subworkflow's own `Short<id_sep>orig_id` header convention or its much
+tighter tier-1 identity/coverage regime (`--min_seq_id 0.9 --cov 0.8` for mmseqs,
+mapped to `--approx-id 90 --member-cover 80` for diamond). `todo/diamond-tier1-
+cluster-backend.md` tracked closing that gap with a real-data run.
+
+**Method**: ran `pangenome.nf` with both `--pangenome_cluster_backend diamond` and
+`mmseqs` against the identical real 5-strain *Coccidioides immitis* subset (from
+`NovInvenio_Investigations`' coccidioides pangenome study), via real SLURM
+submission (`-profile slurm -c conf/ucr_hpcc_slurm.config`, not `-profile local` --
+see the corrected 2026-09-17 learnings.md entry on why that distinction mattered
+here). Both completed 37/37 processes, 0 failures. Compared the two runs'
+`tier1_cluster.tsv` outputs (same 43,239 input proteins in both) with a pure-stdlib
+ARI + pairwise recall/precision script (no `sklearn` available in this session's
+environment; standard formula, not a library shortcut).
+
+**Result**:
+- diamond: 10,468 families (10,467 with >1 member). mmseqs: 11,830 families --
+  mmseqs splits into meaningfully more, smaller clusters at these thresholds.
+- Co-clustered pairs: 81,840 (diamond), 74,093 (mmseqs), 73,313 in both.
+- **ARI = 0.9403** (vs 0.79 in the 2026-09-08 novelty/loss-pathway benchmark).
+- **Pair recall = 0.8958** (mmseqs's co-clustered pairs recovered by diamond),
+  **pair precision = 0.9895** (diamond's co-clustered pairs confirmed by mmseqs) --
+  substantially stronger than the earlier 72%/87%.
+
+**Why the concordance is stronger here than the 2026-09-08 benchmark**: that
+benchmark compared mmseqs `-s 7` against diamond's cluster-subcommand default
+sensitivity at loose, pathway-appropriate novelty/loss thresholds (30% identity).
+This benchmark used the pangenome subworkflow's own tier-1 thresholds -- a much
+tighter, near-identical 90% identity / 80% coverage target for *both* tools,
+which is a regime where the two aligners' underlying seed-and-extend approaches
+naturally agree more (less room for sensitivity differences to matter when nearly
+all real orthologs clear a 90%-identity bar comfortably either way).
+
+**Decision**: `--pangenome_cluster_backend diamond` is validated as a real
+alternative to mmseqs for this subworkflow at its actual configured thresholds --
+not just ID-fidelity-safe (docs/adr/0003) but cluster-quality-comparable (ARI
+0.94). mmseqs remains the default; diamond is documented as a validated,
+not merely experimental, alternative. The concordance gap that exists (mmseqs
+finds ~13% more, smaller families) means a study sensitive to exact family
+granularity should still treat the two as measurably different, not
+interchangeable -- consistent with, not contradicting, the 2026-09-08 decision's
+general caution about a concordance gap potentially flipping a borderline call.
+
+**Consequences**: `docs/adr/0003-diamond-tier1-clustering-backend.md`'s and
+`todo/diamond-tier1-cluster-backend.md`'s "still open" concordance benchmark item
+is now closed. No code changed -- this was a validation run, not a tooling change.
+
+**Tags**: cluster-tool, mmseqs, diamond, benchmarking, family-clustering, ADR-0003,
+tooling-comparison, pangenome, concordance, ari, slurm
+
 ## [2026-09-09] `bin/ni` stays copy-from-live-checkout; GitHub-release-based fetch deferred
 
 **Context**: `bin/ni init` (issue #76) scaffolds a new NII-style analysis-deploy repo by

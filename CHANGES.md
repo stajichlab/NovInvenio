@@ -64,10 +64,20 @@
   node-pin for `CLUSTER_TIER1` already exists (line 18 above), it's just
   only applied under `-profile slurm -c conf/ucr_hpcc_slurm.config`, and
   this comparison run used `-profile local` alone. Issue #101, filed over
-  this, was closed same-day as not-a-bug. The real-data cluster-quality
-  concordance benchmark remains open, unblocked -- it just needs
-  `-profile slurm` instead of `-profile local` (tracked in
-  `todo/diamond-tier1-cluster-backend.md`).
+  this, was closed same-day as not-a-bug.
+- **2026-09-17: real-data concordance benchmark, complete.** Re-ran both
+  backends via real SLURM submission (`-profile slurm -c
+  conf/ucr_hpcc_slurm.config`) against the identical 5-strain subset: 37/37
+  processes, 0 failures, for both. diamond: 10,468 families. mmseqs:
+  11,830 families. Comparing the two `tier1_cluster.tsv` outputs over the
+  same 43,239 proteins: **ARI = 0.9403**, pair recall = 0.8958, pair
+  precision = 0.9895 -- substantially stronger concordance than the
+  2026-09-08 novelty/loss-pathway benchmark (ARI 0.79, 72%/87%), since this
+  uses the pangenome subworkflow's own tight, matched 90%-identity tier-1
+  thresholds for both tools. Full writeup in `.living/decisions.md`'s
+  2026-09-17 entry; `todo/diamond-tier1-cluster-backend.md` closed.
+  `--pangenome_cluster_backend diamond` is now a fully validated
+  alternative to mmseqs for this subworkflow.
 
 ### Performance: batched DIAMOND_SEARCH (0.6.1)
 
