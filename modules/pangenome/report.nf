@@ -38,7 +38,7 @@ process REPORT_TABLES {
         --domain_evalue ${params.pangenome_pfam_domain_evalue} \
         --cluster_tsv ${cluster_tsv} \
         --gene_positions ${gene_positions} \
-        --id_sep '${params.pangenome_id_sep}' \
+        --id_sep '${params.pangenome_id_sep.replace("'", "'\\''")}' \
         --out_dir .
     """
 }
