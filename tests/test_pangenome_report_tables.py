@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
 import pangenome_report_tables
 from pangenome_report_tables import (
+    add_island_locus,
     annotate_islands_with_domains,
     island_size_distribution,
     classification_counts,
@@ -24,6 +25,64 @@ def test_annotate_islands_with_domains_no_hits_is_dash():
     islands_rows = [{"member_families": "famA", "island_size": "1"}]
     result = annotate_islands_with_domains(islands_rows, {})
     assert result[0]["pfam_domains"] == "-"
+
+
+def test_add_island_locus_computes_span_from_gene_positions():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "2",
+        "member_families": "famA|famB", "n_supporting_pairs": "1",
+        "classifications": "starship_explained",
+    }]
+    # famA's rep is a different strain's protein; S1's own copy is protS1_a.
+    member_to_rep = {"protS1_a": "famA", "protS1_b": "famB",
+                      "famA": "famA", "famB": "famB"}
+    gene_positions = {
+        ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
+        ("S1", "protS1_b"): {"contig": "contig1", "start": 300, "end": 400},
+    }
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="|")
+    assert rows[0]["locus_id"] == "S1:contig1:100-400"
+    assert rows[0]["locus_contig"] == "contig1"
+    assert rows[0]["n_members_with_coordinates"] == 2
+    assert rows[0]["n_contigs_in_locus"] == 1
+
+
+def test_add_island_locus_flags_multi_contig():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "2",
+        "member_families": "famA|famB", "n_supporting_pairs": "1",
+        "classifications": "starship_explained",
+    }]
+    member_to_rep = {"protS1_a": "famA", "protS1_b": "famB"}
+    gene_positions = {
+        ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
+        ("S1", "protS1_b"): {"contig": "contig2", "start": 10, "end": 50},
+    }
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="|")
+    assert rows[0]["n_contigs_in_locus"] == 2
+
+
+def test_add_island_locus_sentinel_on_total_failure():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "1",
+        "member_families": "famA", "n_supporting_pairs": "0",
+        "classifications": "unexplained_physical",
+    }]
+    rows = add_island_locus(islands_rows, {}, {}, id_sep="|")
+    assert rows[0]["locus_id"] == "-"
+    assert rows[0]["n_members_with_coordinates"] == 0
+
+
+def test_add_island_locus_respects_custom_id_sep():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "1",
+        "member_families": "famA", "n_supporting_pairs": "0",
+        "classifications": "unexplained_physical",
+    }]
+    member_to_rep = {"protS1_a": "famA"}
+    gene_positions = {("S1", "protS1_a"): {"contig": "contig1", "start": 5, "end": 50}}
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="_")
+    assert rows[0]["locus_id"] == "S1:contig1:5-50"
 
 
 def test_island_size_distribution_counts_by_size():
@@ -102,6 +161,10 @@ def test_main_writes_marker_summary_tsv(tmp_path, monkeypatch):
     frequency_table.write_text("family\tfrequency\tbin\n")
     domtblout = tmp_path / "test.domtblout"
     domtblout.write_text("")
+    cluster_tsv = tmp_path / "cluster.tsv"
+    cluster_tsv.write_text("")
+    gene_positions = tmp_path / "gene_positions.tsv"
+    gene_positions.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
     out_dir = tmp_path / "out"
 
     argv = [
@@ -112,6 +175,8 @@ def test_main_writes_marker_summary_tsv(tmp_path, monkeypatch):
         "--presence_matrix", str(presence_matrix),
         "--frequency_table", str(frequency_table),
         "--domtblout", str(domtblout),
+        "--cluster_tsv", str(cluster_tsv),
+        "--gene_positions", str(gene_positions),
         "--out_dir", str(out_dir),
     ]
     monkeypatch.setattr(sys, "argv", argv)
@@ -142,6 +207,10 @@ def test_main_zero_marker_columns_writes_header_only_marker_summary(tmp_path, mo
     frequency_table.write_text("family\tfrequency\tbin\n")
     domtblout = tmp_path / "test.domtblout"
     domtblout.write_text("")
+    cluster_tsv = tmp_path / "cluster.tsv"
+    cluster_tsv.write_text("")
+    gene_positions = tmp_path / "gene_positions.tsv"
+    gene_positions.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
     out_dir = tmp_path / "out"
 
     argv = [
@@ -152,6 +221,8 @@ def test_main_zero_marker_columns_writes_header_only_marker_summary(tmp_path, mo
         "--presence_matrix", str(presence_matrix),
         "--frequency_table", str(frequency_table),
         "--domtblout", str(domtblout),
+        "--cluster_tsv", str(cluster_tsv),
+        "--gene_positions", str(gene_positions),
         "--out_dir", str(out_dir),
     ]
     monkeypatch.setattr(sys, "argv", argv)
@@ -181,6 +252,10 @@ def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monke
     frequency_table.write_text("family\tfrequency\tbin\n")
     domtblout = tmp_path / "test.domtblout"
     domtblout.write_text("")
+    cluster_tsv = tmp_path / "cluster.tsv"
+    cluster_tsv.write_text("")
+    gene_positions = tmp_path / "gene_positions.tsv"
+    gene_positions.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
     out_dir = tmp_path / "out"
 
     argv = [
@@ -191,6 +266,8 @@ def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monke
         "--presence_matrix", str(presence_matrix),
         "--frequency_table", str(frequency_table),
         "--domtblout", str(domtblout),
+        "--cluster_tsv", str(cluster_tsv),
+        "--gene_positions", str(gene_positions),
         "--out_dir", str(out_dir),
     ]
     monkeypatch.setattr(sys, "argv", argv)
@@ -199,7 +276,9 @@ def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monke
     islands_bytes = (out_dir / "islands_with_domains.tsv").read_bytes()
     assert islands_bytes == (
         b"n_strains\texample_strain\tisland_size\tmember_families\t"
-        b"n_supporting_pairs\tclassifications\tpfam_domains\n"
+        b"n_supporting_pairs\tclassifications\tpfam_domains\t"
+        b"locus_id\tlocus_contig\tlocus_start\tlocus_end\t"
+        b"n_members_with_coordinates\tn_contigs_in_locus\n"
     )
     assert b"\r\n" not in islands_bytes
 

@@ -171,3 +171,23 @@ def test_domain_table_omits_go_columns_when_absent():
         0, None, None, [], None,
     )
     assert "GO terms" not in md
+
+
+def test_accessory_islands_section_adds_top_islands_table_when_locus_present():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{
+            "locus_id": "S1:contig1:100-400", "island_size": "5",
+            "n_strains": "2", "pfam_domains": "SnoaL_2",
+        }],
+    )
+    assert "S1:contig1:100-400" in md
+
+
+def test_accessory_islands_section_omits_top_islands_table_without_locus():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{"locus_id": "-", "island_size": "5",
+                                     "n_strains": "2", "pfam_domains": "-"}],
+    )
+    assert "Top islands" not in md

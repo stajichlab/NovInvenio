@@ -274,6 +274,7 @@ def render_report_markdown(
     core_decay: dict | None,
     strain_family_counts: list[int],
     marker_rows: list[dict] | None = None,
+    islands_with_domains_rows: list[dict] | None = None,
 ) -> str:
     total_families = sum(counts.values())
     lines = ["# Pangenome Island + Pfam Enrichment Report", ""]
@@ -310,6 +311,16 @@ def render_report_markdown(
               "at least one FDR-significant physically-linked pair).", ""]
     if size_dist:
         lines += ["![Island sizes](figures/island_size_distribution.png)", ""]
+
+    top_islands = [r for r in (islands_with_domains_rows or []) if r.get("locus_id", "-") != "-"]
+    if top_islands:
+        top_islands.sort(key=lambda r: -int(r["island_size"]))
+        lines += ["", "**Top islands (by size):**", "",
+                  "| Locus | Size | Strains | Pfam domains |", "|---|---|---|---|"]
+        for row in top_islands[:20]:
+            lines.append(f"| {row['locus_id']} | {row['island_size']} | "
+                          f"{row['n_strains']} | {row.get('pfam_domains', '-')} |")
+        lines.append("")
 
     if marker_rows:
         lines += ["## Marker co-occurrence", ""]
