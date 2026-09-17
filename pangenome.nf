@@ -88,6 +88,12 @@ def print_help() {
                                        'captain,sm_backbone'), run via MARKER_HMMSEARCH.
       --pangenome_marker_hmm_paths     Parallel comma list of HMM paths for each named marker.
       --pangenome_marker_evalue        hmmsearch E-value cutoff for marker searches (default: 1e-5).
+      --pangenome_pfam2go              Path to a local pfam2go mapping file -- enables GO-term
+                                       annotation of enriched Pfam domains (off by default).
+                                       Download from:
+                                       http://current.geneontology.org/ontology/external2go/pfam2go
+                                       This pipeline does NOT auto-fetch it; obtain it once and
+                                       pass its local path.
       --pangenome_accumulation_permutations  Random strain-order permutations for the
                                        rarefaction/accumulation curve (default: 20).
       --pangenome_accumulation_seed    RNG seed for the accumulation curve (default: 0).
