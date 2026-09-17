@@ -34,7 +34,7 @@ All future work items, ideas, and planned improvements for this project are trac
 | Dedup/filter alternative splice isoforms in GFF3-derived chrom/start rows | low | open | chore | 2026-08-07 | Jason Stajich | [gff3-isoform-dedup.md](gff3-isoform-dedup.md) |
 | Validate hmm_presence_cov/hmm_presence_min_residues against a broader grid + controls | idea | open | validation | 2026-09-03 | Jason Stajich | [validate-hmm-presence-coverage-broader-sweep.md](validate-hmm-presence-coverage-broader-sweep.md) |
 | Evaluate --very-sensitive for the main pairwise DIAMOND_SEARCH | medium | open | validation | 2026-09-10 | Jason Stajich | [diamond-very-sensitive-main-search.md](diamond-very-sensitive-main-search.md) |
-| Real-data concordance benchmark for the diamond tier-1 clustering backend | medium | blocked | validation | 2026-09-16 | Jason Stajich | [diamond-tier1-cluster-backend.md](diamond-tier1-cluster-backend.md) |
-| Pin CLUSTER_TIER1's mmseqs branch to AVX2-capable nodes | medium | open | bug | 2026-09-17 | Jason Stajich | [pangenome-cluster-tier1-avx2-pin.md](pangenome-cluster-tier1-avx2-pin.md) |
+| Real-data concordance benchmark for the diamond tier-1 clustering backend | medium | open | validation | 2026-09-16 | Jason Stajich | [diamond-tier1-cluster-backend.md](diamond-tier1-cluster-backend.md) |
+| Pin CLUSTER_TIER1's mmseqs branch to AVX2-capable nodes | n/a | wont-do | bug | 2026-09-17 | Jason Stajich | [pangenome-cluster-tier1-avx2-pin.md](pangenome-cluster-tier1-avx2-pin.md) |
 
 <!-- Add new entries above this line -->

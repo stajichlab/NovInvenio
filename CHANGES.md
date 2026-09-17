@@ -58,13 +58,15 @@
   10,467 real gene families with a normal core/shell/singleton frequency
   distribution, `verify_diamond_cluster_ids.py` passing inside the actual
   run. A same-subset mmseqs comparison run for a direct concordance check
-  hit an unrelated pre-existing issue instead: `mmseqs easy-cluster`
-  SIGILLed on the test node (no AVX2), the same root-cause class as the
-  2026-07-21 famsa/AVX2 learning, just never pinned to an AVX2-capable node
-  for `CLUSTER_TIER1` the way `modules/mmseqs_cluster.nf` is (`-C ryzen`) --
-  filed as issue #101. Diamond did not crash on the same node. The
-  real-data cluster-quality concordance benchmark remains open, now blocked
-  on #101 rather than on tooling (tracked in
+  hit `mmseqs easy-cluster` SIGILLing on the test node (no AVX2) instead of
+  producing a cluster count -- turned out to be a testing-methodology
+  artifact, not a pipeline gap: the `-C ryzen|broadwell|cascade` AVX2
+  node-pin for `CLUSTER_TIER1` already exists (line 18 above), it's just
+  only applied under `-profile slurm -c conf/ucr_hpcc_slurm.config`, and
+  this comparison run used `-profile local` alone. Issue #101, filed over
+  this, was closed same-day as not-a-bug. The real-data cluster-quality
+  concordance benchmark remains open, unblocked -- it just needs
+  `-profile slurm` instead of `-profile local` (tracked in
   `todo/diamond-tier1-cluster-backend.md`).
 
 ### Performance: batched DIAMOND_SEARCH (0.6.1)

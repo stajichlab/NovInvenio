@@ -536,35 +536,44 @@ clustering quality/concordance with mmseqs at scale.
 
 **Tags**: diamond, mmseqs, cluster-tool, id-normalization, pangenome, validation
 
-## [2026-09-17] mmseqs (not just famsa) also SIGILLs on this cluster's no-AVX2 nodes
+## [2026-09-17] `-profile local` doesn't apply conf/ucr_hpcc_slurm.config's AVX2 node-pins -- don't mistake that for a missing pin
 
-**Category**: gotcha
+**Category**: gotcha (self-correction)
 
 **What happened**: Running a real end-to-end diamond-vs-mmseqs comparison for the
-pangenome CLUSTER_TIER1 diamond backend (docs/adr/0003), the mmseqs comparison run
-crashed: `mmseqs easy-cluster ... died with <Signals.SIGILL: 4>` on an interactive
-node whose /proc/cpuinfo shows no avx2 (sse4_2 only). This is the same root-cause
-class as the 2026-07-21 famsa/AVX2 learning above, but a different bioconda binary --
-confirms the AVX2 SIGILL risk on this cluster's Abu Dhabi nodes is not limited to
-one tool. Diamond (v2.2.0.180) did NOT crash on the same node running the same
-workflow.
+pangenome CLUSTER_TIER1 diamond backend (docs/adr/0003) with `-profile local`, the
+mmseqs comparison run crashed: `mmseqs easy-cluster ... died with <Signals.SIGILL: 4>`
+on an interactive node whose /proc/cpuinfo shows no avx2 (sse4_2 only). Diamond
+(v2.2.0.180) did NOT crash on the same node running the same workflow. This was
+initially (and wrongly) filed as issue #101, claiming CLUSTER_TIER1's mmseqs branch
+had no AVX2 node-pinning -- it does: `conf/ucr_hpcc_slurm.config` already has
+`withName: '.*CLUSTER_TIER1' { clusterOptions = '-C ryzen|broadwell|cascade' }`,
+added in commit `3de5252`, the same commit that introduced the whole pangenome
+subworkflow, well before this smoke test ever ran. `-profile local` just sets
+`process.executor = 'local'` and never applies `clusterOptions` at all -- those
+only take effect under `-profile slurm` with `-c conf/ucr_hpcc_slurm.config`
+included. Issue #101 was closed as not-a-bug the same day once this was found.
 
-**Why it matters**: `modules/mmseqs_cluster.nf` (novelty/loss pathway) already pins
-mmseqs to AVX2-capable nodes (`-C ryzen`), but `modules/pangenome/prefix_and_cluster.nf`'s
-CLUSTER_TIER1 -- added later, for the pangenome subworkflow -- has no equivalent
-constraint on its mmseqs branch. Any bioconda/conda-forge binary using SIMD
-auto-vectorization should be assumed AVX2-only unless proven otherwise on this
-cluster; a working `-profile local` smoke test on one node type says nothing about
-another.
+**Why it matters**: a `-profile local` smoke test on this repo exercises pipeline
+*logic* but not the SLURM-specific resource/node constraints (`clusterOptions`,
+`queue`, per-attempt `memory`/`time` scaling) that `conf/ucr_hpcc_slurm.config`
+supplies -- a crash or resource issue seen only under `-profile local` should be
+checked against that config file BEFORE concluding the pipeline itself is missing
+a safeguard. This is the second time an AVX2 SIGILL has come up on this cluster (see
+the 2026-07-21 famsa/AVX2 learning below/above), so the SIGILL-on-Abu-Dhabi-nodes
+risk itself is real and worth remembering -- just: check the SLURM config for an
+existing fix before assuming there isn't one and filing a new issue.
 
-**Resolution**: filed as issue #101 (todo/pangenome-cluster-tier1-avx2-pin.md) --
-add the same `-C ryzen` constraint to CLUSTER_TIER1's mmseqs branch. Not fixed yet.
+**Resolution**: no code change -- the fix already existed. Issue #101 closed as
+not-a-bug; docs/adr/0003, CHANGES.md, pangenome.nf help text, and the relevant
+todo/ items corrected to remove the incorrect "gap" framing.
 
 **Tags**: cluster, slurm, avx2, mmseqs, pixi, bioconda, simd, hardware-compatibility,
-nextflow, node-placement, pangenome
+nextflow, node-placement, pangenome, self-correction, profile-local
 
 **mitigation_type**: convention
 
-**structural_mitigation_candidate**: same fix pattern as the famsa entry above --
-a `withName`/label SLURM `clusterOptions` constraint on CLUSTER_TIER1's mmseqs
-branch, mirroring MMSEQS_CLUSTER's existing `-C ryzen`.
+**structural_mitigation_candidate**: none needed for the pin itself (already
+exists). If this class of mistake recurs, the real candidate is a habit/checklist
+one: grep the relevant `conf/*.config` for a process's name before concluding a
+`-profile local` failure reflects a missing SLURM safeguard.

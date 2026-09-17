@@ -1,39 +1,42 @@
 # Pin CLUSTER_TIER1's mmseqs branch to AVX2-capable nodes
 
-- **Priority**: medium
-- **Status**: open
+- **Priority**: n/a
+- **Status**: wont-do (not a bug — already fixed, see correction below)
 - **Category**: bug / infra
 - **Date**: 2026-09-17
 - **Author**: Jason Stajich
-- **See**: issue #101, [docs/adr/0003-diamond-tier1-clustering-backend.md](../docs/adr/0003-diamond-tier1-clustering-backend.md)
+- **See**: issue #101 (closed, not planned), [docs/adr/0003-diamond-tier1-clustering-backend.md](../docs/adr/0003-diamond-tier1-clustering-backend.md)
 
-## What
+## Correction (2026-09-17, same day)
+
+This was a false alarm. `conf/ucr_hpcc_slurm.config` already has:
+
+```
+withName: '.*CLUSTER_TIER1' {
+    clusterOptions = '-C ryzen|broadwell|cascade'
+}
+```
+
+added in commit `3de5252` (the commit that introduced the whole pangenome
+subworkflow), well before the smoke test below ever ran. The `SIGILL` this
+item was filed over happened because that smoke test used `-profile local`
+only, without `-c conf/ucr_hpcc_slurm.config` — `-profile local` just sets
+`process.executor = 'local'` and never applies any `clusterOptions`, which
+only take effect under `-profile slurm` with that config file included. A
+real SLURM run already avoids the non-AVX2 nodes for this process, for
+both backends. No code change needed. Issue #101 closed as not-a-bug.
+
+Diamond not crashing under `-profile local` on a non-AVX2 node is still a
+genuine, minor point in its favor for local/interactive dev-node smoke
+testing (no need to remember `-c conf/ucr_hpcc_slurm.config` just to poke
+at the pipeline), but it is not evidence of a production gap.
+
+---
+
+## Original (incorrect) item, kept for the record
 
 `modules/pangenome/prefix_and_cluster.nf::CLUSTER_TIER1`'s mmseqs branch has
 no SLURM node constraint. Running it on this cluster's AMD "Abu Dhabi" nodes
 (no AVX2) crashes `mmseqs easy-cluster` with `SIGILL`, confirmed on a real
 `-profile local` smoke test (5-strain *Coccidioides immitis* subset,
 2026-09-17). Diamond did not crash on the same node.
-
-## Why
-
-Same root-cause class as the already-documented, already-deferred
-2026-07-21 learning (`.living/learnings.md`) about `famsa` SIGILLing on the
-same node class — just hitting a different bioconda binary this time.
-`modules/mmseqs_cluster.nf` (the novelty/loss pathway's mmseqs module)
-already works around this with `clusterOptions = '-C ryzen'`
-(`nextflow.config` ~line 163), pinning to AVX2-capable nodes. The pangenome
-subworkflow's tier-1 clustering has no equivalent, so a real SLURM run can
-silently land on the wrong node class and die, non-deterministically,
-depending on scheduler placement.
-
-## How to apply
-
-1. Add the same `-C ryzen` (or an equivalent AVX2-capable constraint) to
-   `CLUSTER_TIER1`'s process directives, at minimum when the mmseqs backend
-   is selected.
-2. Worth checking explicitly whether diamond's binary needs (or benefits
-   from) the same pin, or is genuinely more portable across this cluster's
-   node fleet as this smoke test suggested — don't assume either way.
-3. Once fixed, this unblocks the real mmseqs-vs-diamond cluster-quality
-   concordance benchmark tracked in `todo/diamond-tier1-cluster-backend.md`.

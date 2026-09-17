@@ -71,10 +71,10 @@ def print_help() {
       --pangenome_outgroup_label       GROUP value treated as outgroup (default: OUT).
       --pangenome_cluster_backend      mmseqs (default) or diamond (validated end-to-end
                                        on real data, see docs/adr/0003 -- cluster quality
-                                       vs mmseqs not yet independently benchmarked).
-                                       NOTE: mmseqs's CLUSTER_TIER1 branch has no AVX2
-                                       node-pinning and can SIGILL on this cluster's
-                                       Abu Dhabi nodes (issue #101); diamond did not.
+                                       vs mmseqs not yet independently benchmarked). Note
+                                       CLUSTER_TIER1's mmseqs branch needs an AVX2-capable
+                                       node (see conf/ucr_hpcc_slurm.config, or use
+                                       -profile slurm with it) -- SIGILLs otherwise.
       --pangenome_captain_hmm          Path to a pre-built captain-gene HMM.
       --pangenome_captain_hmm_name     Named captain-gene model + --pangenome_pfam_hmm
                                        to build one from Pfam-A.hmm.
@@ -130,9 +130,10 @@ workflow {
     // see docs/adr/0003-diamond-tier1-clustering-backend.md. Validated
     // end-to-end 2026-09-17 against a real 5-strain dataset (37/37 processes,
     // 0 failures, 10,467 real families) -- what's still open is only a
-    // same-data cluster-quality comparison against mmseqs, which is itself
-    // blocked on issue #101 (mmseqs SIGILLs on this cluster's non-AVX2 nodes;
-    // diamond did not).
+    // same-data cluster-quality comparison against mmseqs (run under
+    // -profile slurm -c conf/ucr_hpcc_slurm.config, which already pins
+    // CLUSTER_TIER1 to AVX2-capable nodes; a -profile local test crashed
+    // mmseqs here for exactly that reason, not a real pipeline gap).
 
     // Helpers.projectName(params) (lib/Helpers.groovy) falls back to the bare
     // literal 'output' when neither params.project nor params.config is set.
