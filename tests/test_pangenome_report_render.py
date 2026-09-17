@@ -125,3 +125,31 @@ def test_fit_heaps_law_short_circuits_below_3_strains():
     assert np.isnan(result["gamma"])
     assert np.isnan(result["kappa"])
     assert np.isnan(result["r_squared"])
+
+
+def test_domain_table_renders_pfam_url_as_link():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "pfam_accession": "PF13577.9",
+                      "pfam_url": "https://www.ebi.ac.uk/interpro/entry/pfam/PF13577/",
+                      "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "[SnoaL_2](https://www.ebi.ac.uk/interpro/entry/pfam/PF13577/)" in md
+
+
+def test_domain_table_falls_back_to_bare_name_without_pfam_url_key():
+    # Existing-style row with no pfam_url key at all -- must not KeyError.
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "| SnoaL_2 |" in md
+
+
+def test_domain_table_falls_back_to_bare_name_when_pfam_url_is_sentinel():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "pfam_url": "-",
+                      "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "| SnoaL_2 |" in md

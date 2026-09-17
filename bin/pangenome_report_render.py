@@ -335,7 +335,9 @@ def render_report_markdown(
         lines += ["![Top enriched domains](figures/island_domain_enrichment.png)", ""]
         lines += ["| Domain | Fisher p | FDR q |", "|---|---|---|"]
         for row in top_domains:
-            lines.append(f"| {row['domain']} | {float(row['fisher_p']):.2e} | {float(row['fdr_q']):.2e} |")
+            pfam_url = row.get("pfam_url")
+            domain_cell = f"[{row['domain']}]({pfam_url})" if pfam_url and pfam_url != "-" else row["domain"]
+            lines.append(f"| {domain_cell} | {float(row['fisher_p']):.2e} | {float(row['fdr_q']):.2e} |")
         lines.append("")
 
     return "\n".join(lines)

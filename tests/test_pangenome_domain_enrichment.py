@@ -5,7 +5,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
 import pangenome_domain_enrichment
-from pangenome_domain_enrichment import parse_domtblout, parse_domtblout_accessions, domain_enrichment
+from pangenome_domain_enrichment import parse_domtblout, parse_domtblout_accessions, domain_enrichment, bare_pfam_accession
+
+
+def test_bare_pfam_accession_strips_version_suffix():
+    assert bare_pfam_accession("PF13577.9") == "PF13577"
+    assert bare_pfam_accession("PF00001.1") == "PF00001"
+
+
+def test_bare_pfam_accession_passes_through_sentinel():
+    assert bare_pfam_accession("-") == "-"
 
 
 def test_parse_domtblout_filters_by_ievalue(tmp_path):
@@ -88,12 +97,13 @@ def test_cli_output_includes_pfam_accession_column(tmp_path, monkeypatch):
     lines = output.read_text().splitlines()
     header = lines[0].split("\t")
     assert header == [
-        "domain", "pfam_accession", "n_with_domain_in_islands", "n_with_domain_in_background",
+        "domain", "pfam_accession", "pfam_url", "n_with_domain_in_islands", "n_with_domain_in_background",
         "n_island_families", "n_background_families", "fisher_p", "fdr_q",
     ]
     data_row = lines[1].split("\t")
     assert data_row[0] == "SnoaL_2"
     assert data_row[1] == "PF13577.9"
+    assert data_row[2] == "https://www.ebi.ac.uk/interpro/entry/pfam/PF13577/"
 
 
 def test_domain_enrichment_fisher_and_bh(tmp_path):

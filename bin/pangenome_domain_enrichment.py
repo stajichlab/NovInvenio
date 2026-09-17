@@ -30,6 +30,14 @@ import numpy as np
 from scipy.stats import fisher_exact, false_discovery_control
 
 
+def bare_pfam_accession(accession: str) -> str:
+    """Strip a Pfam accession's version suffix (PF13577.9 -> PF13577).
+    Passes '-' (the unresolved-accession sentinel) through unchanged."""
+    if accession == "-" or "." not in accession:
+        return accession
+    return accession.split(".", 1)[0]
+
+
 def parse_domtblout(paths: list[str], max_ievalue: float = 1e-3) -> dict[str, set[str]]:
     """{family_id: {pfam_domain_name, ...}} from one or more hmmscan
     --domtblout files. Domain-level i-Evalue re-checked explicitly (can be
@@ -180,12 +188,18 @@ def main() -> int:
     enrichment = domain_enrichment(island_member_families, background, family_domains)
     with open(args.output, "w") as out:
         out.write(
-            "domain\tpfam_accession\tn_with_domain_in_islands\tn_with_domain_in_background\t"
-            "n_island_families\tn_background_families\tfisher_p\tfdr_q\n"
+            "domain\tpfam_accession\tpfam_url\tn_with_domain_in_islands\t"
+            "n_with_domain_in_background\tn_island_families\tn_background_families\t"
+            "fisher_p\tfdr_q\n"
         )
         for r in enrichment:
+            accession = domain_accessions.get(r["domain"], "-")
+            if accession == "-":
+                pfam_url = "-"
+            else:
+                pfam_url = f"https://www.ebi.ac.uk/interpro/entry/pfam/{bare_pfam_accession(accession)}/"
             out.write(
-                f"{r['domain']}\t{domain_accessions.get(r['domain'], '-')}\t"
+                f"{r['domain']}\t{accession}\t{pfam_url}\t"
                 f"{r['n_with_domain_in_islands']}\t{r['n_with_domain_in_background']}\t"
                 f"{r['n_island_families']}\t{r['n_background_families']}\t"
                 f"{r['fisher_p']:.3e}\t{r['fdr_q']:.3e}\n"
