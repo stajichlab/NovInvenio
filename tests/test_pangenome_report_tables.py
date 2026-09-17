@@ -61,7 +61,15 @@ def test_add_island_locus_flags_multi_contig():
         ("S1", "protS1_b"): {"contig": "contig2", "start": 10, "end": 50},
     }
     rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="|")
+    # Multi-contig members must not be collapsed into a fabricated
+    # cross-contig span -- locus_id/locus_contig/locus_start/locus_end all
+    # fall back to the sentinel, while the counts stay real.
     assert rows[0]["n_contigs_in_locus"] == 2
+    assert rows[0]["n_members_with_coordinates"] == 2
+    assert rows[0]["locus_id"] == "-"
+    assert rows[0]["locus_contig"] == "-"
+    assert rows[0]["locus_start"] == "-"
+    assert rows[0]["locus_end"] == "-"
 
 
 def test_add_island_locus_sentinel_on_total_failure():

@@ -107,6 +107,19 @@ def add_island_locus(
                 "locus_end": "-", "n_members_with_coordinates": 0,
                 "n_contigs_in_locus": 0,
             })
+        elif len(contigs) > 1:
+            # Members resolved across more than one contig -- a single
+            # start/end span computed across all of them would mix
+            # coordinates from different contigs into one fabricated
+            # range. Report the sentinel for the span fields, but keep
+            # n_members_with_coordinates/n_contigs_in_locus as their real
+            # computed counts so the multi-contig condition is still
+            # visible, not silently collapsed.
+            new_row.update({
+                "locus_id": "-", "locus_contig": "-", "locus_start": "-",
+                "locus_end": "-", "n_members_with_coordinates": n_resolved,
+                "n_contigs_in_locus": len(contigs),
+            })
         else:
             contig = sorted(contigs)[0]
             new_row.update({
