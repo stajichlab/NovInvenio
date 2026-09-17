@@ -29,17 +29,23 @@ not just unit tests and a standalone CLI smoke test.
 A same-subset mmseqs comparison run was attempted for a direct concordance
 check and **could not complete** — unrelated to this ADR: `mmseqs
 easy-cluster` itself crashed with `SIGILL` on the test node, which lacks
-AVX2 (confirmed via `/proc/cpuinfo`). This is the same root-cause class as
-an already-documented, already-deferred learning (`.living/learnings.md`,
-2026-07-21, famsa/AVX2) hitting a different tool; `CLUSTER_TIER1`'s mmseqs
-branch has no AVX2 node-pinning the way `modules/mmseqs_cluster.nf` does
-(`-C ryzen`) — filed as issue #101. Notably, diamond did *not* crash on the
-same node, so this pathway may be more portable across this cluster's mixed
-node fleet, not just an alternative for tuning/sensitivity reasons.
+AVX2 (confirmed via `/proc/cpuinfo`). **This turned out to be a
+testing-methodology artifact, not a pipeline gap**: `conf/ucr_hpcc_slurm.config`
+already pins `CLUSTER_TIER1` to AVX2-capable nodes
+(`clusterOptions = '-C ryzen|broadwell|cascade'`, added in commit `3de5252`,
+predating this smoke test) — the comparison run used `-profile local` only,
+which never applies `clusterOptions` (those only take effect under
+`-profile slurm` with `-c conf/ucr_hpcc_slurm.config` included). A real
+SLURM run already avoids the non-AVX2 nodes for this process, for both
+backends. (Filed as issue #101, then closed as not-a-bug the same day once
+this was found.) Diamond not crashing under `-profile local` on a non-AVX2
+node is still a minor point in its favor for local/interactive dev-node
+smoke testing, but it is not evidence of a production gap.
 
 **Still open**: a real mmseqs-vs-diamond cluster-quality comparison (ARI,
-pair-recovery) on the *same* real data, blocked on #101 (needs an
-AVX2-capable node to even run mmseqs for the comparison) — tracked in
+pair-recovery) on the *same* real data — unblocked now that the AVX2
+question is resolved, it just needs to run via `-profile slurm -c
+conf/ucr_hpcc_slurm.config` rather than `-profile local` — tracked in
 `todo/diamond-tier1-cluster-backend.md`. The ID-fidelity and pipeline
 integration questions this ADR originally raised are now closed; only the
 clustering-quality-vs-mmseqs question remains. Treat
@@ -148,14 +154,18 @@ occurring inside `orig_id`).
    core/shell/singleton frequency distribution — this is no longer a toy
    synthetic-data check, it is a real biological dataset through real
    Nextflow orchestration. What's still missing is a same-data mmseqs
-   comparison: that run crashed on an unrelated AVX2/SIGILL hardware issue
-   (issue #101) rather than producing a cluster count to compare against.
-   The existing mmseqs-vs-diamond benchmark in `.living/decisions.md` (ARI
-   0.79, 72% pair recovery at 87% precision) used raw UniProt headers on a
-   different pipeline path and predates this ID convention — still
-   suggestive, not load-bearing evidence, for this pangenome study. The
-   real-data concordance benchmark is the one item left open, now blocked
-   on #101 rather than on tooling; see `todo/diamond-tier1-cluster-backend.md`.
+   comparison: an attempt at one hit an unrelated AVX2/SIGILL crash on the
+   `-profile local` test node, which turned out to be a testing-methodology
+   artifact (that profile never applies `conf/ucr_hpcc_slurm.config`'s
+   existing `-C ryzen|broadwell|cascade` node pin for `CLUSTER_TIER1`) — not
+   a real gap; issue #101 was filed then closed same-day as not-a-bug once
+   this was found. The existing mmseqs-vs-diamond benchmark in
+   `.living/decisions.md` (ARI 0.79, 72% pair recovery at 87% precision)
+   used raw UniProt headers on a different pipeline path and predates this
+   ID convention — still suggestive, not load-bearing evidence, for this
+   pangenome study. The real-data concordance benchmark is the one item
+   left open, and just needs a `-profile slurm` run rather than
+   `-profile local`; see `todo/diamond-tier1-cluster-backend.md`.
 5. **No changes made to `bin/pangenome_cooccurrence.py`, `lib/pangenome_matrix.py`,
    or the report layer** — confirmed backend-agnostic by inspection (they
    read `tier1_cluster.tsv`/`presence_matrix.tsv` structurally, never caring
@@ -202,8 +212,10 @@ occurring inside `orig_id`).
   pipeline mechanics; what remains unverified is only whether diamond's
   cluster granularity at the configured identity/coverage target matches
   mmseqs' closely enough for a given study's purposes — that comparison
-  needs an AVX2-capable node (issue #101) before it can even be attempted.
-- Incidentally surfaced a real, unrelated infra gap: `CLUSTER_TIER1`'s
-  mmseqs branch has no AVX2 node-pinning, unlike `modules/mmseqs_cluster.nf`'s
-  `-C ryzen`, and diamond did not crash on the same no-AVX2 node mmseqs
-  crashed on — filed as issue #101.
+  just needs to run under `-profile slurm` rather than `-profile local`.
+- A `-profile local` smoke test initially looked like it had surfaced a real
+  infra gap (mmseqs SIGILLing with no AVX2 node-pinning). It hadn't — the
+  pin already exists in `conf/ucr_hpcc_slurm.config` and simply isn't
+  applied by `-profile local`. Worth remembering for future local-profile
+  testing on this cluster: a `-profile local` pass exercises pipeline logic
+  but not the SLURM-specific node/resource constraints a real run relies on.
