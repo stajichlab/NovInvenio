@@ -69,9 +69,12 @@ def print_help() {
                                        (default: <pangenome_data_dir>/gff3).
       --pangenome_ingroup_label        GROUP value treated as ingroup (default: IN).
       --pangenome_outgroup_label       GROUP value treated as outgroup (default: OUT).
-      --pangenome_cluster_backend      mmseqs (default, validated) or diamond
-                                       (opt-in/experimental -- ID-fidelity checked but
-                                       not yet benchmarked on real data, see docs/adr/0003).
+      --pangenome_cluster_backend      mmseqs (default) or diamond (validated end-to-end
+                                       on real data, see docs/adr/0003 -- cluster quality
+                                       vs mmseqs not yet independently benchmarked).
+                                       NOTE: mmseqs's CLUSTER_TIER1 branch has no AVX2
+                                       node-pinning and can SIGILL on this cluster's
+                                       Abu Dhabi nodes (issue #101); diamond did not.
       --pangenome_captain_hmm          Path to a pre-built captain-gene HMM.
       --pangenome_captain_hmm_name     Named captain-gene model + --pangenome_pfam_hmm
                                        to build one from Pfam-A.hmm.
@@ -124,12 +127,12 @@ workflow {
     // downstream table without erroring. CLUSTER_TIER1 (modules/pangenome/prefix_and_cluster.nf)
     // now runs bin/verify_diamond_cluster_ids.py against the raw diamond cluster.tsv
     // before anything else reads it, and fails loud on any id mismatch --
-    // see docs/adr/0003-diamond-tier1-clustering-backend.md. That check has
-    // been unit-tested against adversarial headers (multi-pipe, Short-prefixed
-    // UniProt-style ids) but not yet against a real diamond binary run at
-    // pangenome scale -- treat --pangenome_cluster_backend diamond as
-    // opt-in/experimental until that real-data concordance check (the ADR's
-    // open item) has been done.
+    // see docs/adr/0003-diamond-tier1-clustering-backend.md. Validated
+    // end-to-end 2026-09-17 against a real 5-strain dataset (37/37 processes,
+    // 0 failures, 10,467 real families) -- what's still open is only a
+    // same-data cluster-quality comparison against mmseqs, which is itself
+    // blocked on issue #101 (mmseqs SIGILLs on this cluster's non-AVX2 nodes;
+    // diamond did not).
 
     // Helpers.projectName(params) (lib/Helpers.groovy) falls back to the bare
     // literal 'output' when neither params.project nor params.config is set.

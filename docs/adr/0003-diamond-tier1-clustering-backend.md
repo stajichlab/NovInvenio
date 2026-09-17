@@ -2,24 +2,50 @@
 
 ## Status
 
-Accepted, mostly implemented — 2026-09-16 (design), 2026-09-16
-(implementation: fidelity check + guard relaxation + real-binary smoke
-test). See #98. Extends the pangenome subworkflow (`pangenome.nf`,
-`workflows/` under it); does not touch the novelty/loss pathway
-(ADR-0001/0002) or `workflows/cluster.nf`.
+Accepted, implemented and validated end-to-end — 2026-09-16 (design),
+2026-09-16 (implementation: fidelity check + guard relaxation),
+2026-09-17 (real end-to-end pipeline validation). See #98. Extends the
+pangenome subworkflow (`pangenome.nf`, `workflows/` under it); does not
+touch the novelty/loss pathway (ADR-0001/0002) or `workflows/cluster.nf`.
 
 A real `diamond cluster` invocation (pixi environment, diamond v2.2.0.180)
 against a small adversarial FASTA confirmed the header-preservation claim
 this ADR was built on: the multi-pipe, Short-prefixed UniProt-style header
 `Afum|sp|O74225|YCF1_SCHPO` came through diamond's `*_cluster.tsv` unchanged,
 and `bin/verify_diamond_cluster_ids.py` passed against that real output.
-**Still open**: this was a small, hand-built fidelity smoke test, not the
-real-data ARI/pair-recovery concordance benchmark called for in Decision
-item 4 below (real multi-strain proteome data, real cluster quality
-comparison against mmseqs) — that remains open, tracked in
-`todo/diamond-tier1-cluster-backend.md`. Treat
-`--pangenome_cluster_backend diamond` as opt-in/experimental until that
-lands.
+
+**2026-09-17 update — real end-to-end run.** Ran `pangenome.nf
+--pangenome_cluster_backend diamond -profile local` against a real 5-strain
+*Coccidioides immitis* subset (`NovInvenio_Investigations`' coccidioides
+pangenome study data). Completed 37/37 processes, 0 failures. `CLUSTER_TIER1`
+produced 10,467 real gene families from 10,549 proteins; the frequency
+distribution was exactly what a real pangenome should look like (7,017 core
+@ freq 1.0, 1,698 near-singleton @ freq 0.2, a normal shell tail in
+between); `verify_diamond_cluster_ids.py` printed its pass confirmation
+inside the actual pipeline run, not just a standalone test. This is now
+validated against real biological data through real Nextflow orchestration,
+not just unit tests and a standalone CLI smoke test.
+
+A same-subset mmseqs comparison run was attempted for a direct concordance
+check and **could not complete** — unrelated to this ADR: `mmseqs
+easy-cluster` itself crashed with `SIGILL` on the test node, which lacks
+AVX2 (confirmed via `/proc/cpuinfo`). This is the same root-cause class as
+an already-documented, already-deferred learning (`.living/learnings.md`,
+2026-07-21, famsa/AVX2) hitting a different tool; `CLUSTER_TIER1`'s mmseqs
+branch has no AVX2 node-pinning the way `modules/mmseqs_cluster.nf` does
+(`-C ryzen`) — filed as issue #101. Notably, diamond did *not* crash on the
+same node, so this pathway may be more portable across this cluster's mixed
+node fleet, not just an alternative for tuning/sensitivity reasons.
+
+**Still open**: a real mmseqs-vs-diamond cluster-quality comparison (ARI,
+pair-recovery) on the *same* real data, blocked on #101 (needs an
+AVX2-capable node to even run mmseqs for the comparison) — tracked in
+`todo/diamond-tier1-cluster-backend.md`. The ID-fidelity and pipeline
+integration questions this ADR originally raised are now closed; only the
+clustering-quality-vs-mmseqs question remains. Treat
+`--pangenome_cluster_backend diamond` as validated-but-uncompared: safe to
+run, but its cluster granularity relative to mmseqs at the same identity
+target is not yet independently confirmed.
 
 ## Context
 
@@ -111,21 +137,25 @@ occurring inside `orig_id`).
 3. **`pangenome.nf`'s hard-error guard relaxed** to a doc comment pointing at
    this ADR and the new safety net, rather than an unconditional `error`.
    `--pangenome_cluster_backend diamond` now runs.
-4. **Real-binary header-fidelity smoke test — done; real-data concordance
-   benchmark — still open.** A real `diamond cluster` run (pixi environment,
-   diamond v2.2.0.180, `--approx-id 90 --member-cover 80`) against a small
-   adversarial FASTA (including the `Afum|sp|O74225|YCF1_SCHPO` multi-pipe
-   case) preserved every header verbatim, and `verify_diamond_cluster_ids.py`
-   passed against that real output. This confirms the header-preservation
-   claim held for a real invocation, not just in theory — but the FASTA was
-   5 small, mostly near-identical toy sequences, not a real multi-strain
-   proteome, so it says nothing about clustering *quality* or concordance
-   with mmseqs at scale. The existing mmseqs-vs-diamond benchmark in
-   `.living/decisions.md` (ARI 0.79, 72% pair recovery at 87% precision)
-   used raw UniProt headers on a different pipeline path and predates this
-   ID convention — still suggestive, not load-bearing evidence, for a real
-   pangenome study. That real-data concordance benchmark is the one item
-   left open; see `todo/diamond-tier1-cluster-backend.md`.
+4. **Real-binary header-fidelity smoke test, then a real end-to-end pipeline
+   run — both done; mmseqs-vs-diamond cluster-quality concordance — still
+   open.** A real `diamond cluster` run against a small adversarial FASTA
+   (including the `Afum|sp|O74225|YCF1_SCHPO` multi-pipe case) preserved
+   every header verbatim. Then, 2026-09-17, a full `pangenome.nf
+   --pangenome_cluster_backend diamond -profile local` run against a real
+   5-strain *Coccidioides immitis* subset completed 37/37 processes with
+   0 failures, producing 10,467 real gene families with a normal
+   core/shell/singleton frequency distribution — this is no longer a toy
+   synthetic-data check, it is a real biological dataset through real
+   Nextflow orchestration. What's still missing is a same-data mmseqs
+   comparison: that run crashed on an unrelated AVX2/SIGILL hardware issue
+   (issue #101) rather than producing a cluster count to compare against.
+   The existing mmseqs-vs-diamond benchmark in `.living/decisions.md` (ARI
+   0.79, 72% pair recovery at 87% precision) used raw UniProt headers on a
+   different pipeline path and predates this ID convention — still
+   suggestive, not load-bearing evidence, for this pangenome study. The
+   real-data concordance benchmark is the one item left open, now blocked
+   on #101 rather than on tooling; see `todo/diamond-tier1-cluster-backend.md`.
 5. **No changes made to `bin/pangenome_cooccurrence.py`, `lib/pangenome_matrix.py`,
    or the report layer** — confirmed backend-agnostic by inspection (they
    read `tier1_cluster.tsv`/`presence_matrix.tsv` structurally, never caring
@@ -165,7 +195,15 @@ occurring inside `orig_id`).
   was already built backend-agnostic.
 - The fidelity check is a genuine runtime safety net (fail loud on the first
   bad id, same contract as `restore_mmseqs_cluster_ids.py`), not a
-  rubber-stamp — but it has only been exercised against synthetic data.
-  Anyone running `--pangenome_cluster_backend diamond` on a real study before
-  the concordance benchmark lands should treat it as experimental and watch
-  for the verify step actually firing.
+  rubber-stamp, and it has now been exercised both against synthetic
+  adversarial data and against a real end-to-end run on real biological
+  data (10,467 families, 0 failures). Anyone running
+  `--pangenome_cluster_backend diamond` on a real study can trust the
+  pipeline mechanics; what remains unverified is only whether diamond's
+  cluster granularity at the configured identity/coverage target matches
+  mmseqs' closely enough for a given study's purposes — that comparison
+  needs an AVX2-capable node (issue #101) before it can even be attempted.
+- Incidentally surfaced a real, unrelated infra gap: `CLUSTER_TIER1`'s
+  mmseqs branch has no AVX2 node-pinning, unlike `modules/mmseqs_cluster.nf`'s
+  `-C ryzen`, and diamond did not crash on the same no-AVX2 node mmseqs
+  crashed on — filed as issue #101.
