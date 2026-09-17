@@ -91,23 +91,27 @@ process CLUSTER_TIER1 {
             --threads ${task.cpus}
         """
     else if (backend == 'diamond')
-        // NOTE (lower confidence than the mmseqs branch above): the
-        // originating study's real 295-strain run used mmseqs exclusively
-        // for tier-1 clustering, so this diamond path is a best-effort port
-        // of pangenome_cluster_backend.py's existing diamond-tier1 command,
-        // not something validated against real multi-strain data here. It
-        // also assumes `diamond cluster`'s cluster-TSV representative IDs
-        // (column 1) match the input FASTA headers' first token verbatim --
-        // unlike mmseqs (see bin/restore_mmseqs_cluster_ids.py, needed
-        // because mmseqs can collapse certain header conventions), there is
-        // no equivalent ID-restoration step for diamond in this repo yet.
-        // Verify representative-ID fidelity against a real run before
-        // trusting this path at scale.
+        // Unlike mmseqs (which needs bin/restore_mmseqs_cluster_ids.py to
+        // undo its own header-collapsing -- see that script's docstring and
+        // lib/fasta.py::mmseqs_id()), diamond cluster is expected to keep
+        // the whole first-token header verbatim in its own *_cluster.tsv --
+        // no collapsing, so no restoration needed. That expectation is
+        // checked here, not assumed: verify_diamond_cluster_ids.py fails
+        // loud if any id in the raw cluster.tsv doesn't match a real header
+        // in ${all_strains_fa} verbatim, before anything downstream reads
+        // it. See docs/adr/0003-diamond-tier1-clustering-backend.md -- this
+        // closes the gap that previously kept
+        // --pangenome_cluster_backend diamond hard-blocked in pangenome.nf.
+        // Still not validated against a real multi-strain run (no diamond
+        // binary in the environment used to build this check); the
+        // mmseqs-vs-diamond concordance benchmark called for in that ADR is
+        // a separate, real-data follow-up.
         """
         pangenome_cluster_backend.py diamond-tier1 --fasta ${all_strains_fa} --out_prefix tier1 \
             --approx_id ${(params.pangenome_tier1_min_id as double) * 100} \
             --member_cover ${(params.pangenome_tier1_cov as double) * 100} \
             --threads ${task.cpus}
+        verify_diamond_cluster_ids.py --input-fasta ${all_strains_fa} --cluster-tsv tier1_cluster.tsv
         mv tier1_cluster.tsv tier1_cluster.tsv.raw
         # diamond cluster's TSV has no separate *_rep_seq.fasta; extract representatives
         # (col 1, unique) from the input FASTA to give both backends the same output contract.
