@@ -333,11 +333,18 @@ def render_report_markdown(
         lines += ["No significantly enriched Pfam domains found.", ""]
     else:
         lines += ["![Top enriched domains](figures/island_domain_enrichment.png)", ""]
-        lines += ["| Domain | Fisher p | FDR q |", "|---|---|---|"]
+        has_go = any(row.get("go_terms") for row in top_domains)
+        if has_go:
+            lines += ["| Domain | Fisher p | FDR q | GO terms |", "|---|---|---|---|"]
+        else:
+            lines += ["| Domain | Fisher p | FDR q |", "|---|---|---|"]
         for row in top_domains:
             pfam_url = row.get("pfam_url")
             domain_cell = f"[{row['domain']}]({pfam_url})" if pfam_url and pfam_url != "-" else row["domain"]
-            lines.append(f"| {domain_cell} | {float(row['fisher_p']):.2e} | {float(row['fdr_q']):.2e} |")
+            cells = f"| {domain_cell} | {float(row['fisher_p']):.2e} | {float(row['fdr_q']):.2e} |"
+            if has_go:
+                cells += f" {row.get('go_terms', '-')} |"
+            lines.append(cells)
         lines.append("")
 
     return "\n".join(lines)

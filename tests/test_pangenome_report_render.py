@@ -153,3 +153,21 @@ def test_domain_table_falls_back_to_bare_name_when_pfam_url_is_sentinel():
         0, None, None, [], None,
     )
     assert "| SnoaL_2 |" in md
+
+
+def test_domain_table_adds_go_columns_when_present():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "fisher_p": "1e-5", "fdr_q": "2e-5",
+                      "n_go_terms": "2", "go_terms": "GO:0016491;GO:0008152"}],
+        0, None, None, [], None,
+    )
+    assert "GO terms" in md
+    assert "GO:0016491;GO:0008152" in md
+
+
+def test_domain_table_omits_go_columns_when_absent():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "GO terms" not in md
