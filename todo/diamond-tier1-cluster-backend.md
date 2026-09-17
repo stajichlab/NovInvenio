@@ -1,5 +1,13 @@
 # Real-data concordance benchmark for the diamond tier-1 clustering backend
 
+**Update 2026-09-16**: a real `diamond cluster` smoke test (pixi env, diamond
+v2.2.0.180) against a small adversarial FASTA confirmed header-fidelity
+holds for a real invocation, including the multi-pipe Short-prefixed
+UniProt-style case (`Afum|sp|O74225|YCF1_SCHPO`) — `verify_diamond_cluster_ids.py`
+passed. That FASTA was 5 small near-identical toy sequences, not real
+biological data, so it validates ID fidelity only, not clustering quality.
+The real-data concordance benchmark below is still open.
+
 - **Priority**: medium
 - **Status**: open
 - **Category**: validation

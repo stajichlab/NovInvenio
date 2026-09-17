@@ -506,3 +506,32 @@ cli-quirk
 built, a unit test mirroring `tests/test_fasta.py::test_mmseqs_id_is_a_no_op_for_non_uniprot_headers`
 but asserting diamond's own (different) UniProt-header id convention would catch this
 class of mismatch the same way the #85 regression tests do for mmseqs2.
+
+## [2026-09-16] diamond cluster preserves multi-pipe, Short-prefixed headers verbatim under a real invocation
+
+**Category**: validation / cluster-id-fidelity
+
+**What happened**: Built the diamond tier-1 clustering ID-fidelity safety net
+(bin/verify_diamond_cluster_ids.py, docs/adr/0003) on the assumption -- backed by
+the 2026-09-08 learning above, but only tested there against raw UniProt headers
+on a different pipeline path -- that diamond keeps the whole first-token header
+verbatim, unlike mmseqs. Ran a real `diamond cluster` invocation (pixi env,
+diamond v2.2.0.180, --approx-id 90 --member-cover 80) against a small adversarial
+FASTA including the pangenome subworkflows own header convention colliding with a
+raw UniProt defline: `Afum|sp|O74225|YCF1_SCHPO` (a Short-prefixed original id that
+itself contains pipes). The id came through *_cluster.tsv completely unchanged.
+
+**Why it matters**: this was the one part of ADR-0003 that could not be verified
+by unit tests alone (they can only encode what mmseqs_id() already tells us to
+expect, not confirm the real tool actually behaves that way) -- a real invocation
+was needed to close the loop. Confirms the pangenome subworkflows Short<id_sep>orig_id
+prefixing does not trip diamond the way it could theoretically trip mmseqs.
+
+**Resolution**: verify_diamond_cluster_ids.py is wired into CLUSTER_TIER1s diamond
+branch and the pangenome.nf hard-error guard for --pangenome_cluster_backend diamond
+was relaxed. Still open: a real multi-strain biological dataset concordance
+benchmark (todo/diamond-tier1-cluster-backend.md) -- this smoke test used 5 small,
+mostly near-identical toy sequences, so it validates ID fidelity only, not
+clustering quality/concordance with mmseqs at scale.
+
+**Tags**: diamond, mmseqs, cluster-tool, id-normalization, pangenome, validation
