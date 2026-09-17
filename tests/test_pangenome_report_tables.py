@@ -30,12 +30,13 @@ def test_annotate_islands_with_domains_no_hits_is_dash():
 def test_add_island_locus_computes_span_from_gene_positions():
     islands_rows = [{
         "n_strains": "1", "example_strain": "S1", "island_size": "2",
-        "member_families": "famA|famB", "n_supporting_pairs": "1",
+        "member_families": "famA,famB", "n_supporting_pairs": "1",
         "classifications": "starship_explained",
     }]
-    # famA's rep is a different strain's protein; S1's own copy is protS1_a.
-    member_to_rep = {"protS1_a": "famA", "protS1_b": "famB",
-                      "famA": "famA", "famB": "famB"}
+    # member_to_rep values are always Short<id_sep>protein_id-prefixed in
+    # real pipeline data (bin/pangenome_cluster_backend.py:32); gene_positions
+    # is keyed on the bare protein_id (bin/pangenome_build_family_positions.py).
+    member_to_rep = {"S1|protS1_a": "famA", "S1|protS1_b": "famB"}
     gene_positions = {
         ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
         ("S1", "protS1_b"): {"contig": "contig1", "start": 300, "end": 400},
@@ -50,10 +51,10 @@ def test_add_island_locus_computes_span_from_gene_positions():
 def test_add_island_locus_flags_multi_contig():
     islands_rows = [{
         "n_strains": "1", "example_strain": "S1", "island_size": "2",
-        "member_families": "famA|famB", "n_supporting_pairs": "1",
+        "member_families": "famA,famB", "n_supporting_pairs": "1",
         "classifications": "starship_explained",
     }]
-    member_to_rep = {"protS1_a": "famA", "protS1_b": "famB"}
+    member_to_rep = {"S1|protS1_a": "famA", "S1|protS1_b": "famB"}
     gene_positions = {
         ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
         ("S1", "protS1_b"): {"contig": "contig2", "start": 10, "end": 50},
@@ -79,10 +80,38 @@ def test_add_island_locus_respects_custom_id_sep():
         "member_families": "famA", "n_supporting_pairs": "0",
         "classifications": "unexplained_physical",
     }]
-    member_to_rep = {"protS1_a": "famA"}
-    gene_positions = {("S1", "protS1_a"): {"contig": "contig1", "start": 5, "end": 50}}
+    member_to_rep = {"S1_protS1a": "famA"}
+    gene_positions = {("S1", "protS1a"): {"contig": "contig1", "start": 5, "end": 50}}
     rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="_")
     assert rows[0]["locus_id"] == "S1:contig1:5-50"
+
+
+def test_add_island_locus_restricts_to_example_strain():
+    """Realistic-shape regression test (bugs 1+2 from the task-3 review):
+    member_to_rep keys are Short<id_sep>protein_id-prefixed, member_families
+    is comma-joined (always -- bin/pangenome_build_islands.py:243 hardcodes
+    ','.join(entry['members']), never id_sep), and gene_positions is keyed
+    on bare (strain, protein_id) tuples. Also confirms a same-family member
+    belonging to a DIFFERENT strain than the island's own example_strain is
+    not picked up for this island's locus."""
+    islands_rows = [{
+        "n_strains": "2", "example_strain": "S1", "island_size": "2",
+        "member_families": "famA,famB", "n_supporting_pairs": "1",
+        "classifications": "starship_explained",
+    }]
+    member_to_rep = {
+        "S1|protS1_a": "famA", "S1|protS1_b": "famB",
+        "S2|protS2_a": "famA",  # same family, other strain -- must be ignored
+    }
+    gene_positions = {
+        ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
+        ("S1", "protS1_b"): {"contig": "contig1", "start": 300, "end": 400},
+        ("S2", "protS2_a"): {"contig": "contig9", "start": 1, "end": 9},
+    }
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="|")
+    assert rows[0]["locus_id"] == "S1:contig1:100-400"
+    assert rows[0]["n_members_with_coordinates"] == 2
+    assert rows[0]["n_contigs_in_locus"] == 1
 
 
 def test_island_size_distribution_counts_by_size():

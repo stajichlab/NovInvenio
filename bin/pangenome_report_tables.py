@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pangenome_domain_enrichment import parse_domtblout  # noqa: E402
+from pangenome_build_presence_matrix import split_member_id  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from pangenome_matrix import read_cluster_tsv  # noqa: E402
@@ -57,13 +58,22 @@ def add_island_locus(
 ) -> list[dict]:
     """Adds locus_id/locus_contig/locus_start/locus_end/
     n_members_with_coordinates/n_contigs_in_locus to each island row, by
-    resolving member_families (rep-protein IDs) down to the island's own
+    resolving member_families (rep-protein IDs, comma-joined -- always,
+    regardless of `id_sep`, matching bin/pangenome_build_islands.py's
+    hardcoded ','.join(entry['members'])) down to the island's own
     example_strain's actual proteins via member_to_rep (rep -> member
     inverted, restricted to that strain), then spanning gene_positions.
-    Members with no resolvable coordinate (e.g. a rescue-pass genome_only
-    call with no annotated protein_id) are excluded from the span and
-    counted, not treated as an error. n_contigs_in_locus > 1 is reported,
-    not silently collapsed (probable paralog-copy pull-in)."""
+    `id_sep` is used only to split each individual resolved member's
+    `Short<id_sep>protein_id` prefix (see
+    bin/pangenome_build_presence_matrix.py's split_member_id) -- member_to_rep
+    values are always Short-prefixed like that in real pipeline data, while
+    gene_positions is keyed on the bare protein_id. Members with no
+    resolvable coordinate (e.g. a rescue-pass genome_only call with no
+    annotated protein_id) are excluded from the span and counted, not
+    treated as an error. A same-family member belonging to a strain other
+    than this island's own example_strain is not a candidate for this
+    island's locus. n_contigs_in_locus > 1 is reported, not silently
+    collapsed (probable paralog-copy pull-in)."""
     # Invert member_to_rep (member -> rep) into rep -> [members on this strain].
     rep_to_members: dict[str, list[str]] = {}
     for member, rep in member_to_rep.items():
@@ -74,18 +84,20 @@ def add_island_locus(
         strain = row["example_strain"]
         starts, ends, contigs = [], [], set()
         n_resolved = 0
-        for family in row["member_families"].split(id_sep):
-            resolved_member = None
-            for member in rep_to_members.get(family, [family]):
-                if (strain, member) in gene_positions:
-                    resolved_member = member
+        for family in row["member_families"].split(","):
+            resolved_pos = None
+            for candidate in rep_to_members.get(family, [family]):
+                cand_strain, cand_protein = split_member_id(candidate, id_sep)
+                if cand_strain != strain:
+                    continue
+                if (strain, cand_protein) in gene_positions:
+                    resolved_pos = gene_positions[(strain, cand_protein)]
                     break
-            if resolved_member is None:
+            if resolved_pos is None:
                 continue
-            pos = gene_positions[(strain, resolved_member)]
-            starts.append(pos["start"])
-            ends.append(pos["end"])
-            contigs.add(pos["contig"])
+            starts.append(resolved_pos["start"])
+            ends.append(resolved_pos["end"])
+            contigs.add(resolved_pos["contig"])
             n_resolved += 1
 
         new_row = dict(row)
