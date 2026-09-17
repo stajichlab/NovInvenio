@@ -535,3 +535,36 @@ mostly near-identical toy sequences, so it validates ID fidelity only, not
 clustering quality/concordance with mmseqs at scale.
 
 **Tags**: diamond, mmseqs, cluster-tool, id-normalization, pangenome, validation
+
+## [2026-09-17] mmseqs (not just famsa) also SIGILLs on this cluster's no-AVX2 nodes
+
+**Category**: gotcha
+
+**What happened**: Running a real end-to-end diamond-vs-mmseqs comparison for the
+pangenome CLUSTER_TIER1 diamond backend (docs/adr/0003), the mmseqs comparison run
+crashed: `mmseqs easy-cluster ... died with <Signals.SIGILL: 4>` on an interactive
+node whose /proc/cpuinfo shows no avx2 (sse4_2 only). This is the same root-cause
+class as the 2026-07-21 famsa/AVX2 learning above, but a different bioconda binary --
+confirms the AVX2 SIGILL risk on this cluster's Abu Dhabi nodes is not limited to
+one tool. Diamond (v2.2.0.180) did NOT crash on the same node running the same
+workflow.
+
+**Why it matters**: `modules/mmseqs_cluster.nf` (novelty/loss pathway) already pins
+mmseqs to AVX2-capable nodes (`-C ryzen`), but `modules/pangenome/prefix_and_cluster.nf`'s
+CLUSTER_TIER1 -- added later, for the pangenome subworkflow -- has no equivalent
+constraint on its mmseqs branch. Any bioconda/conda-forge binary using SIMD
+auto-vectorization should be assumed AVX2-only unless proven otherwise on this
+cluster; a working `-profile local` smoke test on one node type says nothing about
+another.
+
+**Resolution**: filed as issue #101 (todo/pangenome-cluster-tier1-avx2-pin.md) --
+add the same `-C ryzen` constraint to CLUSTER_TIER1's mmseqs branch. Not fixed yet.
+
+**Tags**: cluster, slurm, avx2, mmseqs, pixi, bioconda, simd, hardware-compatibility,
+nextflow, node-placement, pangenome
+
+**mitigation_type**: convention
+
+**structural_mitigation_candidate**: same fix pattern as the famsa entry above --
+a `withName`/label SLURM `clusterOptions` constraint on CLUSTER_TIER1's mmseqs
+branch, mirroring MMSEQS_CLUSTER's existing `-C ryzen`.

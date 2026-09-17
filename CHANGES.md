@@ -48,13 +48,24 @@
   (diamond is expected to need verification only, not restoration, since it
   doesn't collapse headers the way mmseqs does). Unit-tested against
   adversarial headers, including the previously-untested case of a
-  Short-prefixed, multi-pipe UniProt-style id (`Afum|sp|ACC|NAME`). Not yet
-  run against a real `diamond cluster` binary at pangenome scale -- treat as
-  opt-in/experimental until that real-data concordance check is done
-  (tracked in `todo/diamond-tier1-cluster-backend.md`).
+  Short-prefixed, multi-pipe UniProt-style id (`Afum|sp|ACC|NAME`).
 - `bin/pangenome_cooccurrence.py` and every other downstream consumer needed
   no changes -- they already read `tier1_cluster.tsv`/`presence_matrix.tsv`
   structurally, independent of which clustering tool produced them.
+- **2026-09-17: validated end-to-end on real data.** Ran `pangenome.nf
+  --pangenome_cluster_backend diamond -profile local` against a real
+  5-strain *Coccidioides immitis* subset: 37/37 processes, 0 failures,
+  10,467 real gene families with a normal core/shell/singleton frequency
+  distribution, `verify_diamond_cluster_ids.py` passing inside the actual
+  run. A same-subset mmseqs comparison run for a direct concordance check
+  hit an unrelated pre-existing issue instead: `mmseqs easy-cluster`
+  SIGILLed on the test node (no AVX2), the same root-cause class as the
+  2026-07-21 famsa/AVX2 learning, just never pinned to an AVX2-capable node
+  for `CLUSTER_TIER1` the way `modules/mmseqs_cluster.nf` is (`-C ryzen`) --
+  filed as issue #101. Diamond did not crash on the same node. The
+  real-data cluster-quality concordance benchmark remains open, now blocked
+  on #101 rather than on tooling (tracked in
+  `todo/diamond-tier1-cluster-backend.md`).
 
 ### Performance: batched DIAMOND_SEARCH (0.6.1)
 

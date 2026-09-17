@@ -5,15 +5,25 @@ v2.2.0.180) against a small adversarial FASTA confirmed header-fidelity
 holds for a real invocation, including the multi-pipe Short-prefixed
 UniProt-style case (`Afum|sp|O74225|YCF1_SCHPO`) — `verify_diamond_cluster_ids.py`
 passed. That FASTA was 5 small near-identical toy sequences, not real
-biological data, so it validates ID fidelity only, not clustering quality.
-The real-data concordance benchmark below is still open.
+biological data, so it validated ID fidelity only, not clustering quality.
+
+**Update 2026-09-17**: ran the real thing. `pangenome.nf
+--pangenome_cluster_backend diamond -profile local` against a real 5-strain
+*Coccidioides immitis* subset completed 37/37 processes, 0 failures, 10,467
+real gene families, normal core/shell/singleton frequency distribution.
+Attempted the same-subset mmseqs comparison for a direct concordance number
+and it crashed instead — `mmseqs easy-cluster` SIGILLed on the test node
+(no AVX2), unrelated to this work (see issue #101, same root cause as the
+2026-07-21 famsa/AVX2 learning). Diamond did not crash on the same node.
+The concordance benchmark below is now blocked on #101 (need an
+AVX2-capable node to run mmseqs at all for the comparison), not on tooling.
 
 - **Priority**: medium
-- **Status**: open
+- **Status**: blocked (on issue #101)
 - **Category**: validation
 - **Date**: 2026-09-16
 - **Author**: Jason Stajich
-- **See**: [docs/adr/0003-diamond-tier1-clustering-backend.md](../docs/adr/0003-diamond-tier1-clustering-backend.md), issue #98
+- **See**: [docs/adr/0003-diamond-tier1-clustering-backend.md](../docs/adr/0003-diamond-tier1-clustering-backend.md), issues #98, #101
 
 ## What
 
