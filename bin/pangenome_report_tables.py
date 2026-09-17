@@ -28,6 +28,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pangenome_domain_enrichment import parse_domtblout  # noqa: E402
+from pangenome_build_presence_matrix import split_member_id  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from pangenome_matrix import read_cluster_tsv  # noqa: E402
 
 
 def annotate_islands_with_domains(islands_rows: list[dict], family_domains: dict[str, set[str]]) -> list[dict]:
@@ -43,6 +47,88 @@ def annotate_islands_with_domains(islands_rows: list[dict], family_domains: dict
             domains |= family_domains.get(m, set())
         row["pfam_domains"] = ",".join(sorted(domains)) if domains else "-"
         out.append(row)
+    return out
+
+
+def add_island_locus(
+    islands_rows: list[dict],
+    member_to_rep: dict[str, str],
+    gene_positions: dict[tuple[str, str], dict],
+    id_sep: str = "|",
+) -> list[dict]:
+    """Adds locus_id/locus_contig/locus_start/locus_end/
+    n_members_with_coordinates/n_contigs_in_locus to each island row, by
+    resolving member_families (rep-protein IDs, comma-joined -- always,
+    regardless of `id_sep`, matching bin/pangenome_build_islands.py's
+    hardcoded ','.join(entry['members'])) down to the island's own
+    example_strain's actual proteins via member_to_rep (rep -> member
+    inverted, restricted to that strain), then spanning gene_positions.
+    `id_sep` is used only to split each individual resolved member's
+    `Short<id_sep>protein_id` prefix (see
+    bin/pangenome_build_presence_matrix.py's split_member_id) -- member_to_rep
+    values are always Short-prefixed like that in real pipeline data, while
+    gene_positions is keyed on the bare protein_id. Members with no
+    resolvable coordinate (e.g. a rescue-pass genome_only call with no
+    annotated protein_id) are excluded from the span and counted, not
+    treated as an error. A same-family member belonging to a strain other
+    than this island's own example_strain is not a candidate for this
+    island's locus. n_contigs_in_locus > 1 is reported, not silently
+    collapsed (probable paralog-copy pull-in)."""
+    # Invert member_to_rep (member -> rep) into rep -> [members on this strain].
+    rep_to_members: dict[str, list[str]] = {}
+    for member, rep in member_to_rep.items():
+        rep_to_members.setdefault(rep, []).append(member)
+
+    out = []
+    for row in islands_rows:
+        strain = row["example_strain"]
+        starts, ends, contigs = [], [], set()
+        n_resolved = 0
+        for family in row["member_families"].split(","):
+            resolved_pos = None
+            for candidate in rep_to_members.get(family, [family]):
+                cand_strain, cand_protein = split_member_id(candidate, id_sep)
+                if cand_strain != strain:
+                    continue
+                if (strain, cand_protein) in gene_positions:
+                    resolved_pos = gene_positions[(strain, cand_protein)]
+                    break
+            if resolved_pos is None:
+                continue
+            starts.append(resolved_pos["start"])
+            ends.append(resolved_pos["end"])
+            contigs.add(resolved_pos["contig"])
+            n_resolved += 1
+
+        new_row = dict(row)
+        if n_resolved == 0:
+            new_row.update({
+                "locus_id": "-", "locus_contig": "-", "locus_start": "-",
+                "locus_end": "-", "n_members_with_coordinates": 0,
+                "n_contigs_in_locus": 0,
+            })
+        elif len(contigs) > 1:
+            # Members resolved across more than one contig -- a single
+            # start/end span computed across all of them would mix
+            # coordinates from different contigs into one fabricated
+            # range. Report the sentinel for the span fields, but keep
+            # n_members_with_coordinates/n_contigs_in_locus as their real
+            # computed counts so the multi-contig condition is still
+            # visible, not silently collapsed.
+            new_row.update({
+                "locus_id": "-", "locus_contig": "-", "locus_start": "-",
+                "locus_end": "-", "n_members_with_coordinates": n_resolved,
+                "n_contigs_in_locus": len(contigs),
+            })
+        else:
+            contig = sorted(contigs)[0]
+            new_row.update({
+                "locus_id": f"{strain}:{contig}:{min(starts)}-{max(ends)}",
+                "locus_contig": contig, "locus_start": min(starts),
+                "locus_end": max(ends), "n_members_with_coordinates": n_resolved,
+                "n_contigs_in_locus": len(contigs),
+            })
+        out.append(new_row)
     return out
 
 
@@ -113,7 +199,41 @@ def per_strain_summary(presence_matrix_path: str, family_bin: dict[str, str]) ->
                     totals[strain]["n_families"] += 1
                     if b in totals[strain]:
                         totals[strain][b] += 1
-    return list(totals.values())
+    return add_outlier_flags(list(totals.values()))
+
+
+def add_outlier_flags(totals: list[dict], mad_multiplier: float = 0.6745, threshold: float = 3.5) -> list[dict]:
+    """Modified z-score (Iglewicz-Hoaglin) on each strain's `singleton` count
+    across the whole cohort -- NOT a mean/stdev z-score, which is bounded
+    (max |z| = sqrt(n-1)) and cannot exceed ~3.0 at n=10, making a fixed >3
+    cutoff unreachable for small cohorts. singleton_z/is_outlier are `-`
+    (not a fabricated number, not a crash) when n<3 or MAD==0 (most strains
+    share the same singleton count -- statistic is undefined)."""
+    values = [t["singleton"] for t in totals]
+    out = [dict(t) for t in totals]
+    if len(values) < 3:
+        for row in out:
+            row["singleton_z"] = "-"
+            row["is_outlier"] = "-"
+        return out
+
+    sorted_values = sorted(values)
+    n = len(sorted_values)
+    median = sorted_values[n // 2] if n % 2 else (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
+    deviations = sorted([abs(v - median) for v in values])
+    mad = deviations[n // 2] if n % 2 else (deviations[n // 2 - 1] + deviations[n // 2]) / 2
+
+    if mad == 0:
+        for row in out:
+            row["singleton_z"] = "-"
+            row["is_outlier"] = "-"
+        return out
+
+    for row in out:
+        z = mad_multiplier * (row["singleton"] - median) / mad
+        row["singleton_z"] = f"{z:.2f}"
+        row["is_outlier"] = "Y" if abs(z) > threshold else "N"
+    return out
 
 
 def main() -> int:
@@ -126,6 +246,9 @@ def main() -> int:
     ap.add_argument("--domtblout", required=True, action="append")
     ap.add_argument("--domain_evalue", type=float, default=1e-3,
                      help="Domain-level i-Evalue cutoff for Pfam domain hits (default: 1e-3).")
+    ap.add_argument("--cluster_tsv", required=True)
+    ap.add_argument("--gene_positions", required=True)
+    ap.add_argument("--id_sep", default="|")
     ap.add_argument("--out_dir", required=True)
     args = ap.parse_args()
 
@@ -139,10 +262,22 @@ def main() -> int:
 
     family_domains = parse_domtblout(args.domtblout, max_ievalue=args.domain_evalue)
     annotated = annotate_islands_with_domains(islands_rows, family_domains)
+
+    member_to_rep = read_cluster_tsv(args.cluster_tsv)
+    gene_positions: dict[tuple[str, str], dict] = {}
+    with open(args.gene_positions, newline="") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            gene_positions[(row["Short"], row["protein_id"])] = {
+                "contig": row["contig"], "start": int(row["start"]), "end": int(row["end"]),
+            }
+    annotated = add_island_locus(annotated, member_to_rep, gene_positions, id_sep=args.id_sep)
+
     with open(out_dir / "islands_with_domains.tsv", "w", newline="") as out:
         fieldnames = list(annotated[0].keys()) if annotated else [
             "n_strains", "example_strain", "island_size", "member_families",
             "n_supporting_pairs", "classifications", "pfam_domains",
+            "locus_id", "locus_contig", "locus_start", "locus_end",
+            "n_members_with_coordinates", "n_contigs_in_locus",
         ]
         writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
         writer.writeheader()
@@ -175,7 +310,7 @@ def main() -> int:
             family_bin[row["family"]] = row["bin"]
     strain_rows = per_strain_summary(args.presence_matrix, family_bin)
     with open(out_dir / "per_strain_summary.tsv", "w", newline="") as out:
-        fieldnames = ["Short", "n_families", "core", "soft_core", "shell", "cloud", "singleton"]
+        fieldnames = ["Short", "n_families", "core", "soft_core", "shell", "cloud", "singleton", "singleton_z", "is_outlier"]
         writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         for row in sorted(strain_rows, key=lambda r: r["n_families"]):

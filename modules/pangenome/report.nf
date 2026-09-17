@@ -16,6 +16,8 @@ process REPORT_TABLES {
     path(presence_matrix)
     path(frequency_table)
     path(domtblout)
+    path(cluster_tsv)
+    path(gene_positions)
 
     output:
     path("islands_with_domains.tsv"), emit: islands_with_domains
@@ -34,6 +36,9 @@ process REPORT_TABLES {
         --frequency_table ${frequency_table} \
         --domtblout ${domtblout} \
         --domain_evalue ${params.pangenome_pfam_domain_evalue} \
+        --cluster_tsv ${cluster_tsv} \
+        --gene_positions ${gene_positions} \
+        --id_sep '${params.pangenome_id_sep.replace("'", "'\\''")}' \
         --out_dir .
     """
 }

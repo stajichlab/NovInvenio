@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
+import pangenome_report_render
 from pangenome_report_render import render_report_markdown, fit_heaps_law, fit_core_decay
 import numpy as np
 
@@ -125,3 +126,144 @@ def test_fit_heaps_law_short_circuits_below_3_strains():
     assert np.isnan(result["gamma"])
     assert np.isnan(result["kappa"])
     assert np.isnan(result["r_squared"])
+
+
+def test_domain_table_renders_pfam_url_as_link():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "pfam_accession": "PF13577.9",
+                      "pfam_url": "https://www.ebi.ac.uk/interpro/entry/pfam/PF13577/",
+                      "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "[SnoaL_2](https://www.ebi.ac.uk/interpro/entry/pfam/PF13577/)" in md
+
+
+def test_domain_table_falls_back_to_bare_name_without_pfam_url_key():
+    # Existing-style row with no pfam_url key at all -- must not KeyError.
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "| SnoaL_2 |" in md
+
+
+def test_domain_table_falls_back_to_bare_name_when_pfam_url_is_sentinel():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "pfam_url": "-",
+                      "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "| SnoaL_2 |" in md
+
+
+def test_domain_table_adds_go_columns_when_present():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "fisher_p": "1e-5", "fdr_q": "2e-5",
+                      "n_go_terms": "2", "go_terms": "GO:0016491;GO:0008152"}],
+        0, None, None, [], None,
+    )
+    assert "GO terms" in md
+    assert "GO:0016491;GO:0008152" in md
+
+
+def test_domain_table_omits_go_columns_when_absent():
+    md = render_report_markdown(
+        {}, {}, {}, [{"domain": "SnoaL_2", "fisher_p": "1e-5", "fdr_q": "2e-5"}],
+        0, None, None, [], None,
+    )
+    assert "GO terms" not in md
+
+
+def test_accessory_islands_section_adds_top_islands_table_when_locus_present():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{
+            "locus_id": "S1:contig1:100-400", "island_size": "5",
+            "n_strains": "2", "pfam_domains": "SnoaL_2",
+        }],
+    )
+    assert "S1:contig1:100-400" in md
+
+
+def test_accessory_islands_section_omits_top_islands_table_without_locus():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{"locus_id": "-", "island_size": "5",
+                                     "n_strains": "2", "pfam_domains": "-"}],
+    )
+    assert "Top islands" not in md
+
+
+def test_flagged_outlier_strains_line_present():
+    md = render_report_markdown(
+        {}, {}, {}, [], 0, None, None, [100, 101, 99, 100, 240],
+        per_strain_rows=[
+            {"Short": "A", "is_outlier": "N"}, {"Short": "E", "is_outlier": "Y"},
+        ],
+    )
+    assert "Outlier strains" in md
+    assert "E" in md
+
+
+def test_flagged_outlier_strains_line_absent_when_none_flagged():
+    md = render_report_markdown(
+        {}, {}, {}, [], 0, None, None, [100, 101],
+        per_strain_rows=[{"Short": "A", "is_outlier": "N"}, {"Short": "B", "is_outlier": "N"}],
+    )
+    assert "Outlier strains" not in md
+
+
+def test_main_passes_islands_with_domains_rows_to_render(tmp_path, monkeypatch):
+    # F1 regression test: main() previously discarded the parsed
+    # islands_with_domains.tsv rows (only using them to count n_islands)
+    # and never passed islands_with_domains_rows through to
+    # render_report_markdown, so the "Top islands" table (and locus_id)
+    # could never appear in a real report.md. Build a minimal fixture with
+    # a real locus_id and assert it reaches the written report.md.
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text("family\tfrequency\tbin\nfamA\t1.0\tcore\n")
+    presence_matrix = tmp_path / "presence_matrix.tsv"
+    presence_matrix.write_text("family\ts1\nfamA\tpresent\n")
+    islands_with_domains = tmp_path / "islands_with_domains.tsv"
+    islands_with_domains.write_text(
+        "n_strains\texample_strain\tisland_size\tmember_families\t"
+        "n_supporting_pairs\tclassifications\tpfam_domains\t"
+        "locus_id\tlocus_contig\tlocus_start\tlocus_end\t"
+        "n_members_with_coordinates\tn_contigs_in_locus\n"
+        "2\ts1\t2\tfamA,famB\t1\ttrans\tPF00001\t"
+        "s1:contig1:100-400\tcontig1\t100\t400\t2\t1\n"
+    )
+    island_size_distribution = tmp_path / "island_size_distribution.tsv"
+    island_size_distribution.write_text("island_size\tcount\n2\t1\n")
+    # classification_counts.tsv is left header-only (empty dict) so this
+    # test does not exercise plot_classification_counts, a pre-existing and
+    # out-of-scope code path unrelated to the F1 fix under test here.
+    classification_counts = tmp_path / "classification_counts.tsv"
+    classification_counts.write_text("classification\tcount\n")
+    island_pfam_enrichment = tmp_path / "island_pfam_enrichment.tsv"
+    island_pfam_enrichment.write_text("domain\tfisher_p\tfdr_q\n")
+    marker_summary = tmp_path / "marker_summary.tsv"
+    marker_summary.write_text("marker_name\tn_islands_with_marker\tn_islands_total\tpct_islands_with_marker\n")
+    per_strain_summary = tmp_path / "per_strain_summary.tsv"
+    per_strain_summary.write_text("Short\tn_families\tis_outlier\ns1\t1\tN\n")
+    out_dir = tmp_path / "out"
+
+    argv = [
+        "pangenome_report_render.py",
+        "--frequency_table", str(frequency_table),
+        "--presence_matrix", str(presence_matrix),
+        "--islands_with_domains", str(islands_with_domains),
+        "--island_size_distribution", str(island_size_distribution),
+        "--classification_counts", str(classification_counts),
+        "--island_pfam_enrichment", str(island_pfam_enrichment),
+        "--marker_summary", str(marker_summary),
+        "--per_strain_summary", str(per_strain_summary),
+        "--n_permutations", "1",
+        "--out_dir", str(out_dir),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    pangenome_report_render.main()
+
+    report_md = (out_dir / "report.md").read_text()
+    assert "s1:contig1:100-400" in report_md
+    assert "Top islands" in report_md

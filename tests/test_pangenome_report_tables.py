@@ -5,6 +5,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
 import pangenome_report_tables
 from pangenome_report_tables import (
+    add_island_locus,
+    add_outlier_flags,
     annotate_islands_with_domains,
     island_size_distribution,
     classification_counts,
@@ -24,6 +26,101 @@ def test_annotate_islands_with_domains_no_hits_is_dash():
     islands_rows = [{"member_families": "famA", "island_size": "1"}]
     result = annotate_islands_with_domains(islands_rows, {})
     assert result[0]["pfam_domains"] == "-"
+
+
+def test_add_island_locus_computes_span_from_gene_positions():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "2",
+        "member_families": "famA,famB", "n_supporting_pairs": "1",
+        "classifications": "starship_explained",
+    }]
+    # member_to_rep values are always Short<id_sep>protein_id-prefixed in
+    # real pipeline data (bin/pangenome_cluster_backend.py:32); gene_positions
+    # is keyed on the bare protein_id (bin/pangenome_build_family_positions.py).
+    member_to_rep = {"S1|protS1_a": "famA", "S1|protS1_b": "famB"}
+    gene_positions = {
+        ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
+        ("S1", "protS1_b"): {"contig": "contig1", "start": 300, "end": 400},
+    }
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="|")
+    assert rows[0]["locus_id"] == "S1:contig1:100-400"
+    assert rows[0]["locus_contig"] == "contig1"
+    assert rows[0]["n_members_with_coordinates"] == 2
+    assert rows[0]["n_contigs_in_locus"] == 1
+
+
+def test_add_island_locus_flags_multi_contig():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "2",
+        "member_families": "famA,famB", "n_supporting_pairs": "1",
+        "classifications": "starship_explained",
+    }]
+    member_to_rep = {"S1|protS1_a": "famA", "S1|protS1_b": "famB"}
+    gene_positions = {
+        ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
+        ("S1", "protS1_b"): {"contig": "contig2", "start": 10, "end": 50},
+    }
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="|")
+    # Multi-contig members must not be collapsed into a fabricated
+    # cross-contig span -- locus_id/locus_contig/locus_start/locus_end all
+    # fall back to the sentinel, while the counts stay real.
+    assert rows[0]["n_contigs_in_locus"] == 2
+    assert rows[0]["n_members_with_coordinates"] == 2
+    assert rows[0]["locus_id"] == "-"
+    assert rows[0]["locus_contig"] == "-"
+    assert rows[0]["locus_start"] == "-"
+    assert rows[0]["locus_end"] == "-"
+
+
+def test_add_island_locus_sentinel_on_total_failure():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "1",
+        "member_families": "famA", "n_supporting_pairs": "0",
+        "classifications": "unexplained_physical",
+    }]
+    rows = add_island_locus(islands_rows, {}, {}, id_sep="|")
+    assert rows[0]["locus_id"] == "-"
+    assert rows[0]["n_members_with_coordinates"] == 0
+
+
+def test_add_island_locus_respects_custom_id_sep():
+    islands_rows = [{
+        "n_strains": "1", "example_strain": "S1", "island_size": "1",
+        "member_families": "famA", "n_supporting_pairs": "0",
+        "classifications": "unexplained_physical",
+    }]
+    member_to_rep = {"S1_protS1a": "famA"}
+    gene_positions = {("S1", "protS1a"): {"contig": "contig1", "start": 5, "end": 50}}
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="_")
+    assert rows[0]["locus_id"] == "S1:contig1:5-50"
+
+
+def test_add_island_locus_restricts_to_example_strain():
+    """Realistic-shape regression test (bugs 1+2 from the task-3 review):
+    member_to_rep keys are Short<id_sep>protein_id-prefixed, member_families
+    is comma-joined (always -- bin/pangenome_build_islands.py:243 hardcodes
+    ','.join(entry['members']), never id_sep), and gene_positions is keyed
+    on bare (strain, protein_id) tuples. Also confirms a same-family member
+    belonging to a DIFFERENT strain than the island's own example_strain is
+    not picked up for this island's locus."""
+    islands_rows = [{
+        "n_strains": "2", "example_strain": "S1", "island_size": "2",
+        "member_families": "famA,famB", "n_supporting_pairs": "1",
+        "classifications": "starship_explained",
+    }]
+    member_to_rep = {
+        "S1|protS1_a": "famA", "S1|protS1_b": "famB",
+        "S2|protS2_a": "famA",  # same family, other strain -- must be ignored
+    }
+    gene_positions = {
+        ("S1", "protS1_a"): {"contig": "contig1", "start": 100, "end": 200},
+        ("S1", "protS1_b"): {"contig": "contig1", "start": 300, "end": 400},
+        ("S2", "protS2_a"): {"contig": "contig9", "start": 1, "end": 9},
+    }
+    rows = add_island_locus(islands_rows, member_to_rep, gene_positions, id_sep="|")
+    assert rows[0]["locus_id"] == "S1:contig1:100-400"
+    assert rows[0]["n_members_with_coordinates"] == 2
+    assert rows[0]["n_contigs_in_locus"] == 1
 
 
 def test_island_size_distribution_counts_by_size():
@@ -53,8 +150,15 @@ def test_per_strain_summary_counts_genes_and_bins(tmp_path):
     family_bin = {"famA": "core", "famB": "shell", "famC": "cloud"}
     result = per_strain_summary(str(pm), family_bin)
     by_strain = {r["Short"]: r for r in result}
-    assert by_strain["s1"] == {"Short": "s1", "n_families": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0}
-    assert by_strain["s2"] == {"Short": "s2", "n_families": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
+    # Only 2 strains -- add_outlier_flags emits the "-" sentinel (n<3).
+    assert by_strain["s1"] == {
+        "Short": "s1", "n_families": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0,
+        "singleton_z": "-", "is_outlier": "-",
+    }
+    assert by_strain["s2"] == {
+        "Short": "s2", "n_families": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0,
+        "singleton_z": "-", "is_outlier": "-",
+    }
 
 
 def test_marker_summary_computes_cooccurrence_rate():
@@ -102,6 +206,10 @@ def test_main_writes_marker_summary_tsv(tmp_path, monkeypatch):
     frequency_table.write_text("family\tfrequency\tbin\n")
     domtblout = tmp_path / "test.domtblout"
     domtblout.write_text("")
+    cluster_tsv = tmp_path / "cluster.tsv"
+    cluster_tsv.write_text("")
+    gene_positions = tmp_path / "gene_positions.tsv"
+    gene_positions.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
     out_dir = tmp_path / "out"
 
     argv = [
@@ -112,6 +220,8 @@ def test_main_writes_marker_summary_tsv(tmp_path, monkeypatch):
         "--presence_matrix", str(presence_matrix),
         "--frequency_table", str(frequency_table),
         "--domtblout", str(domtblout),
+        "--cluster_tsv", str(cluster_tsv),
+        "--gene_positions", str(gene_positions),
         "--out_dir", str(out_dir),
     ]
     monkeypatch.setattr(sys, "argv", argv)
@@ -142,6 +252,10 @@ def test_main_zero_marker_columns_writes_header_only_marker_summary(tmp_path, mo
     frequency_table.write_text("family\tfrequency\tbin\n")
     domtblout = tmp_path / "test.domtblout"
     domtblout.write_text("")
+    cluster_tsv = tmp_path / "cluster.tsv"
+    cluster_tsv.write_text("")
+    gene_positions = tmp_path / "gene_positions.tsv"
+    gene_positions.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
     out_dir = tmp_path / "out"
 
     argv = [
@@ -152,6 +266,8 @@ def test_main_zero_marker_columns_writes_header_only_marker_summary(tmp_path, mo
         "--presence_matrix", str(presence_matrix),
         "--frequency_table", str(frequency_table),
         "--domtblout", str(domtblout),
+        "--cluster_tsv", str(cluster_tsv),
+        "--gene_positions", str(gene_positions),
         "--out_dir", str(out_dir),
     ]
     monkeypatch.setattr(sys, "argv", argv)
@@ -181,6 +297,10 @@ def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monke
     frequency_table.write_text("family\tfrequency\tbin\n")
     domtblout = tmp_path / "test.domtblout"
     domtblout.write_text("")
+    cluster_tsv = tmp_path / "cluster.tsv"
+    cluster_tsv.write_text("")
+    gene_positions = tmp_path / "gene_positions.tsv"
+    gene_positions.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
     out_dir = tmp_path / "out"
 
     argv = [
@@ -191,6 +311,8 @@ def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monke
         "--presence_matrix", str(presence_matrix),
         "--frequency_table", str(frequency_table),
         "--domtblout", str(domtblout),
+        "--cluster_tsv", str(cluster_tsv),
+        "--gene_positions", str(gene_positions),
         "--out_dir", str(out_dir),
     ]
     monkeypatch.setattr(sys, "argv", argv)
@@ -199,9 +321,47 @@ def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monke
     islands_bytes = (out_dir / "islands_with_domains.tsv").read_bytes()
     assert islands_bytes == (
         b"n_strains\texample_strain\tisland_size\tmember_families\t"
-        b"n_supporting_pairs\tclassifications\tpfam_domains\n"
+        b"n_supporting_pairs\tclassifications\tpfam_domains\t"
+        b"locus_id\tlocus_contig\tlocus_start\tlocus_end\t"
+        b"n_members_with_coordinates\tn_contigs_in_locus\n"
     )
     assert b"\r\n" not in islands_bytes
 
     per_strain_bytes = (out_dir / "per_strain_summary.tsv").read_bytes()
     assert b"\r\n" not in per_strain_bytes
+
+
+def test_per_strain_summary_flags_clear_outlier():
+    # 5 strains, singleton counts 10,11,9,10,150 -- strain E is the outlier.
+    totals = {
+        "A": {"Short": "A", "n_families": 100, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 10},
+        "B": {"Short": "B", "n_families": 101, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 11},
+        "C": {"Short": "C", "n_families": 99, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 9},
+        "D": {"Short": "D", "n_families": 100, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 10},
+        "E": {"Short": "E", "n_families": 240, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 150},
+    }
+    rows = add_outlier_flags(list(totals.values()))
+    by_short = {r["Short"]: r for r in rows}
+    assert by_short["E"]["is_outlier"] == "Y"
+    assert by_short["A"]["is_outlier"] == "N"
+
+
+def test_per_strain_summary_no_outliers_all_n():
+    totals = [
+        {"Short": s, "singleton": v} for s, v in
+        [("A", 10), ("B", 11), ("C", 9), ("D", 10), ("E", 12)]
+    ]
+    rows = add_outlier_flags(totals)
+    assert all(r["is_outlier"] == "N" for r in rows)
+
+
+def test_per_strain_summary_below_min_n_emits_sentinel():
+    totals = [{"Short": "A", "singleton": 10}, {"Short": "B", "singleton": 500}]
+    rows = add_outlier_flags(totals)
+    assert all(r["singleton_z"] == "-" and r["is_outlier"] == "-" for r in rows)
+
+
+def test_per_strain_summary_zero_mad_emits_sentinel():
+    totals = [{"Short": s, "singleton": 10} for s in ("A", "B", "C", "D")]
+    rows = add_outlier_flags(totals)
+    assert all(r["singleton_z"] == "-" and r["is_outlier"] == "-" for r in rows)

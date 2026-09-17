@@ -48,6 +48,7 @@ include { PAIR_CLASSIFICATION }                                             from
 include { BUILD_ISLANDS; MARKER_HMMSEARCH }                                from '../modules/pangenome/islands'
 include { SELECT_BACKGROUND_REPS; FAMILY_PFAM_SCAN; DOMAIN_ENRICHMENT }     from '../modules/pangenome/pfam_enrichment'
 include { REPORT_TABLES; REPORT_RENDER }                                   from '../modules/pangenome/report'
+include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_INVENTORY_STUB }        from '../modules/empty_evalues_stub'
@@ -246,13 +247,22 @@ workflow PANGENOME_PROFILE {
         FAMILY_PFAM_SCAN(SELECT_BACKGROUND_REPS.out.fasta, file(params.pangenome_island_pfam_hmm))
         DOMAIN_ENRICHMENT(BUILD_ISLANDS.out.islands, FAMILY_PFAM_SCAN.out.domtblout, FREQUENCY_BINS.out.table)
 
+        if (params.pangenome_pfam2go) {
+            PFAM2GO(DOMAIN_ENRICHMENT.out.enrichment, file(params.pangenome_pfam2go))
+            enrichment_for_report = PFAM2GO.out.annotated
+        } else {
+            enrichment_for_report = DOMAIN_ENRICHMENT.out.enrichment
+        }
+
         REPORT_TABLES(
             BUILD_ISLANDS.out.islands,
-            DOMAIN_ENRICHMENT.out.enrichment,
+            enrichment_for_report,
             PAIR_CLASSIFICATION.out.classification,
             rescued_matrix,
             FREQUENCY_BINS.out.table,
             FAMILY_PFAM_SCAN.out.domtblout,
+            CLUSTER_TIER1.out.cluster_tsv,
+            GENE_POSITIONS.out.positions,
         )
         REPORT_RENDER(
             FREQUENCY_BINS.out.table,
@@ -260,7 +270,7 @@ workflow PANGENOME_PROFILE {
             REPORT_TABLES.out.islands_with_domains,
             REPORT_TABLES.out.size_distribution,
             REPORT_TABLES.out.classification_counts,
-            DOMAIN_ENRICHMENT.out.enrichment,
+            enrichment_for_report,
             REPORT_TABLES.out.marker_summary,
             REPORT_TABLES.out.per_strain_summary,
         )

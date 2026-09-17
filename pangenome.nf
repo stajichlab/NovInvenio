@@ -70,7 +70,8 @@ def print_help() {
       --pangenome_ingroup_label        GROUP value treated as ingroup (default: IN).
       --pangenome_outgroup_label       GROUP value treated as outgroup (default: OUT).
       --pangenome_cluster_backend      mmseqs (default, validated) or diamond
-                                       (currently hard-disabled, see README/DESIGN).
+                                       (opt-in/experimental -- ID-fidelity checked but
+                                       not yet benchmarked on real data, see docs/adr/0003).
       --pangenome_captain_hmm          Path to a pre-built captain-gene HMM.
       --pangenome_captain_hmm_name     Named captain-gene model + --pangenome_pfam_hmm
                                        to build one from Pfam-A.hmm.
@@ -88,6 +89,12 @@ def print_help() {
                                        'captain,sm_backbone'), run via MARKER_HMMSEARCH.
       --pangenome_marker_hmm_paths     Parallel comma list of HMM paths for each named marker.
       --pangenome_marker_evalue        hmmsearch E-value cutoff for marker searches (default: 1e-5).
+      --pangenome_pfam2go              Path to a local pfam2go mapping file -- enables GO-term
+                                       annotation of enriched Pfam domains (off by default).
+                                       Download from:
+                                       http://current.geneontology.org/ontology/external2go/pfam2go
+                                       This pipeline does NOT auto-fetch it; obtain it once and
+                                       pass its local path.
       --pangenome_accumulation_permutations  Random strain-order permutations for the
                                        rarefaction/accumulation curve (default: 20).
       --pangenome_accumulation_seed    RNG seed for the accumulation curve (default: 0).
@@ -110,17 +117,19 @@ workflow {
     if (!file(params.pangenome_data_dir).isDirectory())  error "ERROR: --pangenome_data_dir is not a directory: ${params.pangenome_data_dir}"
     if (params.pangenome_cluster_backend !in ['mmseqs', 'diamond'])
         error "ERROR: --pangenome_cluster_backend must be mmseqs or diamond (got: ${params.pangenome_cluster_backend})"
-    if (params.pangenome_cluster_backend == 'diamond')
-        error "ERROR: --pangenome_cluster_backend diamond is implemented but unvalidated against " +
-              "real data -- the diamond branch in prefix_and_cluster.nf reconstructs cluster " +
-              "representatives via an ad-hoc cut/sort -u/awk pass over the concatenated FASTA and " +
-              "ASSUMES 'diamond cluster' column 1 matches the header's first token verbatim, with " +
-              "no equivalent to the mmseqs path's restore_mmseqs_cluster_ids.py safety net. Family " +
-              "IDs are load-bearing for every downstream table (see " +
-              "bin/pangenome_build_presence_matrix.py's ID contract), so a silent ID mismatch here " +
-              "would corrupt every downstream table without erroring. Do not use until the " +
-              "ID-matching path is verified or a diamond equivalent of restore_mmseqs_cluster_ids.py " +
-              "is written."
+    // Previously hard-blocked here: diamond's tier-1 branch had no equivalent
+    // of mmseqs' restore_mmseqs_cluster_ids.py safety net, and family IDs are
+    // load-bearing for every downstream table (bin/pangenome_build_presence_matrix.py's
+    // ID contract), so a silent ID mismatch would have corrupted every
+    // downstream table without erroring. CLUSTER_TIER1 (modules/pangenome/prefix_and_cluster.nf)
+    // now runs bin/verify_diamond_cluster_ids.py against the raw diamond cluster.tsv
+    // before anything else reads it, and fails loud on any id mismatch --
+    // see docs/adr/0003-diamond-tier1-clustering-backend.md. That check has
+    // been unit-tested against adversarial headers (multi-pipe, Short-prefixed
+    // UniProt-style ids) but not yet against a real diamond binary run at
+    // pangenome scale -- treat --pangenome_cluster_backend diamond as
+    // opt-in/experimental until that real-data concordance check (the ADR's
+    // open item) has been done.
 
     // Helpers.projectName(params) (lib/Helpers.groovy) falls back to the bare
     // literal 'output' when neither params.project nor params.config is set.
