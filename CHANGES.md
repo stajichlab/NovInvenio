@@ -35,9 +35,26 @@
   least-tested code path); it is no longer unconfirmed. Still open: a
   real GFF3-parsing gap surfaced testing against a second species
   (Coccidioides funannotate-style GFF3s use CDS `Parent=`, not
-  `protein_id=` -- fix proposed, in progress on a separate track) and the
-  diamond-backend clustering path remains hard-disabled (unvalidated
-  ID-matching, no `restore_mmseqs_cluster_ids.py` equivalent yet).
+  `protein_id=` -- fix proposed, in progress on a separate track).
+
+### diamond as a tier-1 clustering backend (see docs/adr/0003)
+
+- `--pangenome_cluster_backend diamond` is no longer hard-blocked in
+  `pangenome.nf`. `CLUSTER_TIER1` (`modules/pangenome/prefix_and_cluster.nf`)
+  now runs the new `bin/verify_diamond_cluster_ids.py` against diamond's raw
+  `tier1_cluster.tsv` before anything downstream reads it, failing loud on
+  any id that doesn't match a real FASTA header verbatim -- the diamond
+  equivalent of what `bin/restore_mmseqs_cluster_ids.py` does for mmseqs
+  (diamond is expected to need verification only, not restoration, since it
+  doesn't collapse headers the way mmseqs does). Unit-tested against
+  adversarial headers, including the previously-untested case of a
+  Short-prefixed, multi-pipe UniProt-style id (`Afum|sp|ACC|NAME`). Not yet
+  run against a real `diamond cluster` binary at pangenome scale -- treat as
+  opt-in/experimental until that real-data concordance check is done
+  (tracked in `todo/diamond-tier1-cluster-backend.md`).
+- `bin/pangenome_cooccurrence.py` and every other downstream consumer needed
+  no changes -- they already read `tier1_cluster.tsv`/`presence_matrix.tsv`
+  structurally, independent of which clustering tool produced them.
 
 ### Performance: batched DIAMOND_SEARCH (0.6.1)
 
