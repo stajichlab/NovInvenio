@@ -319,12 +319,12 @@ def render_report_markdown(
 
     top_islands = [r for r in (islands_with_domains_rows or []) if r.get("locus_id", "-") != "-"]
     if top_islands:
-        top_islands.sort(key=lambda r: -int(r["island_size"]))
+        top_islands.sort(key=lambda r: -int(r.get("island_size", 0)))
         lines += ["", "**Top islands (by size):**", "",
                   "| Locus | Size | Strains | Pfam domains |", "|---|---|---|---|"]
         for row in top_islands[:20]:
-            lines.append(f"| {row['locus_id']} | {row['island_size']} | "
-                          f"{row['n_strains']} | {row.get('pfam_domains', '-')} |")
+            lines.append(f"| {row.get('locus_id', '-')} | {row.get('island_size', '-')} | "
+                          f"{row.get('n_strains', '-')} | {row.get('pfam_domains', '-')} |")
         lines.append("")
 
     if marker_rows:
@@ -402,7 +402,8 @@ def main() -> int:
             classification_counts_dict[row["classification"]] = int(row["count"])
 
     with open(args.islands_with_domains, newline="") as fh:
-        n_islands = sum(1 for _ in csv.DictReader(fh, delimiter="\t"))
+        islands_with_domains_rows = list(csv.DictReader(fh, delimiter="\t"))
+    n_islands = len(islands_with_domains_rows)
 
     top_domains: list[dict] = []
     with open(args.island_pfam_enrichment, newline="") as fh:
@@ -448,6 +449,7 @@ def main() -> int:
     markdown = render_report_markdown(
         counts, size_dist, classification_counts_dict, top_domains, n_islands,
         heaps_fit, core_decay, strain_family_counts, marker_rows,
+        islands_with_domains_rows=islands_with_domains_rows,
         per_strain_rows=per_strain_rows,
     )
     (out_dir / "report.md").write_text(markdown)
