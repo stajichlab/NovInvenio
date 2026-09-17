@@ -275,6 +275,7 @@ def render_report_markdown(
     strain_family_counts: list[int],
     marker_rows: list[dict] | None = None,
     islands_with_domains_rows: list[dict] | None = None,
+    per_strain_rows: list[dict] | None = None,
 ) -> str:
     total_families = sum(counts.values())
     lines = ["# Pangenome Island + Pfam Enrichment Report", ""]
@@ -304,6 +305,10 @@ def render_report_markdown(
                   f"median={sorted(strain_family_counts)[len(strain_family_counts)//2]}, "
                   f"max={max(strain_family_counts)} (n={len(strain_family_counts)} strains). "
                   "See per_strain_summary.tsv for outliers.", ""]
+        flagged = [r["Short"] for r in (per_strain_rows or []) if r.get("is_outlier") == "Y"]
+        if flagged:
+            lines += [f"**Outlier strains (singleton-count modified z-score beyond threshold):** "
+                      f"{', '.join(flagged)}", ""]
 
     lines += ["## Accessory islands", ""]
     lines += [f"{n_islands} statistically significant accessory islands found "
@@ -407,9 +412,11 @@ def main() -> int:
     top_domains.sort(key=lambda r: float(r["fisher_p"]))
 
     strain_family_counts: list[int] = []
+    per_strain_rows: list[dict] = []
     with open(args.per_strain_summary, newline="") as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             strain_family_counts.append(int(row["n_families"]))
+            per_strain_rows.append(row)
 
     marker_rows: list[dict] = []
     with open(args.marker_summary, newline="") as fh:
@@ -441,6 +448,7 @@ def main() -> int:
     markdown = render_report_markdown(
         counts, size_dist, classification_counts_dict, top_domains, n_islands,
         heaps_fit, core_decay, strain_family_counts, marker_rows,
+        per_strain_rows=per_strain_rows,
     )
     (out_dir / "report.md").write_text(markdown)
 

@@ -191,3 +191,22 @@ def test_accessory_islands_section_omits_top_islands_table_without_locus():
                                      "n_strains": "2", "pfam_domains": "-"}],
     )
     assert "Top islands" not in md
+
+
+def test_flagged_outlier_strains_line_present():
+    md = render_report_markdown(
+        {}, {}, {}, [], 0, None, None, [100, 101, 99, 100, 240],
+        per_strain_rows=[
+            {"Short": "A", "is_outlier": "N"}, {"Short": "E", "is_outlier": "Y"},
+        ],
+    )
+    assert "Outlier strains" in md
+    assert "E" in md
+
+
+def test_flagged_outlier_strains_line_absent_when_none_flagged():
+    md = render_report_markdown(
+        {}, {}, {}, [], 0, None, None, [100, 101],
+        per_strain_rows=[{"Short": "A", "is_outlier": "N"}, {"Short": "B", "is_outlier": "N"}],
+    )
+    assert "Outlier strains" not in md

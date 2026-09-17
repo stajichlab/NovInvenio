@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 import pangenome_report_tables
 from pangenome_report_tables import (
     add_island_locus,
+    add_outlier_flags,
     annotate_islands_with_domains,
     island_size_distribution,
     classification_counts,
@@ -141,8 +142,15 @@ def test_per_strain_summary_counts_genes_and_bins(tmp_path):
     family_bin = {"famA": "core", "famB": "shell", "famC": "cloud"}
     result = per_strain_summary(str(pm), family_bin)
     by_strain = {r["Short"]: r for r in result}
-    assert by_strain["s1"] == {"Short": "s1", "n_families": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0}
-    assert by_strain["s2"] == {"Short": "s2", "n_families": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
+    # Only 2 strains -- add_outlier_flags emits the "-" sentinel (n<3).
+    assert by_strain["s1"] == {
+        "Short": "s1", "n_families": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0,
+        "singleton_z": "-", "is_outlier": "-",
+    }
+    assert by_strain["s2"] == {
+        "Short": "s2", "n_families": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0,
+        "singleton_z": "-", "is_outlier": "-",
+    }
 
 
 def test_marker_summary_computes_cooccurrence_rate():
@@ -313,3 +321,39 @@ def test_main_zero_islands_writes_fallback_header_and_lf_endings(tmp_path, monke
 
     per_strain_bytes = (out_dir / "per_strain_summary.tsv").read_bytes()
     assert b"\r\n" not in per_strain_bytes
+
+
+def test_per_strain_summary_flags_clear_outlier():
+    # 5 strains, singleton counts 10,11,9,10,150 -- strain E is the outlier.
+    totals = {
+        "A": {"Short": "A", "n_families": 100, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 10},
+        "B": {"Short": "B", "n_families": 101, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 11},
+        "C": {"Short": "C", "n_families": 99, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 9},
+        "D": {"Short": "D", "n_families": 100, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 10},
+        "E": {"Short": "E", "n_families": 240, "core": 80, "soft_core": 5, "shell": 3, "cloud": 2, "singleton": 150},
+    }
+    rows = add_outlier_flags(list(totals.values()))
+    by_short = {r["Short"]: r for r in rows}
+    assert by_short["E"]["is_outlier"] == "Y"
+    assert by_short["A"]["is_outlier"] == "N"
+
+
+def test_per_strain_summary_no_outliers_all_n():
+    totals = [
+        {"Short": s, "singleton": v} for s, v in
+        [("A", 10), ("B", 11), ("C", 9), ("D", 10), ("E", 12)]
+    ]
+    rows = add_outlier_flags(totals)
+    assert all(r["is_outlier"] == "N" for r in rows)
+
+
+def test_per_strain_summary_below_min_n_emits_sentinel():
+    totals = [{"Short": "A", "singleton": 10}, {"Short": "B", "singleton": 500}]
+    rows = add_outlier_flags(totals)
+    assert all(r["singleton_z"] == "-" and r["is_outlier"] == "-" for r in rows)
+
+
+def test_per_strain_summary_zero_mad_emits_sentinel():
+    totals = [{"Short": s, "singleton": 10} for s in ("A", "B", "C", "D")]
+    rows = add_outlier_flags(totals)
+    assert all(r["singleton_z"] == "-" and r["is_outlier"] == "-" for r in rows)

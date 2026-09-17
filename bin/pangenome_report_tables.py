@@ -186,7 +186,41 @@ def per_strain_summary(presence_matrix_path: str, family_bin: dict[str, str]) ->
                     totals[strain]["n_families"] += 1
                     if b in totals[strain]:
                         totals[strain][b] += 1
-    return list(totals.values())
+    return add_outlier_flags(list(totals.values()))
+
+
+def add_outlier_flags(totals: list[dict], mad_multiplier: float = 0.6745, threshold: float = 3.5) -> list[dict]:
+    """Modified z-score (Iglewicz-Hoaglin) on each strain's `singleton` count
+    across the whole cohort -- NOT a mean/stdev z-score, which is bounded
+    (max |z| = sqrt(n-1)) and cannot exceed ~3.0 at n=10, making a fixed >3
+    cutoff unreachable for small cohorts. singleton_z/is_outlier are `-`
+    (not a fabricated number, not a crash) when n<3 or MAD==0 (most strains
+    share the same singleton count -- statistic is undefined)."""
+    values = [t["singleton"] for t in totals]
+    out = [dict(t) for t in totals]
+    if len(values) < 3:
+        for row in out:
+            row["singleton_z"] = "-"
+            row["is_outlier"] = "-"
+        return out
+
+    sorted_values = sorted(values)
+    n = len(sorted_values)
+    median = sorted_values[n // 2] if n % 2 else (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
+    deviations = sorted([abs(v - median) for v in values])
+    mad = deviations[n // 2] if n % 2 else (deviations[n // 2 - 1] + deviations[n // 2]) / 2
+
+    if mad == 0:
+        for row in out:
+            row["singleton_z"] = "-"
+            row["is_outlier"] = "-"
+        return out
+
+    for row in out:
+        z = mad_multiplier * (row["singleton"] - median) / mad
+        row["singleton_z"] = f"{z:.2f}"
+        row["is_outlier"] = "Y" if abs(z) > threshold else "N"
+    return out
 
 
 def main() -> int:
@@ -263,7 +297,7 @@ def main() -> int:
             family_bin[row["family"]] = row["bin"]
     strain_rows = per_strain_summary(args.presence_matrix, family_bin)
     with open(out_dir / "per_strain_summary.tsv", "w", newline="") as out:
-        fieldnames = ["Short", "n_families", "core", "soft_core", "shell", "cloud", "singleton"]
+        fieldnames = ["Short", "n_families", "core", "soft_core", "shell", "cloud", "singleton", "singleton_z", "is_outlier"]
         writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         for row in sorted(strain_rows, key=lambda r: r["n_families"]):
