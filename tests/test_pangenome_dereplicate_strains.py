@@ -102,7 +102,6 @@ def test_main_raises_on_duplicate_dna_basenames(tmp_path, monkeypatch):
     dna_dir = tmp_path / "data" / "dna"
     dna_dir.mkdir(parents=True)
     (dna_dir / "strainA.fa").write_text(">c1\nACGT\n")
-    dup_dir = tmp_path / "data2" / "dna"
     # Same basename "strainA.fa" resolved from a *different* dna filename
     # column value isn't directly reachable via this script's fixed
     # "<data_dir>/dna/<DNA>" convention, so instead simulate the collision
