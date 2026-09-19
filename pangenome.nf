@@ -101,6 +101,16 @@ def print_help() {
       --pangenome_accumulation_permutations  Random strain-order permutations for the
                                        rarefaction/accumulation curve (default: 20).
       --pangenome_accumulation_seed    RNG seed for the accumulation curve (default: 0).
+      --pangenome_leiden_resolution    Leiden resolution for trans-module detection
+                                       (default: 1.0). Not empirically validated for
+                                       every study -- a real resolution-stability
+                                       sweep found 1.0 too coarse (a few giant
+                                       modules) for a 529-strain genus-scale study;
+                                       tune per study rather than trusting the default.
+      --pangenome_leiden_seed          Leiden random seed (default: 0).
+      --pangenome_module_min_size      Minimum module size MODULE_DOMAINS summarizes
+                                       (default: 2 -- a singleton module has no
+                                       internal co-occurrence structure to report).
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two

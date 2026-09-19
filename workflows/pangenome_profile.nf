@@ -48,6 +48,7 @@ include { PAIR_CLASSIFICATION }                                             from
 include { BUILD_ISLANDS; MARKER_HMMSEARCH }                                from '../modules/pangenome/islands'
 include { SELECT_BACKGROUND_REPS; FAMILY_PFAM_SCAN; DOMAIN_ENRICHMENT }     from '../modules/pangenome/pfam_enrichment'
 include { REPORT_TABLES; REPORT_RENDER }                                   from '../modules/pangenome/report'
+include { LEIDEN_MODULES; MODULE_DOMAINS }                                 from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/empty_evalues_stub'
@@ -188,6 +189,12 @@ workflow PANGENOME_PROFILE {
         captain_tblout,
     )
 
+    // --- 8b. Leiden trans-module detection (chained co-occurring families) ---
+    // Runs unconditionally (cheap; degrades gracefully to empty output for a
+    // study with zero `trans` pairs, e.g. a single-species ingroup -- see
+    // bin/pangenome_detect_trans_modules.py's module docstring).
+    LEIDEN_MODULES(PAIR_CLASSIFICATION.out.classification)
+
     // --- 9. Accessory islands + Pfam functional enrichment (optional) --------
     // Named marker searches (0+): ONE MARKER_HMMSEARCH invocation over a
     // Channel.fromList of [name, hmm_path] tuples runs one task per marker via
@@ -246,6 +253,7 @@ workflow PANGENOME_PROFILE {
         SELECT_BACKGROUND_REPS(CLUSTER_TIER1.out.rep_fasta, FREQUENCY_BINS.out.table)
         FAMILY_PFAM_SCAN(SELECT_BACKGROUND_REPS.out.fasta, file(params.pangenome_island_pfam_hmm))
         DOMAIN_ENRICHMENT(BUILD_ISLANDS.out.islands, FAMILY_PFAM_SCAN.out.domtblout, FREQUENCY_BINS.out.table)
+        MODULE_DOMAINS(LEIDEN_MODULES.out.family_modules, FAMILY_PFAM_SCAN.out.domtblout)
 
         if (params.pangenome_pfam2go) {
             PFAM2GO(DOMAIN_ENRICHMENT.out.enrichment, file(params.pangenome_pfam2go))
@@ -287,4 +295,6 @@ workflow PANGENOME_PROFILE {
     cooccurring_pairs    = COOCCURRENCE.out.pairs
     family_positions     = FAMILY_POSITIONS.out.positions
     pair_classification  = PAIR_CLASSIFICATION.out.classification
+    family_modules       = LEIDEN_MODULES.out.family_modules
+    module_summary       = LEIDEN_MODULES.out.module_summary
 }
