@@ -76,6 +76,7 @@ process REPORT_RENDER {
         --island_pfam_enrichment ${island_pfam_enrichment} \
         --marker_summary ${marker_summary} \
         --per_strain_summary ${per_strain_summary} \
+        --top_islands_min_strains ${params.pangenome_top_islands_min_strains} \
         --n_permutations ${params.pangenome_accumulation_permutations} \
         --seed ${params.pangenome_accumulation_seed} \
         --out_dir report
