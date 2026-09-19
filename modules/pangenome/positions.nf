@@ -17,7 +17,7 @@ process GENE_POSITIONS {
     val(protein_dir_abs)
 
     output:
-    path("gene_positions.tsv"), emit: positions
+    path("gene_positions.tsv.zst"), emit: positions
 
     script:
     """
@@ -25,7 +25,7 @@ process GENE_POSITIONS {
         --config ${samplesheet} --gff3_dir ${gff3_dir_abs} \
         --protein_dir ${protein_dir_abs} \
         --groups '${params.pangenome_ingroup_label},${params.pangenome_outgroup_label}' \
-        --output gene_positions.tsv
+        --output gene_positions.tsv.zst
     """
 }
 
@@ -74,7 +74,7 @@ process FAMILY_POSITIONS {
     path(rescue_positions)   // may be a stub/empty file when rescue is disabled
 
     output:
-    path("family_positions.tsv"), emit: positions
+    path("family_positions.tsv.zst"), emit: positions
 
     script:
     def rescue_arg = params.pangenome_rescue_enable ? "--rescue_positions ${rescue_positions}" : ''
@@ -83,6 +83,6 @@ process FAMILY_POSITIONS {
         --gene_positions ${gene_positions} --cluster_tsv ${cluster_tsv} \
         ${rescue_arg} \
         --id_sep '${params.pangenome_id_sep}' \
-        --output family_positions.tsv
+        --output family_positions.tsv.zst
     """
 }

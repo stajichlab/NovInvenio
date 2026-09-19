@@ -32,6 +32,7 @@ import warnings
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from compressed_io import open_maybe_compressed  # noqa: E402
 from pangenome_matrix import read_cluster_tsv, iter_tblout_family_hits  # noqa: E402
 
 
@@ -93,7 +94,7 @@ def load_is_core(frequency_table_path: str) -> dict[str, bool]:
 def load_strain_gene_orders(family_positions_path: str) -> dict[str, list[tuple]]:
     """{Short: [(family, contig, rank, rank), ...]}, sorted by rank."""
     by_strain: dict[str, list[tuple]] = {}
-    with open(family_positions_path, newline="") as fh:
+    with open_maybe_compressed(family_positions_path) as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             short, family, contig, rank = row["Short"], row["family"], row["contig"], int(row["rank"])
             by_strain.setdefault(short, []).append((family, contig, rank, rank))
@@ -105,7 +106,7 @@ def load_strain_gene_orders(family_positions_path: str) -> dict[str, list[tuple]
 def load_significant_physical_pairs(pair_classification_path: str) -> dict[frozenset, str]:
     """{frozenset({family_a, family_b}): classification} for every physically-linked pair."""
     pairs: dict[frozenset, str] = {}
-    with open(pair_classification_path, newline="") as fh:
+    with open_maybe_compressed(pair_classification_path) as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             if row["classification"] in PHYSICAL_CLASSIFICATIONS:
                 pairs[frozenset({row["family_a"], row["family_b"]})] = row["classification"]

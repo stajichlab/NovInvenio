@@ -31,6 +31,7 @@ from pangenome_domain_enrichment import parse_domtblout  # noqa: E402
 from pangenome_build_presence_matrix import split_member_id  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from compressed_io import open_maybe_compressed  # noqa: E402
 from pangenome_matrix import read_cluster_tsv  # noqa: E402
 
 
@@ -144,7 +145,7 @@ def island_size_distribution(islands_rows: list[dict]) -> dict[int, int]:
 def classification_counts(pair_classification_path: str) -> dict[str, int]:
     """{classification: count} across all rows in pair_classification.tsv."""
     counts: dict[str, int] = {}
-    with open(pair_classification_path, newline="") as fh:
+    with open_maybe_compressed(pair_classification_path) as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             c = row["classification"]
             counts[c] = counts.get(c, 0) + 1
@@ -265,7 +266,7 @@ def main() -> int:
 
     member_to_rep = read_cluster_tsv(args.cluster_tsv)
     gene_positions: dict[tuple[str, str], dict] = {}
-    with open(args.gene_positions, newline="") as fh:
+    with open_maybe_compressed(args.gene_positions) as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             gene_positions[(row["Short"], row["protein_id"])] = {
                 "contig": row["contig"], "start": int(row["start"]), "end": int(row["end"]),

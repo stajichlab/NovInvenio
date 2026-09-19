@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Changed: the four largest pangenome TSV intermediates are now zstd-compressed
+
+`lib/compressed_io.py` has shipped `open_maybe_compressed_write()` since it was
+added, but nothing ever called it. Apart from `RESCUE_PASS`'s tblastn (which
+compresses at the shell level in `modules/pangenome/rescue.nf`), every
+pangenome output published as plain text -- ~4.1 GB per 529-strain run across
+four files, on shared storage. These now publish as `.zst` (issue #111):
+
+| Output | Was (genus_vs_ureesii, 529 strains) |
+|---|---|
+| `pair_classification.tsv.zst` | 1.99 GB plain |
+| `cooccurring_pairs.tsv.zst` | 1.69 GB plain |
+| `family_positions.tsv.zst` | 0.24 GB plain |
+| `gene_positions.tsv.zst` | 0.22 GB plain |
+
+Producers (`pangenome_cooccurrence.py`, `pangenome_pair_classification.py`,
+`pangenome_build_family_positions.py`, `pangenome_build_gene_positions.py`)
+write through `open_maybe_compressed_write()`; consumers
+(`pangenome_build_islands.py`, `pangenome_report_tables.py`,
+`pangenome_build_family_positions.py`) read through `open_maybe_compressed()`.
+Compression is selected by the output filename's suffix -- there is no new
+parameter, because a flag would duplicate a control the filename already
+carries. Plain and `.gz` inputs still work unchanged, so an existing
+uncompressed results directory stays readable by these scripts.
+
+`presence_matrix.tsv`/`presence_matrix.rescued.tsv` (0.38 GB) are deliberately
+left plain for now: widest consumer fan-out, smallest share of the win. See
+issue #111.
+
 ### New: Leiden trans-module detection wired into the pangenome subworkflow
 
 - **`modules/pangenome/trans_modules.nf`** (`LEIDEN_MODULES`, `MODULE_DOMAINS`),

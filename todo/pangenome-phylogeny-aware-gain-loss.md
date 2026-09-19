@@ -9,8 +9,8 @@
 
 ## What
 
-Current gain/loss direction (`direction_a` in `cooccurring_pairs.tsv`/
-`pair_classification.tsv`) is called by `polarize_direction()` purely from
+Current gain/loss direction (`direction_a` in `cooccurring_pairs.tsv.zst`/
+`pair_classification.tsv.zst`) is called by `polarize_direction()` purely from
 raw presence/absence counts in the outgroup: present in every outgroup
 strain → "loss" if absent in an ingroup strain; absent from every outgroup
 strain → "gain" if present in an ingroup strain. This has no phylogenetic

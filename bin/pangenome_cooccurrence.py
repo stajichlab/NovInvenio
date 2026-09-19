@@ -38,6 +38,7 @@ import numpy as np
 from scipy.stats import fisher_exact, false_discovery_control, hypergeom
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from compressed_io import open_maybe_compressed_write  # noqa: E402
 from pangenome_matrix import PresenceMatrix  # noqa: E402
 from pangenome_strain_inventory import read_representative_shorts  # noqa: E402
 
@@ -431,7 +432,7 @@ def main() -> None:
         args.min_strain_count, args.fdr_alpha,
         strains=ingroup_shorts, screen_alpha=args.screen_alpha,
     )
-    with open(args.output, "w") as fh:
+    with open_maybe_compressed_write(args.output) as fh:
         fh.write("family_a\tfamily_b\tjaccard\tfisher_p\tfdr_q\tpermutation_p\tdirection_a\tclade_composition\n")
         for row in pairs:
             fh.write(

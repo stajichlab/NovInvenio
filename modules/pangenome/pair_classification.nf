@@ -16,7 +16,7 @@ process PAIR_CLASSIFICATION {
     path(captain_tblout)   // may be an empty stub file when no captain-gene marker is used
 
     output:
-    path("pair_classification.tsv"), emit: classification
+    path("pair_classification.tsv.zst"), emit: classification
 
     script:
     """
@@ -32,6 +32,6 @@ process PAIR_CLASSIFICATION {
         --perm_alpha ${params.pangenome_pair_class_perm_alpha} \
         --min_clades ${params.pangenome_pair_class_min_clades} \
         --id_sep '${params.pangenome_id_sep}' \
-        --output pair_classification.tsv
+        --output pair_classification.tsv.zst
     """
 }

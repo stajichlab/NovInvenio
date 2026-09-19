@@ -44,6 +44,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from compressed_io import open_maybe_compressed_write  # noqa: E402
+
 _PROTEIN_ID_RE = re.compile(r"(?:^|;)protein_id=([^;\n]+)")
 _PARENT_RE = re.compile(r"(?:^|;)Parent=([^;\n]+)")
 
@@ -173,7 +176,7 @@ def main() -> None:
     protein_dir = Path(args.protein_dir)
 
     n_strains_ok, n_strains_missing_gff3 = 0, 0
-    with open(args.output, "w") as out:
+    with open_maybe_compressed_write(args.output) as out:
         out.write("Short\tprotein_id\tcontig\tstart\tend\n")
         for s in samples:
             if not s.gff3:
