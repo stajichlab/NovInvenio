@@ -62,6 +62,22 @@ def test_render_report_markdown_embeds_classification_figure_when_present():
     assert "![Classification breakdown](figures/pair_classification_summary.png)" in md
 
 
+def test_plot_classification_counts_with_non_empty_dict(tmp_path):
+    # Regression test for the fig.tick_params -> ax.tick_params bug
+    # (todo/report-render-tick-params-bug.md): tick_params is an Axes
+    # method, not a Figure method. This raises AttributeError on any real
+    # run where classification_counts_dict is non-empty -- which every
+    # prior smoke test happened to avoid (zero pair-classification counts
+    # at test scale), so the existing tests never called this function
+    # directly with real data. First real study to hit it was the
+    # coccidioides_pangenome genus_vs_ureesii run (2026-09-18).
+    pangenome_report_render.plot_classification_counts(
+        {"trans": 5, "unexplained_physical": 2}, tmp_path,
+    )
+    assert (tmp_path / "figures" / "pair_classification_summary.png").exists()
+    assert (tmp_path / "figures_pdf" / "pair_classification_summary.pdf").exists()
+
+
 def test_render_report_markdown_includes_marker_section_when_markers_present():
     md = render_report_markdown(
         counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
