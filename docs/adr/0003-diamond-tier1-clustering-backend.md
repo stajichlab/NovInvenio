@@ -2,11 +2,12 @@
 
 ## Status
 
-Accepted, implemented and validated end-to-end — 2026-09-16 (design),
-2026-09-16 (implementation: fidelity check + guard relaxation),
-2026-09-17 (real end-to-end pipeline validation). See #98. Extends the
-pangenome subworkflow (`pangenome.nf`, `workflows/` under it); does not
-touch the novelty/loss pathway (ADR-0001/0002) or `workflows/cluster.nf`.
+Accepted, implemented and fully validated — 2026-09-16 (design), 2026-09-16
+(implementation: fidelity check + guard relaxation), 2026-09-17 (real
+end-to-end pipeline validation), 2026-09-17 (real-data mmseqs-vs-diamond
+concordance benchmark). See #98. Extends the pangenome subworkflow
+(`pangenome.nf`, `workflows/` under it); does not touch the novelty/loss
+pathway (ADR-0001/0002) or `workflows/cluster.nf`.
 
 A real `diamond cluster` invocation (pixi environment, diamond v2.2.0.180)
 against a small adversarial FASTA confirmed the header-preservation claim
@@ -42,16 +43,24 @@ this was found.) Diamond not crashing under `-profile local` on a non-AVX2
 node is still a minor point in its favor for local/interactive dev-node
 smoke testing, but it is not evidence of a production gap.
 
-**Still open**: a real mmseqs-vs-diamond cluster-quality comparison (ARI,
-pair-recovery) on the *same* real data — unblocked now that the AVX2
-question is resolved, it just needs to run via `-profile slurm -c
-conf/ucr_hpcc_slurm.config` rather than `-profile local` — tracked in
-`todo/diamond-tier1-cluster-backend.md`. The ID-fidelity and pipeline
-integration questions this ADR originally raised are now closed; only the
-clustering-quality-vs-mmseqs question remains. Treat
-`--pangenome_cluster_backend diamond` as validated-but-uncompared: safe to
-run, but its cluster granularity relative to mmseqs at the same identity
-target is not yet independently confirmed.
+**2026-09-17 update — real concordance benchmark, done.** Ran both backends
+via real SLURM submission (`-profile slurm -c conf/ucr_hpcc_slurm.config`)
+against the identical 5-strain subset: 37/37 processes, 0 failures, for
+both. diamond produced 10,468 families; mmseqs produced 11,830 (mmseqs
+splits into more, smaller clusters at these thresholds). Comparing the two
+`tier1_cluster.tsv` outputs over the same 43,239 proteins:
+**ARI = 0.9403**, pair recall (mmseqs pairs recovered by diamond) =
+**0.8958**, pair precision (diamond pairs confirmed by mmseqs) = **0.9895**
+— substantially stronger concordance than the 2026-09-08 novelty/loss-pathway
+benchmark (ARI 0.79, 72%/87%), because this uses the pangenome subworkflow's
+own tight, matched 90%-identity/80%-coverage tier-1 thresholds for both
+tools rather than each tool's own defaults at a looser 30%-identity target.
+Recorded in `.living/decisions.md`'s 2026-09-17 entry. Every question this
+ADR originally raised is now closed: ID-fidelity, pipeline integration, and
+cluster-quality-vs-mmseqs. `--pangenome_cluster_backend diamond` is a
+validated, real alternative — not merely experimental — though mmseqs
+remains the default and the two are not numerically interchangeable
+(mmseqs finds ~13% more, smaller families at these settings).
 
 ## Context
 
@@ -143,29 +152,26 @@ occurring inside `orig_id`).
 3. **`pangenome.nf`'s hard-error guard relaxed** to a doc comment pointing at
    this ADR and the new safety net, rather than an unconditional `error`.
    `--pangenome_cluster_backend diamond` now runs.
-4. **Real-binary header-fidelity smoke test, then a real end-to-end pipeline
-   run — both done; mmseqs-vs-diamond cluster-quality concordance — still
-   open.** A real `diamond cluster` run against a small adversarial FASTA
-   (including the `Afum|sp|O74225|YCF1_SCHPO` multi-pipe case) preserved
-   every header verbatim. Then, 2026-09-17, a full `pangenome.nf
+4. **Real-binary header-fidelity smoke test, real end-to-end pipeline run,
+   and real-data concordance benchmark — all done.** A real `diamond
+   cluster` run against a small adversarial FASTA (including the
+   `Afum|sp|O74225|YCF1_SCHPO` multi-pipe case) preserved every header
+   verbatim. Then, 2026-09-17, a full `pangenome.nf
    --pangenome_cluster_backend diamond -profile local` run against a real
    5-strain *Coccidioides immitis* subset completed 37/37 processes with
-   0 failures, producing 10,467 real gene families with a normal
-   core/shell/singleton frequency distribution — this is no longer a toy
-   synthetic-data check, it is a real biological dataset through real
-   Nextflow orchestration. What's still missing is a same-data mmseqs
-   comparison: an attempt at one hit an unrelated AVX2/SIGILL crash on the
-   `-profile local` test node, which turned out to be a testing-methodology
-   artifact (that profile never applies `conf/ucr_hpcc_slurm.config`'s
-   existing `-C ryzen|broadwell|cascade` node pin for `CLUSTER_TIER1`) — not
-   a real gap; issue #101 was filed then closed same-day as not-a-bug once
-   this was found. The existing mmseqs-vs-diamond benchmark in
-   `.living/decisions.md` (ARI 0.79, 72% pair recovery at 87% precision)
-   used raw UniProt headers on a different pipeline path and predates this
-   ID convention — still suggestive, not load-bearing evidence, for this
-   pangenome study. The real-data concordance benchmark is the one item
-   left open, and just needs a `-profile slurm` run rather than
-   `-profile local`; see `todo/diamond-tier1-cluster-backend.md`.
+   0 failures, producing 10,467 real gene families. An initial attempt at a
+   same-data mmseqs comparison hit an unrelated AVX2/SIGILL crash on the
+   `-profile local` test node — a testing-methodology artifact (that
+   profile never applies `conf/ucr_hpcc_slurm.config`'s existing
+   `-C ryzen|broadwell|cascade` node pin for `CLUSTER_TIER1`), not a real
+   gap; issue #101 was filed then closed same-day as not-a-bug once this
+   was found. Re-run via real SLURM submission (`-profile slurm -c
+   conf/ucr_hpcc_slurm.config`), both backends completed 37/37, 0 failures,
+   on the identical 5-strain subset: **ARI = 0.9403**, pair recall = 0.8958,
+   pair precision = 0.9895 over the same 43,239 proteins — substantially
+   stronger concordance than the 2026-09-08 novelty/loss-pathway benchmark
+   (ARI 0.79, 72%/87%) at this subworkflow's own tighter, matched tier-1
+   thresholds. Full detail in `.living/decisions.md`'s 2026-09-17 entry.
 5. **No changes made to `bin/pangenome_cooccurrence.py`, `lib/pangenome_matrix.py`,
    or the report layer** — confirmed backend-agnostic by inspection (they
    read `tier1_cluster.tsv`/`presence_matrix.tsv` structurally, never caring
@@ -185,10 +191,9 @@ occurring inside `orig_id`).
 - Tier-1 identity/coverage thresholds (`--pangenome_tier1_min_id`,
   `--pangenome_tier1_cov`) are shared params across both backends
   (`modules/pangenome/prefix_and_cluster.nf`'s `diamond-tier1` branch maps
-  them to diamond's `--approx-id`/`--member-cover` as percentages). Whether
-  this mapping gives comparable cluster granularity between the two tools is
-  exactly what the still-open real-data benchmark (item 4 above) needs to
-  answer — not assumed here.
+  them to diamond's `--approx-id`/`--member-cover` as percentages). Answered
+  by the item-4 benchmark above: comparable but not identical (ARI 0.94;
+  mmseqs finds ~13% more, smaller families at these settings).
 - Not in scope here: gene-tree-based coevolution (evolutionary rate
   covariation / MirrorTree-style correlated substitution rate across
   orthogroups) is a distinct signal from gain/loss co-occurrence — catches
@@ -205,14 +210,14 @@ occurring inside `orig_id`).
   was already built backend-agnostic.
 - The fidelity check is a genuine runtime safety net (fail loud on the first
   bad id, same contract as `restore_mmseqs_cluster_ids.py`), not a
-  rubber-stamp, and it has now been exercised both against synthetic
-  adversarial data and against a real end-to-end run on real biological
-  data (10,467 families, 0 failures). Anyone running
-  `--pangenome_cluster_backend diamond` on a real study can trust the
-  pipeline mechanics; what remains unverified is only whether diamond's
-  cluster granularity at the configured identity/coverage target matches
-  mmseqs' closely enough for a given study's purposes — that comparison
-  just needs to run under `-profile slurm` rather than `-profile local`.
+  rubber-stamp, and it has now been exercised against synthetic adversarial
+  data and two real end-to-end SLURM runs on real biological data (0
+  failures each). `--pangenome_cluster_backend diamond` is fully validated:
+  pipeline mechanics, and cluster granularity at ARI 0.94 against mmseqs at
+  the same configured thresholds. mmseqs remains the default; a study
+  sensitive to exact family granularity should still treat the two as
+  measurably different (mmseqs: ~13% more, smaller families), not
+  interchangeable.
 - A `-profile local` smoke test initially looked like it had surfaced a real
   infra gap (mmseqs SIGILLing with no AVX2 node-pinning). It hadn't — the
   pin already exists in `conf/ucr_hpcc_slurm.config` and simply isn't

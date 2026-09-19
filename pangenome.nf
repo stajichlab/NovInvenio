@@ -69,9 +69,11 @@ def print_help() {
                                        (default: <pangenome_data_dir>/gff3).
       --pangenome_ingroup_label        GROUP value treated as ingroup (default: IN).
       --pangenome_outgroup_label       GROUP value treated as outgroup (default: OUT).
-      --pangenome_cluster_backend      mmseqs (default) or diamond (validated end-to-end
-                                       on real data, see docs/adr/0003 -- cluster quality
-                                       vs mmseqs not yet independently benchmarked). Note
+      --pangenome_cluster_backend      mmseqs (default) or diamond (fully validated,
+                                       including a real ARI=0.94 concordance benchmark
+                                       vs mmseqs -- see docs/adr/0003; mmseqs finds ~13%
+                                       more, smaller families at these settings, so the
+                                       two are not numerically interchangeable). Note
                                        CLUSTER_TIER1's mmseqs branch needs an AVX2-capable
                                        node (see conf/ucr_hpcc_slurm.config, or use
                                        -profile slurm with it) -- SIGILLs otherwise.
@@ -137,13 +139,11 @@ workflow {
     // downstream table without erroring. CLUSTER_TIER1 (modules/pangenome/prefix_and_cluster.nf)
     // now runs bin/verify_diamond_cluster_ids.py against the raw diamond cluster.tsv
     // before anything else reads it, and fails loud on any id mismatch --
-    // see docs/adr/0003-diamond-tier1-clustering-backend.md. Validated
-    // end-to-end 2026-09-17 against a real 5-strain dataset (37/37 processes,
-    // 0 failures, 10,467 real families) -- what's still open is only a
-    // same-data cluster-quality comparison against mmseqs (run under
-    // -profile slurm -c conf/ucr_hpcc_slurm.config, which already pins
-    // CLUSTER_TIER1 to AVX2-capable nodes; a -profile local test crashed
-    // mmseqs here for exactly that reason, not a real pipeline gap).
+    // see docs/adr/0003-diamond-tier1-clustering-backend.md. Fully validated
+    // 2026-09-17: end-to-end pipeline run (37/37 processes, 0 failures,
+    // 10,467 real families) plus a real SLURM concordance benchmark against
+    // mmseqs on the same data (ARI 0.94; mmseqs finds ~13% more, smaller
+    // families at these settings, so the two are not interchangeable).
 
     // Helpers.projectName(params) (lib/Helpers.groovy) falls back to the bare
     // literal 'output' when neither params.project nor params.config is set.
