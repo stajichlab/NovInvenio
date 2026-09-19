@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+### New: Leiden trans-module detection wired into the pangenome subworkflow
+
+- **`modules/pangenome/trans_modules.nf`** (`LEIDEN_MODULES`, `MODULE_DOMAINS`),
+  **`bin/pangenome_detect_trans_modules.py`**, **`bin/pangenome_module_domains.py`**
+  — promotes the `coccidioides_pangenome`/`Afumigatus_pangenome` studies'
+  manual, study-specific Leiden module-detection scripts into the core
+  pipeline as a real Nextflow step. `LEIDEN_MODULES` runs unconditionally
+  right after `PAIR_CLASSIFICATION` (cheap; no gating param of its own) and
+  collapses `trans`-classified (physically unlinked, statistically
+  significant) co-occurrence pairs into gene-family modules via Leiden
+  community detection (Traag, Waltman & van Eck 2019). `MODULE_DOMAINS` runs
+  inside the existing `--pangenome_island_pfam_hmm` block, cross-referencing
+  module assignments against the same Pfam scan `FAMILY_PFAM_SCAN` already
+  produces for island enrichment -- one row per module, its member-family
+  count, and the Pfam domain names found among them. Deliberately does NOT
+  hardcode any specific domain search (e.g. NACHT/HET, PKS/NRPS) -- that's a
+  one-line `grep`/`awk` over `module_domains.tsv`, not a pipeline parameter;
+  see the `genus_vs_ureesii` real-run analysis this generalizes from
+  (`TRANS_MODULE_REPORT.md` in that study) for a worked example.
+- **Graceful degradation, not a hard failure, for zero `trans` edges.** The
+  original ported script (`sys.exit(1)` on an empty edge list) would crash
+  the whole pipeline for any single-species-ingroup study --
+  `pangenome_pair_classification.py`'s `min_clades>=2` requirement for a
+  `trans` call means a study with only one species commonly produces zero
+  `trans` pairs (confirmed for real: both `coccidioides_pangenome`
+  species-reciprocal runs, `immitis_in_posadasii_out`/`posadasii_in_immitis_out`,
+  had zero). Both new scripts write valid, header-only output and exit 0
+  instead. Verified with a real end-to-end `-profile local` smoke test
+  against a 5-strain single-species subset (zero `trans` edges, both steps
+  degraded gracefully, `[SUCCESS] completed=45 failed=0`) as well as unit
+  tests covering the real-clustering path.
+- New params: `--pangenome_leiden_resolution` (default 1.0 -- **not**
+  validated for every study; a real resolution-stability sweep on the
+  `genus_vs_ureesii` run found 1.0 too coarse there, first informative
+  structure only appeared at 2.0), `--pangenome_leiden_seed`,
+  `--pangenome_module_min_size`.
+- New pixi dependencies: `python-igraph`, `leidenalg`.
+
 ### New: pangenome cluster-profiling subworkflow (branch `pangenome-profiling-module`)
 
 - **`pangenome.nf`, `workflows/pangenome_profile.nf`, `modules/pangenome/*.nf`,
