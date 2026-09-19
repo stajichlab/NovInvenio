@@ -225,7 +225,7 @@ def plot_classification_counts(classification_counts_dict: dict[str, int], out_d
     ax.bar(labels, values)
     ax.set_ylabel("Number of pairs")
     ax.set_title("Pair classification breakdown")
-    fig.tick_params(axis="x", rotation=45)
+    ax.tick_params(axis="x", rotation=45)
     fig.tight_layout()
     _savefig_both(fig, out_dir, "pair_classification_summary")
     plt.close(fig)

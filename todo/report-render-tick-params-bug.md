@@ -5,7 +5,7 @@
 | **Date** | 2026-09-16 |
 | **Author** | Jason Stajich |
 | **Priority** | bug |
-| **Status** | open |
+| **Status** | complete |
 | **Category** | pangenome report rendering |
 | **Related analyses** | pangenome island/Pfam-enrichment report step |
 | **Related data** | — |
@@ -38,11 +38,20 @@ caught).
 
 ## Acceptance Criteria
 
-- [ ] Fix the `fig.tick_params` -> `ax.tick_params` typo
-- [ ] Add a test exercising `plot_classification_counts` with a non-empty
+- [x] Fix the `fig.tick_params` -> `ax.tick_params` typo
+- [x] Add a test exercising `plot_classification_counts` with a non-empty
       `classification_counts_dict` (would have caught this immediately)
-- [ ] Confirm no other `plot_*` function in this file has the same
+- [x] Confirm no other `plot_*` function in this file has the same
       `fig.` vs `ax.` mistake
+
+## Resolution (2026-09-18)
+
+Fixed exactly as proposed. Confirmed by a real crash first: the
+coccidioides_pangenome study's `genus_vs_ureesii` run hit this
+`AttributeError` for real (11.7M+ `trans_unconfirmed` classifications, far
+from the empty fixture every prior smoke test used). Grepped the whole
+file for `fig.tick_params`/`fig.set_x`/`fig.set_y`/`fig.legend`/`fig.grid`
+-- no other `plot_*` function has the same mistake.
 
 ## Notes
 
