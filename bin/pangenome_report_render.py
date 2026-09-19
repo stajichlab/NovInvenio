@@ -264,6 +264,14 @@ def plot_domain_enrichment(top_domains: list[dict], out_dir: Path, top_n: int = 
     plt.close(fig)
 
 
+def _as_int(value, default: int = 0) -> int:
+    """Parse a TSV cell to int, tolerating '' and the '-' missing-value sentinel."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def render_report_markdown(
     counts: dict[str, int],
     size_dist: dict[int, int],
@@ -276,11 +284,12 @@ def render_report_markdown(
     marker_rows: list[dict] | None = None,
     islands_with_domains_rows: list[dict] | None = None,
     per_strain_rows: list[dict] | None = None,
+    top_islands_min_strains: int = 2,
 ) -> str:
     total_families = sum(counts.values())
     lines = ["# Pangenome Island + Pfam Enrichment Report", ""]
     lines += ["## Pangenome composition", ""]
-    lines += [f"Total families: {total_families}", ""]
+    lines += [f"Total gene families: {total_families}", ""]
     for label in BAND_ORDER:
         if counts.get(label, 0):
             pct = 100 * counts[label] / total_families if total_families else 0
@@ -317,14 +326,31 @@ def render_report_markdown(
     if size_dist:
         lines += ["![Island sizes](figures/island_size_distribution.png)", ""]
 
-    top_islands = [r for r in (islands_with_domains_rows or []) if r.get("locus_id", "-") != "-"]
+    located = [r for r in (islands_with_domains_rows or []) if r.get("locus_id", "-") != "-"]
+    top_islands = [r for r in located
+                   if _as_int(r.get("n_strains")) >= top_islands_min_strains]
+    n_excluded = len(located) - len(top_islands)
     if top_islands:
         top_islands.sort(key=lambda r: -int(r.get("island_size", 0)))
-        lines += ["", "**Top islands (by size):**", "",
-                  "| Locus | Size | Strains | Pfam domains |", "|---|---|---|---|"]
+        lines += ["", "**Top islands (by size):**", ""]
+        if n_excluded:
+            if top_islands_min_strains == 2:
+                note = (f"*{n_excluded} single-strain islands excluded "
+                        "(present in one strain only -- strain-private content, "
+                        "which dominates the size ranking).*")
+            else:
+                note = (f"*{n_excluded} islands present in fewer than "
+                        f"{top_islands_min_strains} strains excluded.*")
+            lines += [note, ""]
+        lines += ["| Locus (strain:contig:start-end) | Families (#) | Span (kb) | "
+                  "Strains (#) | Pfam domains |",
+                  "|---|---|---|---|---|"]
         for row in top_islands[:20]:
+            start, end = _as_int(row.get("locus_start"), -1), _as_int(row.get("locus_end"), -1)
+            span = f"{(end - start) / 1000:.1f}" if start >= 0 and end >= 0 else "-"
             lines.append(f"| {row.get('locus_id', '-')} | {row.get('island_size', '-')} | "
-                          f"{row.get('n_strains', '-')} | {row.get('pfam_domains', '-')} |")
+                         f"{span} | {row.get('n_strains', '-')} | "
+                         f"{row.get('pfam_domains', '-')} |")
         lines.append("")
 
     if marker_rows:
@@ -376,6 +402,10 @@ def main() -> int:
     ap.add_argument("--island_pfam_enrichment", required=True)
     ap.add_argument("--marker_summary", required=True)
     ap.add_argument("--per_strain_summary", required=True)
+    ap.add_argument("--top_islands_min_strains", type=int, default=2,
+                    help="Minimum carrying strains for an island to appear in the "
+                         "report's 'Top islands' table (default 2: exclude "
+                         "strain-private islands). 1 = no filter.")
     ap.add_argument("--fdr_threshold", type=float, default=0.05)
     ap.add_argument("--n_permutations", type=int, default=20)
     ap.add_argument("--seed", type=int, default=0)
@@ -451,6 +481,7 @@ def main() -> int:
         heaps_fit, core_decay, strain_family_counts, marker_rows,
         islands_with_domains_rows=islands_with_domains_rows,
         per_strain_rows=per_strain_rows,
+        top_islands_min_strains=args.top_islands_min_strains,
     )
     (out_dir / "report.md").write_text(markdown)
 
