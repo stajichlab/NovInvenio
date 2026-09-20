@@ -3,7 +3,9 @@
 This is data, not logic: one curated keyword -> class table, matched
 case-insensitively as a substring of the domain name, because Pfam names
 carry version/variant suffixes (Ank_2, Ank_4, ...) and casing is not stable
-across Pfam releases.
+across Pfam releases. Some keywords use prefix matching to avoid false positives
+(e.g., 'het' is prefix-matched to avoid 'thet'/'phet' substrings in
+unrelated domains).
 
 A family whose domains fall in two classes takes the first match in
 CLASS_ORDER, which is a documented precedence, not an accident of dict
@@ -36,9 +38,7 @@ CLASS_LABELS: dict[str, str] = {
 # keyword (lowercase, substring-matched) -> class
 _KEYWORDS: dict[str, str] = {
     "nacht": "nlr",
-    "het": "nlr",
     "ank": "nlr",
-    "tpr": "nlr",
     "ketoacyl-synt": "secondary_metabolite",
     "amp-binding": "secondary_metabolite",
     "pp-binding": "secondary_metabolite",
@@ -48,7 +48,12 @@ _KEYWORDS: dict[str, str] = {
     "mfs_": "transporter",
     "sugar_tr": "transporter",
     "abc_tran": "transporter",
-    "mfs_1": "transporter",
+}
+
+# keyword (lowercase, prefix-matched) -> class
+# Used for keywords that would have false positives under substring matching
+_PREFIX_KEYWORDS: dict[str, str] = {
+    "het": "nlr",
 }
 
 _MISSING = {"", "-", "na", "none"}
@@ -62,6 +67,7 @@ def classify_domain(name: str) -> str:
     if key in _MISSING:
         return UNANNOTATED
     matches = {cls for kw, cls in _KEYWORDS.items() if kw in key}
+    matches.update({cls for kw, cls in _PREFIX_KEYWORDS.items() if key.startswith(kw)})
     if not matches:
         return OTHER
     for cls in CLASS_ORDER:

@@ -52,3 +52,39 @@ def test_dominant_class_breaks_ties_by_precedence():
 def test_dominant_class_of_nothing_is_unannotated():
     assert dominant_class([]) == "unannotated"
     assert dominant_class(["-"]) == "unannotated"
+
+
+def test_het_false_positives_reject_thet_phet():
+    # het must be anchored to prefix to avoid matching "thet" and "phet" substrings
+    # (dna_pol3_theta, phetrs_b1, rbd_dgktheta are false positives under substring match)
+    assert classify_domain("dna_pol3_theta") == "other"
+    assert classify_domain("phetrs_b1") == "other"
+    assert classify_domain("rbd_dgktheta") == "other"
+
+
+def test_het_true_positives_still_classify_as_nlr():
+    # Genuine het-family domains must remain classified as nlr
+    assert classify_domain("het") == "nlr"
+    assert classify_domain("het-s") == "nlr"
+    assert classify_domain("het-c") == "nlr"
+    assert classify_domain("hetr_c") == "nlr"
+
+
+def test_tpr_false_positives_no_longer_nlr():
+    # tpr (tetratricopeptide repeat) is a generic protein-protein interaction
+    # scaffold found in hundreds of unrelated proteins; it is NOT NLR-specific.
+    # These must classify as "other", not "nlr".
+    assert classify_domain("apc5_tpr") == "other"
+    assert classify_domain("cnot10_tpr") == "other"
+
+
+def test_mfs_covers_all_variants():
+    # "mfs_1" is redundant; "mfs_" already matches mfs_1, mfs_2..5, mfs_mot1, etc.
+    assert classify_domain("mfs_mot1") == "transporter"
+    assert classify_domain("mfs_mycoplasma") == "transporter"
+
+
+def test_ank_still_classifies_as_nlr():
+    # ank (ankyrin repeat) is genuinely NLR-related; verified against 25 Pfam names.
+    assert classify_domain("ank_2") == "nlr"
+    assert classify_domain("ankrd13_c") == "nlr"
