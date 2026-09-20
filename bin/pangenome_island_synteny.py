@@ -56,6 +56,11 @@ def main() -> int:
     ap.add_argument("--min_strains", type=int, default=2)
     ap.add_argument("--top_islands", type=int, default=50)
     ap.add_argument("--domtblout", default=None)
+    ap.add_argument("--domain_evalue", type=float, default=1e-3,
+                    help="Domain-level i-Evalue ceiling for --domtblout, "
+                    "matching REPORT_TABLES/DOMAIN_ENRICHMENT's "
+                    "--pangenome_pfam_domain_evalue so the glyph strip and "
+                    "the sidebar chip agree on the same page.")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -64,7 +69,8 @@ def main() -> int:
     matrix = PresenceMatrix.from_tsv(args.presence_matrix)
     positions = load_positions(args.family_positions)
 
-    family_domains = parse_domtblout([args.domtblout]) if args.domtblout else None
+    family_domains = (parse_domtblout([args.domtblout], max_ievalue=args.domain_evalue)
+                      if args.domtblout else None)
 
     payload = build_payload(
         island_rows, matrix, positions, project=args.project,

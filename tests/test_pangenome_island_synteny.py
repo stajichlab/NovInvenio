@@ -180,6 +180,50 @@ def test_cli_with_domtblout_annotates_family_classes(tmp_path):
     assert island["family_classes"][1] == "unannotated"
 
 
+def test_cli_domain_evalue_is_threaded_to_parse_domtblout(tmp_path):
+    """I1 regression: --pangenome_pfam_domain_evalue must actually gate the
+    glyph strip, not fall back to parse_domtblout's hardcoded 1e-3 default.
+
+    The domtblout fixture's domain-level i-Evalue (column index 12) is
+    5.0e-2 -- looser than the default 1e-3, so the default CLI call must
+    classify famA as unannotated, while passing a looser --domain_evalue
+    must pick the hit up.
+    """
+    islands, matrix, positions = write_inputs(tmp_path)
+    domtblout = tmp_path / "loose.domtblout"
+    domtblout.write_text(
+        "# hmmscan domtblout\n"
+        "PF00001 - 100 famA - 50 1.0e-10 100.0 20.0 1 1 1.0e-10 5.0e-2 100.0 20.0 10 20 10 20 10 20 0.99\n"
+    )
+
+    default_out = tmp_path / "default.html"
+    subprocess.run(
+        [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+         "--islands_with_domains", str(islands),
+         "--presence_matrix", str(matrix),
+         "--family_positions", str(positions),
+         "--domtblout", str(domtblout),
+         "--project", "demo", "--output", str(default_out)],
+        check=True,
+    )
+    default_payload = payload_of(default_out)
+    assert default_payload["islands"][0]["family_classes"][0] == "unannotated"
+
+    loose_out = tmp_path / "loose.html"
+    subprocess.run(
+        [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+         "--islands_with_domains", str(islands),
+         "--presence_matrix", str(matrix),
+         "--family_positions", str(positions),
+         "--domtblout", str(domtblout),
+         "--domain_evalue", "1.0",
+         "--project", "demo", "--output", str(loose_out)],
+        check=True,
+    )
+    loose_payload = payload_of(loose_out)
+    assert loose_payload["islands"][0]["family_classes"][0] != "unannotated"
+
+
 def test_cli_orders_multicopy_family_by_locus_contig(tmp_path):
     """C1 regression at the CLI level: family_positions.tsv carries one row
     per (strain, family, COPY); a stray paralog on another contig must not
