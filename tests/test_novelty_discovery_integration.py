@@ -14,12 +14,32 @@ from pathlib import Path
 
 import pytest
 
+from conftest import unrunnable_tools
+
 REPO = Path(__file__).resolve().parent.parent
 
-pytestmark = pytest.mark.skipif(
-    shutil.which('nextflow') is None,
-    reason='nextflow not on PATH -- integration test requires a real pipeline run',
-)
+# Two independent reasons this cannot run: no nextflow, or a CPU that cannot execute the
+# pipeline's tools. bioconda's mmseqs2 and famsa are built with AVX2 and SIGILL instantly
+# on this cluster's Abu Dhabi nodes (.living/learnings.md L-3, issue #142), which made
+# this test a permanent false red there. Probing the binaries -- rather than grepping
+# /proc/cpuinfo for 'avx2' -- means the test starts running again by itself the moment
+# runnable builds are on PATH, and covers any future instruction-set problem too.
+# `-profile slurm` runs are unaffected: conf/ucr_hpcc_slurm.config already pins these
+# processes with `-C ryzen|broadwell|cascade`.
+_BLOCKED = unrunnable_tools('mmseqs', 'famsa')
+
+pytestmark = [
+    pytest.mark.skipif(
+        shutil.which('nextflow') is None,
+        reason='nextflow not on PATH -- integration test requires a real pipeline run',
+    ),
+    pytest.mark.skipif(
+        bool(_BLOCKED),
+        reason=f'cannot execute {", ".join(_BLOCKED)} on this CPU (SIGILL, likely no '
+               'AVX2) -- the pipeline would die in MMSEQS_FAMILY_CLUSTER / '
+               'BUILD_FAMILY_PROFILES for reasons unrelated to the code under test',
+    ),
+]
 
 
 def _seq(seed, length=110):
