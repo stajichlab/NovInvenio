@@ -192,6 +192,16 @@ def test_payload_orders_columns_by_locus_contig_for_a_multicopy_family():
     # C1 regression: build_payload must pass the island's own locus_contig
     # through to order_families_by_locus so a stray off-contig paralog can't
     # drag a column to the wrong position.
+    #
+    # The fixture is chosen so it DISCRIMINATES. An earlier version had famA's
+    # paralog on "c9" -- alphabetically after the locus contig -- which meant a
+    # naive lexicographic sort over the raw [(contig, rank), ...] lists produced
+    # the correct answer by coincidence, so the test passed against the very bug
+    # it was written to catch. Here famA's paralog sits on "a0" (alphabetically
+    # BEFORE the locus contig) while its real on-locus copy is at rank 5, after
+    # famB's rank 2. Correct answer: ["famB", "famA"]. A naive sort that ignores
+    # locus_contig compares ("a0", 1) against ("c1", 2) and yields
+    # ["famA", "famB"] -- the wrong order, so the bug is now actually detected.
     rows = [{"locus_id": "S1:c1:1-400", "locus_contig": "c1", "island_size": "2",
              "n_strains": "2", "member_families": "famB,famA",
              "pfam_domains": "-", "example_strain": "S1"}]
@@ -200,11 +210,11 @@ def test_payload_orders_columns_by_locus_contig_for_a_multicopy_family():
         "famB": {"S1": True, "S2": False},
     })
     positions = {
-        ("S1", "famA"): [("c1", 1), ("c9", 900)],
+        ("S1", "famA"): [("a0", 1), ("c1", 5)],
         ("S1", "famB"): [("c1", 2)],
     }
     payload = build_payload(rows, matrix, positions, project="demo")
-    assert payload["islands"][0]["families"] == ["famA", "famB"]
+    assert payload["islands"][0]["families"] == ["famB", "famA"]
 
 
 def test_payload_reports_how_many_islands_were_excluded():
