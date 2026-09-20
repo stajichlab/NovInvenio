@@ -188,6 +188,13 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
             <option value="strain">Sort rows: strain name</option>
           </select>
         </div>
+        <!-- Issue #119: a "species" <option> is appended to #f-row-sort by
+             JS, only when DATA.species has entries (see the init block
+             below) -- mirrors novelties.html's f-category filter, which
+             stays absent unless the payload actually carries category
+             data. A pairwise/mmseqs run with no --config never gets an
+             affordance for a sort it cannot perform. -->
+
         <p class="isv-main-note" id="isv-main-note"></p>
         <div class="isv-legend" id="isv-legend"></div>
 
@@ -223,6 +230,13 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   var DATA = JSON.parse(document.getElementById("payload").textContent);
   var ISLANDS = DATA.islands || [];
   var CLASSES = DATA.classes || {};
+  // {Short: Species}, issue #119 -- optional, only present when
+  // bin/pangenome_island_synteny.py was run with --config. Empty ({}) means
+  // "no species data for this run", not an error.
+  var SPECIES = DATA.species || {};
+  function speciesOf(strain) {
+    return SPECIES[strain] || "";
+  }
 
 """ + EL_HELPER_JS + r"""
 
@@ -269,6 +283,10 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     selected: ISLANDS.length ? 0 : -1
   };
   var sidebarView = [];
+  // The currently-drawn (sorted) haplotype rows, kept for the grid-row hover
+  // tooltip below -- rowAtGrid() needs to map a pixel Y back to the SAME
+  // array drawGrid() just rendered, not re-sort on every mousemove.
+  var currentHaps = [];
 
   function islandHaystack(isl) {
     return (isl.locus_id + " " + isl.families.join(" ")).toLowerCase();
@@ -327,12 +345,98 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   }
 
   // ---- row sorting ------------------------------------------------------
+
+  // The three functions below are written to take `speciesMap` as an
+  // explicit argument, deliberately NOT closing over the module-level
+  // SPECIES var, so tests/test_island_synteny_species_sort.py can extract
+  // them verbatim (via a brace-matching slice, not a JS parser) and run
+  // them under plain `node`, with no jsdom/DOM dependency -- these
+  // functions never touch the DOM, so there is no reason to require it just
+  // to test them.
+
+  // {species-or-"" : count} across a haplotype's strains. A strain absent
+  // from speciesMap (an incomplete --config) counts toward the "" bucket,
+  // same as an explicitly unknown one -- it must never silently become some
+  // OTHER species just because it's missing.
+  function speciesCounts(hap, speciesMap) {
+    var counts = {};
+    hap.strains.forEach(function (s) {
+      var sp = speciesMap[s] || "";
+      counts[sp] = (counts[sp] || 0) + 1;
+    });
+    return counts;
+  }
+
+  // A haplotype row can carry strains of more than one species (NOT a rare
+  // edge case for this feature's own target study -- Coccidioides immitis
+  // vs posadasii commonly share a presence pattern, so a mixed row is the
+  // common, scientifically interesting case, not the exception). Its
+  // "species" for BANDING purposes is the MODE among its KNOWN-species
+  // strains, tied broken by the lexicographically smallest species name --
+  // deterministic, and cheap since a haplotype's strain list is already
+  // small. Unknown ("" -- a strain missing from speciesMap, i.e. absent
+  // from the config CSV) is an ABSENCE of data and must never outrank an
+  // actually observed species: "" is excluded from the modal contest
+  // entirely and is only ever returned when EVERY strain in the haplotype
+  // is unmapped. This function only decides which band a row sorts into;
+  // it does NOT claim the row is pure -- see speciesBandLabel() below for
+  // the part that surfaces a mixed row (known or unknown) rather than
+  // hiding it. Unknown-species rows still band last at the sort site (the
+  // "￿" sentinel in sortedHaplotypes below), so an incomplete --config
+  // doesn't shove unlabelled rows to the top.
+  function haplotypeSpecies(hap, speciesMap) {
+    var counts = speciesCounts(hap, speciesMap);
+    var best = "", bestCount = -1;
+    Object.keys(counts).sort().forEach(function (sp) {
+      if (sp === "") return; // "no data" never wins a tie against real data
+      if (counts[sp] > bestCount) { bestCount = counts[sp]; best = sp; }
+    });
+    if (best === "" && counts[""]) return ""; // every strain unmapped
+    return best;
+  }
+
+  // The row's own label for the species column/tooltip -- the one place
+  // that must never let the band claim a purity the row does not have. A
+  // pure-species (or all-unknown) row is just its species name (or "Unknown
+  // species"); a row spanning N>1 distinct species-or-unknown groups gets
+  // "<modal species> (+<N-1> other[s])" so a reader sorting by species can
+  // see, at a glance, which rows actually cross the immitis/posadasii
+  // boundary rather than being told -- by a band that looks pure -- that
+  // they don't.
+  function speciesBandLabel(hap, speciesMap) {
+    var counts = speciesCounts(hap, speciesMap);
+    var groups = Object.keys(counts).length;
+    var modal = haplotypeSpecies(hap, speciesMap);
+    var modalLabel = modal || "Unknown species";
+    var others = groups - 1;
+    if (others <= 0) return modalLabel;
+    return modalLabel + " (+" + others + (others === 1 ? " other" : " others") + ")";
+  }
+
   function sortedHaplotypes(isl) {
     var haps = isl.haplotypes.slice();
     if (state.rowSort === "count") {
       haps.sort(function (a, b) { return b.count - a.count || (a.pattern < b.pattern ? -1 : 1); });
     } else if (state.rowSort === "strain") {
       haps.sort(function (a, b) {
+        var an = a.strains[0] || "", bn = b.strains[0] || "";
+        return an < bn ? -1 : an > bn ? 1 : 0;
+      });
+    } else if (state.rowSort === "species") {
+      // Issue #119, spec's "by species (immitis/posadasii band)" sort --
+      // GROUPING strains of the same species together, not a phylogeny
+      // ordering (this pipeline has no strain tree; see
+      // todo/pangenome-phylogeny-aware-gain-loss.md). Primary key: species
+      // name, unknown-species rows sorted last via the "￿" sentinel.
+      // Secondary key (within a species band): strain count descending, so
+      // the haplotype carried by the most strains of that species reads
+      // first. Tertiary key: first strain name, purely for a stable,
+      // reproducible order among same-count haplotypes.
+      haps.sort(function (a, b) {
+        var sa = haplotypeSpecies(a, SPECIES) || "￿";
+        var sb = haplotypeSpecies(b, SPECIES) || "￿";
+        if (sa !== sb) return sa < sb ? -1 : 1;
+        if (b.count !== a.count) return b.count - a.count;
         var an = a.strains[0] || "", bn = b.strains[0] || "";
         return an < bn ? -1 : an > bn ? 1 : 0;
       });
@@ -435,7 +539,18 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       if (hap.strains.length) {
         gctx.font = "10px system-ui, -apple-system, 'Segoe UI', sans-serif";
         gctx.fillStyle = P.secondary;
-        var note = hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1);
+        // While sorted by species, the row label IS the species band --
+        // speciesBandLabel() names every row spanning more than one
+        // species-or-unknown group ("<modal> (+N other[s])") instead of
+        // letting a mixed row render identically to a pure one (issue #119
+        // review). Both branches draw straight to canvas via fillText, the
+        // same mechanism this grid already uses for every other per-row/
+        // per-column label, including untrusted strings (strain and family
+        // IDs) -- canvas text has no HTML-injection surface, so this is
+        // exactly as safe as the existing strain-name note it replaces.
+        var note = (state.rowSort === "species" && Object.keys(SPECIES).length)
+          ? speciesBandLabel(hap, SPECIES)
+          : (hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1));
         gctx.fillText(ellipsize(gctx, note, GUTTER - 60), 50, y + ROW_H / 2);
       }
 
@@ -503,6 +618,46 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   });
   glyphCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
 
+  function positionTip(e) {
+    tipEl.style.display = "block";
+    var w = tipEl.offsetWidth, hgt = tipEl.offsetHeight;
+    var left = e.clientX + 14, top = e.clientY + 14;
+    if (left + w > window.innerWidth - 8) left = e.clientX - w - 14;
+    if (top + hgt > window.innerHeight - 8) top = e.clientY - hgt - 14;
+    tipEl.style.left = Math.max(8, left) + "px";
+    tipEl.style.top = Math.max(8, top) + "px";
+  }
+
+  // ---- grid-row hover tooltip (issue #119 review) ----------------------
+  // The canvas row label (drawGrid, above) already names a mixed row
+  // ("<modal> (+N other[s])") so the band never silently claims a purity it
+  // doesn't have. This tooltip is the accessible-text counterpart: hovering
+  // any row spells out the FULL per-species strain breakdown via
+  // el()/textContent (never innerHTML) rather than leaving the reader to
+  // infer it from an abbreviated canvas label. Only wired up when the
+  // payload actually carries species data -- a pairwise/mmseqs run with no
+  // --config has nothing to show here.
+  function rowAtGrid(clientY) {
+    var rect = gridCanvas.getBoundingClientRect();
+    var ri = Math.floor((clientY - rect.top) / ROW_H);
+    return ri;
+  }
+  if (Object.keys(SPECIES).length) {
+    gridCanvas.addEventListener("mousemove", function (e) {
+      var hap = currentHaps[rowAtGrid(e.clientY)];
+      if (!hap) { tipEl.style.display = "none"; return; }
+      tipEl.textContent = "";
+      tipEl.appendChild(el("div", "tip-id", speciesBandLabel(hap, SPECIES)));
+      var counts = speciesCounts(hap, SPECIES);
+      Object.keys(counts).sort().forEach(function (sp) {
+        tipEl.appendChild(el("div", null, (sp || "Unknown species") + ": " + counts[sp] +
+          (counts[sp] === 1 ? " strain" : " strains")));
+      });
+      positionTip(e);
+    });
+    gridCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
+  }
+
   // ---- legend ---------------------------------------------------------------
   // One swatch per DISTINCT class actually present among this island's
   // columns (not a fixed five-entry key), since the strip below is coloured
@@ -558,6 +713,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     renderLegend(isl);
 
     var haps = sortedHaplotypes(isl);
+    currentHaps = haps;
     var w = totalWidth(isl);
     drawGlyphStrip(isl, w);
     drawGrid(isl, haps, w);
@@ -567,6 +723,33 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     if (state.selected >= 0) renderMain();
   };
 
+  // ---- shared "why is nothing drawn" reasons list -----------------------
+  // A located island is missing from the view for one of two independent
+  // reasons -- excluded by --min_strains, or truncated past --top_islands --
+  // and both the summary-note (always visible) and the empty-state box
+  // (visible only when ISLANDS is empty) need to say so without disagreeing.
+  // This is the SAME array both call sites build a sentence from, so they
+  // are structurally unable to drift back apart the way they did before:
+  // the empty-state box used to name only the excluded count, silently
+  // dropping the truncated one whenever --top_islands did the cutting.
+  function absenceReasons() {
+    var reasons = [];
+    if (DATA.n_islands_excluded) {
+      reasons.push(
+        DATA.n_islands_excluded + " located island" + (DATA.n_islands_excluded === 1 ? "" : "s") +
+        " excluded for being carried by too few strains to show a meaningful presence " +
+        "pattern (a single-strain island is one filled row with no breakpoint in it)"
+      );
+    }
+    if (DATA.n_islands_truncated) {
+      reasons.push(
+        DATA.n_islands_truncated + " qualifying island" + (DATA.n_islands_truncated === 1 ? "" : "s") +
+        " truncated past the --top_islands limit"
+      );
+    }
+    return reasons;
+  }
+
   // ---- empty state (no islands at all in this payload) -----------------------
   function renderEmptyState() {
     var explorer = document.getElementById("isv-explorer");
@@ -574,13 +757,15 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     if (!ISLANDS.length) {
       explorer.classList.add("hidden");
       emptyState.classList.remove("hidden");
-      document.getElementById("isv-empty-text").textContent =
-        DATA.n_islands_total
-          ? DATA.n_islands_total + " accessory island" + (DATA.n_islands_total === 1 ? "" : "s") +
-            " were located, but " + DATA.n_islands_excluded + " " +
-            (DATA.n_islands_excluded === 1 ? "was" : "were") +
-            " excluded (carried by too few strains to compare) and none remain to draw."
-          : "No accessory islands were located for this run.";
+      var text;
+      if (!DATA.n_islands_total) {
+        text = "No accessory islands were located for this run.";
+      } else {
+        var reasons = absenceReasons();
+        text = DATA.n_islands_total + " accessory island" + (DATA.n_islands_total === 1 ? "" : "s") +
+          " were located, but none remain to draw: " + reasons.join("; ") + ".";
+      }
+      document.getElementById("isv-empty-text").textContent = text;
     } else {
       explorer.classList.remove("hidden");
       emptyState.classList.add("hidden");
@@ -605,6 +790,16 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
 """ + SKIN_PICKER_JS + r"""
 
+  // Issue #119: only offer the "species" row sort when the payload actually
+  // carries species data -- mirrors novelties.html's f-category filter
+  // (lib/report_template.py), which appends its <option>s only when
+  // DATA.novelty_categories is non-empty rather than always shipping a
+  // static option that then does nothing on a run with no data for it.
+  if (Object.keys(SPECIES).length) {
+    document.getElementById("f-row-sort").appendChild(
+      new Option("Sort rows: species", "species"));
+  }
+
   // ---- init ---------------------------------------------------------------
   document.getElementById("title").textContent = DATA.project + " — island synteny";
   document.getElementById("subtitle").textContent =
@@ -612,20 +807,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   document.title = DATA.project + " — NovInvenio island synteny";
 
   (function () {
-    var reasons = [];
-    if (DATA.n_islands_excluded) {
-      reasons.push(
-        DATA.n_islands_excluded + " located island" + (DATA.n_islands_excluded === 1 ? "" : "s") +
-        " excluded for being carried by too few strains to show a meaningful presence " +
-        "pattern (a single-strain island is one filled row with no breakpoint in it)"
-      );
-    }
-    if (DATA.n_islands_truncated) {
-      reasons.push(
-        DATA.n_islands_truncated + " qualifying island" + (DATA.n_islands_truncated === 1 ? "" : "s") +
-        " truncated past the --top_islands limit"
-      );
-    }
+    var reasons = absenceReasons();
     document.getElementById("summary-note").textContent = reasons.length
       ? reasons.join("; ") + "."
       : "Every located accessory island met the minimum strain-count filter for this view.";

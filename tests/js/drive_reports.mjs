@@ -43,10 +43,17 @@ function boot(file) {
     beforeParse(window) {
       // jsdom implements neither of these, and the page calls both on load.
       window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+      // Canvas pixel output isn't observable through jsdom, so drawn text is
+      // recorded on the window instead -- island_synteny.html has no table
+      // twin of its grid, and this is the only way to prove a redraw
+      // actually happened and in what order (used by the row-sort check
+      // below; harmless no-op bookkeeping for the other pages).
+      window.__fillTextCalls = [];
       const ctx = {
         setTransform() {}, clearRect() {}, fillRect() {}, strokeRect() {},
         measureText: (t) => ({ width: (t || '').length * 6 }),
-        fillText() {}, save() {}, restore() {}, translate() {}, rotate() {},
+        fillText(t) { window.__fillTextCalls.push(t); },
+        save() {}, restore() {}, translate() {}, rotate() {},
         beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
       };
       window.HTMLCanvasElement.prototype.getContext = () => ctx;
@@ -240,6 +247,147 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   check('hostile fixture: an https {gene} template still builds a link',
         hrefs(det2).some((x) => x.includes('custom.example.org/gene/')),
         hrefs(det2).join(' | '));
+}
+
+// ---------------------------------------------------------- island synteny
+// The most JS-heavy of the four pages (issue #120): a canvas grid, a glyph
+// strip, a stateful sortable/filterable sidebar, and a row-sort select that
+// re-renders. It has no table twin of the grid, so the row-sort check below
+// asserts on the recorded canvas fillText() calls (window.__fillTextCalls,
+// wired in boot() above) rather than on any DOM element -- there is no DOM
+// element that carries per-row haplotype identity to assert against.
+{
+  const dom = boot(path.join(FX, 'island_synteny.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+
+  check('island synteny: loads without error', errors.length === 0, errors.join('; '));
+
+  // ---- sidebar selection redraws the main panel ----
+  // renderSidebar() rebuilds .isv-item as fresh nodes on every render (see
+  // its `list.textContent = ""` in lib/island_synteny_template.py), so the
+  // NodeList must be re-queried after each click -- a node captured before a
+  // click is a detached element afterwards and its classList is stale.
+  const isvItems = () => [...d.querySelectorAll('.isv-item')];
+  check('island synteny: sidebar lists both islands', isvItems().length === 2, isvItems().length);
+  // Default sidebar sort is "size" desc: island A (2 families) before B (1).
+  check('island synteny: first item selected by default',
+        d.getElementById('isv-title').textContent === 'S1:c1:1-2',
+        d.getElementById('isv-title').textContent);
+  check('island synteny: selected item is marked in the sidebar',
+        isvItems()[0].classList.contains('sel') && isvItems()[0].getAttribute('aria-selected') === 'true');
+
+  isvItems()[1].dispatchEvent(ev(w, 'click'));
+  check('island synteny: selecting the second island updates the title',
+        d.getElementById('isv-title').textContent === 'S2:c2:5-6',
+        d.getElementById('isv-title').textContent);
+  check('island synteny: selecting the second island moves the sidebar highlight',
+        isvItems()[1].classList.contains('sel') && !isvItems()[0].classList.contains('sel'));
+  check('island synteny: main note reflects the newly selected island',
+        /1 families in locus order/.test(d.getElementById('isv-main-note').textContent),
+        d.getElementById('isv-main-note').textContent);
+
+  // Back to island A, which has two haplotypes: S1+S2 (pattern "11", count 2)
+  // and S3 (pattern "01", count 1). Default row-sort is "pattern"
+  // (lexicographic), so "01" (S3) draws before "11" (S1+S2).
+  w.__fillTextCalls.length = 0;
+  isvItems()[0].dispatchEvent(ev(w, 'click'));
+  const countCalls = () => w.__fillTextCalls.filter((t) => /^×/.test(t));
+  check('island synteny: default row sort is pattern order (S3 before S1+S2)',
+        countCalls().join(',') === '×1,×2', countCalls().join(','));
+
+  const rowSort = d.getElementById('f-row-sort');
+  w.__fillTextCalls.length = 0;
+  rowSort.value = 'count';
+  rowSort.dispatchEvent(ev(w, 'change'));
+  check('island synteny: choosing "count" reorders rows (S1+S2 before S3)',
+        countCalls().join(',') === '×2,×1', countCalls().join(','));
+
+  w.__fillTextCalls.length = 0;
+  rowSort.value = 'strain';
+  rowSort.dispatchEvent(ev(w, 'change'));
+  check('island synteny: choosing "strain" reorders rows (S1+S2 sorts before S3)',
+        countCalls().join(',') === '×2,×1', countCalls().join(','));
+
+  // ---- skin picker repaints the grid ----
+  const sel = d.getElementById('skin');
+  check('island synteny: skin picker present', !!sel);
+  w.__fillTextCalls.length = 0;
+  sel.value = 'neuromancer';
+  sel.dispatchEvent(ev(w, 'change'));
+  check('island synteny: choosing a skin stamps data-skin',
+        d.documentElement.getAttribute('data-skin') === 'neuromancer',
+        d.documentElement.getAttribute('data-skin'));
+  check('island synteny: choosing a skin persists it',
+        w.localStorage.getItem('novinvenio.skin') === 'neuromancer',
+        w.localStorage.getItem('novinvenio.skin'));
+  check('island synteny: window.onSkinChange is wired', typeof w.onSkinChange === 'function');
+  check('island synteny: a skin change triggers a repaint (canvas redrawn)',
+        w.__fillTextCalls.length > 0, w.__fillTextCalls.length);
+}
+
+// ---------------------------------------------- island synteny: empty state
+{
+  const dom = boot(path.join(FX, 'island_synteny_empty.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+
+  check('island synteny empty: loads without error', errors.length === 0, errors.join('; '));
+  check('island synteny empty: explorer is hidden',
+        d.getElementById('isv-explorer').classList.contains('hidden'));
+  check('island synteny empty: empty-state panel is shown',
+        !d.getElementById('isv-empty-state').classList.contains('hidden'));
+
+  // 1 located island excluded (single-strain) + 2 qualifying islands
+  // truncated by --top_islands 0. lib/island_synteny_template.py's
+  // absenceReasons() helper feeds BOTH #summary-note (the always-visible
+  // card above #isv-body) and #isv-empty-text (the text inside the
+  // empty-state panel itself) from the same array, so they must agree --
+  // this is exactly the check that would have caught the original bug,
+  // where #isv-empty-text was built from a second, independent, incomplete
+  // sentence and silently dropped the truncated count.
+  const summaryText = d.getElementById('summary-note').textContent;
+  const emptyText = d.getElementById('isv-empty-text').textContent;
+  check('island synteny empty: summary-note names the excluded count',
+        /1.*excluded/.test(summaryText), summaryText);
+  check('island synteny empty: summary-note names the truncated count',
+        /2 qualifying island/.test(summaryText), summaryText);
+  check('island synteny empty: isv-empty-text names the excluded count',
+        /1.*excluded/.test(emptyText), emptyText);
+  check('island synteny empty: isv-empty-text names the truncated count',
+        /2 qualifying island/.test(emptyText), emptyText);
+  const marker = 'none remain to draw: ';
+  const reasonsFromEmptyText = emptyText.slice(emptyText.indexOf(marker) + marker.length);
+  check('island synteny empty: summary-note and isv-empty-text agree on both reasons',
+        emptyText.includes(marker) && summaryText === reasonsFromEmptyText,
+        'summary=' + summaryText + ' | empty=' + emptyText);
+}
+
+// ---------------------------------- island synteny: truncation-only empty
+// excluded=0, truncated=2 -- the case the original bug would have gotten
+// backwards (it would have named 0 excluded and said nothing about
+// truncation). Both islands qualify; --top_islands 0 truncates both.
+{
+  const dom = boot(path.join(FX, 'island_synteny_empty_truncated_only.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+
+  check('island synteny empty (truncation-only): loads without error',
+        errors.length === 0, errors.join('; '));
+  const emptyText = d.getElementById('isv-empty-text').textContent;
+  const summaryText = d.getElementById('summary-note').textContent;
+  check('island synteny empty (truncation-only): isv-empty-text names the truncated count',
+        /2 qualifying island/.test(emptyText), emptyText);
+  check('island synteny empty (truncation-only): isv-empty-text does not claim any exclusion',
+        !/excluded/.test(emptyText), emptyText);
+  check('island synteny empty (truncation-only): summary-note agrees (no exclusion claimed)',
+        !/excluded/.test(summaryText), summaryText);
 }
 
 console.log(failures === 0 ? 'ALL PASSED' : failures + ' FAILED');
