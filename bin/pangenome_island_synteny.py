@@ -24,7 +24,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from pangenome_domain_enrichment import parse_domtblout  # noqa: E402
 
 
-def load_positions(path: str) -> dict[tuple[str, str], list[tuple[str, int]]]:
+def load_positions(path: str,
+                   families: "set[str] | None" = None) -> dict[tuple[str, str], list[tuple[str, int]]]:
     """(strain, family) -> [(contig, gene rank), ...], from
     family_positions.tsv[.zst].
 
@@ -35,12 +36,29 @@ def load_positions(path: str) -> dict[tuple[str, str], list[tuple[str, int]]]:
     letting a later row silently overwrite an earlier one.
     order_families_by_locus() picks the right copy using the island's own
     locus contig.
+
+    `families`, when given, skips rows whose family is not in the set WHILE
+    STREAMING (issue #118 follow-up: this file has one row per (strain,
+    family, copy) -- 4.5M rows / 54,421 families on the real 529-strain
+    genus_vs_ureesii study -- and building the whole dict regardless of how
+    few islands are drawn was still the dominant cost after the presence-
+    matrix fix). The filter is applied by FAMILY ONLY, never by contig or
+    copy -- a family kept because it's in `families` keeps EVERY one of its
+    rows, on every contig. Filtering copies would silently break
+    order_families_by_locus()'s off-contig fallback (it falls back to a
+    family's global minimum rank when the island's own locus contig has no
+    copy), which needs every copy of a selected family present to work.
+    `families=None` (the default) is byte-identical to today's unfiltered
+    behaviour -- no other caller passes this argument.
     """
     positions: dict[tuple[str, str], list[tuple[str, int]]] = {}
     with open_maybe_compressed(path) as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             try:
-                key = (row["Short"], row["family"])
+                fam = row["family"]
+                if families is not None and fam not in families:
+                    continue
+                key = (row["Short"], fam)
                 entry = (row["contig"], int(row["rank"]))
             except (KeyError, ValueError):
                 continue
@@ -83,7 +101,9 @@ def main() -> int:
         f for row in selected for f in row.get("member_families", "").split(",") if f
     }
     matrix = PresenceMatrix.from_tsv(args.presence_matrix, families=needed_families)
-    positions = load_positions(args.family_positions)
+    # Same set, same reasoning, for family_positions.tsv -- see load_positions()'s
+    # docstring for why this is safe (filtered by family only, never by copy).
+    positions = load_positions(args.family_positions, families=needed_families)
 
     family_domains = (parse_domtblout([args.domtblout], max_ievalue=args.domain_evalue)
                       if args.domtblout else None)

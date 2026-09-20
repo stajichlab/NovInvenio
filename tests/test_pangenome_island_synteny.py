@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 
 BIN = Path(__file__).parent.parent / "bin"
+sys.path.insert(0, str(BIN))
+from pangenome_island_synteny import load_positions  # noqa: E402
 
 
 def write_inputs(tmp_path):
@@ -303,6 +305,53 @@ def test_cli_without_domtblout_gracefully_degrades(tmp_path):
     assert all(fc == "unannotated" for fc in island["family_classes"])
 
 
+def _write_positions_fixture(tmp_path, n_extra_families=500):
+    """A family_positions.tsv with famA (two contigs -- the off-contig
+    fallback trap), famB (one contig), and many extra families never
+    referenced by any island."""
+    p = tmp_path / "wide_family_positions.tsv"
+    lines = ["Short\tfamily\tcontig\trank",
+             "S1\tfamA\tc1\t1",
+             "S1\tfamA\tc9\t900",
+             "S1\tfamB\tc1\t2"]
+    lines += [f"S1\textra{i:04d}\tc1\t{i + 3}" for i in range(n_extra_families)]
+    p.write_text("\n".join(lines) + "\n")
+    return p
+
+
+def test_load_positions_with_no_filter_matches_todays_behaviour(tmp_path):
+    """Pin: load_positions(path) with no families arg is unchanged."""
+    p = _write_positions_fixture(tmp_path, n_extra_families=5)
+    default = load_positions(str(p))
+    explicit_none = load_positions(str(p), families=None)
+    assert default == explicit_none
+    assert default[("S1", "famA")] == [("c1", 1), ("c9", 900)]
+    assert default[("S1", "famB")] == [("c1", 2)]
+    assert len(default) == 2 + 5
+
+
+def test_load_positions_with_families_loads_only_requested_families(tmp_path):
+    p = _write_positions_fixture(tmp_path, n_extra_families=500)
+    positions = load_positions(str(p), families={"famA", "famB"})
+    assert set(positions.keys()) == {("S1", "famA"), ("S1", "famB")}
+
+
+def test_load_positions_keeps_all_copies_of_a_selected_multicopy_family(tmp_path):
+    """The off-contig fallback trap: order_families_by_locus() falls back to
+    a family's GLOBAL minimum rank when it has no copy on the island's own
+    locus contig. Filtering by family must never drop a copy -- only whole
+    families not in the requested set are skipped."""
+    p = _write_positions_fixture(tmp_path, n_extra_families=10)
+    positions = load_positions(str(p), families={"famA"})
+    assert positions[("S1", "famA")] == [("c1", 1), ("c9", 900)]
+
+
+def test_load_positions_with_families_requested_family_absent_does_not_crash(tmp_path):
+    p = _write_positions_fixture(tmp_path, n_extra_families=5)
+    positions = load_positions(str(p), families={"famA", "does_not_exist"})
+    assert set(positions.keys()) == {("S1", "famA")}
+
+
 def test_cli_family_filtered_load_matches_full_matrix_payload(tmp_path):
     """issue #118: PresenceMatrix.from_tsv() must only materialise the
     families the selected islands actually reference, but that is an
@@ -335,6 +384,50 @@ def test_cli_family_filtered_load_matches_full_matrix_payload(tmp_path):
 
     narrow_payload = render(narrow_matrix, "narrow.html")
     wide_payload = render(wide_matrix, "wide.html")
+
+    assert wide_payload["islands"] == narrow_payload["islands"]
+    assert wide_payload["strains"] == narrow_payload["strains"]
+    assert wide_payload["n_islands_excluded"] == narrow_payload["n_islands_excluded"]
+    assert wide_payload["n_islands_truncated"] == narrow_payload["n_islands_truncated"]
+
+
+def test_cli_family_filtered_positions_load_matches_full_positions_payload(tmp_path):
+    """Same proof as test_cli_family_filtered_load_matches_full_matrix_payload,
+    but for family_positions.tsv (load_positions()'s `families` filter):
+    render the same islands from a positions file with hundreds of extra,
+    unreferenced families -- including a multi-contig extra family, so the
+    off-contig fallback trap gets exercised on data that must be dropped --
+    and confirm the payload, especially locus-ordered `families` columns,
+    is identical to the narrow-positions baseline."""
+    islands, matrix, narrow_positions = write_inputs(tmp_path)
+
+    wide_positions = tmp_path / "wide_family_positions.tsv"
+    lines = ["Short\tfamily\tcontig\trank",
+             "S1\tfamA\tc1\t1",
+             "S1\tfamB\tc1\t2"]
+    # Extra families never referenced by any island's member_families,
+    # including one with copies on two contigs -- these must be skipped
+    # while streaming, not just filtered afterwards.
+    for i in range(500):
+        lines.append(f"S1\textra{i:04d}\tc1\t{i + 3}")
+    lines.append("S1\textra_multicopy\tc1\t900")
+    lines.append("S1\textra_multicopy\tc9\t1")
+    wide_positions.write_text("\n".join(lines) + "\n")
+
+    def render(positions_path, out_name):
+        out = tmp_path / out_name
+        subprocess.run(
+            [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+             "--islands_with_domains", str(islands),
+             "--presence_matrix", str(matrix),
+             "--family_positions", str(positions_path),
+             "--project", "demo", "--output", str(out)],
+            check=True,
+        )
+        return payload_of(out)
+
+    narrow_payload = render(narrow_positions, "narrow_pos.html")
+    wide_payload = render(wide_positions, "wide_pos.html")
 
     assert wide_payload["islands"] == narrow_payload["islands"]
     assert wide_payload["strains"] == narrow_payload["strains"]
