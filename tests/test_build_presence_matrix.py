@@ -28,7 +28,8 @@ PARALOG_HEADER = 'protein_ID\tparalog_protein_ID\tbitscore\tevalue\n'
 
 
 def run(run_dir, hits_text, query_group='IN', min_frac='1.0', other_max_frac='0.0',
-        paralog_text=None, competition_scope=None, rescue_evalue=None):
+        paralog_text=None, competition_scope=None, rescue_evalue=None,
+        rescue_delta=None):
     hits_path = run_dir / 'hits.tsv'
     hits_path.write_text(HIT_HEADER + hits_text)
     matrix_out = run_dir / 'matrix.tsv'
@@ -49,6 +50,8 @@ def run(run_dir, hits_text, query_group='IN', min_frac='1.0', other_max_frac='0.
         cmd += ['--paralog-competition-scope', competition_scope]
     if rescue_evalue is not None:
         cmd += ['--paralog-rescue-evalue', rescue_evalue]
+    if rescue_delta is not None:
+        cmd += ['--paralog-rescue-delta', rescue_delta]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
     matrix = pd.read_csv(matrix_out, sep='\t')
     candidates = candidates_out.read_text().splitlines() if candidates_out.stat().st_size else []
@@ -142,20 +145,35 @@ HEXA_PARALOGS = 'hexA\teif1\t42\t4.2e-11\neif1\thexA\t42\t4.2e-11\n'
 
 
 def test_competition_proteome_scope_drops_hexa_like_ortholog(run_dir):
-    # Default 'proteome' scope: the eIF5A paralog out-scores hexA *anywhere* in
-    # In2, so hexA's only qualifying hit is dropped. With no surviving cross-hit
-    # hexA gets no matrix row at all -> never a candidate.
+    # 'proteome' scope: the eIF5A paralog out-scores hexA *anywhere* in In2, so hexA's
+    # only qualifying hit is dropped. With no surviving cross-hit hexA gets no matrix row
+    # at all -> never a candidate. The rescue floor is disabled here to isolate the scope
+    # behaviour -- see test_default_floor_protects_the_hexa_ortholog_under_proteome_scope
+    # for what the shipped default does to this same case.
     matrix, candidates = run(run_dir, HEXA_HITS, paralog_text=HEXA_PARALOGS,
-                             competition_scope='proteome')
+                             competition_scope='proteome', rescue_evalue='0')
     assert (matrix['protein_id'] == 'hexA').sum() == 0
     assert 'In1::hexA' not in candidates
+
+
+def test_default_floor_protects_the_hexa_ortholog_under_proteome_scope(run_dir):
+    # Behaviour change from issue #128. hexA -> hex1 is a real ortholog hit at 1e-69,
+    # which clears the 1e-20 default floor, so it is no longer discarded even under the
+    # strict 'proteome' scope. This is the floor doing its job: 'proteome' scope's known
+    # failure mode was exactly this -- discarding a real ortholog because a paralog won
+    # somewhere else in the target genome.
+    matrix, candidates = run(run_dir, HEXA_HITS, paralog_text=HEXA_PARALOGS,
+                             competition_scope='proteome')
+    row = matrix[matrix['protein_id'] == 'hexA'].iloc[0]
+    assert row['In1'] == 1 and row['In2'] == 1
+    assert 'In1::hexA' in candidates
 
 
 def test_competition_target_scope_keeps_hexa_like_ortholog(run_dir):
     # 'target' scope: on the shared target gene hex1, hexA (1e-69) beats its
     # paralog eif1 (5e-12), so the call survives -> present in 2/2 ingroup -> candidate.
     matrix, candidates = run(run_dir, HEXA_HITS, paralog_text=HEXA_PARALOGS,
-                             competition_scope='target')
+                             competition_scope='target', rescue_evalue='0')
     row = matrix[matrix['protein_id'] == 'hexA'].iloc[0]
     assert row['In1'] == 1 and row['In2'] == 1
     assert 'In1::hexA' in candidates
@@ -183,11 +201,12 @@ RESCUE_PARALOGS = (
 
 
 def test_target_scope_disqualifies_a7uwr3_like_hit_without_rescue(run_dir):
-    # a7uwr3's only hit is disqualified outright -> no qualifying hit anywhere -> no
-    # matrix row at all for it (same "fully disqualified" shape as test_flat_default_
-    # evalue_rejects_a_weak_hit above).
+    # With the floor explicitly disabled (0), a7uwr3's only hit is disqualified outright
+    # -> no qualifying hit anywhere -> no matrix row at all for it (same "fully
+    # disqualified" shape as test_flat_default_evalue_rejects_a_weak_hit above). This is
+    # the pre-2026-09-20 behaviour, kept reachable via --paralog-rescue-evalue 0.
     matrix, candidates = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
-                             competition_scope='target')
+                             competition_scope='target', rescue_evalue='0')
     assert (matrix['protein_id'] == 'a7uwr3').sum() == 0
     assert 'In1::a7uwr3' not in candidates
 
@@ -211,6 +230,137 @@ def test_paralog_rescue_evalue_still_drops_hex1_like_marginal_hit(run_dir):
                              competition_scope='target', rescue_evalue='1e-20')
     assert (matrix['protein_id'] == 'hex1').sum() == 0
     assert 'In1::hex1' not in candidates
+
+
+# --- The floor arm is ON by default (issue #128) -----------------------------
+#
+# Measured on NovInvenio_Investigations/results/pezizo_set1 (3393 candidates), the
+# 1e-20 floor removes 213 candidates, 57.3% of which have TBLASTN hits in >=4 of the
+# 6 outgroup GENOMES -- against a 48.2% rate for removing every filter-2-suppressed
+# candidate indiscriminately. It is the only rule measured that beat that baseline.
+
+
+def test_floor_arm_is_enabled_by_default(run_dir):
+    # No --paralog-rescue-evalue flag at all: the 1e-20 default applies, so the
+    # a7uwr3-like 1e-95 hit is rescued and the protein is not called a novelty.
+    matrix, candidates = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                             competition_scope='target')
+    assert matrix[matrix['protein_id'] == 'a7uwr3'].iloc[0]['Out1'] == 1
+    assert 'In1::a7uwr3' not in candidates
+
+
+def test_default_floor_still_drops_the_hex1_like_marginal_hit(run_dir):
+    # The positive control must survive the new default untouched: hex1's own hit is
+    # 1e-9, well above the 1e-20 floor, so filter 2 still removes it and hex1 keeps
+    # its clean outgroup-absent row.
+    matrix, _ = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                    competition_scope='target')
+    assert (matrix['protein_id'] == 'hex1').sum() == 0
+
+
+def test_rescue_evalue_zero_disables_the_floor(run_dir):
+    # 0 is the off switch -- no e-value is <= 0, so the rescue never fires. This is how
+    # nextflow.config's `paralog_rescue_evalue = null` reaches the script.
+    matrix, _ = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                    competition_scope='target', rescue_evalue='0')
+    assert (matrix['protein_id'] == 'a7uwr3').sum() == 0
+
+
+# --- Filter 2 rescue, delta arm (--paralog-rescue-delta) --------------------
+#
+# delta = log10(query_evalue) - log10(paralog_evalue): how many orders of magnitude
+# the paralog beat the query by. Asks "did the paralog explain the hit away, or only
+# narrowly win?" rather than "is the hit strong in absolute terms?".
+#
+# OFF BY DEFAULT, and deliberately so. Measured on pezizo_set1, a delta rule is NOT
+# selective: because the rescue fires per cell and any one rescued cell kills novelty,
+# the trigger is the MINIMUM delta across a candidate's suppressed cells, whose median
+# is only 8.6 -- so `delta < 45` fires for 291 of the 334 suppressed candidates, barely
+# narrower than removing all 334. Its breadth>=4 hit-rate (47.1%) is below the 48.2%
+# indiscriminate baseline, and OR-ing it onto the floor drags the floor's 57.3% down to
+# 49.0%. Kept as an opt-in flag so the rule can be re-swept against better evidence
+# (see issue #129, alignment coverage), not because it is recommended.
+#
+# RESCUE_HITS supplies both controls: a7uwr3 delta 36, hex1 delta 60, so D=45 separates
+# them -- in the same direction as the real data (A7UWR3 cells 2..38, HEX1 cells 56/59).
+
+
+def test_delta_arm_is_disabled_by_default(run_dir):
+    # Floor off, no delta flag: nothing rescues the a7uwr3-like hit.
+    matrix, _ = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                    competition_scope='target', rescue_evalue='0')
+    assert (matrix['protein_id'] == 'a7uwr3').sum() == 0
+
+
+def test_paralog_rescue_delta_keeps_a7uwr3_like_hit(run_dir):
+    # delta 36 < 45 rescues it even with the floor explicitly off.
+    matrix, candidates = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                             competition_scope='target', rescue_evalue='0', rescue_delta='45')
+    assert matrix[matrix['protein_id'] == 'a7uwr3'].iloc[0]['Out1'] == 1
+    assert 'In1::a7uwr3' not in candidates
+
+
+def test_paralog_rescue_delta_still_drops_hex1_like_marginal_hit(run_dir):
+    # delta 60 >= 45: the paralog beat hex1 by a wide margin, which is what a genuine
+    # "this hit belongs to the ancestral gene" case looks like. hex1 stays disqualified.
+    matrix, _ = run(run_dir, RESCUE_HITS, paralog_text=RESCUE_PARALOGS,
+                    competition_scope='target', rescue_evalue='0', rescue_delta='45')
+    assert (matrix['protein_id'] == 'hex1').sum() == 0
+
+
+# The two arms cover different cells, so when both are on they must be OR-ed, not AND-ed.
+#   strongFloor  q=1e-95  p=1e-200  -> delta 105: clears a 1e-20 floor, fails delta 45.
+#   nearDelta    q=1e-13  p=1e-15   -> delta 2:   fails a 1e-20 floor, clears delta 45.
+# nearDelta is the shape of A7UWR3's real Ccin cell (q=4.6e-13, p=3.9e-15, delta=2).
+OR_HITS = (
+    'strongFloor\ttargetA\t1e-95\t310\tIn1\tOut1\n'
+    'sfParalog\ttargetA\t1e-200\t600\tIn1\tOut1\n'
+    'nearDelta\ttargetB\t1e-13\t60\tIn1\tOut1\n'
+    'ndParalog\ttargetB\t1e-15\t70\tIn1\tOut1\n'
+)
+OR_PARALOGS = (
+    'strongFloor\tsfParalog\t300\t1e-90\nsfParalog\tstrongFloor\t300\t1e-90\n'
+    'nearDelta\tndParalog\t80\t1e-20\nndParalog\tnearDelta\t80\t1e-20\n'
+)
+
+
+def test_floor_arm_alone_rescues_only_the_strong_hit(run_dir):
+    matrix, _ = run(run_dir, OR_HITS, paralog_text=OR_PARALOGS,
+                    competition_scope='target', rescue_evalue='1e-20')
+    assert matrix[matrix['protein_id'] == 'strongFloor'].iloc[0]['Out1'] == 1
+    assert (matrix['protein_id'] == 'nearDelta').sum() == 0
+
+
+def test_delta_arm_alone_rescues_only_the_narrow_margin_hit(run_dir):
+    matrix, _ = run(run_dir, OR_HITS, paralog_text=OR_PARALOGS,
+                    competition_scope='target', rescue_evalue='0', rescue_delta='45')
+    assert matrix[matrix['protein_id'] == 'nearDelta'].iloc[0]['Out1'] == 1
+    assert (matrix['protein_id'] == 'strongFloor').sum() == 0
+
+
+def test_rescue_arms_are_ored_not_anded(run_dir):
+    # Each hit is rescued by the one arm that covers it. If the arms were AND-ed,
+    # neither would be rescued and both rows would vanish.
+    matrix, _ = run(run_dir, OR_HITS, paralog_text=OR_PARALOGS,
+                    competition_scope='target', rescue_evalue='1e-20', rescue_delta='45')
+    assert matrix[matrix['protein_id'] == 'strongFloor'].iloc[0]['Out1'] == 1
+    assert matrix[matrix['protein_id'] == 'nearDelta'].iloc[0]['Out1'] == 1
+
+
+# diamond reports 0.0 for an overwhelming hit. log10(0) is -inf, so a zero-e-value
+# paralog beat the query by an unbounded margin: delta is +inf and the hit must stay
+# disqualified, with no nan and no crash.
+ZERO_PARALOG_HITS = (
+    'q\ttargetZ\t1e-95\t310\tIn1\tOut1\n'
+    'p\ttargetZ\t0.0\t900\tIn1\tOut1\n'
+)
+ZERO_PARALOG_PARALOGS = 'q\tp\t300\t1e-90\np\tq\t300\t1e-90\n'
+
+
+def test_delta_arm_handles_a_zero_paralog_evalue(run_dir):
+    matrix, _ = run(run_dir, ZERO_PARALOG_HITS, paralog_text=ZERO_PARALOG_PARALOGS,
+                    competition_scope='target', rescue_evalue='0', rescue_delta='45')
+    assert (matrix['protein_id'] == 'q').sum() == 0
 
 
 def test_output_evalues_sidecar_matches_presence_calls(run_dir):
