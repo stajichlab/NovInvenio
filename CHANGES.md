@@ -2,6 +2,64 @@
 
 ## Unreleased
 
+### New: island synteny view
+
+- **`lib/pfam_classes.py`**, **`lib/island_synteny.py`**, **`lib/island_synteny_template.py`**,
+  **`bin/pangenome_island_synteny.py`**, **`modules/pangenome/island_synteny.nf`** (issue #116)
+  — a self-contained `island_synteny.html` page: for each selected accessory island, a
+  presence/absence grid with rows = strains collapsed into distinct haplotypes and columns =
+  member families in locus order, so a deletion breakpoint shows up as a vertical edge. Runs
+  inside the existing `--pangenome_island_pfam_hmm` conditional block (it consumes
+  `report_tables/islands_with_domains.tsv`, which only exists there), and degrades to a valid
+  "no islands" page rather than failing when a study has none.
+- Two new params: `--pangenome_viz_top_islands` (default `50`) caps how many islands are
+  embedded in the page, and reuses the existing `--pangenome_top_islands_min_strains`
+  (default `2`) filter that the "Top islands (by size)" report table already applied.
+- **Single-strain islands are excluded from the view.** On the real 529-strain
+  genus_vs_ureesii study, 62% of located islands (17,218 of 27,836) are present in a single
+  strain -- a single-strain island's grid is one filled row with no breakpoint to show, so
+  it carries no synteny information this view exists to display.
+- **The payload is valid only for the run that produced it.** A family's ID is its mmseqs
+  representative, and gene-family IDs are not stable across pipeline re-runs -- 73% ID
+  overlap was measured between two runs of the same study. Do not compare or merge
+  `island_synteny.html` payloads across separate pipeline invocations.
+- **Known scaling limit (not fixed here):** `PresenceMatrix.from_tsv()` materialises the
+  whole presence matrix regardless of how few islands are actually drawn -- O(families x
+  strains), not O(islands). Measured on the real 529-strain genus_vs_ureesii study (54,421
+  families x 530 strains, 10,602 qualifying islands, 50 drawn): peak RSS 5.54 GB, 48s wall.
+  `ISLAND_SYNTENY`'s memory is sized from this measurement (12 GB, see below); reducing the
+  actual memory footprint needs a real design change (e.g. loading only the rows/columns the
+  selected islands touch) and is deferred to a follow-up.
+
+### Fixed: ISLAND_SYNTENY memory sized from a real measurement, truncation now reported
+
+- `modules/pangenome/island_synteny.nf`'s `low_cpu` label default (4 GB) is not enough --
+  the process was measured at 5.54 GB peak RSS on the real 529-strain genus_vs_ureesii study
+  (see above), which would OOM-kill on exactly the dataset this feature exists to visualise.
+  Added a `withName: '.*ISLAND_SYNTENY'` override in `nextflow.config` (matching this repo's
+  existing convention for per-process resource overrides) giving it 12 GB, ~2.2x headroom
+  over the measurement, while keeping `cpus = 1` from the `low_cpu` label.
+- `bin/pangenome_island_synteny.py`'s stderr summary previously reported only "N islands
+  drawn, M excluded (< min_strains)", which under-reports: on the same real run, 10,602
+  islands qualified but only 50 were drawn, and the summary never said where the other
+  ~10,552 went. The summary now also reports `n_islands_truncated` (islands that qualified
+  but were cut by `--top_islands`), covered by a new test in
+  `tests/test_pangenome_island_synteny.py`.
+
+### Fixed: `lib/compressed_io.py` now fails loudly on a missing or corrupt compressed input
+
+`open_maybe_compressed()` previously returned an **empty stream and exit 0** for a missing
+file (`FileNotFoundError`) or a non-zstd/corrupt input, rather than raising. That is a
+silent-wrong-answer risk for any of its eight consumers merged in PR #113
+(`pangenome_build_islands.py`, `pangenome_report_tables.py`,
+`pangenome_build_family_positions.py`, `pangenome_island_synteny.py`, and others) -- a
+downstream script would proceed as if the compressed input legitimately had zero rows
+instead of failing. It now raises `FileNotFoundError` for a missing input and `RuntimeError`
+for a non-zstd/corrupt one. PR #113's `zstd -dc -f` flag is replaced by resolving the
+symlink in Python before invoking `zstd`, because `-f` itself was the root cause: it passes
+non-zstd bytes straight through with exit 0 (needed only to read through Nextflow's staged
+symlinks) -- which is exactly the silent-pass-through this fix closes.
+
 ### Changed: the four largest pangenome TSV intermediates are now zstd-compressed
 
 `lib/compressed_io.py` has shipped `open_maybe_compressed_write()` since it was
