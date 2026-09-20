@@ -23,15 +23,27 @@ sys.path.insert(0, str(Path(__file__).parent))
 from pangenome_domain_enrichment import parse_domtblout  # noqa: E402
 
 
-def load_positions(path: str) -> dict[tuple[str, str], int]:
-    """(strain, family) -> gene rank, from family_positions.tsv[.zst]."""
-    positions: dict[tuple[str, str], int] = {}
+def load_positions(path: str) -> dict[tuple[str, str], list[tuple[str, int]]]:
+    """(strain, family) -> [(contig, gene rank), ...], from
+    family_positions.tsv[.zst].
+
+    One row per (strain, family, COPY) (see
+    bin/pangenome_build_family_positions.py's own stderr: "(strain, family,
+    copy) positions written") -- a family with a paralog elsewhere in the
+    genome has more than one entry here, so every copy is kept rather than
+    letting a later row silently overwrite an earlier one.
+    order_families_by_locus() picks the right copy using the island's own
+    locus contig.
+    """
+    positions: dict[tuple[str, str], list[tuple[str, int]]] = {}
     with open_maybe_compressed(path) as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             try:
-                positions[(row["Short"], row["family"])] = int(row["rank"])
+                key = (row["Short"], row["family"])
+                entry = (row["contig"], int(row["rank"]))
             except (KeyError, ValueError):
                 continue
+            positions.setdefault(key, []).append(entry)
     return positions
 
 

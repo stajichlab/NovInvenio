@@ -82,22 +82,55 @@ def collapse_haplotypes(presence_rows: dict[str, list[bool]]) -> list[dict]:
 
 
 def order_families_by_locus(families: list[str],
-                            positions: dict[tuple[str, str], int],
-                            strain: str) -> list[str]:
-    """Member families in locus order within `strain`.
+                            positions: dict[tuple[str, str], object],
+                            strain: str,
+                            contig: str | None = None) -> list[str]:
+    """Member families in locus order within `strain`, on `contig`.
 
     Gene ORDER is what makes this view meaningful -- the question it answers
     is "where does the block break?" -- so the columns must follow the
     island's own layout, taken from the example strain's gene ranks in
     family_positions.tsv.
 
-    A family with no position in this strain keeps a column, sorted last by
-    name. Dropping it would silently shrink the island and change the
-    breakpoint the reader sees.
+    `positions[(strain, family)]` may be either a bare rank (int, the legacy
+    single-copy shape) or a list of `(contig, rank)` pairs -- family_positions.tsv
+    has one row per (strain, family, COPY) (see
+    bin/pangenome_build_family_positions.py), so a family with a paralog
+    elsewhere in the genome has more than one entry. When a list is given, a
+    family's locus-order key is the MINIMUM rank among its copies ON `contig`
+    (the island's own locus contig); if it has no copy on that contig, its
+    minimum rank across ALL contigs is used as a fallback rather than
+    dropping the column. Using an off-contig rank verbatim would previously
+    let a stray paralog on an unrelated, alphabetically-later contig drag
+    the whole column to the end of the grid -- confirmed on a real 529-strain
+    study where 2,623 of 4,509,470 (strain, family) pairs are multi-copy.
+
+    A family with no position in this strain at all keeps a column, sorted
+    last by name. Dropping it would silently shrink the island and change
+    the breakpoint the reader sees.
     """
-    ranked = [(positions[(strain, f)], f) for f in families
-              if (strain, f) in positions]
-    unranked = sorted(f for f in families if (strain, f) not in positions)
+    def rank_key(family: str):
+        entries = positions.get((strain, family))
+        if entries is None:
+            return None
+        if isinstance(entries, int):
+            return entries
+        if not entries:
+            return None
+        on_contig = [r for c, r in entries if contig is not None and c == contig]
+        if on_contig:
+            return min(on_contig)
+        return min(r for _, r in entries)
+
+    ranked = []
+    unranked = []
+    for f in families:
+        key = rank_key(f)
+        if key is None:
+            unranked.append(f)
+        else:
+            ranked.append((key, f))
+    unranked.sort()
     return [f for _, f in sorted(ranked)] + unranked
 
 
@@ -142,7 +175,9 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
     for row in selected:
         families = [f for f in row.get("member_families", "").split(",") if f]
         example = row.get("example_strain", "")
-        ordered = order_families_by_locus(families, positions, example)
+        locus_contig = row.get("locus_contig", "")
+        ordered = order_families_by_locus(families, positions, example,
+                                          contig=locus_contig or None)
         presence_rows = {
             s: [matrix.is_present(f, s) for f in ordered] for s in strains
         }

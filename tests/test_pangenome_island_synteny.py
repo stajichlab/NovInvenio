@@ -180,6 +180,44 @@ def test_cli_with_domtblout_annotates_family_classes(tmp_path):
     assert island["family_classes"][1] == "unannotated"
 
 
+def test_cli_orders_multicopy_family_by_locus_contig(tmp_path):
+    """C1 regression at the CLI level: family_positions.tsv carries one row
+    per (strain, family, COPY); a stray paralog on another contig must not
+    reorder the columns away from the island's own locus contig.
+    """
+    islands = tmp_path / "islands_with_domains.tsv"
+    islands.write_text(
+        "n_strains\texample_strain\tisland_size\tmember_families\t"
+        "n_supporting_pairs\tclassifications\tpfam_domains\tlocus_id\t"
+        "locus_contig\tlocus_start\tlocus_end\tn_members_with_coordinates\t"
+        "n_contigs_in_locus\n"
+        "2\tS1\t2\tfamB,famA\t1\tunexplained_physical\t-\t"
+        "S1:c1:100-400\tc1\t100\t400\t2\t1\n"
+    )
+    matrix = tmp_path / "presence_matrix.tsv"
+    matrix.write_text(
+        "family\tS1\tS2\nfamA\tpresent\tpresent\nfamB\tpresent\tabsent\n"
+    )
+    positions = tmp_path / "family_positions.tsv"
+    positions.write_text(
+        "Short\tfamily\tcontig\trank\n"
+        "S1\tfamA\tc1\t1\n"
+        "S1\tfamA\tc9\t900\n"
+        "S1\tfamB\tc1\t2\n"
+    )
+    out = tmp_path / "out.html"
+    subprocess.run(
+        [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+         "--islands_with_domains", str(islands),
+         "--presence_matrix", str(matrix),
+         "--family_positions", str(positions),
+         "--project", "demo", "--output", str(out)],
+        check=True,
+    )
+    payload = payload_of(out)
+    assert payload["islands"][0]["families"] == ["famA", "famB"]
+
+
 def test_cli_without_domtblout_gracefully_degrades(tmp_path):
     """Omit --domtblout and assert all families are "unannotated"."""
     islands, matrix, positions = write_inputs(tmp_path)

@@ -119,6 +119,44 @@ def test_empty_family_list_gives_empty_order():
     assert order_families_by_locus([], {}, "S1") == []
 
 
+# ---- C1: multi-copy families must order by the LOCUS CONTIG's copy, not the
+# highest-ranked (often off-contig) paralog. family_positions.tsv has one row
+# per (strain, family, COPY), so a family with a paralog elsewhere in the
+# genome has more than one (contig, rank) entry.
+
+def test_multicopy_family_orders_by_the_locus_contig_not_a_stray_paralog():
+    # famA has a copy at rank 1 on c1 (the island's own locus contig) AND a
+    # stray paralog at rank 900 on c9. Naive last-row-wins / max-rank
+    # behaviour would sort famA after famB; the correct column order follows
+    # the c1 copy.
+    positions = {
+        ("S1", "famA"): [("c1", 1), ("c9", 900)],
+        ("S1", "famB"): [("c1", 2)],
+    }
+    assert order_families_by_locus(["famB", "famA"], positions, "S1", contig="c1") == \
+        ["famA", "famB"]
+
+
+def test_multicopy_family_falls_back_to_global_minimum_off_contig():
+    # No copy of famA on the requested contig c2 -- fall back to its global
+    # minimum rank (1, from c1) rather than dropping the column. famB's
+    # on-contig rank (5) is higher, so famA still sorts first.
+    positions = {
+        ("S1", "famA"): [("c1", 1), ("c9", 900)],
+        ("S1", "famB"): [("c2", 5)],
+    }
+    assert order_families_by_locus(["famB", "famA"], positions, "S1", contig="c2") == \
+        ["famA", "famB"]
+
+
+def test_single_copy_list_form_behaves_like_the_legacy_int_form():
+    positions_list = {("S1", "famA"): [("c1", 1)], ("S1", "famB"): [("c1", 2)]}
+    positions_int = {("S1", "famA"): 1, ("S1", "famB"): 2}
+    assert (order_families_by_locus(["famB", "famA"], positions_list, "S1", contig="c1")
+            == order_families_by_locus(["famB", "famA"], positions_int, "S1")
+            == ["famA", "famB"])
+
+
 def make_matrix(calls):
     """calls: {family: {strain: bool}} -> a PresenceMatrix."""
     families = sorted(calls.keys())
@@ -148,6 +186,25 @@ def test_payload_carries_one_island_with_ordered_columns_and_haplotypes():
     assert island["locus_id"] == "S1:c1:1-400"
     patterns = {h["pattern"]: h["count"] for h in island["haplotypes"]}
     assert patterns == {"11": 1, "10": 1, "00": 1}
+
+
+def test_payload_orders_columns_by_locus_contig_for_a_multicopy_family():
+    # C1 regression: build_payload must pass the island's own locus_contig
+    # through to order_families_by_locus so a stray off-contig paralog can't
+    # drag a column to the wrong position.
+    rows = [{"locus_id": "S1:c1:1-400", "locus_contig": "c1", "island_size": "2",
+             "n_strains": "2", "member_families": "famB,famA",
+             "pfam_domains": "-", "example_strain": "S1"}]
+    matrix = make_matrix({
+        "famA": {"S1": True, "S2": True},
+        "famB": {"S1": True, "S2": False},
+    })
+    positions = {
+        ("S1", "famA"): [("c1", 1), ("c9", 900)],
+        ("S1", "famB"): [("c1", 2)],
+    }
+    payload = build_payload(rows, matrix, positions, project="demo")
+    assert payload["islands"][0]["families"] == ["famA", "famB"]
 
 
 def test_payload_reports_how_many_islands_were_excluded():
