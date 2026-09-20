@@ -191,3 +191,44 @@ def test_families_absent_from_the_matrix_are_scored_absent_not_dropped():
     assert payload["islands"][0]["families"] == ["famA", "ghost"]
     for hap in payload["islands"][0]["haplotypes"]:
         assert len(hap["pattern"]) == 2
+
+
+def test_n_islands_excluded_counts_only_min_strains_failures_not_top_n_truncation():
+    # Regression: n_islands_excluded used to conflate filter exclusions with
+    # top_n truncation. 60 all-multi-strain islands, top_n=50 should report
+    # n_islands_excluded=0 (none failed the filter) and n_islands_truncated=10
+    # (qualified but beyond top_n).
+    rows = [
+        {"locus_id": f"S{i}:c{i}:1-400", "island_size": str(100 - i),
+         "n_strains": "2", "member_families": "famA", "pfam_domains": "-",
+         "example_strain": f"S{i}"}
+        for i in range(60)
+    ]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True}})
+    payload = build_payload(rows, matrix, {}, project="demo", top_n=50)
+    assert payload["n_islands_total"] == 60
+    assert payload["n_islands_excluded"] == 0  # all multi-strain, none failed filter
+    assert payload["n_islands_truncated"] == 10  # 60 qualified, 50 selected
+
+
+def test_mixed_exclusion_and_truncation_must_sum_correctly():
+    # Both single-strain (excluded) and qualifying (some truncated) islands.
+    # n_islands_total = n_islands_excluded + n_islands_truncated + len(islands)
+    rows = [
+        {"locus_id": f"S{i}:c{i}:1-400", "island_size": str(100 - i),
+         "n_strains": str(1 if i < 10 else 2),  # first 10 are single-strain
+         "member_families": "famA", "pfam_domains": "-",
+         "example_strain": f"S{i}"}
+        for i in range(60)  # 10 single-strain + 50 multi-strain
+    ]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True}})
+    payload = build_payload(rows, matrix, {}, project="demo", top_n=30)
+    # 60 total, 10 single-strain (excluded), 50 qualifying multi-strain,
+    # 30 selected, so 20 truncated
+    assert payload["n_islands_total"] == 60
+    assert payload["n_islands_excluded"] == 10
+    assert payload["n_islands_truncated"] == 20
+    assert len(payload["islands"]) == 30
+    assert (payload["n_islands_total"] ==
+            payload["n_islands_excluded"] + payload["n_islands_truncated"] +
+            len(payload["islands"]))

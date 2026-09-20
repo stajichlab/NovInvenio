@@ -4,8 +4,9 @@ For one accessory island: rows = strains, columns = member families in locus
 order, filled cell = family present in that strain. Deletion breakpoints show
 up as vertical edges.
 
-No I/O at import time; every function here is pure and takes already-parsed
-rows, so the whole payload is unit-testable without touching a pipeline run.
+No I/O at import time; every function here takes already-parsed rows and returns
+deterministic values except for `build_payload`, which embeds a wall-clock
+timestamp. The whole payload is unit-testable without touching a pipeline run.
 """
 from __future__ import annotations
 
@@ -20,6 +21,16 @@ def _as_int(value, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _located(rows: list[dict]) -> list[dict]:
+    """Islands with resolved locus coordinates.
+
+    An unplaced island (`locus_id == '-'`) has no column order, so the view
+    cannot draw it. This filter is the same in both select_islands and
+    build_payload to prevent the two from drifting.
+    """
+    return [r for r in rows if r.get("locus_id", "-") not in ("-", "", None)]
 
 
 def select_islands(rows: list[dict], min_strains: int = 2,
@@ -41,7 +52,7 @@ def select_islands(rows: list[dict], min_strains: int = 2,
     Truncation to `top_n` happens AFTER filtering, so the filter never costs
     slots in the output.
     """
-    located = [r for r in rows if r.get("locus_id", "-") not in ("-", "", None)]
+    located = _located(rows)
     kept = [r for r in located if _as_int(r.get("n_strains")) >= min_strains]
     kept.sort(key=lambda r: -_as_int(r.get("island_size")))
     return kept[:top_n]
@@ -105,9 +116,11 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
     run that produced it, and must never be joined to another run's output by
     family ID.
     """
-    selected = select_islands(island_rows, min_strains=min_strains, top_n=top_n)
-    located = [r for r in island_rows
-               if r.get("locus_id", "-") not in ("-", "", None)]
+    # Separate locus-filter exclusions from top_n truncation to count them honestly.
+    located = _located(island_rows)
+    qualifying = [r for r in located if _as_int(r.get("n_strains")) >= min_strains]
+    qualifying.sort(key=lambda r: -_as_int(r.get("island_size")))
+    selected = qualifying[:top_n]
     strains = sorted(matrix.strains)
 
     islands = []
@@ -140,5 +153,6 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
         "classes": CLASS_LABELS,
         "islands": islands,
         "n_islands_total": len(located),
-        "n_islands_excluded": len(located) - len(selected),
+        "n_islands_excluded": len(located) - len(qualifying),
+        "n_islands_truncated": len(qualifying) - len(selected),
     }
