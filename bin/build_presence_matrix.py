@@ -64,10 +64,13 @@ with an optional absolute-evalue override on the second:
      That proxy has its own unmeasured false-positive rate, so the 57.3%/48.2%
      margin is softer than it looks; see issue #135.
 
-     NOTE: lib/singleton_presence.py's score_singleton_hits() applies the same
-     unconditional filter 2 for the --cluster_tool novelty_discovery singleton
-     branch and has NO rescue arm, so the same protein can be called differently
-     by the two pathways. Not addressed by issue #128.
+     Both arms are mirrored, with the same defaults and the same 0-disables
+     convention, in lib/singleton_presence.py's score_singleton_hits() (the
+     --cluster_tool novelty_discovery singleton branch) and in
+     bin/context_presence.py's inline copy (CONTEXT_SEARCH's report-only
+     NEAR_INGROUP/BROAD_OUTGROUP evidence) -- issue #138. All three carry the
+     same filter 2, so a change here must be made in all three or the same
+     protein gets different answers from different pathways.
 
   (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value
   must beat the query's own within-proteome paralog e-value, falling back to

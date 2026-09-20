@@ -26,7 +26,8 @@ def run_dir(tmp_path):
     return tmp_path
 
 
-def run(run_dir, hits_text, candidates_text, paralog_text=None, scope=None):
+def run(run_dir, hits_text, candidates_text, paralog_text=None, scope=None,
+        rescue_evalue=None):
     hits_path = run_dir / 'hits.tsv'
     hits_path.write_text(HIT_HEADER + hits_text)
     candidates_path = run_dir / 'candidates.txt'
@@ -43,6 +44,8 @@ def run(run_dir, hits_text, candidates_text, paralog_text=None, scope=None):
         paralog_path = run_dir / 'paralog_cutoffs.tsv'
         paralog_path.write_text(PARALOG_HEADER + paralog_text)
         cmd += ['--paralog-cutoffs', str(paralog_path)]
+    if rescue_evalue is not None:
+        cmd += ['--paralog-rescue-evalue', rescue_evalue]
     if scope is not None:
         cmd += ['--paralog-competition-scope', scope]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -116,10 +119,25 @@ def test_competition_proteome_scope_drops_hexa_like_ortholog(run_dir):
         'eif1\teif2\t1e-70\t233\tIn1\tNear1\n'
         'eif1\thex1\t5e-12\t45\tIn1\tNear1\n'
     )
+    # Rescue floor disabled to isolate the scope behaviour (issue #138).
     matrix, _ = run(run_dir, hits, 'In1::hexA\n',
-                    paralog_text='hexA\teif1\t42\t4.2e-11\n', scope='proteome')
+                    paralog_text='hexA\teif1\t42\t4.2e-11\n', scope='proteome',
+                    rescue_evalue='0')
     row = matrix[matrix['protein_id'] == 'hexA'].iloc[0]
     assert row['Near1'] == 0
+
+
+def test_default_floor_protects_the_hexa_ortholog_under_proteome_scope(run_dir):
+    # Behaviour change from issue #138, matching bin/build_presence_matrix.py: the
+    # 1e-69 ortholog hit clears the 1e-20 default floor and survives 'proteome' scope.
+    hits = (
+        'hexA\thex1\t1e-69\t230\tIn1\tNear1\n'
+        'eif1\teif2\t1e-70\t233\tIn1\tNear1\n'
+        'eif1\thex1\t5e-12\t45\tIn1\tNear1\n'
+    )
+    matrix, _ = run(run_dir, hits, 'In1::hexA\n',
+                    paralog_text='hexA\teif1\t42\t4.2e-11\n', scope='proteome')
+    assert matrix[matrix['protein_id'] == 'hexA'].iloc[0]['Near1'] == 1
 
 
 def test_no_context_proteomes_in_config_yields_empty_columns(tmp_path):

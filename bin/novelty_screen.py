@@ -145,6 +145,19 @@ def main():
                     help='Same semantics as bin/build_presence_matrix.py / '
                          "bin/novelty_presence_matrix.py (default: 'target', matches "
                          "nextflow.config's pipeline default)")
+    ap.add_argument('--paralog-rescue-evalue', type=float, default=1e-20,
+                    dest='paralog_rescue_evalue',
+                    help='Floor under the paralog-competition filter: a hit is never '
+                         'disqualified if the query\'s own e-value against that target is '
+                         'already <= this threshold. Same semantics and default as '
+                         'bin/build_presence_matrix.py (issue #138 keeps the pathways '
+                         'consistent). Pass 0 to disable.')
+    ap.add_argument('--paralog-rescue-delta', type=float, default=None,
+                    dest='paralog_rescue_delta',
+                    help='Second, OPT-IN rescue arm, OR-ed with --paralog-rescue-evalue: '
+                         'keep a hit the paralog beat by fewer than this many orders of '
+                         'magnitude. Disabled by default and not recommended -- measured '
+                         'non-selective, see bin/build_presence_matrix.py\'s docstring.')
     ap.add_argument('--config', required=True, help='Analysis description CSV')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
     ap.add_argument('--output-candidates', required=True, dest='output_candidates')
@@ -181,10 +194,14 @@ def main():
 
     near_in_singleton_presence, _ = score_singleton_hits(
         _singleton_hits(args.near_in_singleton_hits), singleton_ids,
-        paralog_of, args.singleton_evalue, args.paralog_competition_scope)
+        paralog_of, args.singleton_evalue, args.paralog_competition_scope,
+        rescue_evalue=args.paralog_rescue_evalue,
+        rescue_delta=args.paralog_rescue_delta)
     broad_out_singleton_presence, _ = score_singleton_hits(
         _singleton_hits(args.broad_out_singleton_hits), singleton_ids,
-        paralog_of, args.singleton_evalue, args.paralog_competition_scope)
+        paralog_of, args.singleton_evalue, args.paralog_competition_scope,
+        rescue_evalue=args.paralog_rescue_evalue,
+        rescue_delta=args.paralog_rescue_delta)
 
     for short, ids in near_in_singleton_presence.items():
         near_in_presence.setdefault(short, set()).update(ids)

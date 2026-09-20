@@ -160,6 +160,8 @@ process CONTEXT_PRESENCE {
         --paralog-cutoffs ${paralog_cutoffs} \
         --config ${config_csv} \
         --paralog-competition-scope ${paralog_competition_scope} \
+        --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
+        ${params.paralog_rescue_delta != null ? "--paralog-rescue-delta ${params.paralog_rescue_delta}" : ''} \
         --default-evalue ${default_evalue} \
         --output-matrix context_presence.tsv \
         --output-evalues context_presence.evalues.tsv
