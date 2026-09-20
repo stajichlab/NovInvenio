@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from compressed_io import open_maybe_compressed  # noqa: E402
-from island_synteny import build_payload  # noqa: E402
+from island_synteny import build_payload, select_islands  # noqa: E402
 from island_synteny_template import ISLAND_SYNTENY_TEMPLATE  # noqa: E402
 from pangenome_matrix import PresenceMatrix  # noqa: E402
 
@@ -67,7 +67,22 @@ def main() -> int:
 
     with open_maybe_compressed(args.islands_with_domains) as fh:
         island_rows = list(csv.DictReader(fh, delimiter="\t"))
-    matrix = PresenceMatrix.from_tsv(args.presence_matrix)
+
+    # issue #118: load only the families the islands we're actually going to
+    # draw reference, not the whole matrix -- select_islands() applies the
+    # same min-strains filter and top-N truncation build_payload() applies
+    # internally (that duplication is deliberate and cheap; see this file's
+    # docstring notes and lib/island_synteny.py's build_payload docstring),
+    # so the family set computed here always matches what build_payload()
+    # would draw. On the real 529-strain genus_vs_ureesii study this took
+    # peak RSS from 5.54 GB (54,421 families materialised for 50 islands) to
+    # a small fraction of that -- 298 distinct families actually referenced.
+    selected = select_islands(island_rows, min_strains=args.min_strains,
+                              top_n=args.top_islands)
+    needed_families = {
+        f for row in selected for f in row.get("member_families", "").split(",") if f
+    }
+    matrix = PresenceMatrix.from_tsv(args.presence_matrix, families=needed_families)
     positions = load_positions(args.family_positions)
 
     family_domains = (parse_domtblout([args.domtblout], max_ievalue=args.domain_evalue)

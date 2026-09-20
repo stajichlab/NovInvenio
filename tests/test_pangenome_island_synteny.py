@@ -303,6 +303,45 @@ def test_cli_without_domtblout_gracefully_degrades(tmp_path):
     assert all(fc == "unannotated" for fc in island["family_classes"])
 
 
+def test_cli_family_filtered_load_matches_full_matrix_payload(tmp_path):
+    """issue #118: PresenceMatrix.from_tsv() must only materialise the
+    families the selected islands actually reference, but that is an
+    optimisation, not a behaviour change -- render the same islands from a
+    matrix with hundreds of extra, unreferenced families bolted on and
+    confirm the payload is identical to the narrow-matrix baseline."""
+    islands, narrow_matrix, positions = write_inputs(tmp_path)
+
+    wide_matrix = tmp_path / "wide_presence_matrix.tsv"
+    lines = ["family\tS1\tS2",
+             "famA\tpresent\tpresent",
+             "famB\tpresent\tabsent",
+             "famC\tabsent\tpresent"]
+    # Extra families never referenced by any island's member_families --
+    # these must be skipped while streaming, not just filtered afterwards.
+    lines += [f"extra{i:04d}\tpresent\tpresent" for i in range(500)]
+    wide_matrix.write_text("\n".join(lines) + "\n")
+
+    def render(matrix_path, out_name):
+        out = tmp_path / out_name
+        subprocess.run(
+            [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+             "--islands_with_domains", str(islands),
+             "--presence_matrix", str(matrix_path),
+             "--family_positions", str(positions),
+             "--project", "demo", "--output", str(out)],
+            check=True,
+        )
+        return payload_of(out)
+
+    narrow_payload = render(narrow_matrix, "narrow.html")
+    wide_payload = render(wide_matrix, "wide.html")
+
+    assert wide_payload["islands"] == narrow_payload["islands"]
+    assert wide_payload["strains"] == narrow_payload["strains"]
+    assert wide_payload["n_islands_excluded"] == narrow_payload["n_islands_excluded"]
+    assert wide_payload["n_islands_truncated"] == narrow_payload["n_islands_truncated"]
+
+
 def test_cli_nonexistent_family_positions_fails(tmp_path):
     """Passing a nonexistent --family_positions makes CLI fail (non-zero exit).
 

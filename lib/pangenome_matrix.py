@@ -135,22 +135,52 @@ class PresenceMatrix:
                     fh.write(f"{fam}\t{strain}\t{copies}\n")
 
     @classmethod
-    def from_tsv(cls, path: str | Path, read_copy_number: bool = True) -> "PresenceMatrix":
+    def from_tsv(cls, path: str | Path, read_copy_number: bool = True,
+                families: "set[str] | None" = None) -> "PresenceMatrix":
         """Load a matrix written by `to_tsv`.
+
+        `families`, when given, restricts which family ROWS are materialised
+        -- a consumer that only needs a handful of families out of a huge
+        matrix (e.g. bin/pangenome_island_synteny.py, issue #118: 298 of
+        54,421 families for a real 529-strain study) passes the set it
+        actually needs and every non-matching row is skipped WHILE STREAMING,
+        never built into `calls` at all. `pm.families` then holds exactly the
+        subset of `families` that was actually present in the file, in file
+        order -- not the full file's family list, and not `families` itself
+        (a requested-but-absent family is silently omitted, matching
+        `call()`'s existing "unknown pair scores ABSENT" contract rather than
+        raising).
+
+        `families=None` (the default) is BYTE-IDENTICAL to loading the whole
+        file -- every current caller of this method depends on that, so this
+        is strictly additive.
+
+        `pm.strains` is always the FULL strain list from the header row,
+        filtered or not -- a caller's grid rows are strains, so a `families`
+        filter must never touch them.
+
+        A row skipped by the `families` filter is not validated against
+        `STATES` -- validation only happens for rows actually loaded. A
+        filtered load is an optimisation over data the caller already trusts
+        enough to select from (e.g. an island's own `member_families`), not a
+        substitute for validating the whole file; callers that need a full
+        integrity check should still call `from_tsv(path)` unfiltered.
 
         The copy-number sidecar is loaded when it exists; its absence is never
         an error (a matrix with no copy numbers, or one written before sidecars
-        existed, simply loads with every copy number 0).
+        existed, simply loads with every copy number 0). It is filtered by
+        the same `families` set, for the same reason.
 
         Raises:
-            ValueError: if any cell holds a value that is not one of `STATES`
-                -- a corrupted or hand-edited matrix, which would otherwise
-                load silently and evaluate as "not present" everywhere.
+            ValueError: if any LOADED cell holds a value that is not one of
+                `STATES` -- a corrupted or hand-edited matrix, which would
+                otherwise load silently and evaluate as "not present"
+                everywhere.
         """
         with open_maybe_compressed(path) as fh:
             header = fh.readline().rstrip("\n").split("\t")
             strains = header[1:]
-            families: list[str] = []
+            loaded_families: list[str] = []
             calls: dict[tuple[str, str], str] = {}
             for line in fh:
                 line = line.rstrip("\n")
@@ -158,7 +188,9 @@ class PresenceMatrix:
                     continue
                 parts = line.split("\t")
                 fam = parts[0]
-                families.append(fam)
+                if families is not None and fam not in families:
+                    continue
+                loaded_families.append(fam)
                 for strain, state in zip(strains, parts[1:]):
                     if state not in STATES:
                         raise ValueError(
@@ -166,10 +198,10 @@ class PresenceMatrix:
                             f"{fam!r} / strain {strain!r}; must be one of {STATES}"
                         )
                     calls[(fam, strain)] = state
-        pm = cls(families=families, strains=strains)
+        pm = cls(families=loaded_families, strains=strains)
         pm.calls = calls
         if read_copy_number:
-            pm.copy_number = read_copy_number_sidecar(path)
+            pm.copy_number = read_copy_number_sidecar(path, families=families)
         return pm
 
 
@@ -191,9 +223,16 @@ def copy_number_path(matrix_path: str | Path) -> Path:
     return Path(matrix_path + ".copy_number.tsv")
 
 
-def read_copy_number_sidecar(matrix_path: str | Path) -> dict[tuple[str, str], int]:
+def read_copy_number_sidecar(matrix_path: str | Path,
+                             families: "set[str] | None" = None) -> dict[tuple[str, str], int]:
     """Load the copy-number sidecar (see `copy_number_path`) if it exists;
     return {} if it does not.
+
+    `families`, when given, skips sidecar rows for any other family -- the
+    same filter `PresenceMatrix.from_tsv` applies to the main matrix, kept
+    consistent here rather than by accident (issue #118): a filtered matrix
+    load with an unfiltered copy-number load would silently carry copy
+    numbers for families the matrix itself no longer lists.
 
     Tries `copy_number_path(matrix_path)` itself first (already
     compression-suffixed to match `matrix_path`, e.g. `.copy_number.tsv.zst`
@@ -216,6 +255,8 @@ def read_copy_number_sidecar(matrix_path: str | Path) -> dict[tuple[str, str], i
                 continue
             parts = line.split("\t")
             if len(parts) < 3:
+                continue
+            if families is not None and parts[0] not in families:
                 continue
             copies[(parts[0], parts[1])] = int(parts[2])
     return copies
