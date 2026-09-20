@@ -12,6 +12,19 @@ of a sequence) and its branches are how a protein reaches the right database.
 A payload test cannot see any of it, and a typo in a URL template would ship
 silently.
 
+It also covers `island_synteny.html` (issue #120) -- the most JS-heavy of the
+four report pages: a canvas grid, a glyph strip, a stateful sortable/
+filterable sidebar, and a row-sort select that re-renders. That page has no
+table twin of its grid, so the row-sort checks assert on
+`window.__fillTextCalls` (a call-recording canvas stub wired in
+`tests/js/drive_reports.mjs`'s `boot()`) instead of on any DOM element -- see
+that file's island-synteny section for why, and for a real, reported gap
+found while writing this coverage: the empty-state panel's own text
+(`#isv-empty-text`) never mentions islands truncated by `--top_islands`, only
+those excluded by `--min_strains`, even though the always-visible
+`#summary-note` above it does report both. That's a real bug, left unfixed
+per instruction (issue #120 is test coverage only) and pinned as it exists.
+
 **Skipped unless jsdom is importable.** It is a Node dependency and this is a
 pixi/conda project, so it is not a hard requirement -- install it wherever you
 want this coverage (CI, or locally):
@@ -85,6 +98,49 @@ MATRIX = (
     "sp|P12345|TEST_YEAST Some protein\tAAA\tPF00004.31\t1e-20\t\n"
 )
 TBLASTN = "protein_id\tSpom\tScer\nn1\t0\t0\nn2\t0\t1\nn3\t0\t0\n"
+
+# island_synteny.html (issue #120). Two islands so sidebar selection is
+# observable (locus_id changes); island A has two haplotypes with different
+# counts/patterns so a row-sort change visibly reorders the recorded canvas
+# draw calls (S1+S2 share pattern "11" count 2, S3 is "01" count 1 -- pattern
+# order and count order disagree, which is what makes the reorder provable).
+ISV_ISLANDS = (
+    "n_strains\texample_strain\tisland_size\tmember_families\t"
+    "n_supporting_pairs\tclassifications\tpfam_domains\tlocus_id\t"
+    "locus_contig\tlocus_start\tlocus_end\tn_members_with_coordinates\t"
+    "n_contigs_in_locus\n"
+    "2\tS1\t2\tfamA,famB\t1\tunexplained_physical\t-\t"
+    "S1:c1:1-2\tc1\t1\t2\t2\t1\n"
+    "2\tS2\t1\tfamC\t1\tunexplained_physical\t-\t"
+    "S2:c2:5-6\tc2\t5\t6\t1\t1\n"
+)
+ISV_MATRIX = (
+    "family\tS1\tS2\tS3\n"
+    "famA\tpresent\tpresent\tabsent\n"
+    "famB\tpresent\tpresent\tpresent\n"
+    "famC\tabsent\tpresent\tpresent\n"
+)
+ISV_POSITIONS = (
+    "Short\tfamily\tcontig\trank\n"
+    "S1\tfamA\tc1\t1\n"
+    "S1\tfamB\tc1\t2\n"
+    "S2\tfamC\tc2\t1\n"
+)
+
+# Empty-state fixture: one single-strain island (excluded) plus two
+# qualifying islands truncated away by --top_islands 0, so the empty-state
+# text must name both the excluded (1) and truncated (2) counts.
+ISV_EMPTY_ISLANDS = (
+    "n_strains\texample_strain\tisland_size\tmember_families\t"
+    "n_supporting_pairs\tclassifications\tpfam_domains\tlocus_id\t"
+    "locus_contig\tlocus_start\tlocus_end\tn_members_with_coordinates\t"
+    "n_contigs_in_locus\n"
+    "1\tS1\t1\tfamA\t1\tunexplained_physical\t-\tS1:c1:1-1\tc1\t1\t1\t1\t1\n"
+    "2\tS1\t1\tfamB\t1\tunexplained_physical\t-\tS1:c1:2-2\tc1\t2\t2\t1\t1\n"
+    "2\tS1\t1\tfamC\t1\tunexplained_physical\t-\tS1:c1:3-3\tc1\t3\t3\t1\t1\n"
+)
+ISV_EMPTY_MATRIX = "family\tS1\nfamA\tpresent\nfamB\tpresent\nfamC\tpresent\n"
+ISV_EMPTY_POSITIONS = "Short\tfamily\tcontig\trank\n"
 
 
 def _fasta() -> str:
@@ -165,6 +221,25 @@ def fixture_dir(tmp_path_factory):
     run('make_core_report.py', '--matrix', str(d / 'matrix.tsv'),
         '--config', str(d / 'config.csv'), '--core_min_frac', '0.9',
         '--output', str(d / 'core.html'))
+
+    (d / 'isv_islands.tsv').write_text(ISV_ISLANDS)
+    (d / 'isv_matrix.tsv').write_text(ISV_MATRIX)
+    (d / 'isv_positions.tsv').write_text(ISV_POSITIONS)
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_matrix.tsv'),
+        '--family_positions', str(d / 'isv_positions.tsv'),
+        '--project', 'demo', '--output', str(d / 'island_synteny.html'))
+
+    (d / 'isv_empty_islands.tsv').write_text(ISV_EMPTY_ISLANDS)
+    (d / 'isv_empty_matrix.tsv').write_text(ISV_EMPTY_MATRIX)
+    (d / 'isv_empty_positions.tsv').write_text(ISV_EMPTY_POSITIONS)
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_empty_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_empty_matrix.tsv'),
+        '--family_positions', str(d / 'isv_empty_positions.tsv'),
+        '--project', 'demo', '--top_islands', '0',
+        '--output', str(d / 'island_synteny_empty.html'))
     return d
 
 
@@ -182,7 +257,7 @@ def test_report_javascript_behaviour(fixture_dir):
         'jsdom behaviour checks failed:\n' + report
     )
     # Guard against the driver silently doing nothing.
-    assert proc.stdout.count('PASS ') >= 25, report
+    assert proc.stdout.count('PASS ') >= 50, report
 
 
 def test_hostile_source_db_is_rejected_at_the_python_layer(fixture_dir):
