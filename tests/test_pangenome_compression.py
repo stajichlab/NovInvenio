@@ -145,3 +145,91 @@ def test_build_family_positions_reads_zst_input_and_writes_zst_output(tmp_path):
     by_strain = load_strain_gene_orders(str(out))
     assert set(by_strain) == {"s1", "s2"}
     assert {f for rows in by_strain.values() for f, *_ in rows} == {"famA", "famB"}
+
+
+# --- defect fix: missing or corrupt compressed files should fail loudly ------
+
+def test_open_maybe_compressed_missing_plain_raises_filenotfound(tmp_path):
+    """Missing plain file raises FileNotFoundError (existing correct behavior)."""
+    path = tmp_path / "nonexistent.tsv"
+    with pytest.raises(FileNotFoundError):
+        with open_maybe_compressed(str(path)) as fh:
+            fh.read()
+
+
+@needs_zstd
+def test_open_maybe_compressed_missing_zst_raises_filenotfound(tmp_path):
+    """Missing .zst file raises FileNotFoundError, not silent empty stream."""
+    path = tmp_path / "nonexistent.tsv.zst"
+    with pytest.raises(FileNotFoundError):
+        with open_maybe_compressed(str(path)) as fh:
+            fh.read()
+
+
+@needs_zstd
+def test_open_maybe_compressed_plain_text_named_zst_raises(tmp_path):
+    """Plain text file named .zst (not actually compressed) raises, not passed through.
+
+    This is the defect that `-f` flag caused: `zstd -dc -f` silently passes
+    non-zstd files through with exit 0. The fix (no `-f`, resolve symlinks in
+    Python) must prevent this.
+    """
+    path = tmp_path / "ascii_text.tsv.zst"
+    path.write_text("col1\tcol2\nval1\tval2\n")  # Plain ASCII, not zstd
+    with pytest.raises(RuntimeError) as exc_info:
+        with open_maybe_compressed(str(path)) as fh:
+            fh.read()
+    assert "zstd" in str(exc_info.value).lower()
+
+
+@needs_zstd
+def test_open_maybe_compressed_truncated_zst_raises(tmp_path):
+    """Truncated but genuinely-zstd file raises, not partial read.
+
+    This guards against silently returning partial/corrupted data from
+    a file that started as valid zstd but was truncated partway through.
+    """
+    # Compress some data with zstd, then truncate it
+    full_zst_bytes = subprocess.run(
+        ["zstd", "-q", "-"],
+        input=b"col\nvalue1\nvalue2\n",
+        stdout=subprocess.PIPE,
+        check=True
+    ).stdout
+
+    # Keep only the first ~20 bytes (corrupt frame)
+    truncated = tmp_path / "truncated.tsv.zst"
+    truncated.write_bytes(full_zst_bytes[:20])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        with open_maybe_compressed(str(truncated)) as fh:
+            fh.read()
+    assert "zstd" in str(exc_info.value).lower()
+
+
+def test_open_maybe_compressed_missing_gz_raises_filenotfound(tmp_path):
+    """.gz file missing raises FileNotFoundError, not silent empty stream."""
+    path = tmp_path / "nonexistent.tsv.gz"
+    with pytest.raises(FileNotFoundError):
+        with open_maybe_compressed(str(path)) as fh:
+            fh.read()
+
+
+@needs_zstd
+def test_open_maybe_compressed_valid_zst_still_reads_correctly(tmp_path):
+    """Valid .zst files still decompress and read correctly."""
+    path = write_zst(tmp_path / "valid.tsv.zst", "col\nvalue1\nvalue2\n")
+    with open_maybe_compressed(str(path)) as fh:
+        lines = fh.readlines()
+    assert lines == ["col\n", "value1\n", "value2\n"]
+
+
+@needs_zstd
+def test_open_maybe_compressed_symlink_to_zst_still_works(tmp_path):
+    """Symlink to valid .zst file (Nextflow staging) still works correctly."""
+    real_zst = write_zst(tmp_path / "real.tsv.zst", "a\tb\n1\t2\n")
+    link = tmp_path / "link.tsv.zst"
+    link.symlink_to(real_zst)
+    with open_maybe_compressed(str(link)) as fh:
+        content = fh.read()
+    assert content == "a\tb\n1\t2\n"

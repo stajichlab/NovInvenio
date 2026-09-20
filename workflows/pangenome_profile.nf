@@ -49,6 +49,7 @@ include { BUILD_ISLANDS; MARKER_HMMSEARCH }                                from 
 include { SELECT_BACKGROUND_REPS; HMMPRESS_PFAM; FAMILY_PFAM_SCAN;
           MERGE_PFAM_DOMTBLOUT; DOMAIN_ENRICHMENT }                 from '../modules/pangenome/pfam_enrichment'
 include { REPORT_TABLES; REPORT_RENDER }                                   from '../modules/pangenome/report'
+include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
 include { LEIDEN_MODULES; MODULE_DOMAINS }                                 from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
@@ -302,6 +303,13 @@ workflow PANGENOME_PROFILE {
             enrichment_for_report,
             REPORT_TABLES.out.marker_summary,
             REPORT_TABLES.out.per_strain_summary,
+        )
+
+        ISLAND_SYNTENY(
+            REPORT_TABLES.out.islands_with_domains,
+            rescued_matrix,
+            FAMILY_POSITIONS.out.positions,
+            FAMILY_PFAM_SCAN.out.domtblout,
         )
     }
 
