@@ -210,6 +210,86 @@ def test_accessory_islands_section_omits_top_islands_table_without_locus():
     assert "Top islands" not in md
 
 
+def test_top_islands_table_excludes_single_strain_islands_by_default():
+    # 62% of islands in a real genus-scale run are n_strains=1 (strain-private,
+    # often assembly/annotation artefacts) and they dominate the size ranking,
+    # so the headline table showed nothing shared between strains.
+    md = render_report_markdown(
+        {}, {}, {}, [], 2, None, None, [], None,
+        islands_with_domains_rows=[
+            {"locus_id": "S1:c1:1-90000", "island_size": "69", "n_strains": "1",
+             "locus_start": "1", "locus_end": "90000", "pfam_domains": "-"},
+            {"locus_id": "S2:c2:100-400", "island_size": "5", "n_strains": "3",
+             "locus_start": "100", "locus_end": "400", "pfam_domains": "SnoaL_2"},
+        ],
+    )
+    assert "S1:c1:1-90000" not in md
+    assert "S2:c2:100-400" in md
+
+
+def test_top_islands_table_notes_how_many_islands_were_excluded():
+    md = render_report_markdown(
+        {}, {}, {}, [], 3, None, None, [], None,
+        islands_with_domains_rows=[
+            {"locus_id": "S1:c1:1-90000", "island_size": "69", "n_strains": "1",
+             "locus_start": "1", "locus_end": "90000", "pfam_domains": "-"},
+            {"locus_id": "S3:c3:1-500", "island_size": "8", "n_strains": "1",
+             "locus_start": "1", "locus_end": "500", "pfam_domains": "-"},
+            {"locus_id": "S2:c2:100-400", "island_size": "5", "n_strains": "3",
+             "locus_start": "100", "locus_end": "400", "pfam_domains": "SnoaL_2"},
+        ],
+    )
+    assert "2 single-strain islands excluded" in md
+
+
+def test_top_islands_min_strains_threshold_is_configurable():
+    rows = [
+        {"locus_id": "S1:c1:1-900", "island_size": "9", "n_strains": "2",
+         "locus_start": "1", "locus_end": "900", "pfam_domains": "-"},
+    ]
+    assert "S1:c1:1-900" in render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=rows, top_islands_min_strains=2,
+    )
+    assert "S1:c1:1-900" not in render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=rows, top_islands_min_strains=3,
+    )
+
+
+def test_top_islands_table_reports_span_in_kb():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{
+            "locus_id": "UT:scaffold_106:415-51663", "island_size": "69",
+            "n_strains": "2", "locus_start": "415", "locus_end": "51663",
+            "pfam_domains": "-",
+        }],
+    )
+    assert "51.2" in md
+
+
+def test_top_islands_table_header_carries_units():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{
+            "locus_id": "S1:c1:100-400", "island_size": "5", "n_strains": "2",
+            "locus_start": "100", "locus_end": "400", "pfam_domains": "SnoaL_2",
+        }],
+    )
+    assert "| Locus (strain:contig:start-end) |" in md
+    assert "Families (#)" in md
+    assert "Span (kb)" in md
+    assert "Strains (#)" in md
+
+
+def test_composition_total_names_the_unit():
+    md = render_report_markdown(
+        {"core": 2}, {}, {}, [], 0, None, None, [], None,
+    )
+    assert "Total gene families: 2" in md
+
+
 def test_flagged_outlier_strains_line_present():
     md = render_report_markdown(
         {}, {}, {}, [], 0, None, None, [100, 101, 99, 100, 240],

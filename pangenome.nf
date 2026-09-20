@@ -113,6 +113,13 @@ def print_help() {
       --pangenome_module_min_size      Minimum module size MODULE_DOMAINS summarizes
                                        (default: 2 -- a singleton module has no
                                        internal co-occurrence structure to report).
+      --pangenome_top_islands_min_strains
+                                       Minimum carrying strains for an island to
+                                       appear in report.md's "Top islands (by size)"
+                                       table (default: 2). On a real 529-strain run
+                                       62% of located islands are single-strain and
+                                       they fill the whole unfiltered top-20. Set to
+                                       1 to disable the filter.
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two
