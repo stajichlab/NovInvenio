@@ -19,6 +19,7 @@ import sys
 import pytest
 from core_report_template import CORE_HTML_TEMPLATE
 from index_page import render_gallery_page, render_project_page
+from island_synteny_template import ISLAND_SYNTENY_TEMPLATE
 from losses_report_template import LOSSES_HTML_TEMPLATE
 from report_template import HTML_TEMPLATE
 from skins import SKINS
@@ -39,6 +40,7 @@ PAGES = {
     'novelties': HTML_TEMPLATE,
     'core': CORE_HTML_TEMPLATE,
     'losses': LOSSES_HTML_TEMPLATE,
+    'island_synteny': ISLAND_SYNTENY_TEMPLATE,
     'report': _INDEX_PAGE,
     'gallery': _GALLERY_PAGE,
 }
@@ -132,3 +134,20 @@ def test_report_includes_external_links_node(name):
 def test_filter_count_is_announced(name):
     """The result count changes on every filter; a screen reader needs to hear it."""
     assert 'id="count" role="status" aria-live="polite"' in PAGES[name]
+
+
+def test_island_synteny_page_has_substitution_markers():
+    assert '__PROJECT_TITLE__' in ISLAND_SYNTENY_TEMPLATE
+    assert '/*__PAYLOAD__*/' in ISLAND_SYNTENY_TEMPLATE
+
+
+def test_island_synteny_page_is_self_contained():
+    # The page is copied off the cluster and opened from file://.
+    for forbidden in ('http://', 'https://cdn', '<link rel="stylesheet" href="http'):
+        assert forbidden not in ISLAND_SYNTENY_TEMPLATE.replace(
+            'https://github.com/stajichlab/NovInvenio', '')
+
+
+def test_island_synteny_page_emits_skin_tokens():
+    assert '--bg' in ISLAND_SYNTENY_TEMPLATE
+    assert 'data-theme' in ISLAND_SYNTENY_TEMPLATE
