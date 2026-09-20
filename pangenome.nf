@@ -120,6 +120,9 @@ def print_help() {
                                        62% of located islands are single-strain and
                                        they fill the whole unfiltered top-20. Set to
                                        1 to disable the filter.
+      --pangenome_viz_top_islands      Islands drawn in island_synteny.html
+                                       (default: 50), selected by size after
+                                       the min-strains filter above.
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two
