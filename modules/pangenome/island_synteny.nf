@@ -34,7 +34,7 @@ process ISLAND_SYNTENY {
         --family_positions ${family_positions} \
         --domtblout ${domtblout} \
         --domain_evalue ${params.pangenome_pfam_domain_evalue} \
-        --project ${Helpers.projectName(params)} \
+        --project '${Helpers.projectName(params)}' \
         --min_strains ${params.pangenome_top_islands_min_strains} \
         --top_islands ${params.pangenome_viz_top_islands} \
         --output island_synteny.html
