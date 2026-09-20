@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 
-from island_synteny import select_islands
+from island_synteny import select_islands, collapse_haplotypes, order_families_by_locus
 
 
 def island(locus_id, size, n_strains):
@@ -50,9 +50,6 @@ def test_no_islands_returns_empty_list():
     assert select_islands([]) == []
 
 
-from island_synteny import collapse_haplotypes
-
-
 def test_identical_rows_collapse_into_one_haplotype():
     # 530 strains x a 20-56 gene island is unreadable as 530 rows, but the
     # number of DISTINCT presence patterns is typically tens.
@@ -84,3 +81,33 @@ def test_counts_sum_to_the_number_of_strains():
 
 def test_no_strains_gives_no_haplotypes():
     assert collapse_haplotypes({}) == []
+
+
+def test_families_are_ordered_by_rank_in_the_example_strain():
+    positions = {("S1", "famC"): 3, ("S1", "famA"): 1, ("S1", "famB"): 2}
+    assert order_families_by_locus(["famA", "famB", "famC"], positions, "S1") == \
+        ["famA", "famB", "famC"]
+
+
+def test_input_order_does_not_matter():
+    positions = {("S1", "famC"): 3, ("S1", "famA"): 1, ("S1", "famB"): 2}
+    assert order_families_by_locus(["famC", "famA", "famB"], positions, "S1") == \
+        ["famA", "famB", "famC"]
+
+
+def test_families_without_a_position_sort_last_in_stable_name_order():
+    # A member with no coordinate in this strain still deserves a column --
+    # dropping it would silently shrink the island.
+    positions = {("S1", "famB"): 2}
+    assert order_families_by_locus(["famZ", "famB", "famA"], positions, "S1") == \
+        ["famB", "famA", "famZ"]
+
+
+def test_positions_from_another_strain_are_ignored():
+    positions = {("S2", "famA"): 1, ("S1", "famB"): 5}
+    assert order_families_by_locus(["famA", "famB"], positions, "S1") == \
+        ["famB", "famA"]
+
+
+def test_empty_family_list_gives_empty_order():
+    assert order_families_by_locus([], {}, "S1") == []

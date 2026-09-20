@@ -64,3 +64,23 @@ def collapse_haplotypes(presence_rows: dict[str, list[bool]]) -> list[dict]:
         {"pattern": p, "count": len(s), "strains": sorted(s)}
         for p, s in sorted(by_pattern.items())
     ]
+
+
+def order_families_by_locus(families: list[str],
+                            positions: dict[tuple[str, str], int],
+                            strain: str) -> list[str]:
+    """Member families in locus order within `strain`.
+
+    Gene ORDER is what makes this view meaningful -- the question it answers
+    is "where does the block break?" -- so the columns must follow the
+    island's own layout, taken from the example strain's gene ranks in
+    family_positions.tsv.
+
+    A family with no position in this strain keeps a column, sorted last by
+    name. Dropping it would silently shrink the island and change the
+    breakpoint the reader sees.
+    """
+    ranked = [(positions[(strain, f)], f) for f in families
+              if (strain, f) in positions]
+    unranked = sorted(f for f in families if (strain, f) not in positions)
+    return [f for _, f in sorted(ranked)] + unranked
