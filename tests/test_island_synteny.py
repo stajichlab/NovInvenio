@@ -232,3 +232,73 @@ def test_mixed_exclusion_and_truncation_must_sum_correctly():
     assert (payload["n_islands_total"] ==
             payload["n_islands_excluded"] + payload["n_islands_truncated"] +
             len(payload["islands"]))
+
+
+# ---- per-family Pfam class (ruling R8: the glyph strip must be per-column,
+# not island-wide) --------------------------------------------------------
+
+def test_per_family_classes_come_from_the_supplied_family_domains_mapping():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famB,famA", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({
+        "famA": {"S1": True, "S2": True},
+        "famB": {"S1": True, "S2": True},
+    })
+    positions = {("S1", "famA"): 1, ("S1", "famB"): 2}
+    family_domains = {"famA": {"NACHT"}, "famB": {"MFS_1"}}
+    payload = build_payload(rows, matrix, positions, project="demo",
+                             family_domains=family_domains)
+    island = payload["islands"][0]
+    assert island["families"] == ["famA", "famB"]
+    assert island["family_classes"] == ["nlr", "transporter"]
+    assert island["family_domains"] == ["NACHT", "MFS_1"]
+
+
+def test_a_family_absent_from_family_domains_is_unannotated():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famA,famB", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({
+        "famA": {"S1": True, "S2": True},
+        "famB": {"S1": True, "S2": True},
+    })
+    positions = {("S1", "famA"): 1, ("S1", "famB"): 2}
+    family_domains = {"famA": {"NACHT"}}  # famB not covered by the scan
+    payload = build_payload(rows, matrix, positions, project="demo",
+                             family_domains=family_domains)
+    island = payload["islands"][0]
+    assert island["family_classes"] == ["nlr", "unannotated"]
+    assert island["family_domains"] == ["NACHT", ""]
+
+
+def test_omitting_family_domains_degrades_gracefully():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famA,famB", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({
+        "famA": {"S1": True, "S2": True},
+        "famB": {"S1": True, "S2": True},
+    })
+    positions = {("S1", "famA"): 1, ("S1", "famB"): 2}
+    payload = build_payload(rows, matrix, positions, project="demo")
+    island = payload["islands"][0]
+    assert island["family_classes"] == ["unannotated", "unannotated"]
+    assert island["family_domains"] == ["", ""]
+
+
+def test_family_class_and_domain_arrays_are_the_same_length_as_families():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "3", "n_strains": "2",
+             "member_families": "famA,famB,famC", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({
+        "famA": {"S1": True, "S2": True},
+        "famB": {"S1": True, "S2": True},
+        "famC": {"S1": True, "S2": True},
+    })
+    family_domains = {"famA": {"NACHT"}}
+    payload = build_payload(rows, matrix, {}, project="demo",
+                             family_domains=family_domains)
+    island = payload["islands"][0]
+    assert len(island["family_classes"]) == len(island["families"])
+    assert len(island["family_domains"]) == len(island["families"])

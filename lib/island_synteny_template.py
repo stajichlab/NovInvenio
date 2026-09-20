@@ -21,14 +21,18 @@ Because haplotype rows are sorted on their 0/1 pattern by default, a
 deletion breakpoint shows up as a shared vertical edge across rows rather
 than scattered gaps.
 
-Design note -- why the glyph strip is one colour per island, not per family:
-lib.island_synteny.build_payload() records `dominant_class` and `domains` at
-the ISLAND level (the union of Pfam domain names across every member
-family), not per family -- there is no column-by-column class breakdown in
-the payload to draw from. So every glyph-strip tick for a given island is
-coloured by that island's single `dominant_class`, and hovering a tick shows
-the family ID for that column plus the island's full domain string (matching
-what the payload actually carries, not an invented per-family split).
+The glyph strip is PER FAMILY (per column): each tick is coloured by that
+column's own `family_classes[i]` (lib.island_synteny.build_payload(), keyed
+off bin/pangenome_domain_enrichment.py's per-family Pfam scan), not the
+island's single `dominant_class` -- a family absent from that scan, or a run
+with no domain-enrichment data supplied at all, is "unannotated" rather than
+an error. Hovering a tick reveals that column's own family ID and domain
+string (`families[i]` / `family_domains[i]`). The main grid's "present" cell
+fill reuses the same per-column colour, so a column reads as one consistent
+hue from the glyph strip straight down through its cells -- the island-level
+`dominant_class` is still carried in the payload and used only for the
+sidebar's one-chip-per-island summary, where a single colour per island is
+what that list is for.
 
 Design note -- glyph/class colour tokens: lib/skins.py's REQUIRED_TOKENS has
 exactly two data-series colours (--series-1, --series-2), both already
@@ -63,12 +67,6 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 """ + FAVICON_LINK_HTML + r"""
 <style>
 """ + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + FOOTER_CSS + r"""
-  /* This page selects skins via the `data-skin` attribute (lib/skins.py),
-     never `data-theme` -- noted here, not left for a reader to guess, since
-     `data-theme` is the attribute name a couple of other in-house HTML
-     conventions use for the same idea. */
-  :root { --bg: var(--page); } /* alias kept for tooling that greps for --bg */
-
   .isv-explorer { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
   @media (max-width: 1080px) { .isv-explorer { grid-template-columns: 1fr; } }
 
@@ -369,6 +367,15 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
   var LABEL_FONT = "600 10px system-ui, -apple-system, 'Segoe UI', sans-serif";
 
+  // A family's own class, guarding against an older/short payload (no
+  // per-family arrays) rather than throwing mid-render.
+  function familyClassAt(isl, i) {
+    return (isl.family_classes && isl.family_classes[i]) || "unannotated";
+  }
+  function familyDomainsAt(isl, i) {
+    return (isl.family_domains && isl.family_domains[i]) || "";
+  }
+
   function drawGlyphStrip(isl, totalW) {
     var P = palette();
     sizeCanvas(glyphCanvas, hctx, totalW, HEAD_H);
@@ -376,10 +383,9 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     hctx.fillStyle = P.surface;
     hctx.fillRect(0, 0, totalW, HEAD_H);
 
-    var tickColor = classColor(isl.dominant_class);
     isl.families.forEach(function (fam, i) {
       var x = colX(i);
-      hctx.fillStyle = tickColor;
+      hctx.fillStyle = classColor(familyClassAt(isl, i));
       hctx.fillRect(x + 3, 6, CELL_W - 6, GLYPH_H);
 
       hctx.save();
@@ -405,7 +411,9 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     gctx.fillStyle = P.surface;
     gctx.fillRect(0, 0, totalW, h);
 
-    var presentColor = classColor(isl.dominant_class);
+    // Same per-column colour as the glyph strip above, so a column reads as
+    // one consistent hue from the tick straight down through its cells.
+    var famColors = isl.families.map(function (f, i) { return classColor(familyClassAt(isl, i)); });
 
     haps.forEach(function (hap, ri) {
       var y = ri * ROW_H;
@@ -425,7 +433,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
       for (var ci = 0; ci < hap.pattern.length; ci++) {
         var on = hap.pattern.charAt(ci) === "1";
-        gctx.fillStyle = on ? presentColor : P.grid;
+        gctx.fillStyle = on ? famColors[ci] : P.grid;
         gctx.fillRect(colX(ci) + 1, y + 1, CELL_W - 2, ROW_H - 2);
       }
     });
@@ -468,10 +476,9 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     if (ci < 0) { tipEl.style.display = "none"; return; }
     tipEl.textContent = "";
     tipEl.appendChild(el("div", "tip-id", isl.families[ci]));
-    tipEl.appendChild(el("div", null, classLabel(isl.dominant_class) + " (island dominant class)"));
-    if (isl.domains.length) {
-      tipEl.appendChild(el("div", null, "Domains in this island: " + isl.domains.join(", ")));
-    }
+    tipEl.appendChild(el("div", null, classLabel(familyClassAt(isl, ci))));
+    var doms = familyDomainsAt(isl, ci);
+    tipEl.appendChild(el("div", null, doms ? "Domains: " + doms : "No annotated Pfam domain"));
     tipEl.style.display = "block";
     var w = tipEl.offsetWidth, hgt = tipEl.offsetHeight;
     var left = e.clientX + 14, top = e.clientY + 14;
@@ -483,22 +490,32 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   glyphCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
 
   // ---- legend ---------------------------------------------------------------
+  // One swatch per DISTINCT class actually present among this island's
+  // columns (not a fixed five-entry key), since the strip below is coloured
+  // per family -- a legend fixed to `dominant_class` would silently mislabel
+  // every other-coloured column.
   function renderLegend(isl) {
     var legend = document.getElementById("isv-legend");
     legend.textContent = "";
-    var item = el("span", "isv-legend-item");
-    var sw = el("span", "isv-swatch");
-    sw.style.background = classColor(isl.dominant_class);
-    item.appendChild(sw);
-    item.appendChild(el("span", null, "Present (" + classLabel(isl.dominant_class) + ")"));
-    legend.appendChild(item);
+    var seen = {};
+    isl.families.forEach(function (fam, i) {
+      var key = familyClassAt(isl, i);
+      if (seen[key]) return;
+      seen[key] = true;
+      var item = el("span", "isv-legend-item");
+      var sw = el("span", "isv-swatch");
+      sw.style.background = classColor(key);
+      item.appendChild(sw);
+      item.appendChild(el("span", null, classLabel(key)));
+      legend.appendChild(item);
+    });
 
-    var item2 = el("span", "isv-legend-item");
-    var sw2 = el("span", "isv-swatch");
-    sw2.style.background = css("--grid");
-    item2.appendChild(sw2);
-    item2.appendChild(el("span", null, "Absent"));
-    legend.appendChild(item2);
+    var absent = el("span", "isv-legend-item");
+    var swAbsent = el("span", "isv-swatch");
+    swAbsent.style.background = css("--grid");
+    absent.appendChild(swAbsent);
+    absent.appendChild(el("span", null, "Absent"));
+    legend.appendChild(absent);
   }
 
   // ---- top-level render -----------------------------------------------------

@@ -148,6 +148,9 @@ def test_island_synteny_page_is_self_contained():
             'https://github.com/stajichlab/NovInvenio', '')
 
 
-def test_island_synteny_page_emits_skin_tokens():
-    assert '--bg' in ISLAND_SYNTENY_TEMPLATE
-    assert 'data-theme' in ISLAND_SYNTENY_TEMPLATE
+def test_island_synteny_page_uses_the_real_skin_convention():
+    """This repo's actual skin convention (lib/skins.py) is `--page` and
+    `data-skin` -- not `--bg`/`data-theme`, which belong to an unrelated
+    convention and appear in zero other page templates here."""
+    assert '--page' in ISLAND_SYNTENY_TEMPLATE
+    assert 'data-skin' in ISLAND_SYNTENY_TEMPLATE
