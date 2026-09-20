@@ -190,3 +190,38 @@ def test_island_synteny_glyph_strip_is_still_per_family():
     page = ISLAND_SYNTENY_TEMPLATE
     assert 'classColor(familyClassAt(isl, i))' in page
     assert 'familyDomainsAt(isl, ci)' in page
+
+
+def test_island_synteny_row_sort_offers_a_species_option():
+    """Issue #119: the spec's three alternate row sorts include "by species
+    (immitis/posadasii band)" -- shipped only pattern/count/strain. The
+    option is appended by JS (mirroring how novelties.html's f-category
+    <select> gets its <option>s from payload data), not baked into the
+    static <select>, since a payload with no species data must not offer it
+    at all (see the next test)."""
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert 'value="species"' in page or "new Option(" in page and "species" in page
+    assert 'state.rowSort === "species"' in page
+
+
+def test_island_synteny_row_sort_species_option_is_absent_without_species_data():
+    """Mirrors novelties.html's f-category filter, which stays hidden unless
+    DATA.novelty_categories is non-empty (see lib/report_template.py). Here
+    the species <option> must only be appended when DATA.species actually
+    has entries -- a pairwise/mmseqs run with no --config never gets an
+    affordance for a sort it cannot perform."""
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert 'DATA.species' in page
+
+
+def test_island_synteny_row_sort_never_assumes_a_phylogeny():
+    """Guards the issue's explicit non-goal: species banding is grouping,
+    not phylogeny -- this pipeline has no strain tree
+    (todo/pangenome-phylogeny-aware-gain-loss.md). No option value or
+    function may claim a tree-ordered sort. Explanatory comments are allowed
+    to use the word "phylogeny" to document the exclusion (as this test's
+    own docstring does); what must never appear is an actual affordance."""
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert 'value="phylogen' not in page.lower()
+    assert 'sort rows: phylogen' not in page.lower()
+    assert 'rowsort === "phylogen' not in page.lower().replace(" ", "")

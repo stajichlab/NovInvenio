@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from compressed_io import open_maybe_compressed  # noqa: E402
+from config_parser import parse_config  # noqa: E402
 from island_synteny import build_payload  # noqa: E402
 from island_synteny_template import ISLAND_SYNTENY_TEMPLATE  # noqa: E402
 from pangenome_matrix import PresenceMatrix  # noqa: E402
@@ -62,6 +63,11 @@ def main() -> int:
                     "matching REPORT_TABLES/DOMAIN_ENRICHMENT's "
                     "--pangenome_pfam_domain_evalue so the glyph strip and "
                     "the sidebar chip agree on the same page.")
+    ap.add_argument("--config", default=None,
+                    help="Optional analysis samplesheet CSV (GROUP,Species,...,Short,...). "
+                    "Threads a {Short: Species} map into the payload for the page's "
+                    "'by species' row sort (issue #119). Omitting it is never an "
+                    "error -- the sort option is simply not offered.")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -73,10 +79,13 @@ def main() -> int:
     family_domains = (parse_domtblout([args.domtblout], max_ievalue=args.domain_evalue)
                       if args.domtblout else None)
 
+    species_of = ({s.short: s.species for s in parse_config(args.config)}
+                  if args.config else None)
+
     payload = build_payload(
         island_rows, matrix, positions, project=args.project,
         min_strains=args.min_strains, top_n=args.top_islands,
-        family_domains=family_domains,
+        family_domains=family_domains, species_of=species_of,
     )
 
     # Escape `</` so a Pfam description or family ID cannot close the

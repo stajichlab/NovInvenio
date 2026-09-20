@@ -310,6 +310,7 @@ workflow PANGENOME_PROFILE {
             rescued_matrix,
             FAMILY_POSITIONS.out.positions,
             FAMILY_PFAM_SCAN.out.domtblout,
+            samplesheet,
         )
     }
 

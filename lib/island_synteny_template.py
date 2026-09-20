@@ -188,6 +188,13 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
             <option value="strain">Sort rows: strain name</option>
           </select>
         </div>
+        <!-- Issue #119: a "species" <option> is appended to #f-row-sort by
+             JS, only when DATA.species has entries (see the init block
+             below) -- mirrors novelties.html's f-category filter, which
+             stays absent unless the payload actually carries category
+             data. A pairwise/mmseqs run with no --config never gets an
+             affordance for a sort it cannot perform. -->
+
         <p class="isv-main-note" id="isv-main-note"></p>
         <div class="isv-legend" id="isv-legend"></div>
 
@@ -223,6 +230,13 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   var DATA = JSON.parse(document.getElementById("payload").textContent);
   var ISLANDS = DATA.islands || [];
   var CLASSES = DATA.classes || {};
+  // {Short: Species}, issue #119 -- optional, only present when
+  // bin/pangenome_island_synteny.py was run with --config. Empty ({}) means
+  // "no species data for this run", not an error.
+  var SPECIES = DATA.species || {};
+  function speciesOf(strain) {
+    return SPECIES[strain] || "";
+  }
 
 """ + EL_HELPER_JS + r"""
 
@@ -327,12 +341,52 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   }
 
   // ---- row sorting ------------------------------------------------------
+
+  // A haplotype row can carry strains of more than one species (rare, but
+  // the row is collapsed on presence PATTERN, not species). Its "species"
+  // for banding purposes is the MODE among its strains, tied broken by the
+  // lexicographically smallest species name -- deterministic, and cheap
+  // since a haplotype's strain list is already small. Unknown-species
+  // strains (SPECIES has no entry) count toward "" and band last (see
+  // sentinel below), not first, so an incomplete --config doesn't shove
+  // unlabelled rows to the top.
+  function haplotypeSpecies(hap) {
+    var counts = {};
+    hap.strains.forEach(function (s) {
+      var sp = speciesOf(s);
+      counts[sp] = (counts[sp] || 0) + 1;
+    });
+    var best = "", bestCount = -1;
+    Object.keys(counts).sort().forEach(function (sp) {
+      if (counts[sp] > bestCount) { bestCount = counts[sp]; best = sp; }
+    });
+    return best;
+  }
+
   function sortedHaplotypes(isl) {
     var haps = isl.haplotypes.slice();
     if (state.rowSort === "count") {
       haps.sort(function (a, b) { return b.count - a.count || (a.pattern < b.pattern ? -1 : 1); });
     } else if (state.rowSort === "strain") {
       haps.sort(function (a, b) {
+        var an = a.strains[0] || "", bn = b.strains[0] || "";
+        return an < bn ? -1 : an > bn ? 1 : 0;
+      });
+    } else if (state.rowSort === "species") {
+      // Issue #119, spec's "by species (immitis/posadasii band)" sort --
+      // GROUPING strains of the same species together, not a phylogeny
+      // ordering (this pipeline has no strain tree; see
+      // todo/pangenome-phylogeny-aware-gain-loss.md). Primary key: species
+      // name, unknown-species rows sorted last via the "￿" sentinel.
+      // Secondary key (within a species band): strain count descending, so
+      // the haplotype carried by the most strains of that species reads
+      // first. Tertiary key: first strain name, purely for a stable,
+      // reproducible order among same-count haplotypes.
+      haps.sort(function (a, b) {
+        var sa = haplotypeSpecies(a) || "￿";
+        var sb = haplotypeSpecies(b) || "￿";
+        if (sa !== sb) return sa < sb ? -1 : 1;
+        if (b.count !== a.count) return b.count - a.count;
         var an = a.strains[0] || "", bn = b.strains[0] || "";
         return an < bn ? -1 : an > bn ? 1 : 0;
       });
@@ -604,6 +658,16 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   });
 
 """ + SKIN_PICKER_JS + r"""
+
+  // Issue #119: only offer the "species" row sort when the payload actually
+  // carries species data -- mirrors novelties.html's f-category filter
+  // (lib/report_template.py), which appends its <option>s only when
+  // DATA.novelty_categories is non-empty rather than always shipping a
+  // static option that then does nothing on a run with no data for it.
+  if (Object.keys(SPECIES).length) {
+    document.getElementById("f-row-sort").appendChild(
+      new Option("Sort rows: species", "species"));
+  }
 
   // ---- init ---------------------------------------------------------------
   document.getElementById("title").textContent = DATA.project + " — island synteny";
