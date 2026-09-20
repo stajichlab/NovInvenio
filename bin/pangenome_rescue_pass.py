@@ -35,18 +35,33 @@ from compressed_io import open_maybe_compressed  # noqa: E402
 
 
 def parse_tblastn_hits(
-    lines: list[str], min_pident: float = 90.0, min_qcov: float = 80.0
+    lines: list[str],
+    min_pident: float = 90.0,
+    min_qcov: float = 80.0,
+    stats: dict | None = None,
 ) -> set[tuple[str, str]]:
     """Parse tblastn outfmt6 lines (with a trailing qcovs column) into the
     set of (family_rep, strain) pairs with a qualifying genomic hit.
     Subject IDs are expected as '<Short>|<contig>' (via renamed genome FASTA
-    headers before makeblastdb, so the strain is recoverable from the hit)."""
+    headers before makeblastdb, so the strain is recoverable from the hit).
+
+    If `stats` is given, it is updated in place with two funnel counters
+    (issue #126): `rows_parsed` -- every non-blank, non-comment data row
+    seen, regardless of whether it is well-formed or passes threshold (this
+    is the "did we actually read real data" count) -- and
+    `rows_passed_threshold` -- rows that met `min_pident`/`min_qcov`, before
+    deduping into the returned set."""
+    if stats is None:
+        stats = {}
+    stats.setdefault("rows_parsed", 0)
+    stats.setdefault("rows_passed_threshold", 0)
     hits: set[tuple[str, str]] = set()
     for line in lines:
         line = line.rstrip("\n")
         # Skip blank lines and comment lines
         if not line or line.startswith("#"):
             continue
+        stats["rows_parsed"] += 1
         parts = line.split("\t")
         if len(parts) < 13:  # Minimum columns for outfmt6 with qcovs
             continue
@@ -55,6 +70,7 @@ def parse_tblastn_hits(
         except (ValueError, IndexError):
             continue
         if pident >= min_pident and qcovs >= min_qcov:
+            stats["rows_passed_threshold"] += 1
             strain = subject.split("|", 1)[0]
             hits.add((family, strain))
     return hits
@@ -91,14 +107,66 @@ def main() -> None:
     )
     ap.add_argument("--min_pident", type=float, default=90.0)
     ap.add_argument("--min_qcov", type=float, default=80.0)
+    ap.add_argument(
+        "--allow_zero_rescue", action="store_true", default=False,
+        help="Do not fail when zero hit rows are parsed across all "
+        "--tblastn_tsv inputs. Use only when a study genuinely expects no "
+        "rescue hits -- otherwise zero rows parsed almost always means the "
+        "inputs were unreadable, mis-staged, or otherwise empty by mistake "
+        "(issue #126). Has no effect when --tblastn_tsv is omitted entirely, "
+        "which is the separate, always-legitimate 'zero ABSENT calls "
+        "upstream' case.",
+    )
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
     matrix = PresenceMatrix.from_tsv(args.matrix)
+
     hits: set[tuple[str, str]] = set()
+    total_rows_parsed = 0
+    total_rows_passed = 0
     for tblastn_path in args.tblastn_tsv:
+        file_stats: dict = {}
         with open_maybe_compressed(tblastn_path) as fh:
-            hits |= parse_tblastn_hits(fh.readlines(), args.min_pident, args.min_qcov)
+            hits |= parse_tblastn_hits(fh.readlines(), args.min_pident, args.min_qcov, stats=file_stats)
+        total_rows_parsed += file_stats["rows_parsed"]
+        total_rows_passed += file_stats["rows_passed_threshold"]
+        print(
+            f"  {tblastn_path}: {file_stats['rows_parsed']} rows parsed, "
+            f"{file_stats['rows_passed_threshold']} passed identity/coverage thresholds",
+            file=sys.stderr,
+        )
+
+    files_read = len(args.tblastn_tsv)
+    print(
+        f"Rescue funnel: {files_read} input file(s), {total_rows_parsed} hit rows parsed, "
+        f"{total_rows_passed} rows passed identity/coverage thresholds, "
+        f"{len(hits)} unique (family, strain) hits",
+        file=sys.stderr,
+    )
+
+    # Issue #126: files WERE provided but produced not a single parsed row --
+    # the exact shape of the symlink-staging incident (530 files present,
+    # all read empty). Zero *files* (files_read == 0) is a separate,
+    # always-legitimate case (zero ABSENT calls upstream) and is not gated
+    # here -- see the --tblastn_tsv help text and the existing
+    # test_main_succeeds_with_zero_tblastn_tsv_args regression test.
+    if files_read > 0 and total_rows_parsed == 0:
+        message = (
+            f"zero hit rows parsed across {files_read} --tblastn_tsv input "
+            "file(s). This almost never means 'no rescue hits exist' -- it "
+            "means the inputs were unreadable or mis-staged (e.g. Nextflow "
+            "staging files as symlinks that a decompressor refused), a "
+            "decompression step failed or silently produced nothing, or an "
+            "upstream TBLASTN step produced empty output. Pass "
+            "--allow_zero_rescue if this run genuinely expects zero rescue "
+            "hits."
+        )
+        if args.allow_zero_rescue:
+            print(f"WARNING: {message}", file=sys.stderr)
+        else:
+            print(f"ERROR: {message}", file=sys.stderr)
+            sys.exit(1)
 
     applied, skipped = apply_rescue(matrix, hits)
     print(f"Rescue: {applied} ABSENT→GENOME_ONLY, {skipped} skipped (unrecognized strain/family)", file=sys.stderr)
@@ -106,6 +174,16 @@ def main() -> None:
     if hits and skipped == len(hits):
         print(f"ERROR: All {len(hits)} parsed tblastn hits were skipped (likely wrong genome-DB naming)", file=sys.stderr)
         sys.exit(1)
+
+    if total_rows_parsed > 0 and applied == 0:
+        print(
+            "WARNING: hit rows were parsed but zero cells were applied to "
+            "the matrix -- the identity/coverage thresholds "
+            "(--min_pident/--min_qcov) or strain/family naming may have "
+            "rejected every hit. This can be a legitimate outcome, but "
+            "verify it is expected.",
+            file=sys.stderr,
+        )
 
     matrix.to_tsv(args.output)
 
