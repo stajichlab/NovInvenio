@@ -38,6 +38,7 @@ import numpy as np
 from scipy.stats import fisher_exact, false_discovery_control, hypergeom
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from ancestral_states import dollo_polarize, tree_direction  # noqa: E402
 from compressed_io import open_maybe_compressed_write  # noqa: E402
 from pangenome_matrix import PresenceMatrix  # noqa: E402
 from pangenome_strain_inventory import read_representative_shorts  # noqa: E402
@@ -228,6 +229,7 @@ def find_cooccurring_pairs(
     fdr_alpha: float = 0.05,
     strains: list[str] | None = None,
     screen_alpha: float = 0.2,
+    species_tree=None,
 ) -> list[dict]:
     """`strains` restricts every ingroup statistic (the strain-count floor,
     Fisher presence vectors, clade composition) to that subset -- callers
@@ -301,6 +303,20 @@ def find_cooccurring_pairs(
     )
     perm_progress_every = max(1, len(fdr_survivors) // 20)
 
+    # Dollo reconstruction is per FAMILY but consumed per PAIR, and a family appears in
+    # many pairs -- memoise or this becomes O(pairs) instead of O(families).
+    ingroup_set = set(strains or matrix.strains)
+    dollo_cache: dict[str, tuple] = {}
+
+    def dollo_for(fam):
+        if fam not in dollo_cache:
+            # The FULL matrix on purpose: the tree spans ingroup + outgroup, while
+            # `strains` is deliberately ingroup-only for every other statistic here.
+            carriers = {t for t in matrix.strains if matrix.is_present(fam, t)}
+            res = dollo_polarize(species_tree, carriers)
+            dollo_cache[fam] = (res, tree_direction(res, carriers, ingroup_set))
+        return dollo_cache[fam]
+
     results = []
     for j, (fam_a, fam_b, p, q) in enumerate(fdr_survivors, start=1):
         a_bits, b_bits = family_bits[fam_a], family_bits[fam_b]
@@ -320,6 +336,17 @@ def find_cooccurring_pairs(
             "direction_a": polarize_direction(out_count_a, out_total_a),
             "clade_composition": clade_composition(strains_present_a, clade_of_strain),
         })
+        if species_tree is not None:
+            res, direction = dollo_for(fam_a)
+            results[-1].update({
+                # Reported ALONGSIDE direction_a, never replacing it (issue #140), so a
+                # run can be compared old-vs-new before anything is retired.
+                "direction_a_tree": direction,
+                "gain_node": res.gain_node or "",
+                "n_loss_events": res.n_loss_events,
+                "loss_clades": ";".join(",".join(c) for c in res.loss_clades),
+                "asr_method": res.method,
+            })
         if j % perm_progress_every == 0:
             print(
                 f"cooccurrence: exact stratified test on {j}/{len(fdr_survivors)} "
@@ -364,6 +391,16 @@ def main() -> None:
     ap.add_argument("--config", required=True)
     ap.add_argument("--ingroup_label", default="IN")
     ap.add_argument("--outgroup_label", default="OUT")
+    ap.add_argument("--species_tree", default=None,
+                    help="Rooted Newick strain tree spanning ingroup + outgroup. When "
+                         "given, adds phylogeny-aware gain/loss columns "
+                         "(direction_a_tree, gain_node, n_loss_events, loss_clades, "
+                         "asr_method) ALONGSIDE the count-based direction_a, which is "
+                         "unchanged. Tip labels must match the matrix strain IDs "
+                         "exactly. Build it per study from markers (nf_phyling); a "
+                         "taxonomy or mash tree is not a substitute. See "
+                         "lib/ancestral_states.py for the Dollo assumption and its "
+                         "known bias against horizontally-transferred families.")
     ap.add_argument("--inventory",
                     help="strain_inventory.tsv from pangenome_dereplicate_strains.py; when "
                          "given, the ingroup strain set is further restricted to "
@@ -427,19 +464,43 @@ def main() -> None:
         for fam in matrix.families
     }
 
+    species_tree = None
+    if args.species_tree:
+        from Bio import Phylo
+        species_tree = Phylo.read(args.species_tree, "newick")
+        tips = {t.name for t in species_tree.get_terminals()}
+        missing = [t for t in matrix.strains if t not in tips]
+        if missing:
+            # Fail loudly: silently dropping strains would quietly change every
+            # reconstruction without changing any column that shows it.
+            raise SystemExit(
+                f"--species_tree is missing {len(missing)} matrix strain(s): "
+                f"{sorted(missing)[:10]} -- tip labels must match strain IDs exactly"
+            )
+
     pairs = find_cooccurring_pairs(
         matrix, frequency_table, clade_of_strain, outgroup_presence,
         args.min_strain_count, args.fdr_alpha,
         strains=ingroup_shorts, screen_alpha=args.screen_alpha,
+        species_tree=species_tree,
     )
+    # New columns are APPENDED, and only when --species_tree was given, so a run
+    # without a tree produces a byte-identical header to before (issue #140).
+    tree_cols = ["direction_a_tree", "gain_node", "n_loss_events", "loss_clades",
+                 "asr_method"] if species_tree is not None else []
     with open_maybe_compressed_write(args.output) as fh:
-        fh.write("family_a\tfamily_b\tjaccard\tfisher_p\tfdr_q\tpermutation_p\tdirection_a\tclade_composition\n")
+        fh.write("\t".join(
+            ["family_a", "family_b", "jaccard", "fisher_p", "fdr_q", "permutation_p",
+             "direction_a", "clade_composition"] + tree_cols) + "\n")
         for row in pairs:
-            fh.write(
+            line = (
                 f"{row['family_a']}\t{row['family_b']}\t{row['jaccard']:.4f}\t"
                 f"{row['fisher_p']:.2e}\t{row['fdr_q']:.2e}\t{row['permutation_p']:.4f}\t"
-                f"{row['direction_a']}\t{row['clade_composition']}\n"
+                f"{row['direction_a']}\t{row['clade_composition']}"
             )
+            for c in tree_cols:
+                line += f"\t{row[c]}"
+            fh.write(line + "\n")
 
 
 if __name__ == "__main__":
