@@ -35,6 +35,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
@@ -109,6 +110,19 @@ def main():
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
+    ap.add_argument('--paralog-rescue-evalue', type=float, default=1e-20,
+                    dest='paralog_rescue_evalue',
+                    help='Floor under the paralog-competition filter: a hit is never '
+                         'disqualified if the query\'s own e-value against that target is '
+                         'already <= this threshold. Same semantics and default as '
+                         'bin/build_presence_matrix.py (issue #138 keeps the pathways '
+                         'consistent). Pass 0 to disable.')
+    ap.add_argument('--paralog-rescue-delta', type=float, default=None,
+                    dest='paralog_rescue_delta',
+                    help='Second, OPT-IN rescue arm, OR-ed with --paralog-rescue-evalue: '
+                         'keep a hit the paralog beat by fewer than this many orders of '
+                         'magnitude. Disabled by default and not recommended -- measured '
+                         'non-selective, see bin/build_presence_matrix.py\'s docstring.')
     ap.add_argument('--output-evalues', required=True, dest='output_evalues')
     args = ap.parse_args()
 
@@ -155,7 +169,16 @@ def main():
         ]
         paralog_ev = pd.Series(paralog_ev, index=cand.index, dtype='float64')
         disqualified = paralog_ev.notna() & (paralog_ev < cand['evalue'])
-        cand = cand[~disqualified]
+        # Rescue arms, OR-ed -- identical semantics to bin/build_presence_matrix.py and
+        # lib/singleton_presence.py, so all three pathways agree on the same protein.
+        rescued = pd.Series(False, index=cand.index)
+        if args.paralog_rescue_evalue:            # 0 (or None) disables this arm
+            rescued |= cand['evalue'] <= args.paralog_rescue_evalue
+        if args.paralog_rescue_delta is not None:
+            with np.errstate(divide='ignore', invalid='ignore'):
+                delta = np.log10(cand['evalue']) - np.log10(paralog_ev)
+            rescued |= pd.Series(delta, index=cand.index) < args.paralog_rescue_delta
+        cand = cand[~(disqualified & ~rescued)]
 
     # Best (lowest) qualifying evalue per (protein_id, target_proteome).
     best_hit = (cand.groupby(['query_id', 'target_proteome'])['evalue'].min().to_dict()

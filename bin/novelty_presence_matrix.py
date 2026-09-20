@@ -117,6 +117,19 @@ def main():
     ap.add_argument('--min-coverage', type=float, default=0.5,
                     dest='min_coverage',
                     help='Minimum profile coverage fraction for family presence')
+    ap.add_argument('--paralog-rescue-evalue', type=float, default=1e-20,
+                    dest='paralog_rescue_evalue',
+                    help='Floor under the paralog-competition filter: a hit is never '
+                         'disqualified if the query\'s own e-value against that target is '
+                         'already <= this threshold. Same semantics and default as '
+                         'bin/build_presence_matrix.py (issue #138 keeps the pathways '
+                         'consistent). Pass 0 to disable.')
+    ap.add_argument('--paralog-rescue-delta', type=float, default=None,
+                    dest='paralog_rescue_delta',
+                    help='Second, OPT-IN rescue arm, OR-ed with --paralog-rescue-evalue: '
+                         'keep a hit the paralog beat by fewer than this many orders of '
+                         'magnitude. Disabled by default and not recommended -- measured '
+                         'non-selective, see bin/build_presence_matrix.py\'s docstring.')
     ap.add_argument('--min-covered-residues', type=int, default=0,
                     dest='min_covered_residues',
                     help='Alternative to --min-coverage for long, multi-domain HMMs: a '
@@ -203,6 +216,8 @@ def main():
     singleton_presence, singleton_evalue = score_singleton_hits(
         all_singleton_hits, singleton_reps, paralog_of,
         args.singleton_evalue, args.paralog_competition_scope,
+        rescue_evalue=args.paralog_rescue_evalue,
+        rescue_delta=args.paralog_rescue_delta,
     )
 
     # --- Build combined presence matrix ---

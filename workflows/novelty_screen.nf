@@ -96,6 +96,8 @@ process NOVELTY_SCREEN_CLASSIFY {
         ${paralog_arg} \
         --singleton-evalue ${singleton_evalue} \
         --paralog-competition-scope ${paralog_competition_scope} \
+        --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
+        ${params.paralog_rescue_delta != null ? "--paralog-rescue-delta ${params.paralog_rescue_delta}" : ''} \
         --config ${config_csv} \
         --output-matrix screened_presence_matrix.tsv \
         --output-candidates screened_candidates.txt

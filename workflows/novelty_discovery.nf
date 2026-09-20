@@ -302,6 +302,8 @@ process NOVELTY_PRESENCE_MATRIX {
         --singleton-evalue ${singleton_evalue} \
         ${paralog_arg} \
         --paralog-competition-scope ${paralog_competition_scope} \
+        --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
+        ${params.paralog_rescue_delta != null ? "--paralog-rescue-delta ${params.paralog_rescue_delta}" : ''} \
         --output-matrix presence_matrix.tsv \
         --output-candidates candidates.txt \
         --output-evalues presence_matrix.evalues.tsv
