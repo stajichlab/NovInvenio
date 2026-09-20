@@ -172,6 +172,17 @@ def test_island_synteny_grid_cells_do_not_carry_pfam_class_colour():
     assert 'on ? familyClassAt' not in page
 
 
+def test_island_synteny_page_surfaces_n_islands_truncated():
+    """I3: n_islands_truncated is in the payload but was rendered nowhere on
+    the page -- only the CLI's stderr mentioned it, leaving a real run's
+    tile row (shown 50 / located 27,836 / excluded 17,064) 38% unaccounted
+    for. The page must show a truncated-count tile and name truncation, not
+    just min-strains exclusion, in the summary sentence."""
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert 'n_islands_truncated' in page
+    assert 't-truncated' in page
+
+
 def test_island_synteny_glyph_strip_is_still_per_family():
     """The glyph strip -- not the grid -- is where per-column Pfam class
     colouring belongs; guards against R9's grid-cell revert accidentally

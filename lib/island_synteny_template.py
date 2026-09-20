@@ -152,6 +152,10 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
         <div class="tile-value" id="t-excluded"></div>
       </div>
       <div>
+        <div class="tile-label">Truncated</div>
+        <div class="tile-value" id="t-truncated"></div>
+      </div>
+      <div>
         <div class="tile-label">Strains</div>
         <div class="tile-value" id="t-strains"></div>
       </div>
@@ -607,15 +611,29 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     ISLANDS.length + " of " + DATA.n_islands_total + " located accessory islands shown, in locus order.";
   document.title = DATA.project + " — NovInvenio island synteny";
 
-  document.getElementById("summary-note").textContent =
-    DATA.n_islands_excluded
-      ? DATA.n_islands_excluded + " located island" + (DATA.n_islands_excluded === 1 ? "" : "s") +
-        " excluded from this view for being carried by too few strains to show a meaningful " +
-        "presence pattern (a single-strain island is one filled row with no breakpoint in it)."
+  (function () {
+    var reasons = [];
+    if (DATA.n_islands_excluded) {
+      reasons.push(
+        DATA.n_islands_excluded + " located island" + (DATA.n_islands_excluded === 1 ? "" : "s") +
+        " excluded for being carried by too few strains to show a meaningful presence " +
+        "pattern (a single-strain island is one filled row with no breakpoint in it)"
+      );
+    }
+    if (DATA.n_islands_truncated) {
+      reasons.push(
+        DATA.n_islands_truncated + " qualifying island" + (DATA.n_islands_truncated === 1 ? "" : "s") +
+        " truncated past the --top_islands limit"
+      );
+    }
+    document.getElementById("summary-note").textContent = reasons.length
+      ? reasons.join("; ") + "."
       : "Every located accessory island met the minimum strain-count filter for this view.";
+  })();
   document.getElementById("t-shown").textContent = ISLANDS.length.toLocaleString();
   document.getElementById("t-total").textContent = (DATA.n_islands_total || 0).toLocaleString();
   document.getElementById("t-excluded").textContent = (DATA.n_islands_excluded || 0).toLocaleString();
+  document.getElementById("t-truncated").textContent = (DATA.n_islands_truncated || 0).toLocaleString();
   document.getElementById("t-strains").textContent = (DATA.strains || []).length.toLocaleString();
 
   renderEmptyState();
