@@ -153,12 +153,12 @@ def test_strain_missing_from_species_map_does_not_crash_or_misattribute():
     var speciesMap = {json.dumps(species_map)};
     var h = {json.dumps(h)};
     var got = haplotypeSpecies(h, speciesMap);
-    // Tie between "Coccidioides immitis" (1) and "" (1, the missing S2) --
-    // "" sorts before any real species name alphabetically, so "" is NOT
-    // picked as modal only because "Coccidioides immitis" < "" is false...
-    // rather than assert a specific winner here (both are legitimate with
-    // this tie), assert the missing strain is NEVER attributed to some
-    // species it was never mapped to.
+    // "Unknown" is an ABSENCE of data (a strain missing from the config
+    // CSV, which genuinely happens) and must never outrank an actually
+    // observed species in a tie -- the known species wins the band, and
+    // the mixed-species label ("+1 other") is what tells the reader the
+    // unmapped strain is still there (see missing_label_flags_mixed below).
+    console.log(got === "Coccidioides immitis" ? "PASS missing_known_wins_tie" : "FAIL missing_known_wins_tie: " + JSON.stringify(got));
     var counts = speciesCounts(h, speciesMap);
     var knownWrong = Object.keys(counts).some(function (sp) {{
       return sp !== "" && sp !== "Coccidioides immitis";
@@ -166,7 +166,52 @@ def test_strain_missing_from_species_map_does_not_crash_or_misattribute():
     console.log(!knownWrong ? "PASS missing_no_misattribution" : "FAIL missing_no_misattribution: " + JSON.stringify(counts));
     console.log(counts[""] === 1 ? "PASS missing_bucketed_unknown" : "FAIL missing_bucketed_unknown: " + JSON.stringify(counts));
     var label = speciesBandLabel(h, speciesMap);
-    console.log(/\\(\\+1 other\\)$/.test(label) ? "PASS missing_label_flags_mixed" : "FAIL missing_label_flags_mixed: " + label);
+    console.log(label === "Coccidioides immitis (+1 other)" ? "PASS missing_label_flags_mixed" : "FAIL missing_label_flags_mixed: " + label);
+    """
+    _run_node_cases(cases)
+
+
+def test_one_known_plus_two_unmapped_still_bands_to_the_known_species():
+    # Unknown must never be modal as long as ANY known species is present,
+    # regardless of how many unmapped strains outnumber it.
+    species_map = {"S1": "Coccidioides immitis"}  # S2, S3 absent
+    h = hap(["S1", "S2", "S3"])
+    cases = f"""
+    var speciesMap = {json.dumps(species_map)};
+    var h = {json.dumps(h)};
+    var got = haplotypeSpecies(h, speciesMap);
+    console.log(got === "Coccidioides immitis" ? "PASS outnumbered_known_still_wins" : "FAIL outnumbered_known_still_wins: " + JSON.stringify(got));
+    var label = speciesBandLabel(h, speciesMap);
+    console.log(label === "Coccidioides immitis (+1 other)" ? "PASS outnumbered_label" : "FAIL outnumbered_label: " + label);
+    """
+    _run_node_cases(cases)
+
+
+def test_two_of_a_known_species_plus_one_unmapped_bands_to_that_species():
+    species_map = {"S1": "Coccidioides immitis", "S2": "Coccidioides immitis"}  # S3 absent
+    h = hap(["S1", "S2", "S3"])
+    cases = f"""
+    var speciesMap = {json.dumps(species_map)};
+    var h = {json.dumps(h)};
+    var got = haplotypeSpecies(h, speciesMap);
+    console.log(got === "Coccidioides immitis" ? "PASS majority_known_wins" : "FAIL majority_known_wins: " + JSON.stringify(got));
+    var label = speciesBandLabel(h, speciesMap);
+    console.log(label === "Coccidioides immitis (+1 other)" ? "PASS majority_known_label" : "FAIL majority_known_label: " + label);
+    """
+    _run_node_cases(cases)
+
+
+def test_two_known_species_tie_still_breaks_alphabetically_unaffected_by_the_unknown_fix():
+    species_map = {
+        "S1": "Coccidioides posadasii", "S2": "Coccidioides posadasii",
+        "S3": "Coccidioides immitis", "S4": "Coccidioides immitis",
+    }
+    h = hap(["S1", "S2", "S3", "S4"])
+    cases = f"""
+    var speciesMap = {json.dumps(species_map)};
+    var h = {json.dumps(h)};
+    var got = haplotypeSpecies(h, speciesMap);
+    console.log(got === "Coccidioides immitis" ? "PASS two_known_tie_alpha_unaffected" : "FAIL two_known_tie_alpha_unaffected: " + JSON.stringify(got));
     """
     _run_node_cases(cases)
 

@@ -371,21 +371,27 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   // edge case for this feature's own target study -- Coccidioides immitis
   // vs posadasii commonly share a presence pattern, so a mixed row is the
   // common, scientifically interesting case, not the exception). Its
-  // "species" for BANDING purposes is the MODE among its strains, tied
-  // broken by the lexicographically smallest species name -- deterministic,
-  // and cheap since a haplotype's strain list is already small. This
-  // function only decides which band a row sorts into; it does NOT claim
-  // the row is pure -- see speciesBandLabel() below for the part that
-  // surfaces a mixed row rather than hiding it. Unknown-species strains
-  // (speciesMap has no entry) count toward "" and band last (see the "￿"
-  // sentinel in sortedHaplotypes below), not first, so an incomplete
-  // --config doesn't shove unlabelled rows to the top.
+  // "species" for BANDING purposes is the MODE among its KNOWN-species
+  // strains, tied broken by the lexicographically smallest species name --
+  // deterministic, and cheap since a haplotype's strain list is already
+  // small. Unknown ("" -- a strain missing from speciesMap, i.e. absent
+  // from the config CSV) is an ABSENCE of data and must never outrank an
+  // actually observed species: "" is excluded from the modal contest
+  // entirely and is only ever returned when EVERY strain in the haplotype
+  // is unmapped. This function only decides which band a row sorts into;
+  // it does NOT claim the row is pure -- see speciesBandLabel() below for
+  // the part that surfaces a mixed row (known or unknown) rather than
+  // hiding it. Unknown-species rows still band last at the sort site (the
+  // "￿" sentinel in sortedHaplotypes below), so an incomplete --config
+  // doesn't shove unlabelled rows to the top.
   function haplotypeSpecies(hap, speciesMap) {
     var counts = speciesCounts(hap, speciesMap);
     var best = "", bestCount = -1;
     Object.keys(counts).sort().forEach(function (sp) {
+      if (sp === "") return; // "no data" never wins a tie against real data
       if (counts[sp] > bestCount) { bestCount = counts[sp]; best = sp; }
     });
+    if (best === "" && counts[""]) return ""; // every strain unmapped
     return best;
   }
 
