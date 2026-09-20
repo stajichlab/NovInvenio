@@ -18,12 +18,18 @@ filterable sidebar, and a row-sort select that re-renders. That page has no
 table twin of its grid, so the row-sort checks assert on
 `window.__fillTextCalls` (a call-recording canvas stub wired in
 `tests/js/drive_reports.mjs`'s `boot()`) instead of on any DOM element -- see
-that file's island-synteny section for why, and for a real, reported gap
-found while writing this coverage: the empty-state panel's own text
-(`#isv-empty-text`) never mentions islands truncated by `--top_islands`, only
-those excluded by `--min_strains`, even though the always-visible
-`#summary-note` above it does report both. That's a real bug, left unfixed
-per instruction (issue #120 is test coverage only) and pinned as it exists.
+that file's island-synteny section for why.
+
+Writing this coverage surfaced a real bug (since fixed, same commit series):
+the empty-state panel's own text (`#isv-empty-text`) named only the excluded
+count, never the count of islands truncated by `--top_islands`, even though
+the always-visible `#summary-note` above it always named both via its own
+`reasons` array. `lib/island_synteny_template.py` now has one
+`absenceReasons()` helper both call sites build their sentence from, so they
+cannot drift apart again; the three empty-state fixtures below (both counts
+non-zero, truncation-only, and the original three-island one) and the
+"summary-note and empty-state agree" check in the driver are what would have
+caught the original bug and are what guard against a regression of it now.
 
 **Skipped unless jsdom is importable.** It is a Node dependency and this is a
 pixi/conda project, so it is not a hard requirement -- install it wherever you
@@ -142,6 +148,24 @@ ISV_EMPTY_ISLANDS = (
 ISV_EMPTY_MATRIX = "family\tS1\nfamA\tpresent\nfamB\tpresent\nfamC\tpresent\n"
 ISV_EMPTY_POSITIONS = "Short\tfamily\tcontig\trank\n"
 
+# Truncation-ONLY empty-state fixture: both islands qualify (n_strains=2,
+# nothing excluded) but --top_islands 0 truncates both -- excluded=0,
+# truncated=2. This is the case renderEmptyState() used to get wrong: its
+# old wording only ever named the excluded count, so with excluded=0 it
+# would have said "...were located, but 0 were excluded ... and none remain
+# to draw" -- naming a reason that did not apply and omitting the one that
+# did.
+ISV_TRUNC_ONLY_ISLANDS = (
+    "n_strains\texample_strain\tisland_size\tmember_families\t"
+    "n_supporting_pairs\tclassifications\tpfam_domains\tlocus_id\t"
+    "locus_contig\tlocus_start\tlocus_end\tn_members_with_coordinates\t"
+    "n_contigs_in_locus\n"
+    "2\tS1\t1\tfamA\t1\tunexplained_physical\t-\tS1:c1:1-1\tc1\t1\t1\t1\t1\n"
+    "2\tS1\t1\tfamB\t1\tunexplained_physical\t-\tS1:c1:2-2\tc1\t2\t2\t1\t1\n"
+)
+ISV_TRUNC_ONLY_MATRIX = "family\tS1\nfamA\tpresent\nfamB\tpresent\n"
+ISV_TRUNC_ONLY_POSITIONS = "Short\tfamily\tcontig\trank\n"
+
 
 def _fasta() -> str:
     long_seq = 'MKV' + 'ACDEFGHIKLMNPQRSTVWY' * 90      # 1803 aa -> POST branch
@@ -240,6 +264,16 @@ def fixture_dir(tmp_path_factory):
         '--family_positions', str(d / 'isv_empty_positions.tsv'),
         '--project', 'demo', '--top_islands', '0',
         '--output', str(d / 'island_synteny_empty.html'))
+
+    (d / 'isv_trunc_only_islands.tsv').write_text(ISV_TRUNC_ONLY_ISLANDS)
+    (d / 'isv_trunc_only_matrix.tsv').write_text(ISV_TRUNC_ONLY_MATRIX)
+    (d / 'isv_trunc_only_positions.tsv').write_text(ISV_TRUNC_ONLY_POSITIONS)
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_trunc_only_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_trunc_only_matrix.tsv'),
+        '--family_positions', str(d / 'isv_trunc_only_positions.tsv'),
+        '--project', 'demo', '--top_islands', '0',
+        '--output', str(d / 'island_synteny_empty_truncated_only.html'))
     return d
 
 

@@ -567,6 +567,33 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     if (state.selected >= 0) renderMain();
   };
 
+  // ---- shared "why is nothing drawn" reasons list -----------------------
+  // A located island is missing from the view for one of two independent
+  // reasons -- excluded by --min_strains, or truncated past --top_islands --
+  // and both the summary-note (always visible) and the empty-state box
+  // (visible only when ISLANDS is empty) need to say so without disagreeing.
+  // This is the SAME array both call sites build a sentence from, so they
+  // are structurally unable to drift back apart the way they did before:
+  // the empty-state box used to name only the excluded count, silently
+  // dropping the truncated one whenever --top_islands did the cutting.
+  function absenceReasons() {
+    var reasons = [];
+    if (DATA.n_islands_excluded) {
+      reasons.push(
+        DATA.n_islands_excluded + " located island" + (DATA.n_islands_excluded === 1 ? "" : "s") +
+        " excluded for being carried by too few strains to show a meaningful presence " +
+        "pattern (a single-strain island is one filled row with no breakpoint in it)"
+      );
+    }
+    if (DATA.n_islands_truncated) {
+      reasons.push(
+        DATA.n_islands_truncated + " qualifying island" + (DATA.n_islands_truncated === 1 ? "" : "s") +
+        " truncated past the --top_islands limit"
+      );
+    }
+    return reasons;
+  }
+
   // ---- empty state (no islands at all in this payload) -----------------------
   function renderEmptyState() {
     var explorer = document.getElementById("isv-explorer");
@@ -574,13 +601,15 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     if (!ISLANDS.length) {
       explorer.classList.add("hidden");
       emptyState.classList.remove("hidden");
-      document.getElementById("isv-empty-text").textContent =
-        DATA.n_islands_total
-          ? DATA.n_islands_total + " accessory island" + (DATA.n_islands_total === 1 ? "" : "s") +
-            " were located, but " + DATA.n_islands_excluded + " " +
-            (DATA.n_islands_excluded === 1 ? "was" : "were") +
-            " excluded (carried by too few strains to compare) and none remain to draw."
-          : "No accessory islands were located for this run.";
+      var text;
+      if (!DATA.n_islands_total) {
+        text = "No accessory islands were located for this run.";
+      } else {
+        var reasons = absenceReasons();
+        text = DATA.n_islands_total + " accessory island" + (DATA.n_islands_total === 1 ? "" : "s") +
+          " were located, but none remain to draw: " + reasons.join("; ") + ".";
+      }
+      document.getElementById("isv-empty-text").textContent = text;
     } else {
       explorer.classList.remove("hidden");
       emptyState.classList.add("hidden");
@@ -612,20 +641,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   document.title = DATA.project + " — NovInvenio island synteny";
 
   (function () {
-    var reasons = [];
-    if (DATA.n_islands_excluded) {
-      reasons.push(
-        DATA.n_islands_excluded + " located island" + (DATA.n_islands_excluded === 1 ? "" : "s") +
-        " excluded for being carried by too few strains to show a meaningful presence " +
-        "pattern (a single-strain island is one filled row with no breakpoint in it)"
-      );
-    }
-    if (DATA.n_islands_truncated) {
-      reasons.push(
-        DATA.n_islands_truncated + " qualifying island" + (DATA.n_islands_truncated === 1 ? "" : "s") +
-        " truncated past the --top_islands limit"
-      );
-    }
+    var reasons = absenceReasons();
     document.getElementById("summary-note").textContent = reasons.length
       ? reasons.join("; ") + "."
       : "Every located accessory island met the minimum strain-count filter for this view.";

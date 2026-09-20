@@ -343,32 +343,51 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !d.getElementById('isv-empty-state').classList.contains('hidden'));
 
   // 1 located island excluded (single-strain) + 2 qualifying islands
-  // truncated by --top_islands 0. The two counts are named in two DIFFERENT
-  // places, not one: #summary-note (in the always-visible card above
-  // #isv-body, so it stays on screen even with the explorer hidden) names
-  // BOTH; #isv-empty-text -- the text inside the empty-state panel itself --
-  // names only the excluded count and never mentions truncation at all. See
-  // this file's/the issue report's note: that split is a real, reportable
-  // gap (a reader who only looks at the empty-state box, not the summary
-  // card above it, would see "none remain to draw" with no explanation that
-  // most of what was excluded was actually truncation, not exclusion), but
-  // fixing it is out of scope for this test-only issue -- both assertions
-  // below pin the CURRENT, real behaviour of each element rather than
-  // asserting the (nicer) behaviour the issue's wishlist describes.
+  // truncated by --top_islands 0. lib/island_synteny_template.py's
+  // absenceReasons() helper feeds BOTH #summary-note (the always-visible
+  // card above #isv-body) and #isv-empty-text (the text inside the
+  // empty-state panel itself) from the same array, so they must agree --
+  // this is exactly the check that would have caught the original bug,
+  // where #isv-empty-text was built from a second, independent, incomplete
+  // sentence and silently dropped the truncated count.
   const summaryText = d.getElementById('summary-note').textContent;
+  const emptyText = d.getElementById('isv-empty-text').textContent;
   check('island synteny empty: summary-note names the excluded count',
         /1.*excluded/.test(summaryText), summaryText);
   check('island synteny empty: summary-note names the truncated count',
         /2 qualifying island/.test(summaryText), summaryText);
-
-  const emptyText = d.getElementById('isv-empty-text').textContent;
   check('island synteny empty: isv-empty-text names the excluded count',
         /1.*excluded/.test(emptyText), emptyText);
-  check('island synteny empty: isv-empty-text does NOT name the truncated count '
-        + '(BUG: this box, unlike summary-note above it, never mentions the '
-        + '2 islands cut by --top_islands, and Nothing remains to draw could '
-        + 'read as "everything was excluded" when most was actually truncated)',
-        !/truncat/i.test(emptyText), emptyText);
+  check('island synteny empty: isv-empty-text names the truncated count',
+        /2 qualifying island/.test(emptyText), emptyText);
+  const marker = 'none remain to draw: ';
+  const reasonsFromEmptyText = emptyText.slice(emptyText.indexOf(marker) + marker.length);
+  check('island synteny empty: summary-note and isv-empty-text agree on both reasons',
+        emptyText.includes(marker) && summaryText === reasonsFromEmptyText,
+        'summary=' + summaryText + ' | empty=' + emptyText);
+}
+
+// ---------------------------------- island synteny: truncation-only empty
+// excluded=0, truncated=2 -- the case the original bug would have gotten
+// backwards (it would have named 0 excluded and said nothing about
+// truncation). Both islands qualify; --top_islands 0 truncates both.
+{
+  const dom = boot(path.join(FX, 'island_synteny_empty_truncated_only.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+
+  check('island synteny empty (truncation-only): loads without error',
+        errors.length === 0, errors.join('; '));
+  const emptyText = d.getElementById('isv-empty-text').textContent;
+  const summaryText = d.getElementById('summary-note').textContent;
+  check('island synteny empty (truncation-only): isv-empty-text names the truncated count',
+        /2 qualifying island/.test(emptyText), emptyText);
+  check('island synteny empty (truncation-only): isv-empty-text does not claim any exclusion',
+        !/excluded/.test(emptyText), emptyText);
+  check('island synteny empty (truncation-only): summary-note agrees (no exclusion claimed)',
+        !/excluded/.test(summaryText), summaryText);
 }
 
 console.log(failures === 0 ? 'ALL PASSED' : failures + ' FAILED');
