@@ -69,7 +69,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from pangenome_matrix import read_cluster_tsv, iter_tblout_family_hits  # noqa: E402
-from compressed_io import open_maybe_compressed  # noqa: E402
+from compressed_io import (  # noqa: E402
+    open_maybe_compressed,
+    open_maybe_compressed_write,
+)
 from pangenome_synteny import linkage_fraction  # noqa: E402
 
 DEFAULT_K = 10
@@ -207,7 +210,8 @@ def main() -> None:
         f"assignments across {len(captain_families)} strains", file=sys.stderr,
     )
 
-    with open_maybe_compressed(args.cooccurring_pairs) as fh, open(args.output, "w") as out:
+    with open_maybe_compressed(args.cooccurring_pairs) as fh, \
+         open_maybe_compressed_write(args.output) as out:
         header = fh.readline().rstrip("\n").split("\t")
         idx = {name: i for i, name in enumerate(header)}
         out.write(

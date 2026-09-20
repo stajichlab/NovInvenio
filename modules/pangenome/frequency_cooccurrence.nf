@@ -46,7 +46,7 @@ process COOCCURRENCE {
     path(inventory)
 
     output:
-    path("cooccurring_pairs.tsv"), emit: pairs
+    path("cooccurring_pairs.tsv.zst"), emit: pairs
 
     script:
     def inventory_arg = params.pangenome_dereplicate ? "--inventory ${inventory}" : ''
@@ -59,6 +59,6 @@ process COOCCURRENCE {
         --min_strain_count ${params.pangenome_min_strain_count} \
         --fdr_alpha ${params.pangenome_fdr_alpha} \
         --screen_alpha ${params.pangenome_screen_alpha} \
-        --output cooccurring_pairs.tsv
+        --output cooccurring_pairs.tsv.zst
     """
 }

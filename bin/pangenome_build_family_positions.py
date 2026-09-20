@@ -24,6 +24,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from compressed_io import (  # noqa: E402
+    open_maybe_compressed,
+    open_maybe_compressed_write,
+)
 from pangenome_matrix import read_cluster_tsv  # noqa: E402
 
 
@@ -99,7 +103,7 @@ def main() -> None:
     member_to_rep = read_cluster_tsv(args.cluster_tsv)
 
     rows = []
-    with open(args.gene_positions) as fh:
+    with open_maybe_compressed(args.gene_positions) as fh:
         next(fh, None)
         for line in fh:
             parts = line.rstrip("\n").split("\t")
@@ -110,7 +114,7 @@ def main() -> None:
 
     rescue_rows = []
     if args.rescue_positions:
-        with open(args.rescue_positions) as fh:
+        with open_maybe_compressed(args.rescue_positions) as fh:
             next(fh, None)
             for line in fh:
                 parts = line.rstrip("\n").split("\t")
@@ -124,7 +128,7 @@ def main() -> None:
     )
 
     n_rows = 0
-    with open(args.output, "w") as out:
+    with open_maybe_compressed_write(args.output) as out:
         out.write("Short\tfamily\tcontig\trank\n")
         for short, family_positions in positions.items():
             for family, entries in family_positions.items():
