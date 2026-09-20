@@ -123,6 +123,27 @@ def test_cli_reads_zst_inputs(tmp_path):
     assert payload_of(out)["islands"][0]["families"] == ["famA", "famB"]
 
 
+def test_cli_html_escapes_the_project_title(tmp_path):
+    """M1: bin/pangenome_island_synteny.py did a bare .replace() for
+    __PROJECT_TITLE__ while the template's own docstring claims the caller
+    HTML-escapes it, unlike the three sibling CLIs (make_report.py,
+    make_core_report.py, make_losses_report.py), which all use
+    html.escape(project)."""
+    islands, matrix, positions = write_inputs(tmp_path)
+    out = tmp_path / "out.html"
+    subprocess.run(
+        [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+         "--islands_with_domains", str(islands),
+         "--presence_matrix", str(matrix),
+         "--family_positions", str(positions),
+         "--project", "<script>alert(1)</script>", "--output", str(out)],
+        check=True,
+    )
+    html_text = out.read_text()
+    assert "<script>alert(1)</script>" not in html_text
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html_text
+
+
 def test_cli_with_no_islands_still_writes_a_page(tmp_path):
     islands = tmp_path / "empty.tsv"
     islands.write_text(

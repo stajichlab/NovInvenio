@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import html
 import json
 import sys
 from pathlib import Path
@@ -82,10 +83,10 @@ def main() -> int:
     # <script> block early -- these strings come from HMM output and FASTA
     # headers, which this pipeline does not control.
     blob = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
-    html = (ISLAND_SYNTENY_TEMPLATE
-            .replace("__PROJECT_TITLE__", args.project)
+    page = (ISLAND_SYNTENY_TEMPLATE
+            .replace("__PROJECT_TITLE__", html.escape(args.project))
             .replace("/*__PAYLOAD__*/", blob))
-    Path(args.output).write_text(html)
+    Path(args.output).write_text(page)
 
     print(f"pangenome_island_synteny: {len(payload['islands'])} islands drawn, "
           f"{payload['n_islands_excluded']} excluded (< {args.min_strains} "
