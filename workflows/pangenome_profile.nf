@@ -46,7 +46,8 @@ include { GENE_POSITIONS; EXTRACT_RESCUE_POSITIONS; FAMILY_POSITIONS }      from
 include { HMMFETCH_CAPTAIN; CAPTAIN_HMMSEARCH }                             from '../modules/pangenome/captain'
 include { PAIR_CLASSIFICATION }                                             from '../modules/pangenome/pair_classification'
 include { BUILD_ISLANDS; MARKER_HMMSEARCH }                                from '../modules/pangenome/islands'
-include { SELECT_BACKGROUND_REPS; FAMILY_PFAM_SCAN; DOMAIN_ENRICHMENT }     from '../modules/pangenome/pfam_enrichment'
+include { SELECT_BACKGROUND_REPS; HMMPRESS_PFAM; FAMILY_PFAM_SCAN;
+          MERGE_PFAM_DOMTBLOUT; DOMAIN_ENRICHMENT }                 from '../modules/pangenome/pfam_enrichment'
 include { REPORT_TABLES; REPORT_RENDER }                                   from '../modules/pangenome/report'
 include { LEIDEN_MODULES; MODULE_DOMAINS }                                 from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
@@ -251,9 +252,29 @@ workflow PANGENOME_PROFILE {
         )
 
         SELECT_BACKGROUND_REPS(CLUSTER_TIER1.out.rep_fasta, FREQUENCY_BINS.out.table)
-        FAMILY_PFAM_SCAN(SELECT_BACKGROUND_REPS.out.fasta, file(params.pangenome_island_pfam_hmm))
-        DOMAIN_ENRICHMENT(BUILD_ISLANDS.out.islands, FAMILY_PFAM_SCAN.out.domtblout, FREQUENCY_BINS.out.table)
-        MODULE_DOMAINS(LEIDEN_MODULES.out.family_modules, FAMILY_PFAM_SCAN.out.domtblout)
+
+        // Scatter the Pfam scan across chunks of the background set (issue
+        // #112): Nextflow submits one independent SLURM job per chunk, so a
+        // 2-4 h monolithic hmmscan that twice hit a 2 h wall-clock cap
+        // becomes N short jobs, each individually retryable. The database is
+        // hmmpress'd once and shared. MERGE_PFAM_DOMTBLOUT reassembles the
+        // single pfam.domtblout every downstream consumer already expects,
+        // so nothing below this point changes.
+        // `as int` is required, not cosmetic: a value supplied on the command
+        // line (--pangenome_pfam_chunk_size 500) arrives as a String, and
+        // splitFasta's `by:` rejects it ("Value don't match: class
+        // java.lang.Integer"). The nextflow.config default is already an
+        // Integer, so without this the failure appears ONLY when a user
+        // overrides the default.
+        HMMPRESS_PFAM(file(params.pangenome_island_pfam_hmm))
+        pfam_chunks_ch = SELECT_BACKGROUND_REPS.out.fasta
+            .splitFasta(by: params.pangenome_pfam_chunk_size as int, file: true)
+        FAMILY_PFAM_SCAN(pfam_chunks_ch, HMMPRESS_PFAM.out.db.collect())
+        MERGE_PFAM_DOMTBLOUT(FAMILY_PFAM_SCAN.out.domtblout.collect())
+        pfam_domtblout = MERGE_PFAM_DOMTBLOUT.out.domtblout
+
+        DOMAIN_ENRICHMENT(BUILD_ISLANDS.out.islands, pfam_domtblout, FREQUENCY_BINS.out.table)
+        MODULE_DOMAINS(LEIDEN_MODULES.out.family_modules, pfam_domtblout)
 
         if (params.pangenome_pfam2go) {
             PFAM2GO(DOMAIN_ENRICHMENT.out.enrichment, file(params.pangenome_pfam2go))
@@ -268,7 +289,7 @@ workflow PANGENOME_PROFILE {
             PAIR_CLASSIFICATION.out.classification,
             rescued_matrix,
             FREQUENCY_BINS.out.table,
-            FAMILY_PFAM_SCAN.out.domtblout,
+            pfam_domtblout,
             CLUSTER_TIER1.out.cluster_tsv,
             GENE_POSITIONS.out.positions,
         )

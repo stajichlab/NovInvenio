@@ -90,6 +90,14 @@ def print_help() {
                                        used by the captain-by-name branch above.
       --pangenome_island_min_size      Minimum island size to report (default: 2).
       --pangenome_pfam_domain_evalue   hmmscan domain-level E-value cutoff (default: 1e-3).
+      --pangenome_pfam_chunk_size      Query sequences per FAMILY_PFAM_SCAN chunk
+                                       (default: 3000). The Pfam scan is scattered
+                                       into one job per chunk and reassembled by
+                                       MERGE_PFAM_DOMTBLOUT; as a single job it took
+                                       1h50m-3h50m on a 529-strain study and twice
+                                       hit a 2 h wall-clock cap. Raise it for a small
+                                       study to avoid paying submission overhead on
+                                       chunks that finish in seconds.
       --pangenome_marker_names         Comma list of named marker searches (e.g.
                                        'captain,sm_backbone'), run via MARKER_HMMSEARCH.
       --pangenome_marker_hmm_paths     Parallel comma list of HMM paths for each named marker.
