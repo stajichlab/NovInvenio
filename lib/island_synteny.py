@@ -41,3 +41,26 @@ def select_islands(rows: list[dict], min_strains: int = 2,
     kept = [r for r in located if _as_int(r.get("n_strains")) >= min_strains]
     kept.sort(key=lambda r: -_as_int(r.get("island_size")))
     return kept[:top_n]
+
+
+def collapse_haplotypes(presence_rows: dict[str, list[bool]]) -> list[dict]:
+    """Collapse identical strain rows into distinct presence patterns.
+
+    Returns one entry per distinct pattern: {"pattern", "count", "strains"},
+    sorted lexicographically on the 0/1 pattern string. That sort is
+    equivalent to a Hamming-distance leaf ordering for this data and is what
+    makes deletion breakpoints align into visible vertical edges.
+
+    Row collapsing is the load-bearing decision of this view: without it, a
+    530-strain study draws 530 rows for a 20-56 column island and nothing is
+    legible. With it, the row count is the number of haplotypes, typically
+    tens.
+    """
+    by_pattern: dict[str, list[str]] = {}
+    for strain, vector in presence_rows.items():
+        pattern = "".join("1" if v else "0" for v in vector)
+        by_pattern.setdefault(pattern, []).append(strain)
+    return [
+        {"pattern": p, "count": len(s), "strains": sorted(s)}
+        for p, s in sorted(by_pattern.items())
+    ]
