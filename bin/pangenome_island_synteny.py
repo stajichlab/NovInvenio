@@ -71,7 +71,9 @@ def main() -> int:
 
     print(f"pangenome_island_synteny: {len(payload['islands'])} islands drawn, "
           f"{payload['n_islands_excluded']} excluded (< {args.min_strains} "
-          f"strains), wrote {args.output}", file=sys.stderr)
+          f"strains), {payload['n_islands_truncated']} truncated "
+          f"(qualified but past --top_islands {args.top_islands}), "
+          f"wrote {args.output}", file=sys.stderr)
     return 0
 
 

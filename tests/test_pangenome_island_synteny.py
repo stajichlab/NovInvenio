@@ -73,6 +73,33 @@ def test_cli_min_strains_is_configurable(tmp_path):
     assert payload["islands"] == []
 
 
+def test_cli_stderr_summary_reports_drawn_excluded_and_truncated(tmp_path):
+    """The stderr summary must report all three counts (Ruling R12).
+
+    A summary that reports only "drawn" and "excluded" under-reports on a
+    real run where most qualifying islands are cut by --top_islands: on the
+    real 529-strain genus_vs_ureesii study, 10,602 islands qualified but only
+    50 were drawn, and the old two-count summary never said where the other
+    ~10,552 went.
+    """
+    islands, matrix, positions = write_inputs(tmp_path)
+    out = tmp_path / "island_synteny.html"
+    proc = subprocess.run(
+        [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+         "--islands_with_domains", str(islands),
+         "--presence_matrix", str(matrix),
+         "--family_positions", str(positions),
+         "--project", "demo", "--output", str(out),
+         "--top_islands", "0"],
+        capture_output=True, text=True, check=True,
+    )
+    # Only S1's island qualifies (S2 is single-strain, excluded); --top_islands 0
+    # then truncates that one qualifying island away from being drawn.
+    assert "0 islands drawn" in proc.stderr
+    assert "1 excluded" in proc.stderr
+    assert "1 truncated" in proc.stderr
+
+
 def test_cli_reads_zst_inputs(tmp_path):
     # Nextflow publishes family_positions.tsv as .zst since PR #113, and
     # stages it as a SYMLINK -- zstd returns an EMPTY stream for a symlink
