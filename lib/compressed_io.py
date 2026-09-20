@@ -12,31 +12,163 @@ unchanged.
 from __future__ import annotations
 
 import gzip
+import io
 import subprocess
 from pathlib import Path
 from typing import IO
+
+
+class _ZstdReader:
+    """Wraps a zstd process's stdout to detect non-zero exit (corrupt/truncated).
+
+    The file may be multi-GB, so we stream it rather than reading into memory.
+    The underlying stdout returns an empty stream if zstd fails, but we detect
+    that failure by calling proc.wait() on close/exhaustion and raising if
+    returncode != 0. This makes a corrupt or truncated .zst file fail loudly
+    instead of silently returning zero bytes -- critical for pipelines where
+    a meaningless empty result is worse than a crash (e.g. column ordering by
+    locus position, where alphabetical fallback is wrong but plausible-looking).
+
+    Supports context manager, iteration, read(), and csv.DictReader use.
+    """
+
+    def __init__(self, proc: subprocess.Popen) -> None:
+        self._proc = proc
+        self._stdout = proc.stdout
+        self._stderr = proc.stderr
+        self._text_wrapper = None
+        # Give zstd a moment to fail on corrupt input
+        # (it fails fast, so poll() will get the error immediately)
+        # Only do this check early if the process has already exited
+        if proc.poll() is not None and proc.returncode != 0:
+            stderr = self._get_stderr()
+            raise RuntimeError(
+                f"zstd decompression failed with exit code {proc.returncode}"
+                f"{f': {stderr}' if stderr else ''}"
+            )
+
+    def _get_stderr(self) -> str:
+        """Read stderr if available."""
+        if self._stderr:
+            try:
+                return self._stderr.read().decode("utf-8", errors="replace")
+            except Exception:
+                return ""
+        return ""
+
+    def _ensure_wrapper(self):
+        """Lazily create TextIOWrapper on first use, after checking return code."""
+        if self._text_wrapper is None:
+            try:
+                self._text_wrapper = io.TextIOWrapper(self._stdout, encoding="utf-8")
+            except UnicodeDecodeError:
+                # Corrupt data - check if zstd failed
+                self._proc.wait()
+                if self._proc.returncode != 0:
+                    stderr = self._get_stderr()
+                    raise RuntimeError(
+                        f"zstd decompression failed with exit code {self._proc.returncode}"
+                        f"{f': {stderr}' if stderr else ''}"
+                    ) from None
+                raise
+        return self._text_wrapper
+
+    def _safe_read(self, func, *args):
+        """Call a read function, raising RuntimeError if zstd failed."""
+        try:
+            return func(*args)
+        except UnicodeDecodeError as e:
+            # Text decoding failed - likely corrupt zstd output
+            # Wait for the process to complete
+            returncode = self._proc.wait()
+            stderr = self._get_stderr()
+            if returncode != 0:
+                # Process exited with error - report that
+                raise RuntimeError(
+                    f"zstd decompression failed with exit code {returncode}"
+                    f"{f': {stderr}' if stderr else ''}"
+                ) from None
+            # Even if zstd exited 0, corrupt output that can't be decoded is an error
+            raise RuntimeError(
+                "zstd decompression produced invalid UTF-8 output (corrupt input?)"
+            ) from e
+
+    def read(self, size: int = -1) -> str:
+        wrapper = self._ensure_wrapper()
+        return self._safe_read(wrapper.read, size)
+
+    def readline(self) -> str:
+        wrapper = self._ensure_wrapper()
+        return self._safe_read(wrapper.readline)
+
+    def readlines(self) -> list[str]:
+        wrapper = self._ensure_wrapper()
+        return self._safe_read(wrapper.readlines)
+
+    def __iter__(self):
+        wrapper = self._ensure_wrapper()
+        return wrapper.__iter__()
+
+    def __next__(self) -> str:
+        wrapper = self._ensure_wrapper()
+        try:
+            return wrapper.__next__()
+        except UnicodeDecodeError:
+            returncode = self._proc.poll()
+            if returncode is not None and returncode != 0:
+                stderr = self._get_stderr()
+                raise RuntimeError(
+                    f"zstd decompression failed with exit code {returncode}"
+                    f"{f': {stderr}' if stderr else ''}"
+                ) from None
+            raise
+
+    def __enter__(self) -> "_ZstdReader":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        """Close stdout and check zstd's exit code. If it failed, raise."""
+        if self._text_wrapper:
+            self._text_wrapper.close()
+        else:
+            self._stdout.close()
+        returncode = self._proc.wait()
+        if returncode != 0:
+            stderr = self._get_stderr()
+            raise RuntimeError(
+                f"zstd decompression failed with exit code {returncode}"
+                f"{f': {stderr}' if stderr else ''}"
+            )
 
 
 def open_maybe_compressed(path: str | Path) -> IO[str]:
     """Open `path` for text reading, transparently decompressing based on
     its extension (.gz, .zst) or returning a plain text handle otherwise.
 
-    The .zst case shells out to `zstd -dc` and returns its stdout as a
-    text stream -- there is no line-iteration difference from a normal
-    file handle, but the subprocess is not explicitly waited on here;
-    for a short-lived script that reads the whole stream and exits, the
-    OS reaps it on process exit, which is an acceptable simplification
-    for how this helper is actually used (one big streaming read, not a
-    long-lived server)."""
-    path = str(path)
-    if path.endswith(".gz"):
-        return gzip.open(path, "rt")
-    if path.endswith(".zst"):
+    All formats check for file existence first, so missing files raise
+    FileNotFoundError consistently (not silent empty streams).
+
+    The .zst case shells out to `zstd -dc -f` and wraps stdout in a reader
+    that detects non-zero exit on close/exhaustion. This catches corrupt or
+    truncated .zst files that would otherwise silently return empty streams.
+    The `-f` flag handles symlinks (Nextflow staging) by decompressing them
+    in place rather than failing on them (PR #113).
+    """
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"no such file: {path}")
+
+    path_str = str(path)
+    if path_str.endswith(".gz"):
+        return gzip.open(path_str, "rt")
+    if path_str.endswith(".zst"):
         proc = subprocess.Popen(
-            ["zstd", "-dc", path], stdout=subprocess.PIPE, text=True,
+            ["zstd", "-dc", "-f", path_str],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
-        return proc.stdout
-    return open(path)
+        return _ZstdReader(proc)
+    return open(path_str)
 
 
 def open_maybe_compressed_write(path: str | Path) -> IO[str]:

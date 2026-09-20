@@ -171,3 +171,27 @@ def test_cli_without_domtblout_gracefully_degrades(tmp_path):
     island = payload["islands"][0]
     # With no domtblout, all families should be "unannotated"
     assert all(fc == "unannotated" for fc in island["family_classes"])
+
+
+def test_cli_nonexistent_family_positions_fails(tmp_path):
+    """Passing a nonexistent --family_positions makes CLI fail (non-zero exit).
+
+    This guards against the silent-failure bug in lib/compressed_io.py where
+    a missing .zst file would return an empty stream, causing the CLI to
+    silently fall back to alphabetical column order instead of locus order.
+    A crash is far better than a plausible-looking but wrong answer.
+    """
+    islands, matrix, _ = write_inputs(tmp_path)
+    nonexistent = tmp_path / "does_not_exist.tsv"
+    out = tmp_path / "output.html"
+
+    proc = subprocess.run(
+        [sys.executable, str(BIN / "pangenome_island_synteny.py"),
+         "--islands_with_domains", str(islands),
+         "--presence_matrix", str(matrix),
+         "--family_positions", str(nonexistent),
+         "--project", "demo", "--output", str(out)],
+        capture_output=True, text=True)
+
+    # Must exit with non-zero, not silently succeed
+    assert proc.returncode != 0, f"Expected failure but got exit 0. stderr: {proc.stderr}"
