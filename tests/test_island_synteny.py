@@ -3,7 +3,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 
-from island_synteny import select_islands, collapse_haplotypes, order_families_by_locus
+from island_synteny import (
+    select_islands,
+    collapse_haplotypes,
+    order_families_by_locus,
+    build_payload,
+)
+from pangenome_matrix import PresenceMatrix
 
 
 def island(locus_id, size, n_strains):
@@ -111,3 +117,77 @@ def test_positions_from_another_strain_are_ignored():
 
 def test_empty_family_list_gives_empty_order():
     assert order_families_by_locus([], {}, "S1") == []
+
+
+def make_matrix(calls):
+    """calls: {family: {strain: bool}} -> a PresenceMatrix."""
+    families = sorted(calls.keys())
+    strains = sorted(set(s for per_strain in calls.values() for s in per_strain.keys()))
+    m = PresenceMatrix(families=families, strains=strains)
+    for family, per_strain in calls.items():
+        for strain, present in per_strain.items():
+            m.set_call(family, strain, "present" if present else "absent")
+    return m
+
+
+def test_payload_carries_one_island_with_ordered_columns_and_haplotypes():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famB,famA", "pfam_domains": "NACHT,MFS_1",
+             "example_strain": "S1"}]
+    matrix = make_matrix({
+        "famA": {"S1": True, "S2": True, "S3": False},
+        "famB": {"S1": True, "S2": False, "S3": False},
+    })
+    positions = {("S1", "famA"): 1, ("S1", "famB"): 2}
+    payload = build_payload(rows, matrix, positions, project="demo")
+
+    assert payload["project"] == "demo"
+    assert len(payload["islands"]) == 1
+    island = payload["islands"][0]
+    assert island["families"] == ["famA", "famB"]
+    assert island["locus_id"] == "S1:c1:1-400"
+    patterns = {h["pattern"]: h["count"] for h in island["haplotypes"]}
+    assert patterns == {"11": 1, "10": 1, "00": 1}
+
+
+def test_payload_reports_how_many_islands_were_excluded():
+    rows = [
+        {"locus_id": "S1:c1:1-9", "island_size": "9", "n_strains": "1",
+         "member_families": "famA", "pfam_domains": "-", "example_strain": "S1"},
+        {"locus_id": "S2:c2:1-9", "island_size": "2", "n_strains": "2",
+         "member_families": "famA", "pfam_domains": "-", "example_strain": "S2"},
+    ]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True}})
+    payload = build_payload(rows, matrix, {}, project="demo")
+    assert payload["n_islands_total"] == 2
+    assert payload["n_islands_excluded"] == 1
+    assert len(payload["islands"]) == 1
+
+
+def test_each_family_carries_its_pfam_class_for_the_glyph_strip():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "1", "n_strains": "2",
+             "member_families": "famA", "pfam_domains": "NACHT",
+             "example_strain": "S1"}]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True}})
+    payload = build_payload(rows, matrix, {}, project="demo")
+    assert payload["islands"][0]["dominant_class"] == "nlr"
+    assert "nlr" in payload["classes"]
+
+
+def test_zero_islands_produces_a_valid_empty_payload():
+    # The single-species-ingroup case. A valid page saying so, not a crash.
+    payload = build_payload([], make_matrix({}), {}, project="demo")
+    assert payload["islands"] == []
+    assert payload["n_islands_total"] == 0
+    assert payload["project"] == "demo"
+
+
+def test_families_absent_from_the_matrix_are_scored_absent_not_dropped():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famA,ghost", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True}})
+    payload = build_payload(rows, matrix, {}, project="demo")
+    assert payload["islands"][0]["families"] == ["famA", "ghost"]
+    for hap in payload["islands"][0]["haplotypes"]:
+        assert len(hap["pattern"]) == 2

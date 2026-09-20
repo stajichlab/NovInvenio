@@ -9,6 +9,10 @@ rows, so the whole payload is unit-testable without touching a pipeline run.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
+from pfam_classes import CLASS_LABELS, dominant_class
+
 
 def _as_int(value, default: int = 0) -> int:
     """Parse a TSV cell to int, tolerating '' and the '-' missing sentinel."""
@@ -84,3 +88,57 @@ def order_families_by_locus(families: list[str],
               if (strain, f) in positions]
     unranked = sorted(f for f in families if (strain, f) not in positions)
     return [f for _, f in sorted(ranked)] + unranked
+
+
+def build_payload(island_rows: list[dict], matrix, positions: dict,
+                  project: str, min_strains: int = 2,
+                  top_n: int = 50) -> dict:
+    """The JSON payload embedded in the island synteny page.
+
+    `matrix` is a lib.pangenome_matrix.PresenceMatrix; `positions` maps
+    (strain, family) -> gene rank.
+
+    The payload records `project` because family IDs are NOT stable across
+    pipeline re-runs -- a family's ID is its mmseqs cluster representative,
+    and mmseqs does not pick the same one twice (measured: 73% ID overlap
+    between two runs of the same study). The page is only ever valid for the
+    run that produced it, and must never be joined to another run's output by
+    family ID.
+    """
+    selected = select_islands(island_rows, min_strains=min_strains, top_n=top_n)
+    located = [r for r in island_rows
+               if r.get("locus_id", "-") not in ("-", "", None)]
+    strains = sorted(matrix.strains)
+
+    islands = []
+    for row in selected:
+        families = [f for f in row.get("member_families", "").split(",") if f]
+        example = row.get("example_strain", "")
+        ordered = order_families_by_locus(families, positions, example)
+        presence_rows = {
+            s: [matrix.is_present(f, s) for f in ordered] for s in strains
+        }
+        domains = [d for d in row.get("pfam_domains", "").split(",") if d]
+        islands.append({
+            "locus_id": row.get("locus_id", "-"),
+            "locus_contig": row.get("locus_contig", ""),
+            "locus_start": _as_int(row.get("locus_start"), -1),
+            "locus_end": _as_int(row.get("locus_end"), -1),
+            "example_strain": example,
+            "size": len(ordered),
+            "n_strains": _as_int(row.get("n_strains")),
+            "families": ordered,
+            "domains": domains,
+            "dominant_class": dominant_class(domains),
+            "haplotypes": collapse_haplotypes(presence_rows),
+        })
+
+    return {
+        "project": project,
+        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "strains": strains,
+        "classes": CLASS_LABELS,
+        "islands": islands,
+        "n_islands_total": len(located),
+        "n_islands_excluded": len(located) - len(selected),
+    }
