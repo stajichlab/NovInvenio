@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from compressed_io import open_maybe_compressed  # noqa: E402
 from config_parser import parse_config  # noqa: E402
-from island_synteny import build_payload  # noqa: E402
+from island_synteny import build_payload, select_islands  # noqa: E402
 from island_synteny_template import ISLAND_SYNTENY_TEMPLATE  # noqa: E402
 from pangenome_matrix import PresenceMatrix  # noqa: E402
 
