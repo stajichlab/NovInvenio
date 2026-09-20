@@ -283,6 +283,10 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     selected: ISLANDS.length ? 0 : -1
   };
   var sidebarView = [];
+  // The currently-drawn (sorted) haplotype rows, kept for the grid-row hover
+  // tooltip below -- rowAtGrid() needs to map a pixel Y back to the SAME
+  // array drawGrid() just rendered, not re-sort on every mousemove.
+  var currentHaps = [];
 
   function islandHaystack(isl) {
     return (isl.locus_id + " " + isl.families.join(" ")).toLowerCase();
@@ -342,25 +346,65 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
   // ---- row sorting ------------------------------------------------------
 
-  // A haplotype row can carry strains of more than one species (rare, but
-  // the row is collapsed on presence PATTERN, not species). Its "species"
-  // for banding purposes is the MODE among its strains, tied broken by the
-  // lexicographically smallest species name -- deterministic, and cheap
-  // since a haplotype's strain list is already small. Unknown-species
-  // strains (SPECIES has no entry) count toward "" and band last (see
-  // sentinel below), not first, so an incomplete --config doesn't shove
-  // unlabelled rows to the top.
-  function haplotypeSpecies(hap) {
+  // The three functions below are written to take `speciesMap` as an
+  // explicit argument, deliberately NOT closing over the module-level
+  // SPECIES var, so tests/test_island_synteny_species_sort.py can extract
+  // them verbatim (via a brace-matching slice, not a JS parser) and run
+  // them under plain `node`, with no jsdom/DOM dependency -- these
+  // functions never touch the DOM, so there is no reason to require it just
+  // to test them.
+
+  // {species-or-"" : count} across a haplotype's strains. A strain absent
+  // from speciesMap (an incomplete --config) counts toward the "" bucket,
+  // same as an explicitly unknown one -- it must never silently become some
+  // OTHER species just because it's missing.
+  function speciesCounts(hap, speciesMap) {
     var counts = {};
     hap.strains.forEach(function (s) {
-      var sp = speciesOf(s);
+      var sp = speciesMap[s] || "";
       counts[sp] = (counts[sp] || 0) + 1;
     });
+    return counts;
+  }
+
+  // A haplotype row can carry strains of more than one species (NOT a rare
+  // edge case for this feature's own target study -- Coccidioides immitis
+  // vs posadasii commonly share a presence pattern, so a mixed row is the
+  // common, scientifically interesting case, not the exception). Its
+  // "species" for BANDING purposes is the MODE among its strains, tied
+  // broken by the lexicographically smallest species name -- deterministic,
+  // and cheap since a haplotype's strain list is already small. This
+  // function only decides which band a row sorts into; it does NOT claim
+  // the row is pure -- see speciesBandLabel() below for the part that
+  // surfaces a mixed row rather than hiding it. Unknown-species strains
+  // (speciesMap has no entry) count toward "" and band last (see the "￿"
+  // sentinel in sortedHaplotypes below), not first, so an incomplete
+  // --config doesn't shove unlabelled rows to the top.
+  function haplotypeSpecies(hap, speciesMap) {
+    var counts = speciesCounts(hap, speciesMap);
     var best = "", bestCount = -1;
     Object.keys(counts).sort().forEach(function (sp) {
       if (counts[sp] > bestCount) { bestCount = counts[sp]; best = sp; }
     });
     return best;
+  }
+
+  // The row's own label for the species column/tooltip -- the one place
+  // that must never let the band claim a purity the row does not have. A
+  // pure-species (or all-unknown) row is just its species name (or "Unknown
+  // species"); a row spanning N>1 distinct species-or-unknown groups gets
+  // "<modal species> (+<N-1> other[s])" so a reader sorting by species can
+  // see, at a glance, which rows actually cross the immitis/posadasii
+  // boundary rather than being told -- by a band that looks pure -- that
+  // they don't.
+  function speciesBandLabel(hap, speciesMap) {
+    var counts = speciesCounts(hap, speciesMap);
+    var groups = Object.keys(counts).length;
+    var modal = haplotypeSpecies(hap, speciesMap);
+    var modalLabel = modal || "Unknown species";
+    var others = groups - 1;
+    if (others <= 0) return modalLabel;
+    return modalLabel + " (+" + others + (others === 1 ? " other" : " others") + ")";
   }
 
   function sortedHaplotypes(isl) {
@@ -383,8 +427,8 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       // first. Tertiary key: first strain name, purely for a stable,
       // reproducible order among same-count haplotypes.
       haps.sort(function (a, b) {
-        var sa = haplotypeSpecies(a) || "￿";
-        var sb = haplotypeSpecies(b) || "￿";
+        var sa = haplotypeSpecies(a, SPECIES) || "￿";
+        var sb = haplotypeSpecies(b, SPECIES) || "￿";
         if (sa !== sb) return sa < sb ? -1 : 1;
         if (b.count !== a.count) return b.count - a.count;
         var an = a.strains[0] || "", bn = b.strains[0] || "";
@@ -489,7 +533,18 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       if (hap.strains.length) {
         gctx.font = "10px system-ui, -apple-system, 'Segoe UI', sans-serif";
         gctx.fillStyle = P.secondary;
-        var note = hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1);
+        // While sorted by species, the row label IS the species band --
+        // speciesBandLabel() names every row spanning more than one
+        // species-or-unknown group ("<modal> (+N other[s])") instead of
+        // letting a mixed row render identically to a pure one (issue #119
+        // review). Both branches draw straight to canvas via fillText, the
+        // same mechanism this grid already uses for every other per-row/
+        // per-column label, including untrusted strings (strain and family
+        // IDs) -- canvas text has no HTML-injection surface, so this is
+        // exactly as safe as the existing strain-name note it replaces.
+        var note = (state.rowSort === "species" && Object.keys(SPECIES).length)
+          ? speciesBandLabel(hap, SPECIES)
+          : (hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1));
         gctx.fillText(ellipsize(gctx, note, GUTTER - 60), 50, y + ROW_H / 2);
       }
 
@@ -557,6 +612,46 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   });
   glyphCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
 
+  function positionTip(e) {
+    tipEl.style.display = "block";
+    var w = tipEl.offsetWidth, hgt = tipEl.offsetHeight;
+    var left = e.clientX + 14, top = e.clientY + 14;
+    if (left + w > window.innerWidth - 8) left = e.clientX - w - 14;
+    if (top + hgt > window.innerHeight - 8) top = e.clientY - hgt - 14;
+    tipEl.style.left = Math.max(8, left) + "px";
+    tipEl.style.top = Math.max(8, top) + "px";
+  }
+
+  // ---- grid-row hover tooltip (issue #119 review) ----------------------
+  // The canvas row label (drawGrid, above) already names a mixed row
+  // ("<modal> (+N other[s])") so the band never silently claims a purity it
+  // doesn't have. This tooltip is the accessible-text counterpart: hovering
+  // any row spells out the FULL per-species strain breakdown via
+  // el()/textContent (never innerHTML) rather than leaving the reader to
+  // infer it from an abbreviated canvas label. Only wired up when the
+  // payload actually carries species data -- a pairwise/mmseqs run with no
+  // --config has nothing to show here.
+  function rowAtGrid(clientY) {
+    var rect = gridCanvas.getBoundingClientRect();
+    var ri = Math.floor((clientY - rect.top) / ROW_H);
+    return ri;
+  }
+  if (Object.keys(SPECIES).length) {
+    gridCanvas.addEventListener("mousemove", function (e) {
+      var hap = currentHaps[rowAtGrid(e.clientY)];
+      if (!hap) { tipEl.style.display = "none"; return; }
+      tipEl.textContent = "";
+      tipEl.appendChild(el("div", "tip-id", speciesBandLabel(hap, SPECIES)));
+      var counts = speciesCounts(hap, SPECIES);
+      Object.keys(counts).sort().forEach(function (sp) {
+        tipEl.appendChild(el("div", null, (sp || "Unknown species") + ": " + counts[sp] +
+          (counts[sp] === 1 ? " strain" : " strains")));
+      });
+      positionTip(e);
+    });
+    gridCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
+  }
+
   // ---- legend ---------------------------------------------------------------
   // One swatch per DISTINCT class actually present among this island's
   // columns (not a fixed five-entry key), since the strip below is coloured
@@ -612,6 +707,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     renderLegend(isl);
 
     var haps = sortedHaplotypes(isl);
+    currentHaps = haps;
     var w = totalWidth(isl);
     drawGlyphStrip(isl, w);
     drawGrid(isl, haps, w);
