@@ -20,7 +20,7 @@ with an optional absolute-evalue override on the second:
          Preserves a hit when the paralog wins only on a different gene, so the
          HEX-1 ortholog call survives.
 
-     --paralog-rescue-evalue (optional, disabled by default) puts a floor under
+     --paralog-rescue-evalue (ON by default, 1e-20 -- issue #128) puts a floor under
      filter 2: a hit is never disqualified if the query's own e-value against
      that target is already <= this threshold, regardless of how much harder the
      paralog hits. Filter 2 alone only compares the query against its paralog, so
@@ -34,10 +34,40 @@ with an optional absolute-evalue override on the second:
      marginal one (~1e-9..1e-12) in the sixth -- filter 2 has essentially
      nothing to override there, so its "novel" call is a real absence-of-signal
      result, not a competition artifact. --paralog-rescue-evalue distinguishes
-     the two: set it (e.g. 1e-20) to keep a hit like A7UWR3's -- strong on its
-     own merits -- counted as present even though its paralog wins the
-     head-to-head, while leaving marginal hits like HEX-1's still subject to
-     filter 2.
+     the two: it keeps a hit like A7UWR3's -- strong on its own merits --
+     counted as present even though its paralog wins the head-to-head, while
+     leaving marginal hits like HEX-1's still subject to filter 2. Pass 0 to
+     disable (no e-value is <= 0, so the rescue never fires), restoring the
+     behaviour tagged baseline/pre-paralog-rescue-2026-09-20.
+
+     --paralog-rescue-delta (optional, OFF by default) is a second rescue arm,
+     OR-ed with the floor: keep a hit the paralog beat by fewer than DELTA
+     orders of magnitude, i.e. log10(query_ev) - log10(paralog_ev) < DELTA. It
+     asks whether the paralog explained the hit away rather than whether the hit
+     is strong in absolute terms, and is scale-free where the floor is not.
+
+     It is off by default because it measured NON-SELECTIVE on real data, stated
+     plainly here so it is not re-adopted on intuition. The rescue fires per
+     (protein, proteome) cell and any one rescued cell ends a novelty call, so
+     the value that triggers the rule is the MINIMUM delta over a candidate's
+     suppressed cells -- median 8.6 on pezizo_set1. `delta < 45` therefore fires
+     for 291 of the 334 filter-2-suppressed candidates, barely narrower than
+     removing all 334. Scored against TBLASTN outgroup-genome breadth >= 4 as an
+     independent proxy for "the gene really is there", it removes 291 candidates
+     at a 47.1% hit-rate versus 48.2% for removing every suppressed candidate
+     indiscriminately -- worse than no rule -- while the 1e-20 floor removes 213
+     at 57.3%. OR-ing delta onto the floor drags 57.3% down to 49.0%. Both
+     controls (A7UWR3 min-delta 2.0, HEX-1 min-delta 56.4) pass under either
+     arm, so they cannot distinguish them. Retained as a flag so it can be
+     re-swept once alignment coverage exists (issue #129), not recommended.
+
+     That proxy has its own unmeasured false-positive rate, so the 57.3%/48.2%
+     margin is softer than it looks; see issue #135.
+
+     NOTE: lib/singleton_presence.py's score_singleton_hits() applies the same
+     unconditional filter 2 for the --cluster_tool novelty_discovery singleton
+     branch and has NO rescue arm, so the same protein can be called differently
+     by the two pathways. Not addressed by issue #128.
 
   (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value
   must beat the query's own within-proteome paralog e-value, falling back to
@@ -68,12 +98,16 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config
 
 DEFAULT_EVALUE = 1e-5
+# Filter-2 rescue floor, ON by default (issue #128). Mirrors nextflow.config's
+# params.paralog_rescue_evalue. 0 disables.
+DEFAULT_RESCUE_EVALUE = 1e-20
 
 
 def load_paralog_info(cutoff_files):
@@ -143,13 +177,24 @@ def main():
     ap.add_argument('--default-evalue', type=float, default=DEFAULT_EVALUE,
                     dest='default_evalue',
                     help='Flat e-value significance cutoff (filter 1), applied to every hit')
-    ap.add_argument('--paralog-rescue-evalue', type=float, default=None,
+    ap.add_argument('--paralog-rescue-evalue', type=float, default=DEFAULT_RESCUE_EVALUE,
                     dest='paralog_rescue_evalue',
-                    help='Optional floor under filter 2 (paralog-competition): a hit is never '
+                    help='Floor under filter 2 (paralog-competition): a hit is never '
                          'disqualified if the query\'s own e-value against that target is '
                          'already <= this threshold, no matter how much harder the paralog '
                          'hits (see module docstring for the A7UWR3-vs-HEX1 motivating case). '
-                         'Disabled (None) by default -- filter 2 runs unconditionally.')
+                         f'Default {DEFAULT_RESCUE_EVALUE:g}, matching nextflow.config. Pass 0 '
+                         'to disable and restore the pre-2026-09-20 behaviour -- no e-value is '
+                         '<= 0, so the rescue never fires.')
+    ap.add_argument('--paralog-rescue-delta', type=float, default=None,
+                    dest='paralog_rescue_delta',
+                    help='Second, OPT-IN rescue arm under filter 2, OR-ed with '
+                         '--paralog-rescue-evalue: a hit is never disqualified if the paralog '
+                         'beat it by fewer than this many orders of magnitude, i.e. '
+                         'log10(query_evalue) - log10(paralog_evalue) < DELTA. Asks whether the '
+                         'paralog explained the hit away rather than whether the hit is strong '
+                         'in absolute terms. Disabled (None) by default and NOT recommended -- '
+                         'measured non-selective on real data, see the module docstring.')
     ap.add_argument('--output-matrix',     required=True)
     ap.add_argument('--output-candidates', required=True)
     ap.add_argument('--output-evalues', default=None, dest='output_evalues',
@@ -216,10 +261,23 @@ def main():
         ]
         paralog_ev = pd.Series(paralog_ev, index=ing.index, dtype='float64')
         disqualified = paralog_ev.notna() & (paralog_ev < ing['evalue'])
-        if args.paralog_rescue_evalue is not None:
-            # A hit strong enough on its own is kept regardless of the paralog's margin --
-            # see --paralog-rescue-evalue's help / the module docstring's A7UWR3 case.
-            disqualified &= ing['evalue'] > args.paralog_rescue_evalue
+
+        # Rescue arms, OR-ed: a hit survives filter 2 if EITHER arm covers it. They are
+        # deliberately independent -- the floor asks "is this hit strong on its own?",
+        # the delta arm asks "did the paralog actually explain it away?" -- so a hit
+        # covered by one but not the other must still be kept. See the module docstring
+        # for why only the floor is enabled by default.
+        rescued = pd.Series(False, index=ing.index)
+        if args.paralog_rescue_evalue:            # 0 (or None) disables this arm
+            rescued |= ing['evalue'] <= args.paralog_rescue_evalue
+        if args.paralog_rescue_delta is not None:
+            # log10(0) is -inf, which is the correct reading at both ends: a zero-e-value
+            # paralog (diamond's report for an overwhelming hit) beat the query by an
+            # unbounded margin -> delta +inf -> never rescued.
+            with np.errstate(divide='ignore', invalid='ignore'):
+                delta = np.log10(ing['evalue']) - np.log10(paralog_ev)
+            rescued |= pd.Series(delta, index=ing.index) < args.paralog_rescue_delta
+        disqualified &= ~rescued
         ing = ing[~disqualified]
 
     # protein_key (query_proteome, protein_id) -> set of target proteomes with qualifying hits
