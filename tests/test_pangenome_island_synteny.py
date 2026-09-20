@@ -325,3 +325,41 @@ def test_cli_nonexistent_family_positions_fails(tmp_path):
 
     # Must exit with non-zero, not silently succeed
     assert proc.returncode != 0, f"Expected failure but got exit 0. stderr: {proc.stderr}"
+
+
+# ---- issue #119: optional --config threads Species into the payload for the
+# "by species" row sort.
+
+def write_config(tmp_path, rows):
+    """rows: list of (Short, Species, Group) -> a minimal samplesheet CSV."""
+    config = tmp_path / "config.csv"
+    with open(config, "w") as fh:
+        fh.write("GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup\n")
+        for short, species, group in rows:
+            fh.write(f"{group},{species},,{short}.fa,,,{short},TestClade\n")
+    return config
+
+
+def test_cli_without_config_omits_species(tmp_path):
+    payload = payload_of(run_cli(tmp_path))
+    assert payload["species"] == {}
+
+
+def test_cli_with_config_includes_species(tmp_path):
+    config = write_config(tmp_path, [
+        ("S1", "Coccidioides immitis", "IN"),
+        ("S2", "Coccidioides posadasii", "IN"),
+    ])
+    payload = payload_of(run_cli(tmp_path, "--config", str(config)))
+    assert payload["species"] == {
+        "S1": "Coccidioides immitis",
+        "S2": "Coccidioides posadasii",
+    }
+
+
+def test_cli_config_missing_a_strain_does_not_crash(tmp_path):
+    # write_inputs()'s matrix has S1 and S2; the config here only covers S1.
+    config = write_config(tmp_path, [("S1", "Coccidioides immitis", "IN")])
+    payload = payload_of(run_cli(tmp_path, "--config", str(config)))
+    assert payload["species"] == {"S1": "Coccidioides immitis"}
+    assert "S2" not in payload["species"]

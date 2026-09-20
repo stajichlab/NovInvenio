@@ -239,6 +239,45 @@ def test_zero_islands_produces_a_valid_empty_payload():
     assert payload["project"] == "demo"
 
 
+# ---- issue #119: "by species" row sort -- payload carries a strain->species map
+
+def test_payload_carries_species_when_provided():
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famA", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True, "S3": False}})
+    species_of = {"S1": "Coccidioides immitis", "S2": "Coccidioides posadasii",
+                  "S3": "Coccidioides immitis"}
+    payload = build_payload(rows, matrix, {}, project="demo", species_of=species_of)
+    assert payload["species"] == species_of
+
+
+def test_payload_omits_species_when_not_provided():
+    # Graceful degradation (issue #119): callers that never pass a config
+    # (bin/pangenome_island_synteny.py's --config is optional) must still
+    # get a valid payload -- the species sort option simply isn't offered.
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famA", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True}})
+    payload = build_payload(rows, matrix, {}, project="demo")
+    assert payload["species"] == {}
+
+
+def test_payload_species_is_missing_strain_does_not_crash():
+    # A Short present in the presence matrix but absent from the config
+    # (e.g. a strain added after the config CSV was last touched) must not
+    # raise -- it's simply absent from the species map, not an error.
+    rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
+             "member_families": "famA", "pfam_domains": "-",
+             "example_strain": "S1"}]
+    matrix = make_matrix({"famA": {"S1": True, "S2": True}})
+    payload = build_payload(rows, matrix, {}, project="demo",
+                            species_of={"S1": "Coccidioides immitis"})
+    assert payload["species"] == {"S1": "Coccidioides immitis"}
+    assert "S2" not in payload["species"]
+
+
 def test_families_absent_from_the_matrix_are_scored_absent_not_dropped():
     rows = [{"locus_id": "S1:c1:1-400", "island_size": "2", "n_strains": "2",
              "member_families": "famA,ghost", "pfam_domains": "-",

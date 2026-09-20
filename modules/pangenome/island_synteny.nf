@@ -11,6 +11,14 @@
 // FAMILY_PFAM_SCAN already produces for DOMAIN_ENRICHMENT/REPORT_TABLES --
 // this process just reuses it to colour the per-family glyph strip, no new
 // scan.
+//
+// --config (issue #119) is the analysis samplesheet -- the same CSV
+// PRESENCE_MATRIX already receives (modules/pangenome/presence_matrix.nf) --
+// threaded through so pangenome_island_synteny.py can build a {Short:
+// Species} map for the page's "by species" row sort. It carries a
+// Species column keyed by Short; lib/config_parser.py::parse_config()
+// already parses it, so this is a channel-wiring change, not a new
+// derivation.
 process ISLAND_SYNTENY {
     label 'low_cpu'
     tag "island_synteny"
@@ -22,6 +30,7 @@ process ISLAND_SYNTENY {
     path(presence_matrix)
     path(family_positions)
     path(domtblout)
+    path(samplesheet)
 
     output:
     path("island_synteny.html"), emit: page
@@ -37,6 +46,7 @@ process ISLAND_SYNTENY {
         --project '${Helpers.projectName(params)}' \
         --min_strains ${params.pangenome_top_islands_min_strains} \
         --top_islands ${params.pangenome_viz_top_islands} \
+        --config ${samplesheet} \
         --output island_synteny.html
     """
 }

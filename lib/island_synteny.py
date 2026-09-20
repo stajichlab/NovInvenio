@@ -137,7 +137,8 @@ def order_families_by_locus(families: list[str],
 def build_payload(island_rows: list[dict], matrix, positions: dict,
                   project: str, min_strains: int = 2,
                   top_n: int = 50,
-                  family_domains: dict[str, set[str]] | None = None) -> dict:
+                  family_domains: dict[str, set[str]] | None = None,
+                  species_of: dict[str, str] | None = None) -> dict:
     """The JSON payload embedded in the island synteny page.
 
     `matrix` is a lib.pangenome_matrix.PresenceMatrix; `positions` maps
@@ -162,8 +163,24 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
     every family in an island): both cases resolve to the "unannotated"
     class and an empty domain string rather than raising, so a run with no
     domain-enrichment data at all still produces a valid page.
+
+    `species_of` (issue #119) is an OPTIONAL trailing {Short: Species} map --
+    the analysis config CSV's own Species column, keyed by Short, as
+    bin/pangenome_island_synteny.py's optional --config resolves it via
+    lib/config_parser.py::parse_config(). It powers the page's "by species"
+    row sort (spec: "immitis/posadasii band" -- grouping strains of the same
+    species together, NOT a phylogeny-ordered sort; this pipeline has no
+    strain tree, see todo/pangenome-phylogeny-aware-gain-loss.md). The
+    payload always carries a top-level `species` key so the page can check
+    it unconditionally: when `species_of` is omitted, or a strain in the
+    presence matrix has no entry in it (e.g. added to the run after the
+    config CSV was last touched), that strain is simply absent from the map
+    rather than raising -- the species sort option is hidden client-side
+    when the map is empty, exactly mirroring how the novelty report hides
+    its category filter when the payload carries no category data.
     """
     fam_domain_map = family_domains or {}
+    species_map = species_of or {}
     # Separate locus-filter exclusions from top_n truncation to count them honestly.
     located = _located(island_rows)
     qualifying = [r for r in located if _as_int(r.get("n_strains")) >= min_strains]
@@ -208,4 +225,5 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
         "n_islands_total": len(located),
         "n_islands_excluded": len(located) - len(qualifying),
         "n_islands_truncated": len(qualifying) - len(selected),
+        "species": {s: species_map[s] for s in strains if s in species_map},
     }
