@@ -294,7 +294,28 @@ def test_singleton_competition_proteome_scope_drops_hexa_like_ortholog(tmp_path)
     ))
     paralog = tmp_path / 'paralog_cutoffs.tsv'
     paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t4.2e-11\n')
+    # Rescue floor disabled to isolate the scope behaviour -- see the companion test
+    # below for what the shipped default does to this same case (issue #138).
     matrix, cands = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog],
-                         **{'paralog-competition-scope': 'proteome'})
+                         **{'paralog-competition-scope': 'proteome',
+                            'paralog-rescue-evalue': '0'})
     row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
     assert row['D1'] == 0
+
+
+def test_singleton_default_floor_protects_the_hexa_like_ortholog(tmp_path):
+    # Behaviour change from issue #138: pS1 -> hex1 is a real ortholog hit at 1e-69,
+    # clearing the 1e-20 default floor, so it survives even under 'proteome' scope --
+    # matching bin/build_presence_matrix.py so the two pathways agree.
+    _setup(tmp_path)
+    hits = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(hits, (
+        'pS1\thex1\t1e-69\t230\tT1\tD1\n'
+        'pEif1\teif2\t1e-70\t233\tT1\tD1\n'
+        'pEif1\thex1\t5e-12\t45\tT1\tD1\n'
+    ))
+    paralog = tmp_path / 'paralog_cutoffs.tsv'
+    paralog.write_text(PARALOG_HEADER + 'pS1\tpEif1\t42\t4.2e-11\n')
+    matrix, _ = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog],
+                     **{'paralog-competition-scope': 'proteome'})
+    assert matrix[matrix['protein_id'] == 'pS1'].iloc[0]['D1'] == 1
