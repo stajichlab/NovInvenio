@@ -122,6 +122,88 @@ def test_presence_matrix_tsv_roundtrip_compressed(tmp_path, suffix):
     assert loaded.call("famA", "s2") == ABSENT
 
 
+def _write_wide_matrix(tmp_path, n_families=1000, n_strains=8, wanted=("famA", "famB")):
+    """A matrix with many families -- only `wanted` should be loaded when
+    `families=` is passed, mirroring the real island-synteny case where 298
+    of 54,421 families are actually referenced by the islands drawn."""
+    strains = [f"s{i}" for i in range(n_strains)]
+    lines = ["family\t" + "\t".join(strains)]
+    for i in range(n_families):
+        fam = wanted[i] if i < len(wanted) else f"fam{i:05d}"
+        # every strain present, alternating for variety
+        row = ["present" if (i + j) % 2 == 0 else "absent" for j in range(n_strains)]
+        lines.append(fam + "\t" + "\t".join(row))
+    p = tmp_path / "wide_matrix.tsv"
+    p.write_text("\n".join(lines) + "\n")
+    return p, strains
+
+
+def test_from_tsv_default_behaviour_is_unchanged_without_families_arg(tmp_path):
+    """Pin: from_tsv(path) with no `families` arg must be byte-identical to
+    today's behaviour -- six other consumers depend on the unfiltered load."""
+    pm = PresenceMatrix(families=["famA", "famB"], strains=["s1", "s2"])
+    pm.set_call("famA", "s1", PRESENT)
+    pm.set_call("famB", "s2", GENOME_ONLY)
+    out = tmp_path / "matrix.tsv"
+    pm.to_tsv(out)
+
+    loaded_default = PresenceMatrix.from_tsv(out)
+    loaded_explicit_none = PresenceMatrix.from_tsv(out, families=None)
+    assert loaded_default.families == loaded_explicit_none.families == ["famA", "famB"]
+    assert loaded_default.strains == loaded_explicit_none.strains == ["s1", "s2"]
+    assert loaded_default.calls == loaded_explicit_none.calls
+    assert loaded_default.copy_number == loaded_explicit_none.copy_number
+
+
+def test_from_tsv_with_families_loads_only_requested_families(tmp_path):
+    p, strains = _write_wide_matrix(tmp_path, n_families=1000)
+    loaded = PresenceMatrix.from_tsv(p, families={"famA", "famB"})
+    assert sorted(loaded.families) == ["famA", "famB"]
+    # Memory characteristic: an order of magnitude fewer calls than a full load.
+    assert len(loaded.calls) == 2 * len(strains)
+
+
+def test_from_tsv_with_families_strains_is_the_full_list(tmp_path):
+    """matrix.strains comes from the header row and must stay the FULL
+    strain list even when only a handful of families are loaded -- the
+    grid's rows are strains, so truncating strains would be wrong."""
+    p, strains = _write_wide_matrix(tmp_path, n_families=500, n_strains=12)
+    loaded = PresenceMatrix.from_tsv(p, families={"famA"})
+    assert loaded.strains == strains
+
+
+def test_from_tsv_with_families_requested_family_absent_does_not_crash(tmp_path):
+    p, strains = _write_wide_matrix(tmp_path, n_families=50)
+    loaded = PresenceMatrix.from_tsv(p, families={"famA", "does_not_exist"})
+    assert loaded.families == ["famA"]
+    # An absent family must still score absent (default) rather than raising.
+    for s in strains:
+        assert loaded.call("does_not_exist", s) == ABSENT
+
+
+def test_from_tsv_with_families_matches_full_load_for_those_families(tmp_path):
+    """The filtered load is an optimisation, not a behaviour change: for the
+    families it does load, results must match a full unfiltered load exactly."""
+    p, strains = _write_wide_matrix(tmp_path, n_families=300)
+    full = PresenceMatrix.from_tsv(p)
+    filtered = PresenceMatrix.from_tsv(p, families={"famA", "famB"})
+    for fam in ("famA", "famB"):
+        for s in strains:
+            assert filtered.call(fam, s) == full.call(fam, s)
+
+
+def test_from_tsv_with_families_filters_copy_number_sidecar(tmp_path):
+    pm = PresenceMatrix(families=["famA", "famB", "famC"], strains=["s1", "s2"])
+    pm.set_call("famA", "s1", PRESENT, copies=3)
+    pm.set_call("famB", "s1", PRESENT, copies=2)
+    pm.set_call("famC", "s1", PRESENT, copies=5)
+    out = tmp_path / "matrix.tsv"
+    pm.to_tsv(out)
+
+    loaded = PresenceMatrix.from_tsv(out, families={"famA"})
+    assert loaded.copy_number == {("famA", "s1"): 3}
+
+
 def test_from_tsv_rejects_unknown_state(tmp_path):
     p = tmp_path / "corrupt.tsv"
     p.write_text("family\ts1\ts2\nfamA\tpresent\tPRESENT\n")
