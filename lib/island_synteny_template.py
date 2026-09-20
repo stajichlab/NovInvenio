@@ -27,12 +27,20 @@ off bin/pangenome_domain_enrichment.py's per-family Pfam scan), not the
 island's single `dominant_class` -- a family absent from that scan, or a run
 with no domain-enrichment data supplied at all, is "unannotated" rather than
 an error. Hovering a tick reveals that column's own family ID and domain
-string (`families[i]` / `family_domains[i]`). The main grid's "present" cell
-fill reuses the same per-column colour, so a column reads as one consistent
-hue from the glyph strip straight down through its cells -- the island-level
-`dominant_class` is still carried in the payload and used only for the
-sidebar's one-chip-per-island summary, where a single colour per island is
-what that list is for.
+string (`families[i]` / `family_domains[i]`).
+
+Domain annotation stays OUT of the grid cells -- this is a spec requirement
+(docs/superpowers/specs/2026-09-19-pangenome-gainloss-visualization-design.md),
+not a style choice: "one colored tick per column keyed to a Pfam class ...
+not in cells". The main grid's "present" cell fill is always a single,
+uniform colour (`P.primary`); it never varies by family class, both because
+colour must encode evidence type rather than let one hue carry presence AND
+annotation class at once (CLAUDE.md's report colour rule), and because the
+view's whole purpose -- spotting a deletion breakpoint, the vertical edge
+where a run of filled cells stops across every haplotype row -- is easiest
+to read against a uniform field. The island-level `dominant_class` is
+carried in the payload and used only for the sidebar's one-chip-per-island
+summary, where a single colour per island is what that list is for.
 
 Design note -- glyph/class colour tokens: lib/skins.py's REQUIRED_TOKENS has
 exactly two data-series colours (--series-1, --series-2), both already
@@ -411,10 +419,6 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     gctx.fillStyle = P.surface;
     gctx.fillRect(0, 0, totalW, h);
 
-    // Same per-column colour as the glyph strip above, so a column reads as
-    // one consistent hue from the tick straight down through its cells.
-    var famColors = isl.families.map(function (f, i) { return classColor(familyClassAt(isl, i)); });
-
     haps.forEach(function (hap, ri) {
       var y = ri * ROW_H;
 
@@ -431,9 +435,15 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
         gctx.fillText(ellipsize(gctx, note, GUTTER - 60), 50, y + ROW_H / 2);
       }
 
+      // Deliberately ONE colour for every present cell, never the per-column
+      // Pfam class -- see this module's docstring. Annotation lives in the
+      // glyph strip above, not in the cells: a multicoloured grid would make
+      // the deletion-breakpoint edge (a run of filled cells stopping across
+      // every haplotype row) harder to see, which is the one thing this
+      // grid exists to show.
       for (var ci = 0; ci < hap.pattern.length; ci++) {
         var on = hap.pattern.charAt(ci) === "1";
-        gctx.fillStyle = on ? famColors[ci] : P.grid;
+        gctx.fillStyle = on ? P.primary : P.grid;
         gctx.fillRect(colX(ci) + 1, y + 1, CELL_W - 2, ROW_H - 2);
       }
     });

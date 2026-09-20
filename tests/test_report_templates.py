@@ -154,3 +154,28 @@ def test_island_synteny_page_uses_the_real_skin_convention():
     convention and appear in zero other page templates here."""
     assert '--page' in ISLAND_SYNTENY_TEMPLATE
     assert 'data-skin' in ISLAND_SYNTENY_TEMPLATE
+
+
+def test_island_synteny_grid_cells_do_not_carry_pfam_class_colour():
+    """Pins docs/superpowers/specs/2026-09-19-pangenome-gainloss-visualization-design.md's
+    "one colored tick per column ... not in cells" requirement, and
+    CLAUDE.md's "no hue does double duty" colour rule. The glyph strip above
+    the grid is per-family (see test below); the grid's own present-cell
+    fill must stay a single, uniform colour so the deletion-breakpoint edge
+    -- the one thing the grid exists to show -- reads clearly. A prior
+    revision briefly reused the per-family colour array for cell fill too;
+    this guards against reintroducing that, in any spelling."""
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert 'on ? P.primary : P.grid' in page
+    assert 'famColors' not in page
+    assert 'on ? classColor(' not in page
+    assert 'on ? familyClassAt' not in page
+
+
+def test_island_synteny_glyph_strip_is_still_per_family():
+    """The glyph strip -- not the grid -- is where per-column Pfam class
+    colouring belongs; guards against R9's grid-cell revert accidentally
+    also reverting the strip back to island-wide dominant_class."""
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert 'classColor(familyClassAt(isl, i))' in page
+    assert 'familyDomainsAt(isl, ci)' in page
