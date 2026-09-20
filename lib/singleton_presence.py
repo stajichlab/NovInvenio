@@ -29,6 +29,7 @@ comparison instead of an absolute-magnitude proxy, so filter 1 was redundant on 
 not protective.)
 """
 import csv
+import math
 from collections import defaultdict
 from pathlib import Path
 
@@ -89,8 +90,37 @@ def load_paralog_info(cutoff_files):
     return paralog_of
 
 
+# Filter-2 rescue floor, ON by default -- mirrors bin/build_presence_matrix.py's
+# DEFAULT_RESCUE_EVALUE and nextflow.config's params.paralog_rescue_evalue (issue #138).
+# 0 disables.
+DEFAULT_RESCUE_EVALUE = 1e-20
+
+
+def _rescued(ev, paralog_ev, rescue_evalue, rescue_delta):
+    """True if a hit filter 2 would disqualify should be kept anyway.
+
+    The two arms are OR-ed and deliberately independent: the floor asks "is this hit
+    strong on its own?", the delta arm asks "did the paralog actually explain it away?".
+    See bin/build_presence_matrix.py's module docstring for the measured evidence, and
+    why only the floor is on by default.
+    """
+    if rescue_evalue and ev <= rescue_evalue:
+        return True
+    if rescue_delta is not None:
+        if paralog_ev <= 0:
+            # diamond reports 0.0 for an overwhelming hit; log10(0) is -inf, so the
+            # paralog beat the query by an unbounded margin -> never rescued.
+            return False
+        if ev <= 0:
+            return True
+        if math.log10(ev) - math.log10(paralog_ev) < rescue_delta:
+            return True
+    return False
+
+
 def score_singleton_hits(hits, singleton_ids, paralog_of,
-                         default_evalue, competition_scope='proteome'):
+                         default_evalue, competition_scope='proteome',
+                         rescue_evalue=DEFAULT_RESCUE_EVALUE, rescue_delta=None):
     """Filter a singleton search's hits down to qualifying presence calls.
 
     hits: iterable of (query_id, target_id, evalue, proteome_short) tuples -- covers
@@ -130,7 +160,8 @@ def score_singleton_hits(hits, singleton_ids, paralog_of,
         if paralog_id:
             key = (paralog_id, short if competition_scope == 'proteome' else target_id)
             paralog_ev = best_ev.get(key)
-            if paralog_ev is not None and paralog_ev < ev:
+            if (paralog_ev is not None and paralog_ev < ev
+                    and not _rescued(ev, paralog_ev, rescue_evalue, rescue_delta)):
                 continue  # disqualified: the paralog explains this hit better
 
         presence[short].add(query_id)
