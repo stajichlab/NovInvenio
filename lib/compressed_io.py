@@ -24,12 +24,15 @@ class _ZstdReader:
     The file may be multi-GB, so we stream it rather than reading into memory.
     The underlying stdout returns an empty stream if zstd fails, but we detect
     that failure by calling proc.wait() on close/exhaustion and raising if
-    returncode != 0. This makes a corrupt or truncated .zst file fail loudly
-    instead of silently returning zero bytes -- critical for pipelines where
-    a meaningless empty result is worse than a crash (e.g. column ordering by
-    locus position, where alphabetical fallback is wrong but plausible-looking).
+    returncode != 0 (except SIGPIPE, -13/141, which is tolerated when the
+    stream is closed early without reading to EOF). This makes a corrupt or
+    truncated .zst file fail loudly instead of silently returning zero bytes --
+    critical for pipelines where a meaningless empty result is worse than a
+    crash (e.g. column ordering by locus position, where alphabetical fallback
+    is wrong but plausible-looking).
 
-    Supports context manager, iteration, read(), and csv.DictReader use.
+    Supports context manager, iteration, read(), readline(), readlines(), and
+    csv.DictReader use.
     """
 
     def __init__(self, proc: subprocess.Popen) -> None:
@@ -106,8 +109,7 @@ class _ZstdReader:
         return self._safe_read(wrapper.readlines)
 
     def __iter__(self):
-        wrapper = self._ensure_wrapper()
-        return wrapper.__iter__()
+        return self
 
     def __next__(self) -> str:
         wrapper = self._ensure_wrapper()
@@ -127,13 +129,20 @@ class _ZstdReader:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
-        """Close stdout and check zstd's exit code. If it failed, raise."""
+        """Close stdout and check zstd's exit code. If it failed, raise.
+
+        SIGPIPE (-13 or exit code 141) is tolerated because it occurs when
+        the stream is closed early without reading to EOF, which is a normal
+        use case (e.g., breaking from a loop). Any other non-zero exit is
+        treated as a decompression error.
+        """
         if self._text_wrapper:
             self._text_wrapper.close()
         else:
             self._stdout.close()
         returncode = self._proc.wait()
-        if returncode != 0:
+        # Tolerate SIGPIPE (return code -13 appears as 141 after wait())
+        if returncode != 0 and returncode not in (-13, 141):
             stderr = self._get_stderr()
             raise RuntimeError(
                 f"zstd decompression failed with exit code {returncode}"
@@ -148,11 +157,14 @@ def open_maybe_compressed(path: str | Path) -> IO[str]:
     All formats check for file existence first, so missing files raise
     FileNotFoundError consistently (not silent empty streams).
 
-    The .zst case shells out to `zstd -dc -f` and wraps stdout in a reader
-    that detects non-zero exit on close/exhaustion. This catches corrupt or
-    truncated .zst files that would otherwise silently return empty streams.
-    The `-f` flag handles symlinks (Nextflow staging) by decompressing them
-    in place rather than failing on them (PR #113).
+    The .zst case shells out to `zstd -dc` (no `-f` flag) and wraps stdout
+    in a reader that detects non-zero exit on close/exhaustion. This catches
+    corrupt or truncated .zst files that would otherwise silently return empty
+    streams. Symlinks (Nextflow staging, PR #113) are resolved to their real
+    path in Python BEFORE passing to zstd, so zstd never sees a symlink and
+    doesn't need `-f`. The `-f` flag was tried initially but rejected: it
+    silently passes non-zstd files through with exit 0, defeating the purpose
+    of this function (fail loudly on invalid input).
     """
     p = Path(path)
     if not p.exists():
@@ -162,8 +174,10 @@ def open_maybe_compressed(path: str | Path) -> IO[str]:
     if path_str.endswith(".gz"):
         return gzip.open(path_str, "rt")
     if path_str.endswith(".zst"):
+        # Resolve symlinks so zstd never sees them and doesn't need -f
+        resolved_path = str(p.resolve())
         proc = subprocess.Popen(
-            ["zstd", "-dc", "-f", path_str],
+            ["zstd", "-dc", resolved_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )

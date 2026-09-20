@@ -167,13 +167,42 @@ def test_open_maybe_compressed_missing_zst_raises_filenotfound(tmp_path):
 
 
 @needs_zstd
-def test_open_maybe_compressed_corrupt_zst_raises(tmp_path):
-    """Corrupt .zst file (invalid header) raises, not silent empty stream."""
-    import os
-    path = tmp_path / "corrupt.tsv.zst"
-    path.write_bytes(os.urandom(200))  # Random garbage, not valid zstd
+def test_open_maybe_compressed_plain_text_named_zst_raises(tmp_path):
+    """Plain text file named .zst (not actually compressed) raises, not passed through.
+
+    This is the defect that `-f` flag caused: `zstd -dc -f` silently passes
+    non-zstd files through with exit 0. The fix (no `-f`, resolve symlinks in
+    Python) must prevent this.
+    """
+    path = tmp_path / "ascii_text.tsv.zst"
+    path.write_text("col1\tcol2\nval1\tval2\n")  # Plain ASCII, not zstd
     with pytest.raises(RuntimeError) as exc_info:
         with open_maybe_compressed(str(path)) as fh:
+            fh.read()
+    assert "zstd" in str(exc_info.value).lower()
+
+
+@needs_zstd
+def test_open_maybe_compressed_truncated_zst_raises(tmp_path):
+    """Truncated but genuinely-zstd file raises, not partial read.
+
+    This guards against silently returning partial/corrupted data from
+    a file that started as valid zstd but was truncated partway through.
+    """
+    # Compress some data with zstd, then truncate it
+    full_zst_bytes = subprocess.run(
+        ["zstd", "-q", "-"],
+        input=b"col\nvalue1\nvalue2\n",
+        stdout=subprocess.PIPE,
+        check=True
+    ).stdout
+
+    # Keep only the first ~20 bytes (corrupt frame)
+    truncated = tmp_path / "truncated.tsv.zst"
+    truncated.write_bytes(full_zst_bytes[:20])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        with open_maybe_compressed(str(truncated)) as fh:
             fh.read()
     assert "zstd" in str(exc_info.value).lower()
 
