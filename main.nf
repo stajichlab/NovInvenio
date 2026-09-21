@@ -60,6 +60,7 @@ workflow {
     if (!file(params.config).exists())   error "ERROR: --config file not found: ${params.config}"
     if (!file(params.data_dir).isDirectory()) error "ERROR: --data_dir is not a directory: ${params.data_dir}"
     if (params.run_tool !in ['phmmer', 'diamond', 'blast']) error "ERROR: --run_tool must be phmmer, diamond, or blast (got: ${params.run_tool})"
+    if (params.diamond_sensitivity !in ['', 'sensitive', 'more-sensitive', 'very-sensitive', 'ultra-sensitive']) error "ERROR: --diamond_sensitivity must be empty (default), sensitive, more-sensitive, very-sensitive, or ultra-sensitive (got: ${params.diamond_sensitivity})"
     if (params.cluster_tool !in ['pairwise', 'mmseqs', 'novelty_discovery']) error "ERROR: --cluster_tool must be pairwise, mmseqs, or novelty_discovery (got: ${params.cluster_tool})"
 
     // Resolve DB paths to absolute at launch time and pass them as val inputs —
