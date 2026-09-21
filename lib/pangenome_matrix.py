@@ -36,6 +36,24 @@ def read_cluster_tsv(path: str | Path) -> dict[str, str]:
     return member_to_rep
 
 
+def read_gene_positions_tsv(path: str | Path) -> list[tuple[str, str, str, int, int]]:
+    """Parse gene_positions.tsv (`Short\tprotein_id\tcontig\tstart\tend`,
+    header first, see pangenome_build_gene_positions.py) into
+    [(Short, protein_id, contig, start, end), ...]. Shared by
+    pangenome_build_family_positions.py's own inline reader and
+    pangenome_rescue_pass.py's structural rescue filter (issue #133)."""
+    rows: list[tuple[str, str, str, int, int]] = []
+    with open_maybe_compressed(path) as fh:
+        next(fh, None)
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 5:
+                continue
+            short, protein_id, contig, start, end = parts
+            rows.append((short, protein_id, contig, int(start), int(end)))
+    return rows
+
+
 def iter_tblout_family_hits(path: str | Path, member_to_rep: dict[str, str], id_sep: str = "|"):
     """Yield (short, family_id) for every hmmsearch/hmmscan --tblout hit line
     whose target name resolves (via `member_to_rep`) to a real tier-1
