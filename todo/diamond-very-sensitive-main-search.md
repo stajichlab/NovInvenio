@@ -98,3 +98,69 @@ Diamond sensitivity modes tested on the real HEX1 case (Ncra self-search):
 `--ultra-sensitive` gave the same result as `--very-sensitive` in that test,
 so `--very-sensitive` was chosen as the less extreme option for the
 self-search fix).
+
+## Benchmark results (2026-09-20) — A/B, pezizo_set1, 11 species
+
+Two fresh runs from the SAME code (branch `diamond-sensitivity-param`, PR #149); the only
+difference is `--diamond_sensitivity very-sensitive`. Compared against each other, NOT against the
+old `results/pezizo_set1`, which predates #136/#139 and would confound two changes. Launcher,
+comparison script and full report: `NI_Sweep/diamond_sensitivity/{run_benchmark.sh,compare.py,
+decompose.py,comparison_report.md}`. Both runs: 211 tasks, 0 failed. The flag was confirmed present
+in the executed `DIAMOND_SEARCH` commands (default 0 of 5 tasks, very-sensitive 5 of 5).
+
+### 1. Wall-clock — cheap in absolute terms, ratio NOT reliably measured
+
+| process | sum default (s) | sum very-sens (s) | ratio |
+|---|---|---|---|
+| DIAMOND_SEARCH (n=11 each) | 294 | 481 | 1.64x |
+| DIAMOND_SELF (identical work both arms) | 48 | 33 | 0.69x |
+| DIAMOND_MAKEDB (identical work both arms) | 34 | 18 | 0.54x |
+
+The two control rows do identical work in both arms yet differ by 30-46%, so run-to-run/node noise
+at this scale is about that size and the 1.64x is barely outside it. Whole-study summed task time
+0.23 h vs 0.30 h. **n=11 species cannot speak to the ~3.9x per-pair estimate above or to O(species^2)
+scaling at 50-100 species** -- that acceptance criterion is only partly met.
+
+### 2. Candidate diff — the net change hides ~50% gross turnover
+
+| | default | very-sensitive | shared | only-default | only-very |
+|---|---|---|---|---|---|
+| novelty | 3515 | 3193 (-9.2%) | 1755 | 1760 | 1438 |
+| loss | 101 | 141 (+39.6%) | 28 | 73 | 113 |
+
+Two separate mechanisms, each ~98-99% clean:
+- **1747 of 1760 dropped** because a real OUTGROUP hit appeared (outgroup 0 -> 1..4), ingroup
+  unchanged. Spot-check: MED17 (Mediator; Scer 3e-21, Spom 2e-15), SLX4, CTRA2 -- recognizably
+  conserved genes that default mode called "Pezizomycotina-specific". Strongly supports this half.
+- **1412 of 1438 newly novel** because INGROUP presence rose (3->4, 2->4, 0->4 ...) with outgroup
+  still 0. 290 of them had NO matrix row at all in default mode (no cross-species hit anywhere).
+  **UNRESOLVED**: real lineage-specific genes default mode could not see in divergent ingroup
+  members, or promiscuous family cross-hits inflating ingroup presence past the 75% threshold?
+  The controls cannot say (all 5 positives were already candidates). Distinguishing them needs
+  alignment coverage -- i.e. issue #129.
+
+### 3. Controls — no paralog cross-reactivity regression
+
+HEX1, LAH, ADA1, HAM8, SPA1 remain candidates under very-sensitive. CorA/A7UWR3 (hard negative) is
+excluded in BOTH arms, so #136's rescue floor is confirmed end-to-end on real data (it IS a
+candidate in the pre-#136 `results/pezizo_set1`).
+
+### Caveats
+- One study, 11 species; a single run per arm.
+- Unexplained: a fresh DEFAULT run differs from the old baseline by 213 only-old (exactly the
+  number the 1e-20 floor removes -- good) but ALSO 335 only-new (3515 vs 3393 - 213 + 335). Cause
+  not investigated; it does not affect the default-vs-very comparison but should be understood.
+- "Ingroup presence rose" is not evidence the newly-novel genes are real.
+
+### Recommendation (awaiting a decision -- NOT recorded as adopted)
+**Defer adopting a project-wide default; do not reject.** The outgroup-side gain is large, well
+supported, and cheap; the ingroup-side gain is unvalidated. One option worth testing: an
+**asymmetric** rule -- very-sensitive search for the "absent from outgroups" call (where a false
+absence is the failure), default-mode presence for the "present in >=75% of ingroup" call (where
+cross-family false presence is the failure). On these numbers that would drop the 1747 false
+novelties while adding none of the unvalidated 1438. Untested. Sequence after #129 so the wider
+`outfmt` and this cache invalidation share one re-run pass.
+
+- [x] Full-study wall-clock benchmark recorded (ratio not reliably measured; see caveats)
+- [x] Candidate-count diff characterized, spot-checked in both directions
+- [ ] Explicit decision recorded (adopt / defer / reject) -- pending
