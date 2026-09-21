@@ -127,7 +127,13 @@ def load_paralog_info(cutoff_files):
 
 
 HIT_COLUMNS = ['query_id', 'target_id', 'evalue', 'bitscore',
-               'query_proteome', 'target_proteome']
+               'query_proteome', 'target_proteome',
+               # Metric columns (issue #129), carried through by bin/parse_hits.py when
+               # the raw tool output has them; blank/absent otherwise. Not consumed by
+               # any filter in this script yet -- see Option 4 in the paralog-rescue
+               # spec (docs/superpowers/specs/2026-09-20-paralog-novelty-disqualifier-
+               # analysis.md) for what they will eventually gate.
+               'length', 'pident', 'qcov', 'scov', 'qlen', 'slen']
 
 
 def load_hits(hit_files):

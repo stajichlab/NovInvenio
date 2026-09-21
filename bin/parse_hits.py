@@ -23,16 +23,24 @@ def main():
     args = ap.parse_args()
 
     parser = PARSERS[args.format]
-    header = 'query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\n'
+    metric_cols = ('length', 'pident', 'qcov', 'scov', 'qlen', 'slen')
+    header = ('query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\t'
+              + '\t'.join(metric_cols) + '\n')
+
+    def cell(v):
+        # Blank, never 0 -- a blank cell means "not measured" (a narrow/phmmer hit);
+        # 0 would read as a real zero-coverage measurement to anything reading this file.
+        return '' if v is None else str(v)
 
     with open_input(args.input) as fh_in, open(args.output, 'w') as fh_out:
         fh_out.write(header)
         for hit in filter_hits(parser(fh_in), args.evalue, args.bitscore):
             hit.query_proteome  = args.query_proteome
             hit.target_proteome = args.target_proteome
+            metrics = '\t'.join(cell(getattr(hit, c)) for c in metric_cols)
             fh_out.write(
                 f'{hit.query_id}\t{hit.target_id}\t{hit.evalue}\t'
-                f'{hit.bitscore}\t{hit.query_proteome}\t{hit.target_proteome}\n'
+                f'{hit.bitscore}\t{hit.query_proteome}\t{hit.target_proteome}\t{metrics}\n'
             )
 
 
