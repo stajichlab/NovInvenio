@@ -89,6 +89,16 @@ process TBLASTN_PER_STRAIN {
 
 // Fold every strain's tblastn hits back into the presence matrix, upgrading
 // ABSENT calls to GENOME_ONLY wherever a qualifying hit exists.
+//
+// gene_positions/cluster_tsv/rep_fasta wire in the issue #133 structural
+// rescue filter: reject a hit whose span overlaps a predicted gene already
+// assigned to a DIFFERENT family in that strain (77.6% of all rescuable
+// cells, exhaustively measured -- the same locus double-counted, not a real
+// annotation dropout), whose query family rep is implausibly short, or that
+// falls in a repeat-hotspot window. `gene_positions` therefore now runs
+// BEFORE this process in workflows/pangenome_profile.nf (it always could --
+// it only depends on the samplesheet/GFF3s, never on clustering or the
+// rescue pass itself).
 process RESCUE_PASS {
     label 'low_cpu'
     tag "rescue_pass"
@@ -98,6 +108,9 @@ process RESCUE_PASS {
     input:
     path(matrix)
     path(tblastn_tsvs)
+    path(gene_positions)
+    path(cluster_tsv)
+    path(rep_fasta)
 
     output:
     path("presence_matrix.rescued.tsv"), emit: matrix
@@ -105,12 +118,20 @@ process RESCUE_PASS {
 
     script:
     def tblastn_args = tblastn_tsvs.collect { "--tblastn_tsv ${it}" }.join(' ')
+    def structural_args = params.pangenome_rescue_structural_filter
+        ? "--gene_positions ${gene_positions} --cluster_tsv ${cluster_tsv} --rep_fasta ${rep_fasta} " +
+          "--rescue_min_rep_length ${params.pangenome_rescue_min_rep_length} " +
+          "--rescue_hotspot_window ${params.pangenome_rescue_hotspot_window} " +
+          "--rescue_hotspot_min_families ${params.pangenome_rescue_hotspot_min_families}"
+        : ''
     """
     pangenome_rescue_pass.py \
         --matrix ${matrix} \
         ${tblastn_args} \
         --min_pident ${params.pangenome_rescue_min_pident} \
         --min_qcov ${params.pangenome_rescue_min_qcov} \
+        --id_sep '${params.pangenome_id_sep}' \
+        ${structural_args} \
         --output presence_matrix.rescued.tsv
     """
 }

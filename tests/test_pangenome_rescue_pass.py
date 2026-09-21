@@ -8,7 +8,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 
 from pangenome_matrix import PresenceMatrix, PRESENT, GENOME_ONLY, ABSENT
-from pangenome_rescue_pass import parse_tblastn_hits, apply_rescue, main
+from pangenome_rescue_pass import (
+    parse_tblastn_hits,
+    apply_rescue,
+    main,
+    StructuralFilter,
+)
 
 
 def test_parse_tblastn_hits_filters_by_identity_and_coverage():
@@ -328,6 +333,195 @@ def test_main_zero_tblastn_args_does_not_trigger_zero_row_guard(monkeypatch, cap
         assert output_file.exists()
         captured = capsys.readouterr()
         assert "ERROR" not in captured.err
+
+
+# --- Issue #133: structural rescue criterion -------------------------------
+#
+# Rescue as configured turns 77.6% of rescuable cells into the same locus
+# double-counted (the hit lands on a predicted gene already assigned to a
+# DIFFERENT family in that strain) and another chunk into short/repetitive
+# noise. StructuralFilter rejects those three shapes; only a hit that lands
+# genuinely intergenic, on a plausible-length family rep, outside a
+# repeat-hotspot window, survives.
+
+
+def test_structural_filter_rejects_hit_overlapping_a_different_family_gene():
+    # gene_positions: strain s1, contig1, protein p1 spans 400-700
+    gene_positions = [("s1", "p1", "contig1", 400, 700)]
+    member_to_rep = {"s1|p1": "famB"}  # p1 belongs to famB
+    family_lengths = {"famA": 200, "famB": 200}
+    sf = StructuralFilter(gene_positions, member_to_rep, family_lengths)
+    # famA hit at 500-600 overlaps p1 (famB) -- reject
+    assert sf.overlapping_other_family("s1", "contig1", 500, 600, "famA") is True
+    # famB hit at 500-600 overlaps p1, but SAME family -- not rejected on this ground
+    assert sf.overlapping_other_family("s1", "contig1", 500, 600, "famB") is False
+    # A hit on a different contig/strain never overlaps
+    assert sf.overlapping_other_family("s1", "contig2", 500, 600, "famA") is False
+    assert sf.overlapping_other_family("s2", "contig1", 500, 600, "famA") is False
+
+
+def test_structural_filter_no_overlap_when_intergenic():
+    gene_positions = [("s1", "p1", "contig1", 400, 700)]
+    member_to_rep = {"s1|p1": "famB"}
+    sf = StructuralFilter(gene_positions, member_to_rep, {})
+    # Hit at 1000-1100 does not overlap the 400-700 gene.
+    assert sf.overlapping_other_family("s1", "contig1", 1000, 1100, "famA") is False
+
+
+def test_structural_filter_rep_too_short():
+    sf = StructuralFilter([], {}, {"famA": 100, "famB": 201}, min_rep_length=150)
+    assert sf.rep_too_short("famA") is True
+    assert sf.rep_too_short("famB") is False
+    # A family with no recorded length (rep not in the FASTA given) is never
+    # rejected on this ground alone -- absence of data isn't evidence.
+    assert sf.rep_too_short("famC") is False
+
+
+def test_parse_tblastn_hits_structural_filter_rejects_overlap_with_other_family():
+    # famA hit at 500-600 on s1|contig1 overlaps a gene there assigned to famB.
+    gene_positions = [("s1", "p1", "contig1", 400, 700)]
+    member_to_rep = {"s1|p1": "famB"}
+    sf = StructuralFilter(gene_positions, member_to_rep, {"famA": 200})
+    lines = [
+        "famA\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95",
+    ]
+    stats: dict = {}
+    hits = parse_tblastn_hits(lines, min_pident=90.0, min_qcov=80.0, stats=stats, structural=sf)
+    assert hits == set()
+    assert stats["rows_rejected_overlap"] == 1
+
+
+def test_parse_tblastn_hits_structural_filter_accepts_genuinely_intergenic_hit():
+    gene_positions = [("s1", "p1", "contig1", 4000, 4700)]  # far from the hit
+    member_to_rep = {"s1|p1": "famB"}
+    sf = StructuralFilter(gene_positions, member_to_rep, {"famA": 200})
+    lines = [
+        "famA\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95",
+    ]
+    stats: dict = {}
+    hits = parse_tblastn_hits(lines, min_pident=90.0, min_qcov=80.0, stats=stats, structural=sf)
+    assert hits == {("famA", "s1")}
+    assert stats["rows_rejected_overlap"] == 0
+    assert stats["rows_rejected_short_rep"] == 0
+    assert stats["rows_rejected_hotspot"] == 0
+
+
+def test_parse_tblastn_hits_structural_filter_rejects_short_rep():
+    sf = StructuralFilter([], {}, {"famA": 80}, min_rep_length=150)
+    lines = [
+        "famA\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95",
+    ]
+    stats: dict = {}
+    hits = parse_tblastn_hits(lines, min_pident=90.0, min_qcov=80.0, stats=stats, structural=sf)
+    assert hits == set()
+    assert stats["rows_rejected_short_rep"] == 1
+
+
+def test_parse_tblastn_hits_structural_filter_rejects_repeat_hotspot():
+    # Three different families all hit within the same 2kb window on
+    # s1|contig1, all genuinely intergenic and long enough -- a repeat
+    # hotspot, not three independent real gene losses.
+    sf = StructuralFilter(
+        [], {}, {"famA": 200, "famB": 200, "famC": 200},
+        hotspot_window_bp=2000, hotspot_min_families=3,
+    )
+    lines = [
+        "famA\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95",
+        "famB\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t550\t650\t1e-50\t200\t95",
+        "famC\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t900\t1000\t1e-50\t200\t95",
+    ]
+    stats: dict = {}
+    hits = parse_tblastn_hits(lines, min_pident=90.0, min_qcov=80.0, stats=stats, structural=sf)
+    assert hits == set()
+    assert stats["rows_rejected_hotspot"] == 3
+
+
+def test_parse_tblastn_hits_structural_filter_keeps_two_family_window():
+    # Only two distinct families in the window -- below the >=3 hotspot
+    # threshold, so both survive (assuming they pass the other criteria).
+    sf = StructuralFilter(
+        [], {}, {"famA": 200, "famB": 200},
+        hotspot_window_bp=2000, hotspot_min_families=3,
+    )
+    lines = [
+        "famA\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95",
+        "famB\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t550\t650\t1e-50\t200\t95",
+    ]
+    stats: dict = {}
+    hits = parse_tblastn_hits(lines, min_pident=90.0, min_qcov=80.0, stats=stats, structural=sf)
+    assert hits == {("famA", "s1"), ("famB", "s1")}
+    assert stats["rows_rejected_hotspot"] == 0
+
+
+def test_main_applies_structural_filter_end_to_end(monkeypatch, capsys):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        matrix_file = tmpdir / "matrix.tsv"
+        pm = PresenceMatrix(families=["famA", "famB"], strains=["s1"])
+        pm.set_call("famA", "s1", ABSENT)
+        pm.set_call("famB", "s1", ABSENT)
+        pm.to_tsv(matrix_file)
+
+        # famA's hit overlaps an existing famX gene on s1 -- rejected.
+        # famB's hit is genuinely intergenic -- applied.
+        tblastn_file = tmpdir / "s1.tblastn.tsv"
+        tblastn_file.write_text(
+            "famA\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95\n"
+            "famB\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t5000\t5100\t1e-50\t200\t95\n"
+        )
+
+        gene_positions_file = tmpdir / "gene_positions.tsv"
+        gene_positions_file.write_text(
+            "Short\tprotein_id\tcontig\tstart\tend\n"
+            "s1\tp1\tcontig1\t400\t700\n"
+        )
+        cluster_tsv_file = tmpdir / "tier1_cluster.tsv"
+        cluster_tsv_file.write_text("famX\ts1|p1\n")
+        rep_fasta_file = tmpdir / "tier1_rep_seq.fasta"
+        rep_fasta_file.write_text(">famA\n" + "M" * 200 + "\n>famB\n" + "M" * 200 + "\n")
+
+        output_file = tmpdir / "output.tsv"
+
+        monkeypatch.setattr(sys, "argv", [
+            "pangenome_rescue_pass.py",
+            "--matrix", str(matrix_file),
+            "--tblastn_tsv", str(tblastn_file),
+            "--gene_positions", str(gene_positions_file),
+            "--cluster_tsv", str(cluster_tsv_file),
+            "--rep_fasta", str(rep_fasta_file),
+            "--output", str(output_file),
+        ])
+
+        main()
+
+        result = PresenceMatrix.from_tsv(output_file)
+        assert result.call("famA", "s1") == ABSENT       # rejected: overlaps famX
+        assert result.call("famB", "s1") == GENOME_ONLY  # applied: intergenic
+        captured = capsys.readouterr()
+        assert "1 rejected: overlaps a different family's gene" in captured.err
+
+
+def test_main_requires_all_three_structural_inputs_together(monkeypatch, capsys):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        matrix_file = tmpdir / "matrix.tsv"
+        pm = PresenceMatrix(families=["famA"], strains=["s1"])
+        pm.set_call("famA", "s1", ABSENT)
+        pm.to_tsv(matrix_file)
+
+        output_file = tmpdir / "output.tsv"
+        gene_positions_file = tmpdir / "gene_positions.tsv"
+        gene_positions_file.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
+
+        monkeypatch.setattr(sys, "argv", [
+            "pangenome_rescue_pass.py",
+            "--matrix", str(matrix_file),
+            "--output", str(output_file),
+            "--gene_positions", str(gene_positions_file),
+        ])
+
+        with pytest.raises(SystemExit):
+            main()
 
 
 def test_parse_tblastn_hits_tracks_row_stats():

@@ -11,15 +11,23 @@ nextflow.enable.dsl=2
 // Pipeline (mirrors that study's PANGENOME_CLUSTER_PROFILE_NOTES.md "Run
 // order" section):
 //   PREFIX_PROTEOME/PREFIX_GENOME (per-strain) -> CONCAT_PROTEOMES -> CLUSTER_TIER1
-//     -> PRESENCE_MATRIX
+//     -> PRESENCE_MATRIX -> GENE_POSITIONS
 //     -> [rescue branch] EXTRACT_ABSENT_QUERIES -> per-strain scatter
-//        (MAKE_STRAIN_GENOME_DB + TBLASTN_PER_STRAIN) -> RESCUE_PASS
+//        (MAKE_STRAIN_GENOME_DB + TBLASTN_PER_STRAIN) -> RESCUE_PASS (issue
+//        #133 structural filter: gene_positions + cluster_tsv + rep_fasta)
+//        -> EXTRACT_RESCUE_POSITIONS
 //     -> [clade branch] MASH_SKETCH (x2: all-strains for dedup, ingroup-only
 //        for clades) -> DEREPLICATE / ASSIGN_CLADES -> FILL_TAXON_GROUP
 //     -> FREQUENCY_BINS -> COOCCURRENCE
-//     -> [positions branch] GENE_POSITIONS (+ EXTRACT_RESCUE_POSITIONS) -> FAMILY_POSITIONS
+//     -> [positions branch] FAMILY_POSITIONS (gene_positions + rescue_positions)
 //     -> [captain branch, optional] HMMFETCH_CAPTAIN? -> CAPTAIN_HMMSEARCH
 //     -> PAIR_CLASSIFICATION
+//
+// GENE_POSITIONS runs right after PRESENCE_MATRIX (moved ahead of the rescue
+// branch when issue #133 added the structural rescue filter) rather than
+// alongside FAMILY_POSITIONS where it originally lived -- it only ever
+// depended on the samplesheet/GFF3s, never on clustering or rescue, so
+// nothing about what it computes changed, only when.
 //
 // Two documented departures from a literal 1:1 port of the originating
 // study, both explained further at their point of use below:
@@ -77,6 +85,17 @@ workflow PANGENOME_PROFILE {
     // --- 2. Presence matrix ------------------------------------------------
     PRESENCE_MATRIX(CLUSTER_TIER1.out.cluster_tsv, samplesheet)
 
+    // --- 2b. Gene positions --------------------------------------------------
+    // protein_dir_abs is always "<data_dir_abs>/pep" -- the fixed layout
+    // build_study_config.py always produces, same fixed-subdir convention
+    // gff3_dir_abs's own default already uses in pangenome.nf. Needed so
+    // GENE_POSITIONS can cross-check resolved GFF3 IDs against each strain's
+    // real protein FASTA headers, rather than trust GFF3 attribute presence
+    // alone. See this file's header comment for why this now runs here
+    // rather than alongside FAMILY_POSITIONS.
+    protein_dir_abs = "${data_dir_abs}/pep"
+    GENE_POSITIONS(samplesheet, gff3_dir_abs, protein_dir_abs)
+
     // --- 3. Rescue pass (optional; per-strain scatter, see modules/pangenome/rescue.nf) ---
     if (params.pangenome_rescue_enable) {
         EXTRACT_ABSENT_QUERIES(PRESENCE_MATRIX.out.matrix, CLUSTER_TIER1.out.rep_fasta)
@@ -105,7 +124,10 @@ workflow PANGENOME_PROFILE {
         TBLASTN_PER_STRAIN(tblastn_in)
         tblastn_tsv_files = TBLASTN_PER_STRAIN.out.tsv.map { meta, tsv -> tsv }.collect().ifEmpty([])
 
-        RESCUE_PASS(PRESENCE_MATRIX.out.matrix, tblastn_tsv_files)
+        RESCUE_PASS(
+            PRESENCE_MATRIX.out.matrix, tblastn_tsv_files,
+            GENE_POSITIONS.out.positions, CLUSTER_TIER1.out.cluster_tsv, CLUSTER_TIER1.out.rep_fasta,
+        )
         rescued_matrix = RESCUE_PASS.out.matrix
 
         EXTRACT_RESCUE_POSITIONS(rescued_matrix, tblastn_tsv_files)
@@ -153,16 +175,9 @@ workflow PANGENOME_PROFILE {
     FREQUENCY_BINS(rescued_matrix, effective_samplesheet, strain_inventory)
     COOCCURRENCE(rescued_matrix, FREQUENCY_BINS.out.table, effective_samplesheet, strain_inventory)
 
-    // --- 6. Gene/family positions -------------------------------------------
-    // protein_dir_abs is always "<data_dir_abs>/pep" -- the fixed layout
-    // build_study_config.py always produces, same fixed-subdir convention
-    // gff3_dir_abs's own default already uses in pangenome.nf. Needed here
-    // (added alongside the GFF3 protein_id=/Parent= dialect fallback fix)
-    // so GENE_POSITIONS can cross-check resolved GFF3 IDs against each
-    // strain's real protein FASTA headers, rather than trust GFF3 attribute
-    // presence alone.
-    protein_dir_abs = "${data_dir_abs}/pep"
-    GENE_POSITIONS(samplesheet, gff3_dir_abs, protein_dir_abs)
+    // --- 6. Family positions -------------------------------------------------
+    // GENE_POSITIONS itself now runs at step 2b, above -- see this file's
+    // header comment.
     FAMILY_POSITIONS(GENE_POSITIONS.out.positions, CLUSTER_TIER1.out.cluster_tsv, rescue_positions)
 
     // --- 7. Optional captain/mobile-element marker gene evidence -----------
