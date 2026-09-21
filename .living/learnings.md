@@ -577,3 +577,151 @@ nextflow, node-placement, pangenome, self-correction, profile-local
 exists). If this class of mistake recurs, the real candidate is a habit/checklist
 one: grep the relevant `conf/*.config` for a process's name before concluding a
 `-profile local` failure reflects a missing SLURM safeguard.
+
+## 2026-09-19 — Gene-family IDs are NOT stable across a full pipeline re-run
+
+**Tags**: pangenome, reproducibility, mmseqs, cross-run-comparison
+
+Re-running the whole `coccidioides_pangenome` `genus_vs_ureesii` study from
+scratch (529 strains, same config, same data, same code path) produced an
+essentially identical *clustering* but a substantially different set of
+family *identifiers*:
+
+| | original run | re-run |
+|---|---|---|
+| total families | 54,421 | 54,410 |
+| family IDs shared between the two | **39,829 (73%)** | |
+
+A family's ID is its mmseqs cluster representative's sequence ID, and mmseqs
+does not pick the same representative every time (thread count and tie-break
+order both move it). So ~27% of families are renamed on re-run even though
+the partition barely changes (0.02% difference in family count).
+
+**Consequence**: any artifact keyed by family ID — `family_modules.tsv`,
+`presence_matrix.tsv`, `islands_with_domains.tsv`, report tables — cannot be
+diffed across runs by joining on the family column. A comparison that does
+so will report a huge spurious difference. Comparing two runs requires
+matching on cluster *membership*, not on the representative's name.
+
+This surfaced while validating `LEIDEN_MODULES` at scale: the pipeline run
+and the earlier hand-run shared only 6,854 of ~14,700 trans families, which
+looked alarming until the ID instability explained it. On the families that
+*did* keep their ID, module agreement was 97.1% (ARI 0.926, near-diagonal
+contingency table, same four modules) — and running the pipeline's script
+against the *original* `pair_classification.tsv` reproduced the hand-run
+**byte-for-byte** (identical md5). So the Leiden step itself is fully
+deterministic; the variation is entirely upstream.
+
+## 2026-09-19 — `zstd -dc` silently returns EMPTY for a symlinked input, and Nextflow stages every input as a symlink
+
+**Tags**: nextflow, compression, silent-data-loss, staging
+
+`lib/compressed_io.py`'s `open_maybe_compressed()` shelled out to
+`zstd -dc <path>`. Nextflow stages every process input as a **symlink** into
+the task work directory, and `zstd` refuses to read through a symlink: it
+prints `Warning : <file> is a symbolic link, ignoring`, writes **nothing** to
+stdout, and **exits 0**.
+
+The result is silent truncation, not a crash. On a 5-strain smoke run,
+`BUILD_FAMILY_POSITIONS` read a staged `gene_positions.tsv.zst`, got an empty
+stream, wrote a header-only `family_positions.tsv` (43,240 rows in the
+pre-change run), and the pipeline reported **SUCCESS**.
+
+**Fix**: `zstd -dc -f`. The `-f` is load-bearing under Nextflow, not a
+convenience — never remove it.
+
+**Why the unit tests missed it**: `tmp_path` fixtures create real files.
+Nothing in the test suite reproduced staging until a regression test was
+added that reads a `.zst` *through a symlink*. Any helper that shells out to
+a CLI on a path handed to it by Nextflow needs a symlink test.
+
+## 2026-09-19 — A background run launched from a Claude session dies with the session, and /scratch goes with it
+
+**Tags**: hpcc, scratch, background-jobs, session-lifetime
+
+Two `nextflow` smoke runs started with `nohup ... &` from a Claude Code
+session were both lost when the session's own SLURM job ended: the processes
+died, and their working directories vanished because they lived under the
+session scratchpad on `/scratch/$USER/<jobid>/`, which is **node-local** and
+removed with the job. `pgrep -f <name>` made this hard to notice — the
+pattern matched the checking command's own shell, reporting "RUNNING" for
+processes that no longer existed.
+
+**Rule**: anything expected to outlive the current turn goes in via `sbatch`,
+with work dir, outdir and logs on `/bigdata` or `/rhome`. Never `nohup &` a
+multi-hour pipeline from the session, and never point its `-work-dir` at
+`/scratch` unless the job that owns that scratch is the one running it. When
+checking whether a named process survived, match on the real process
+(`ps -eo cmd | grep "[n]extflow"`) rather than a `pgrep -f` pattern that your
+own command line contains.
+
+## [2026-09-20] A purely relative paralog filter can erase an arbitrarily strong hit
+
+**Category**: presence-calling
+**What happened**: `build_presence_matrix.py` filter 2 disqualifies a hit whenever the
+query's in-genome paralog beats it head-to-head, with no absolute floor. For CorA
+(A7UWR3_NEUCR) this erased all 15 outgroup hits, including a 3.3e-93 match to ALR2_YEAST
+that the IQ-TREE topology confirms is a real ortholog — so the protein was called a
+lineage-specific novelty. HEX1 (P87252) is the opposite case and must keep filter 2:
+its single 3.4e-12 Mcir hit is real noise, and without filter 2 HEX1 fails
+`--other-max-frac 0.0` and stops being a candidate.
+**Why it matters**: a relative-only test has no upper bound on what it can discard. The
+two mechanisms act on disjoint populations of the 3393 pezizo_set1 candidates: 213 (6.3%)
+have a raw outgroup hit below 1e-20 (an absolute floor's job), ~121 sit in the 1e-20..1e-5
+twilight zone (filter 2's only legitimate job).
+**Resolution**: not yet implemented. `--paralog-rescue-evalue` already exists as the
+absolute-floor arm (default null/off). Measured that a query/paralog delta rule does NOT
+separate the populations on its own — median delta is 10-23 orders in every query-E
+bucket — so delta cannot replace the floor, though it does cover the floor's blind spot
+(cells where the paralog won by only 2-3 orders). Full option space in
+docs/superpowers/specs/2026-09-20-paralog-novelty-disqualifier-analysis.md.
+**Tags**: presence-calling, paralog, novelty, pairwise, threshold, controls
+
+## [2026-09-20] A build system can silently defeat a tool's own runtime SIMD dispatch
+
+**Category**: gotcha
+**What happened**: famsa SIGILLed (exit 132) on this cluster's Abu Dhabi nodes (AMD Opteron
+6376 / Piledriver: avx, bmi1, fma4, xop -- no avx2, no bmi2). The obvious reading was "famsa
+requires AVX2". It does not. FAMSA ships runtime CPU dispatch (src/utils/cpuid.h, separate
+lcsbp_avx_intr / lcsbp_avx2_intr / lcsbp_avx512_intr translation units), but refresh.mk's
+CHECK_OS_ARCH sets ARCH_FLAGS from the BUILD HOST's detected SIMD level and applies it to the
+whole binary, including the generic code -- so a build on an AVX2 machine stamps -mavx2
+everywhere and the dispatch can never be reached. Every prebuilt famsa inherits this,
+bioconda's and the cluster module's alike; the module named "2.4.1-x86", which sounds like a
+generic build, still contained 3211 vinserti128 and 20 BMI2 instructions.
+**Why it matters**: "binary SIGILLs on old CPU" is normally read as "the tool needs that ISA",
+and the fix reached for is a different tool or a node constraint. Both are wrong here and both
+cost real capacity -- the node constraint barred thousands of scatter-gather tasks from half a
+partition. Check for runtime dispatch in the SOURCE before concluding the tool needs the ISA.
+Disassembly tells you quickly: `objdump -d BIN | grep -cw vinserti128` (AVX2) and `bzhi|sarx|
+shlx` (BMI2), compared against /proc/cpuinfo flags.
+**Resolution**: `make PLATFORM=avx STATIC_LFLAGS='-static-libstdc++ -static-libgcc'` with
+gcc/12.2.0 produced a working, self-contained binary: BMI2 count 0, exit 0 on the Opteron, zero
+libstdc++/libgcc dynamic deps. Full -static fails (no static glibc); static libstdc++ alone is
+both necessary (else GLIBCXX_3.4.30 not found) and sufficient. zlib-ng's bundled test target
+fails against a stray miniconda libgtest -- harmless, libz.a builds and a second make proceeds.
+Packaging tracked in issue #148; the mafft-fallback alternative (#143) was closed as
+unnecessary once this was measured.
+**Tags**: simd, avx2, bmi2, hardware-compatibility, build-system, famsa, runtime-dispatch, slurm, gotcha
+
+## [2026-09-20] TBLASTN "extra evidence" candidates are mostly a diamond sensitivity gap, not false positives
+
+**Category**: presence-calling
+**What happened**: issue #135 asked whether candidates with TBLASTN outgroup-genome hits
+but no protein-level evidence are TBLASTN false positives. Measured on pezizo_set1's 1479
+such cells (breadth>=4): only 3.2% land in true intergenic space (the real FP signature).
+96.8% overlap an annotated gene in the outgroup's own GFF3. Of those, 62.1% have the gene's
+protein present in the search FASTA -- and of THOSE, 94.6% get literally zero diamond hits
+(even to E=0.01) despite TBLASTN finding a significant hit at the same locus.
+**Why it matters**: the dominant driver (56.9% of the 1479-cell population) is diamond
+default-mode sensitivity missing real orthologs that a translated search recovers
+immediately -- not TBLASTN noise (3.2%) and not primarily outgroup annotation gaps (36.6%).
+This is the same failure class already flagged in the open, unexecuted todo
+`diamond-very-sensitive-main-search.md` (one example: NCU02794 missed at 4/6 outgroups by
+default mode, caught at E=41..58 under --very-sensitive) -- this measurement shows it at
+scale (841 cases), not as an isolated anecdote.
+**Resolution**: recommended prioritizing the --very-sensitive DIAMOND_SEARCH benchmark over
+building a TBLASTN-based disqualifier for #135 -- fixing presence-calling upstream is more
+principled than patching around a protein-search miss at the genome level, and may make a
+large fraction of #135's population moot. Full decomposition posted to issue #135.
+**Tags**: presence-calling, diamond, sensitivity, tblastn, novelty, false-positive, todo-validated

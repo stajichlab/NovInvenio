@@ -1,3 +1,13 @@
+## Priority bumped medium -> high (2026-09-20)
+
+Issue #135's TBLASTN false-positive investigation found this is not a hypothetical
+concern: 841/1479 (56.9%) of candidates with only genome-level (TBLASTN) evidence
+get literally ZERO diamond hits at default sensitivity, even to E=0.01, at loci
+where TBLASTN finds a significant hit and the protein exists in the outgroup
+FASTA. Full decomposition: https://github.com/stajichlab/NovInvenio/issues/135#issuecomment-5753915888
+
+---
+
 # Evaluate --very-sensitive for the main pairwise DIAMOND_SEARCH
 
 | Field | Value |
