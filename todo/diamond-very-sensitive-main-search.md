@@ -152,7 +152,7 @@ candidate in the pre-#136 `results/pezizo_set1`).
   not investigated; it does not affect the default-vs-very comparison but should be understood.
 - "Ingroup presence rose" is not evidence the newly-novel genes are real.
 
-### Recommendation (awaiting a decision -- NOT recorded as adopted)
+### Recommendation (decision: DEFER, see checklist below)
 **Defer adopting a project-wide default; do not reject.** The outgroup-side gain is large, well
 supported, and cheap; the ingroup-side gain is unvalidated. One option worth testing: an
 **asymmetric** rule -- very-sensitive search for the "absent from outgroups" call (where a false
@@ -163,4 +163,4 @@ novelties while adding none of the unvalidated 1438. Untested. Sequence after #1
 
 - [x] Full-study wall-clock benchmark recorded (ratio not reliably measured; see caveats)
 - [x] Candidate-count diff characterized, spot-checked in both directions
-- [ ] Explicit decision recorded (adopt / defer / reject) -- pending
+- [x] Explicit decision recorded: **DEFER** (2026-09-20, Jason Stajich) -- do not adopt a project-wide default yet; revisit after #129 (alignment coverage) lets the 1438 newly-novel candidates be validated. Not rejected.
