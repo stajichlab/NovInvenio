@@ -56,7 +56,7 @@ process DIAMOND_SEARCH {
         diamond blastp \\
             --query ${query_fa} \\
             --db ${target_db.baseName} \\
-            --outfmt 6 qseqid sseqid evalue bitscore \\
+            --outfmt 6 qseqid sseqid evalue bitscore length pident qcovhsp scovhsp qlen slen \\
             --evalue ${params.parse_evalue} \\
             --threads ${task.cpus} \\
             --quiet \\

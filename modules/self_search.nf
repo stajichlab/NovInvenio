@@ -61,7 +61,7 @@ process DIAMOND_SELF {
     diamond blastp \
         --query ${proteome_fa} \
         --db self_db \
-        --outfmt 6 qseqid sseqid evalue bitscore \
+        --outfmt 6 qseqid sseqid evalue bitscore length pident qcovhsp scovhsp qlen slen \
         --max-target-seqs 2 \
         --evalue 100 \
         --very-sensitive \
@@ -92,7 +92,7 @@ process BLAST_SELF {
     blastp \
         -query ${proteome_fa} \
         -db self_db \
-        -outfmt "6 qseqid sseqid evalue bitscore" \
+        -outfmt "6 qseqid sseqid evalue bitscore length pident qcovhsp qlen slen" \
         -max_target_seqs 2 \
         -evalue 100 \
         -num_threads ${task.cpus} \

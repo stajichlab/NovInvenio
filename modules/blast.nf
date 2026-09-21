@@ -45,7 +45,7 @@ process BLAST_SEARCH {
     blastp \
         -query ${query_fa} \
         -db ${meta_t.id}.blast_db \
-        -outfmt "6 qseqid sseqid evalue bitscore" \
+        -outfmt "6 qseqid sseqid evalue bitscore length pident qcovhsp qlen slen" \
         -evalue ${params.parse_evalue} \
         -num_threads ${task.cpus} \
         -out ${prefix}.blast.tsv
