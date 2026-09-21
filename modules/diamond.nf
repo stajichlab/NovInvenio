@@ -59,6 +59,7 @@ process DIAMOND_SEARCH {
             --outfmt 6 qseqid sseqid evalue bitscore \\
             --evalue ${params.parse_evalue} \\
             --threads ${task.cpus} \\
+            ${params.diamond_sensitivity ? "--${params.diamond_sensitivity}" : ''} \\
             --quiet \\
             --out ${prefix}.diamond.tsv
         gzip ${prefix}.diamond.tsv
