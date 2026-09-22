@@ -1,20 +1,20 @@
 <!-- BEGIN QUICK REFERENCE -->
 # .living/ Index
-Last audit: 2026-09-08
+Last audit: 2026-09-19
 
 | File | Entries | Last updated | Key topics |
 |------|---------|--------------|------------|
 | conventions.md | 2 sections | 2026-07-20 | Implementation workflow: tickets → branch → PR, mycelium Stop hook (`mycelium-stop-check.sh`) is disabled |
-| decisions.md | 2 entries (large — read selectively) | 2026-09-08 | ADR-0002 grilling resolutions (running — folds into the ADR when complete), Report presentation: one skin registry, one linkout builder, one landing-page design |
-| learnings.md | 12 entries (large — read selectively) | 2026-09-08 | Claude Code owns settings.local.json — put hooks in settings.json, mycelium Stop hook false-blocks interactive (grilling) sessions, famsa (bioconda) requires AVX2 — SIGILLs on the cluster's Abu Dhabi nodes, mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9), Session-log stubs vs substance: hooks create logs, agents must write the findings |
-| log/ | 30 sessions | 2026-09-08 | novinvenio (30) |
+| decisions.md | 2 entries (large — read selectively) | 2026-09-18 | ADR-0002 grilling resolutions (running — folds into the ADR when complete), Report presentation: one skin registry, one linkout builder, one landing-page design |
+| learnings.md | 12 entries (large — read selectively) | 2026-09-19 | Claude Code owns settings.local.json — put hooks in settings.json, mycelium Stop hook false-blocks interactive (grilling) sessions, famsa (bioconda) requires AVX2 — SIGILLs on the cluster's Abu Dhabi nodes, mycelium generate_index.py needs Python 3.10+ — silently fails under system python3 (3.9), Session-log stubs vs substance: hooks create logs, agents must write the findings |
+| log/ | 49 sessions | 2026-09-19 | novinvenio (49) |
 
 ## Local skills
 See `.living/skills/` for project-specific skill packs.
 <!-- END QUICK REFERENCE -->
 
 <!-- BEGIN KNOWLEDGE SUMMARY -->
-Last summarized: 2026-09-08 (heuristic)
+Last summarized: 2026-09-19 (heuristic)
 
 ## Tag clusters
 

@@ -1337,3 +1337,21 @@ replication rather than a no-regression result.
 
 **Tags**: novelty-discovery, family-hmm, min-domain-evalue, controls, agaricomycetes,
 Agaricales, second-clade-validation, parameter-sweep, no-regression
+
+## [2026-09-20] Per-cell rescue rules must be evaluated on the aggregate that actually triggers them
+
+**Context**: choosing between an absolute e-value floor and a query/paralog "delta" margin
+as the rescue arm under build_presence_matrix.py filter 2 (issue #128).
+**Decision**: ship the floor ON by default (1e-20); implement the delta arm but leave it OFF.
+**Alternatives considered**: delta-only (scale-free, immune to protein length and tool
+choice); floor OR delta (the argument originally approved in-session).
+**Rationale**: the rescue fires per (protein, proteome) cell and ANY one rescued cell ends a
+novelty call, so the value that triggers the rule is the MINIMUM delta across a candidate\'s
+suppressed cells — not the delta at its strongest hit, which is how it was first measured. A
+min over several cells is nearly always small (median 8.6 on pezizo_set1), so delta<45 fires
+for 291 of 334 suppressed candidates. Scored against TBLASTN outgroup-genome breadth >=4,
+delta<45 removes 291 at 47.1% hit-rate vs 48.2% for removing every suppressed candidate
+indiscriminately — worse than no rule — while the floor removes 213 at 57.3%. OR-ing them
+drags 57.3% to 49.0%. Both curated controls (A7UWR3, HEX1) pass under either arm, so they
+could not distinguish the rules; only the population measurement could.
+**Caveat**: the breadth>=4 proxy has an unmeasured false-positive rate (issue #135).
