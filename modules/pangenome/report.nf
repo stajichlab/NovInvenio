@@ -1,8 +1,25 @@
 // REPORT_TABLES / REPORT_RENDER -- tidy aggregation tables, then
-// figures+Markdown, for the pangenome island+Pfam enrichment step. Split
-// into two processes (not one) so table aggregation stays testable without
-// a matplotlib dependency and independently reusable (e.g. by this repo's
-// docs/ publishing pipeline).
+// figures+Markdown, for the pangenome report. Split into two processes (not
+// one) so table aggregation stays testable without a matplotlib dependency
+// and independently reusable (e.g. by this repo's docs/ publishing
+// pipeline).
+//
+// Issue #135: both processes now run UNCONDITIONALLY, once per pipeline run
+// (not just when `--pangenome_island_pfam_hmm` is set) -- classification
+// counts and per-strain summaries only ever needed pair_classification/
+// presence_matrix/frequency_table, all computed regardless of the
+// islands+Pfam branch, so gating the whole report behind that branch meant
+// most runs never got a report at all (see workflows/pangenome_profile.nf's
+// header comment and issue #135). `significant_islands`/
+// `island_pfam_enrichment`/`domtblout` are still genuinely islands+Pfam-only
+// -- on a run where that branch didn't execute, the caller feeds these an
+// empty (0-byte) stub file (workflows/pangenome_profile.nf's
+// EMPTY_SIGNIFICANT_ISLANDS_STUB/EMPTY_ISLAND_ENRICHMENT_STUB/
+// EMPTY_DOMTBLOUT_STUB, same convention as EMPTY_RESCUE_TSV_STUB etc.), and
+// the `*_arg` conditionals below (`.size() > 0`, same pattern as
+// DIAGNOSTICS's `funnel_arg`) omit the corresponding CLI flag entirely so
+// pangenome_report_tables.py/pangenome_report_render.py treat it as "not
+// computed" rather than trying to parse an empty file as real data.
 process REPORT_TABLES {
     label 'low_cpu'
     tag "report_tables"
@@ -27,14 +44,17 @@ process REPORT_TABLES {
     path("per_strain_summary.tsv"), emit: per_strain_summary
 
     script:
+    def islands_arg     = (significant_islands.size() > 0)     ? "--significant_islands ${significant_islands}"         : ''
+    def enrichment_arg  = (island_pfam_enrichment.size() > 0)   ? "--island_pfam_enrichment ${island_pfam_enrichment}"   : ''
+    def domtblout_arg   = (domtblout.size() > 0)                ? "--domtblout ${domtblout}"                            : ''
     """
     pangenome_report_tables.py \
-        --significant_islands ${significant_islands} \
-        --island_pfam_enrichment ${island_pfam_enrichment} \
+        ${islands_arg} \
+        ${enrichment_arg} \
         --pair_classification ${pair_classification} \
         --presence_matrix ${presence_matrix} \
         --frequency_table ${frequency_table} \
-        --domtblout ${domtblout} \
+        ${domtblout_arg} \
         --domain_evalue ${params.pangenome_pfam_domain_evalue} \
         --cluster_tsv ${cluster_tsv} \
         --gene_positions ${gene_positions} \
@@ -67,20 +87,25 @@ process REPORT_RENDER {
     path("report/figures_pdf/*"), emit: figures_pdf
 
     script:
+    def islands_arg    = (islands_with_domains.size() > 0)     ? "--islands_with_domains ${islands_with_domains}"           : ''
+    def size_dist_arg  = (island_size_distribution.size() > 0) ? "--island_size_distribution ${island_size_distribution}"   : ''
+    def enrichment_arg = (island_pfam_enrichment.size() > 0)   ? "--island_pfam_enrichment ${island_pfam_enrichment}"       : ''
+    def marker_arg     = (marker_summary.size() > 0)           ? "--marker_summary ${marker_summary}"                       : ''
+    def diagnostics_arg = (diagnostics_banner_md.size() > 0)   ? "--diagnostics_banner ${diagnostics_banner_md}"            : ''
     """
     pangenome_report_render.py \
         --frequency_table ${frequency_table} \
         --presence_matrix ${presence_matrix} \
-        --islands_with_domains ${islands_with_domains} \
-        --island_size_distribution ${island_size_distribution} \
+        ${islands_arg} \
+        ${size_dist_arg} \
         --classification_counts ${classification_counts} \
-        --island_pfam_enrichment ${island_pfam_enrichment} \
-        --marker_summary ${marker_summary} \
+        ${enrichment_arg} \
+        ${marker_arg} \
         --per_strain_summary ${per_strain_summary} \
         --top_islands_min_strains ${params.pangenome_top_islands_min_strains} \
         --n_permutations ${params.pangenome_accumulation_permutations} \
         --seed ${params.pangenome_accumulation_seed} \
-        --diagnostics_banner ${diagnostics_banner_md} \
+        ${diagnostics_arg} \
         --out_dir report
     """
 }

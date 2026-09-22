@@ -12,13 +12,32 @@ checked-in generator) and a Heaps'-law openness fit + core-genome
 asymptote fit that Afumigatus's own report never computed (it only
 asserted openness from the curve's visual shape).
 
-Usage:
+--islands_with_domains/--island_size_distribution/--island_pfam_enrichment/
+--marker_summary are optional (issue #135): the core figures/sections
+(frequency distribution, presence/absence heatmap, accumulation curve,
+classification counts) render on every run regardless, using only
+--frequency_table/--presence_matrix/--classification_counts/
+--per_strain_summary, none of which need the `--pangenome_island_pfam_hmm`
+accessory-island branch. Omitting the islands-only args (or letting them
+point at an empty/0-byte file, as REPORT_RENDER's Nextflow wiring does when
+that branch didn't run) simply skips the "Accessory islands"/"Pfam domain
+enrichment"/"Marker co-occurrence" sections instead of erroring.
+
+Usage (full report, islands + Pfam branch enabled):
   pangenome_report_render.py --frequency_table frequency_table.tsv \\
       --presence_matrix presence_matrix.tsv \\
       --islands_with_domains islands_with_domains.tsv \\
       --island_size_distribution island_size_distribution.tsv \\
       --classification_counts classification_counts.tsv \\
       --island_pfam_enrichment island_pfam_enrichment.tsv \\
+      --per_strain_summary per_strain_summary.tsv \\
+      --n_permutations 20 --seed 0 \\
+      --out_dir report/
+
+Usage (core report only, no islands/Pfam branch):
+  pangenome_report_render.py --frequency_table frequency_table.tsv \\
+      --presence_matrix presence_matrix.tsv \\
+      --classification_counts classification_counts.tsv \\
       --per_strain_summary per_strain_summary.tsv \\
       --n_permutations 20 --seed 0 \\
       --out_dir report/
@@ -286,6 +305,7 @@ def render_report_markdown(
     per_strain_rows: list[dict] | None = None,
     top_islands_min_strains: int = 2,
     diagnostics_banner: str | None = None,
+    islands_available: bool = True,
 ) -> str:
     total_families = sum(counts.values())
     lines: list[str] = []
@@ -326,39 +346,40 @@ def render_report_markdown(
             lines += [f"**Outlier strains (singleton-count modified z-score beyond threshold):** "
                       f"{', '.join(flagged)}", ""]
 
-    lines += ["## Accessory islands", ""]
-    lines += [f"{n_islands} statistically significant accessory islands found "
-              "(built from adjacency of non-core genes, gated by containing "
-              "at least one FDR-significant physically-linked pair).", ""]
-    if size_dist:
-        lines += ["![Island sizes](figures/island_size_distribution.png)", ""]
+    if islands_available:
+        lines += ["## Accessory islands", ""]
+        lines += [f"{n_islands} statistically significant accessory islands found "
+                  "(built from adjacency of non-core genes, gated by containing "
+                  "at least one FDR-significant physically-linked pair).", ""]
+        if size_dist:
+            lines += ["![Island sizes](figures/island_size_distribution.png)", ""]
 
-    located = [r for r in (islands_with_domains_rows or []) if r.get("locus_id", "-") != "-"]
-    top_islands = [r for r in located
-                   if _as_int(r.get("n_strains")) >= top_islands_min_strains]
-    n_excluded = len(located) - len(top_islands)
-    if top_islands:
-        top_islands.sort(key=lambda r: -int(r.get("island_size", 0)))
-        lines += ["", "**Top islands (by size):**", ""]
-        if n_excluded:
-            if top_islands_min_strains == 2:
-                note = (f"*{n_excluded} single-strain islands excluded "
-                        "(present in one strain only -- strain-private content, "
-                        "which dominates the size ranking).*")
-            else:
-                note = (f"*{n_excluded} islands present in fewer than "
-                        f"{top_islands_min_strains} strains excluded.*")
-            lines += [note, ""]
-        lines += ["| Locus (strain:contig:start-end) | Families (#) | Span (kb) | "
-                  "Strains (#) | Pfam domains |",
-                  "|---|---|---|---|---|"]
-        for row in top_islands[:20]:
-            start, end = _as_int(row.get("locus_start"), -1), _as_int(row.get("locus_end"), -1)
-            span = f"{(end - start) / 1000:.1f}" if start >= 0 and end >= 0 else "-"
-            lines.append(f"| {row.get('locus_id', '-')} | {row.get('island_size', '-')} | "
-                         f"{span} | {row.get('n_strains', '-')} | "
-                         f"{row.get('pfam_domains', '-')} |")
-        lines.append("")
+        located = [r for r in (islands_with_domains_rows or []) if r.get("locus_id", "-") != "-"]
+        top_islands = [r for r in located
+                       if _as_int(r.get("n_strains")) >= top_islands_min_strains]
+        n_excluded = len(located) - len(top_islands)
+        if top_islands:
+            top_islands.sort(key=lambda r: -int(r.get("island_size", 0)))
+            lines += ["", "**Top islands (by size):**", ""]
+            if n_excluded:
+                if top_islands_min_strains == 2:
+                    note = (f"*{n_excluded} single-strain islands excluded "
+                            "(present in one strain only -- strain-private content, "
+                            "which dominates the size ranking).*")
+                else:
+                    note = (f"*{n_excluded} islands present in fewer than "
+                            f"{top_islands_min_strains} strains excluded.*")
+                lines += [note, ""]
+            lines += ["| Locus (strain:contig:start-end) | Families (#) | Span (kb) | "
+                      "Strains (#) | Pfam domains |",
+                      "|---|---|---|---|---|"]
+            for row in top_islands[:20]:
+                start, end = _as_int(row.get("locus_start"), -1), _as_int(row.get("locus_end"), -1)
+                span = f"{(end - start) / 1000:.1f}" if start >= 0 and end >= 0 else "-"
+                lines.append(f"| {row.get('locus_id', '-')} | {row.get('island_size', '-')} | "
+                             f"{span} | {row.get('n_strains', '-')} | "
+                             f"{row.get('pfam_domains', '-')} |")
+            lines.append("")
 
     if marker_rows:
         lines += ["## Marker co-occurrence", ""]
@@ -377,24 +398,25 @@ def render_report_markdown(
     if classification_counts_dict:
         lines += ["", "![Classification breakdown](figures/pair_classification_summary.png)", ""]
 
-    lines += ["## Pfam domain enrichment", ""]
-    if not top_domains:
-        lines += ["No significantly enriched Pfam domains found.", ""]
-    else:
-        lines += ["![Top enriched domains](figures/island_domain_enrichment.png)", ""]
-        has_go = any(row.get("go_terms") for row in top_domains)
-        if has_go:
-            lines += ["| Domain | Fisher p | FDR q | GO terms |", "|---|---|---|---|"]
+    if islands_available:
+        lines += ["## Pfam domain enrichment", ""]
+        if not top_domains:
+            lines += ["No significantly enriched Pfam domains found.", ""]
         else:
-            lines += ["| Domain | Fisher p | FDR q |", "|---|---|---|"]
-        for row in top_domains:
-            pfam_url = row.get("pfam_url")
-            domain_cell = f"[{row['domain']}]({pfam_url})" if pfam_url and pfam_url != "-" else row["domain"]
-            cells = f"| {domain_cell} | {float(row['fisher_p']):.2e} | {float(row['fdr_q']):.2e} |"
+            lines += ["![Top enriched domains](figures/island_domain_enrichment.png)", ""]
+            has_go = any(row.get("go_terms") for row in top_domains)
             if has_go:
-                cells += f" {row.get('go_terms', '-')} |"
-            lines.append(cells)
-        lines.append("")
+                lines += ["| Domain | Fisher p | FDR q | GO terms |", "|---|---|---|---|"]
+            else:
+                lines += ["| Domain | Fisher p | FDR q |", "|---|---|---|"]
+            for row in top_domains:
+                pfam_url = row.get("pfam_url")
+                domain_cell = f"[{row['domain']}]({pfam_url})" if pfam_url and pfam_url != "-" else row["domain"]
+                cells = f"| {domain_cell} | {float(row['fisher_p']):.2e} | {float(row['fdr_q']):.2e} |"
+                if has_go:
+                    cells += f" {row.get('go_terms', '-')} |"
+                lines.append(cells)
+            lines.append("")
 
     return "\n".join(lines)
 
@@ -403,11 +425,21 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--frequency_table", required=True)
     ap.add_argument("--presence_matrix", required=True)
-    ap.add_argument("--islands_with_domains", required=True)
-    ap.add_argument("--island_size_distribution", required=True)
+    ap.add_argument(
+        "--islands_with_domains", default=None,
+        help="Optional (issue #135 core-report ungating): islands_with_domains.tsv "
+        "from REPORT_TABLES. Omitted (or an empty file) on a run with no "
+        "--pangenome_island_pfam_hmm -- the 'Accessory islands' section is then "
+        "skipped rather than reporting '0 islands found'.",
+    )
+    ap.add_argument("--island_size_distribution", default=None)
     ap.add_argument("--classification_counts", required=True)
-    ap.add_argument("--island_pfam_enrichment", required=True)
-    ap.add_argument("--marker_summary", required=True)
+    ap.add_argument(
+        "--island_pfam_enrichment", default=None,
+        help="Optional, same as --islands_with_domains -- omitted skips the "
+        "'Pfam domain enrichment' section.",
+    )
+    ap.add_argument("--marker_summary", default=None)
     ap.add_argument("--per_strain_summary", required=True)
     ap.add_argument("--top_islands_min_strains", type=int, default=2,
                     help="Minimum carrying strains for an island to appear in the "
@@ -434,25 +466,36 @@ def main() -> int:
         counts[row["bin"]] = counts.get(row["bin"], 0) + 1
 
     size_dist: dict[int, int] = {}
-    with open(args.island_size_distribution, newline="") as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
-            size_dist[int(row["island_size"])] = int(row["count"])
+    if args.island_size_distribution:
+        with open(args.island_size_distribution, newline="") as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                size_dist[int(row["island_size"])] = int(row["count"])
 
     classification_counts_dict: dict[str, int] = {}
     with open(args.classification_counts, newline="") as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             classification_counts_dict[row["classification"]] = int(row["count"])
 
-    with open(args.islands_with_domains, newline="") as fh:
-        islands_with_domains_rows = list(csv.DictReader(fh, delimiter="\t"))
-    n_islands = len(islands_with_domains_rows)
+    # islands_available drives render_report_markdown's "Accessory islands"/
+    # "Pfam domain enrichment" sections -- see --islands_with_domains's help
+    # text. Only --islands_with_domains (not --island_size_distribution,
+    # which is empty whenever size_dist is empty regardless of reason) is the
+    # signal, matching how REPORT_TABLES's islands_available flag is decided.
+    islands_available = args.islands_with_domains is not None
+    islands_with_domains_rows: list[dict] = []
+    n_islands = 0
+    if islands_available:
+        with open(args.islands_with_domains, newline="") as fh:
+            islands_with_domains_rows = list(csv.DictReader(fh, delimiter="\t"))
+        n_islands = len(islands_with_domains_rows)
 
     top_domains: list[dict] = []
-    with open(args.island_pfam_enrichment, newline="") as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
-            if float(row["fdr_q"]) < args.fdr_threshold:
-                top_domains.append(row)
-    top_domains.sort(key=lambda r: float(r["fisher_p"]))
+    if args.island_pfam_enrichment:
+        with open(args.island_pfam_enrichment, newline="") as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                if float(row["fdr_q"]) < args.fdr_threshold:
+                    top_domains.append(row)
+        top_domains.sort(key=lambda r: float(r["fisher_p"]))
 
     strain_family_counts: list[int] = []
     per_strain_rows: list[dict] = []
@@ -462,9 +505,10 @@ def main() -> int:
             per_strain_rows.append(row)
 
     marker_rows: list[dict] = []
-    with open(args.marker_summary, newline="") as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
-            marker_rows.append(row)
+    if args.marker_summary:
+        with open(args.marker_summary, newline="") as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                marker_rows.append(row)
 
     plot_frequency_distribution(frequency_table_rows, out_dir)
     plot_frequency_bins(counts, out_dir)
@@ -498,6 +542,7 @@ def main() -> int:
         per_strain_rows=per_strain_rows,
         top_islands_min_strains=args.top_islands_min_strains,
         diagnostics_banner=diagnostics_banner,
+        islands_available=islands_available,
     )
     (out_dir / "report.md").write_text(markdown)
 

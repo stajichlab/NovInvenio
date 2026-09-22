@@ -365,3 +365,43 @@ def test_per_strain_summary_zero_mad_emits_sentinel():
     totals = [{"Short": s, "singleton": 10} for s in ("A", "B", "C", "D")]
     rows = add_outlier_flags(totals)
     assert all(r["singleton_z"] == "-" and r["is_outlier"] == "-" for r in rows)
+
+
+def test_main_without_significant_islands_writes_empty_islands_outputs(tmp_path, monkeypatch):
+    # Issue #135: --significant_islands (and the other islands-only args) are
+    # optional now -- a run with no --pangenome_island_pfam_hmm never computes
+    # BUILD_ISLANDS/DOMAIN_ENRICHMENT, so REPORT_TABLES must still be callable
+    # to produce classification_counts.tsv/per_strain_summary.tsv (needed by
+    # every run's core report), writing islands_with_domains.tsv/
+    # island_size_distribution.tsv/marker_summary.tsv out empty (0 bytes)
+    # rather than erroring on a missing required arg.
+    pair_classification = tmp_path / "pair_classification.tsv"
+    pair_classification.write_text("family_a\tfamily_b\tclassification\nf1\tf2\ttrans\n")
+    presence_matrix = tmp_path / "presence_matrix.tsv"
+    presence_matrix.write_text("family\ts1\nfamA\tpresent\n")
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text("family\tfrequency\tbin\nfamA\t1.0\tcore\n")
+    cluster_tsv = tmp_path / "cluster.tsv"
+    cluster_tsv.write_text("")
+    gene_positions = tmp_path / "gene_positions.tsv"
+    gene_positions.write_text("Short\tprotein_id\tcontig\tstart\tend\n")
+    out_dir = tmp_path / "out"
+
+    argv = [
+        "pangenome_report_tables.py",
+        "--pair_classification", str(pair_classification),
+        "--presence_matrix", str(presence_matrix),
+        "--frequency_table", str(frequency_table),
+        "--cluster_tsv", str(cluster_tsv),
+        "--gene_positions", str(gene_positions),
+        "--out_dir", str(out_dir),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    pangenome_report_tables.main()
+
+    assert (out_dir / "islands_with_domains.tsv").stat().st_size == 0
+    assert (out_dir / "island_size_distribution.tsv").stat().st_size == 0
+    assert (out_dir / "marker_summary.tsv").stat().st_size == 0
+    assert (out_dir / "classification_counts.tsv").read_text() == "classification\tcount\ntrans\t1\n"
+    per_strain = (out_dir / "per_strain_summary.tsv").read_text()
+    assert "s1" in per_strain
