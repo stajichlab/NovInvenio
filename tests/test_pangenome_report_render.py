@@ -363,3 +363,63 @@ def test_main_passes_islands_with_domains_rows_to_render(tmp_path, monkeypatch):
     report_md = (out_dir / "report.md").read_text()
     assert "s1:contig1:100-400" in report_md
     assert "Top islands" in report_md
+
+
+def test_render_report_markdown_prepends_diagnostics_banner_when_given():
+    md = render_report_markdown(
+        {}, {}, {}, [], 0, None, None, [],
+        diagnostics_banner="## Pipeline diagnostics\n\n- **rescue_redundancy** [OK]: fine\n",
+    )
+    assert md.startswith("## Pipeline diagnostics")
+    assert md.index("## Pipeline diagnostics") < md.index("# Pangenome Island + Pfam Enrichment Report")
+
+
+def test_render_report_markdown_omits_diagnostics_banner_when_absent():
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [])
+    assert "Pipeline diagnostics" not in md
+    assert md.startswith("# Pangenome Island + Pfam Enrichment Report")
+
+
+def test_main_prepends_diagnostics_banner_file_when_given(tmp_path, monkeypatch):
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text("family\tfrequency\tbin\nfamA\t1.0\tcore\n")
+    presence_matrix = tmp_path / "presence_matrix.tsv"
+    presence_matrix.write_text("family\ts1\nfamA\tpresent\n")
+    islands_with_domains = tmp_path / "islands_with_domains.tsv"
+    islands_with_domains.write_text(
+        "n_strains\texample_strain\tisland_size\tmember_families\t"
+        "n_supporting_pairs\tclassifications\tpfam_domains\n"
+    )
+    island_size_distribution = tmp_path / "island_size_distribution.tsv"
+    island_size_distribution.write_text("island_size\tcount\n")
+    classification_counts = tmp_path / "classification_counts.tsv"
+    classification_counts.write_text("classification\tcount\n")
+    island_pfam_enrichment = tmp_path / "island_pfam_enrichment.tsv"
+    island_pfam_enrichment.write_text("domain\tfisher_p\tfdr_q\n")
+    marker_summary = tmp_path / "marker_summary.tsv"
+    marker_summary.write_text("marker_name\tn_islands_with_marker\tn_islands_total\tpct_islands_with_marker\n")
+    per_strain_summary = tmp_path / "per_strain_summary.tsv"
+    per_strain_summary.write_text("Short\tn_families\ts1\t1\n")
+    diagnostics_banner = tmp_path / "diagnostics_banner.md"
+    diagnostics_banner.write_text("## Pipeline diagnostics\n\n- **rescue_redundancy** [OK]: fine\n")
+    out_dir = tmp_path / "out"
+
+    argv = [
+        "pangenome_report_render.py",
+        "--frequency_table", str(frequency_table),
+        "--presence_matrix", str(presence_matrix),
+        "--islands_with_domains", str(islands_with_domains),
+        "--island_size_distribution", str(island_size_distribution),
+        "--classification_counts", str(classification_counts),
+        "--island_pfam_enrichment", str(island_pfam_enrichment),
+        "--marker_summary", str(marker_summary),
+        "--per_strain_summary", str(per_strain_summary),
+        "--n_permutations", "1",
+        "--diagnostics_banner", str(diagnostics_banner),
+        "--out_dir", str(out_dir),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    pangenome_report_render.main()
+
+    report_md = (out_dir / "report.md").read_text()
+    assert report_md.startswith("## Pipeline diagnostics")

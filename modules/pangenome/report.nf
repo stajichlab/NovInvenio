@@ -58,6 +58,7 @@ process REPORT_RENDER {
     path(island_pfam_enrichment)
     path(marker_summary)
     path(per_strain_summary)
+    path(diagnostics_banner_md)
 
     output:
     path("report/report.md"), emit: report
@@ -79,6 +80,45 @@ process REPORT_RENDER {
         --top_islands_min_strains ${params.pangenome_top_islands_min_strains} \
         --n_permutations ${params.pangenome_accumulation_permutations} \
         --seed ${params.pangenome_accumulation_seed} \
+        --diagnostics_banner ${diagnostics_banner_md} \
         --out_dir report
+    """
+}
+
+// DIAGNOSTICS -- surfaces pipeline diagnostics (issue #134) into
+// diagnostics.tsv (machine-readable) and Markdown/HTML banners consumed by
+// REPORT_RENDER and ISLAND_SYNTENY, instead of leaving them only in
+// RESCUE_PASS's stderr funnel counts. Advisory by default;
+// params.pangenome_strict promotes any triggered diagnostic to a run
+// failure (see bin/pangenome_diagnostics.py's docstring for the one
+// exception: the zero-hit rescue guard, issue #126, which already always
+// fails inside RESCUE_PASS itself and is not re-implemented here).
+process DIAGNOSTICS {
+    label 'low_cpu'
+    tag "diagnostics"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/pangenome" }, mode: 'copy'
+
+    input:
+    path(rescue_funnel)
+
+    output:
+    path("diagnostics/diagnostics.tsv"), emit: tsv
+    path("diagnostics/diagnostics_banner.md"), emit: banner_md
+    path("diagnostics/diagnostics_banner.html"), emit: banner_html
+
+    script:
+    // rescue_funnel is an empty placeholder file (EMPTY_EVALUES_STUB, same
+    // convention as this pipeline's other optional-input stubs) when
+    // params.pangenome_rescue_enable is false -- rescue_redundancy is then
+    // reported not_computed rather than erroring.
+    def strict_arg = params.pangenome_strict ? '--pangenome_strict' : ''
+    def funnel_arg = (rescue_funnel.size() > 0) ? "--rescue_funnel ${rescue_funnel}" : ''
+    """
+    pangenome_diagnostics.py \
+        ${funnel_arg} \
+        --rescue_redundancy_threshold ${params.pangenome_rescue_redundancy_threshold} \
+        ${strict_arg} \
+        --out_dir diagnostics
     """
 }

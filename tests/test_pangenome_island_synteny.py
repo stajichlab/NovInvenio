@@ -70,6 +70,21 @@ def test_cli_orders_columns_by_locus_rank(tmp_path):
     assert payload["islands"][0]["families"] == ["famA", "famB"]
 
 
+def test_cli_diagnostics_banner_is_inserted_at_top_of_body(tmp_path):
+    banner = tmp_path / "diagnostics_banner.html"
+    banner.write_text('<section id="pangenome-diagnostics">hello diagnostics</section>')
+    out = run_cli(tmp_path, "--diagnostics_banner", str(banner))
+    html = out.read_text()
+    assert "hello diagnostics" in html
+    assert html.index("hello diagnostics") < html.index('id="title"')
+
+
+def test_cli_without_diagnostics_banner_has_no_placeholder_left_behind(tmp_path):
+    out = run_cli(tmp_path)
+    html = out.read_text()
+    assert "__DIAGNOSTICS_BANNER__" not in html
+
+
 def test_cli_min_strains_is_configurable(tmp_path):
     payload = payload_of(run_cli(tmp_path, "--min_strains", "3"))
     assert payload["islands"] == []

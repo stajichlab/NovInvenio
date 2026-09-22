@@ -31,6 +31,7 @@ process ISLAND_SYNTENY {
     path(family_positions)
     path(domtblout)
     path(samplesheet)
+    path(diagnostics_banner_html)
 
     output:
     path("island_synteny.html"), emit: page
@@ -47,6 +48,7 @@ process ISLAND_SYNTENY {
         --min_strains ${params.pangenome_top_islands_min_strains} \
         --top_islands ${params.pangenome_viz_top_islands} \
         --config ${samplesheet} \
+        --diagnostics_banner ${diagnostics_banner_html} \
         --output island_synteny.html
     """
 }
