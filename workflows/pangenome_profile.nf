@@ -56,7 +56,7 @@ include { PAIR_CLASSIFICATION }                                             from
 include { BUILD_ISLANDS; MARKER_HMMSEARCH }                                from '../modules/pangenome/islands'
 include { SELECT_BACKGROUND_REPS; HMMPRESS_PFAM; FAMILY_PFAM_SCAN;
           MERGE_PFAM_DOMTBLOUT; DOMAIN_ENRICHMENT }                 from '../modules/pangenome/pfam_enrichment'
-include { REPORT_TABLES; REPORT_RENDER }                                   from '../modules/pangenome/report'
+include { REPORT_TABLES; REPORT_RENDER; DIAGNOSTICS }                      from '../modules/pangenome/report'
 include { ASSEMBLY_QUALITY_QC }                                            from '../modules/pangenome/assembly_quality_qc'
 include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
 include { LEIDEN_MODULES; MODULE_DOMAINS }                                 from '../modules/pangenome/trans_modules'
@@ -65,6 +65,7 @@ include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/e
 include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_INVENTORY_STUB }        from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_TSV_STUB }       from '../modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_FUNNEL_STUB }    from '../modules/empty_evalues_stub'
 
 workflow PANGENOME_PROFILE {
     take:
@@ -130,6 +131,7 @@ workflow PANGENOME_PROFILE {
             GENE_POSITIONS.out.positions, CLUSTER_TIER1.out.cluster_tsv, CLUSTER_TIER1.out.rep_fasta,
         )
         rescued_matrix = RESCUE_PASS.out.matrix
+        rescue_funnel = RESCUE_PASS.out.funnel
 
         EXTRACT_RESCUE_POSITIONS(rescued_matrix, tblastn_tsv_files)
         rescue_positions = EXTRACT_RESCUE_POSITIONS.out.positions
@@ -140,6 +142,10 @@ workflow PANGENOME_PROFILE {
         rescue_positions = EMPTY_RESCUE_POSITIONS_STUB.out.evalues
         EMPTY_RESCUE_TSV_STUB()
         tblastn_tsv_files = EMPTY_RESCUE_TSV_STUB.out.evalues
+        // issue #134: no rescue funnel was ever computed -- DIAGNOSTICS
+        // reports rescue_redundancy as not_computed rather than erroring.
+        EMPTY_RESCUE_FUNNEL_STUB()
+        rescue_funnel = EMPTY_RESCUE_FUNNEL_STUB.out.evalues
     }
 
     // --- 4. Strain dedup + clade assignment --------------------------------
@@ -319,6 +325,14 @@ workflow PANGENOME_PROFILE {
             CLUSTER_TIER1.out.cluster_tsv,
             GENE_POSITIONS.out.positions,
         )
+
+        // Issue #134: pipeline diagnostics (rescue_redundancy today; other
+        // issue #134 table rows declared not_computed until their own
+        // statistic exists as a real pipeline output -- see
+        // bin/pangenome_diagnostics.py's module docstring). Feeds the
+        // Markdown/HTML banners REPORT_RENDER/ISLAND_SYNTENY prepend.
+        DIAGNOSTICS(rescue_funnel)
+
         REPORT_RENDER(
             FREQUENCY_BINS.out.table,
             rescued_matrix,
@@ -328,6 +342,7 @@ workflow PANGENOME_PROFILE {
             enrichment_for_report,
             REPORT_TABLES.out.marker_summary,
             REPORT_TABLES.out.per_strain_summary,
+            DIAGNOSTICS.out.banner_md,
         )
 
         ISLAND_SYNTENY(
@@ -336,6 +351,7 @@ workflow PANGENOME_PROFILE {
             FAMILY_POSITIONS.out.positions,
             FAMILY_PFAM_SCAN.out.domtblout,
             samplesheet,
+            DIAGNOSTICS.out.banner_html,
         )
     }
 

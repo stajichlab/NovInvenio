@@ -124,6 +124,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
+<!--__DIAGNOSTICS_BANNER__-->
 <div class="wrap">
   """ + breadcrumb_nav_html() + r"""
   <header class="top">

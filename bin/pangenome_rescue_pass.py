@@ -316,6 +316,15 @@ def main() -> None:
         "mobile-element region, not that many independent real gene losses "
         "(issue #133).",
     )
+    ap.add_argument(
+        "--funnel_tsv",
+        help="Optional path to write a machine-readable funnel-stats sidecar "
+        "(metric\\tvalue rows: rows_parsed, rows_passed_threshold, "
+        "rows_rejected_overlap/short_rep/hotspot, applied, skipped). Feeds "
+        "bin/pangenome_diagnostics.py's rescue_redundancy check (issue "
+        "#134) -- these counts previously existed only as the stderr prints "
+        "below. Omitted by default; no file is written unless given.",
+    )
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -432,6 +441,21 @@ def main() -> None:
             "outcome, but verify it is expected.",
             file=sys.stderr,
         )
+
+    if args.funnel_tsv:
+        funnel_stats = {
+            "rows_parsed": total_rows_parsed,
+            "rows_passed_threshold": total_rows_passed,
+            "rows_rejected_overlap": total_rejected_overlap,
+            "rows_rejected_short_rep": total_rejected_short_rep,
+            "rows_rejected_hotspot": total_rejected_hotspot,
+            "applied": applied,
+            "skipped": skipped,
+        }
+        with open(args.funnel_tsv, "w") as out:
+            out.write("metric\tvalue\n")
+            for metric, value in funnel_stats.items():
+                out.write(f"{metric}\t{value}\n")
 
     matrix.to_tsv(args.output)
 

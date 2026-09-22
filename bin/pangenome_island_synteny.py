@@ -86,6 +86,12 @@ def main() -> int:
                     "Threads a {Short: Species} map into the payload for the page's "
                     "'by species' row sort (issue #119). Omitting it is never an "
                     "error -- the sort option is simply not offered.")
+    ap.add_argument(
+        "--diagnostics_banner", default=None,
+        help="Optional pangenome_diagnostics.py diagnostics_banner.html "
+        "snippet (issue #134) -- inserted at the top of the page body, "
+        "before any results.",
+    )
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -127,8 +133,12 @@ def main() -> int:
     # <script> block early -- these strings come from HMM output and FASTA
     # headers, which this pipeline does not control.
     blob = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
+    diagnostics_banner_html = (
+        Path(args.diagnostics_banner).read_text() if args.diagnostics_banner else ""
+    )
     page = (ISLAND_SYNTENY_TEMPLATE
             .replace("__PROJECT_TITLE__", html.escape(args.project))
+            .replace("<!--__DIAGNOSTICS_BANNER__-->", diagnostics_banner_html)
             .replace("/*__PAYLOAD__*/", blob))
     Path(args.output).write_text(page)
 

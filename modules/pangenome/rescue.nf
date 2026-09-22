@@ -115,6 +115,7 @@ process RESCUE_PASS {
     output:
     path("presence_matrix.rescued.tsv"), emit: matrix
     path("presence_matrix.rescued.copy_number.tsv"), optional: true, emit: copy_number
+    path("rescue_funnel.tsv"), emit: funnel
 
     script:
     def tblastn_args = tblastn_tsvs.collect { "--tblastn_tsv ${it}" }.join(' ')
@@ -132,6 +133,7 @@ process RESCUE_PASS {
         --min_qcov ${params.pangenome_rescue_min_qcov} \
         --id_sep '${params.pangenome_id_sep}' \
         ${structural_args} \
+        --funnel_tsv rescue_funnel.tsv \
         --output presence_matrix.rescued.tsv
     """
 }

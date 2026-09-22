@@ -524,6 +524,86 @@ def test_main_requires_all_three_structural_inputs_together(monkeypatch, capsys)
             main()
 
 
+# --- Issue #134: machine-readable funnel-stats sidecar ---------------------
+#
+# The funnel counts (rows parsed, passed threshold, structural rejections,
+# cells applied) previously existed only as stderr prints -- this sidecar
+# gives bin/pangenome_diagnostics.py real numbers to compute the rescue-
+# redundancy diagnostic from, instead of re-parsing stderr.
+
+
+def test_main_writes_funnel_tsv_when_requested(monkeypatch, capsys):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        matrix_file = tmpdir / "matrix.tsv"
+        pm = PresenceMatrix(families=["famA", "famB"], strains=["s1"])
+        pm.set_call("famA", "s1", ABSENT)
+        pm.set_call("famB", "s1", ABSENT)
+        pm.to_tsv(matrix_file)
+
+        tblastn_file = tmpdir / "s1.tblastn.tsv"
+        tblastn_file.write_text(
+            "famA\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95\n"
+            "famB\ts1|contig1\t95.0\t100\t0\t0\t1\t100\t5000\t5100\t1e-50\t200\t95\n"
+        )
+        gene_positions_file = tmpdir / "gene_positions.tsv"
+        gene_positions_file.write_text(
+            "Short\tprotein_id\tcontig\tstart\tend\n"
+            "s1\tp1\tcontig1\t400\t700\n"
+        )
+        cluster_tsv_file = tmpdir / "tier1_cluster.tsv"
+        cluster_tsv_file.write_text("famX\ts1|p1\n")
+        rep_fasta_file = tmpdir / "tier1_rep_seq.fasta"
+        rep_fasta_file.write_text(">famA\n" + "M" * 200 + "\n>famB\n" + "M" * 200 + "\n")
+
+        output_file = tmpdir / "output.tsv"
+        funnel_file = tmpdir / "funnel.tsv"
+
+        monkeypatch.setattr(sys, "argv", [
+            "pangenome_rescue_pass.py",
+            "--matrix", str(matrix_file),
+            "--tblastn_tsv", str(tblastn_file),
+            "--gene_positions", str(gene_positions_file),
+            "--cluster_tsv", str(cluster_tsv_file),
+            "--rep_fasta", str(rep_fasta_file),
+            "--output", str(output_file),
+            "--funnel_tsv", str(funnel_file),
+        ])
+
+        main()
+
+        assert funnel_file.exists()
+        rows = dict(
+            line.split("\t") for line in funnel_file.read_text().splitlines()[1:]
+        )
+        assert rows["rows_parsed"] == "2"
+        assert rows["rows_passed_threshold"] == "2"
+        assert rows["rows_rejected_overlap"] == "1"
+        assert rows["rows_rejected_short_rep"] == "0"
+        assert rows["rows_rejected_hotspot"] == "0"
+        assert rows["applied"] == "1"
+
+
+def test_main_does_not_write_funnel_tsv_when_not_requested():
+    # Default behavior (no --funnel_tsv) must be unchanged: no sidecar file.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        matrix_file = tmpdir / "matrix.tsv"
+        pm = PresenceMatrix(families=["famA"], strains=["s1"])
+        pm.set_call("famA", "s1", ABSENT)
+        pm.to_tsv(matrix_file)
+        output_file = tmpdir / "output.tsv"
+
+        import sys as _sys
+        _sys.argv = [
+            "pangenome_rescue_pass.py",
+            "--matrix", str(matrix_file),
+            "--output", str(output_file),
+        ]
+        main()
+        assert not (tmpdir / "funnel.tsv").exists()
+
+
 def test_parse_tblastn_hits_tracks_row_stats():
     lines = [
         "famA\ts2|contig1\t95.0\t100\t0\t0\t1\t100\t500\t600\t1e-50\t200\t95",  # parsed + passes

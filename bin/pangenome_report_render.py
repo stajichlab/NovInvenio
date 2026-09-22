@@ -285,9 +285,16 @@ def render_report_markdown(
     islands_with_domains_rows: list[dict] | None = None,
     per_strain_rows: list[dict] | None = None,
     top_islands_min_strains: int = 2,
+    diagnostics_banner: str | None = None,
 ) -> str:
     total_families = sum(counts.values())
-    lines = ["# Pangenome Island + Pfam Enrichment Report", ""]
+    lines: list[str] = []
+    if diagnostics_banner:
+        # Issue #134: pipeline diagnostics land at the TOP of report.md,
+        # before any results -- a reader must see them before the first
+        # figure, not scroll past them or find them only in stderr.
+        lines += [diagnostics_banner.rstrip("\n"), ""]
+    lines += ["# Pangenome Island + Pfam Enrichment Report", ""]
     lines += ["## Pangenome composition", ""]
     lines += [f"Total gene families: {total_families}", ""]
     for label in BAND_ORDER:
@@ -409,6 +416,11 @@ def main() -> int:
     ap.add_argument("--fdr_threshold", type=float, default=0.05)
     ap.add_argument("--n_permutations", type=int, default=20)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument(
+        "--diagnostics_banner", default=None,
+        help="Optional pangenome_diagnostics.py diagnostics_banner.md file "
+        "(issue #134) -- prepended to report.md, before any results.",
+    )
     ap.add_argument("--out_dir", required=True)
     args = ap.parse_args()
 
@@ -476,12 +488,16 @@ def main() -> int:
         out.write(f"{heaps_fit['kappa']:.4f}\t{heaps_fit['gamma']:.4f}\t{heaps_fit['r_squared']:.4f}\t"
                   f"{heaps_fit['is_open']}\t{core_decay['core_inf']:.4f}\t{core_decay['tau']:.4f}\n")
 
+    diagnostics_banner = (
+        Path(args.diagnostics_banner).read_text() if args.diagnostics_banner else None
+    )
     markdown = render_report_markdown(
         counts, size_dist, classification_counts_dict, top_domains, n_islands,
         heaps_fit, core_decay, strain_family_counts, marker_rows,
         islands_with_domains_rows=islands_with_domains_rows,
         per_strain_rows=per_strain_rows,
         top_islands_min_strains=args.top_islands_min_strains,
+        diagnostics_banner=diagnostics_banner,
     )
     (out_dir / "report.md").write_text(markdown)
 
