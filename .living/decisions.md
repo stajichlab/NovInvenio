@@ -1355,3 +1355,29 @@ indiscriminately — worse than no rule — while the floor removes 213 at 57.3%
 drags 57.3% to 49.0%. Both curated controls (A7UWR3, HEX1) pass under either arm, so they
 could not distinguish the rules; only the population measurement could.
 **Caveat**: the breadth>=4 proxy has an unmeasured false-positive rate (issue #135).
+
+## [2026-09-22] Issue #135 closed: TBLASTN-only novelty candidates are mostly a diamond sensitivity gap, not a TBLASTN false-positive problem
+
+**Context**: 1479 candidate x outgroup cells (pezizo_set1) have TBLASTN outgroup-genome
+evidence but no protein-level (diamond default-mode) evidence. Needed to decide whether
+to build a TBLASTN-based novelty disqualifier.
+**Decision**: do NOT build a TBLASTN disqualifier. Pursue `--diamond_sensitivity` (#149,
+merged, default unchanged) as the upstream fix instead.
+**Evidence**: decomposed the 1479 cells -- 3.2% true intergenic (the real TBLASTN
+false-positive signature), 36.6% real annotation gap (gene has no protein in the
+outgroup FASTA), 60.1% where the outgroup protein exists. Of that last group, a
+targeted `diamond blastp --very-sensitive` re-search using #129/#151's new wide outfmt
+(length/pident/qcovhsp/scovhsp/qlen/slen) recovered **711/841 (84.5%)** as significant
+hits (median E=1.68e-20), with alignment quality (median pident 29%, median qcov 59%)
+matching genuine remote homology -- low identity over a broad span -- not the
+high-identity/low-coverage signature of a shared-domain false positive. 111/841 (13.2%)
+remain unrecoverable even at --very-sensitive; a genuine, smaller, unresolved residual.
+**Rationale**: fixing the main pairwise search's sensitivity is more principled than
+patching around its misses with a genome-level filter, and this measurement shows the
+fix would actually work (84.5% recovery) rather than being a guess.
+**Caveat**: adoption of `--diamond_sensitivity very-sensitive` as a project default is a
+SEPARATE decision, already recorded as DEFER in
+`todo/diamond-very-sensitive-main-search.md` pending controls-based validation on a
+larger sample (only 4-6 curated controls resolve against the mmseqs-family matrix so
+far). This decision closes #135's investigation; it does not flip the pipeline default.
+**Tags**: presence-calling, diamond, sensitivity, tblastn, novelty, issue-135, alignment-coverage
