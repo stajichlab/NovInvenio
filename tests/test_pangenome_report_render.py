@@ -383,6 +383,96 @@ def test_render_report_markdown_omits_diagnostics_banner_when_absent():
     assert md.startswith("# Pangenome Island + Pfam Enrichment Report")
 
 
+def test_render_report_markdown_omits_islands_and_domain_sections_when_unavailable():
+    # Issue #135: a run with no --pangenome_island_pfam_hmm has no islands
+    # data at all -- islands_available=False must omit "Accessory islands"
+    # and "Pfam domain enrichment" entirely, not report "0 islands found" /
+    # "No significantly enriched Pfam domains found" as if they were computed
+    # and simply came back empty (that's the pre-existing, still-supported
+    # islands_available=True + empty-inputs behavior, covered by
+    # test_render_report_markdown_handles_zero_enriched_domains).
+    md = render_report_markdown(
+        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        size_dist={}, classification_counts_dict={"trans": 5}, top_domains=[],
+        n_islands=0, heaps_fit=None, core_decay=None, strain_family_counts=[],
+        islands_available=False,
+    )
+    assert "## Accessory islands" not in md
+    assert "## Pfam domain enrichment" not in md
+    assert "No significantly enriched" not in md
+    # The core sections must still be present.
+    assert "## Pangenome composition" in md
+    assert "## Pair classification breakdown" in md
+
+
+def test_render_report_markdown_keeps_islands_sections_when_available_by_default():
+    # islands_available defaults to True -- every pre-existing call site
+    # (with all args given) must render identically to before this change.
+    md = render_report_markdown(
+        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
+        heaps_fit=None, core_decay=None, strain_family_counts=[],
+    )
+    assert "## Accessory islands" in md
+    assert "## Pfam domain enrichment" in md
+
+
+def test_main_renders_core_report_without_islands_args(tmp_path, monkeypatch):
+    # Issue #135: the core report must be fully constructible from only the
+    # unconditionally-available inputs (frequency_table, presence_matrix,
+    # classification_counts, per_strain_summary) -- no
+    # --islands_with_domains/--island_size_distribution/
+    # --island_pfam_enrichment/--marker_summary at all. This is the actual
+    # ungating behavior change, not just a unit-level render_report_markdown
+    # check.
+    frequency_table = tmp_path / "frequency_table.tsv"
+    frequency_table.write_text(
+        "family\tfrequency\tbin\n"
+        "famA\t1.0\tcore\n"
+        "famB\t0.5\tshell\n"
+    )
+    presence_matrix = tmp_path / "presence_matrix.tsv"
+    presence_matrix.write_text(
+        "family\ts1\ts2\n"
+        "famA\tpresent\tpresent\n"
+        "famB\tpresent\tabsent\n"
+    )
+    classification_counts = tmp_path / "classification_counts.tsv"
+    classification_counts.write_text("classification\tcount\ntrans\t3\n")
+    per_strain_summary = tmp_path / "per_strain_summary.tsv"
+    per_strain_summary.write_text(
+        "Short\tn_families\tis_outlier\ns1\t2\tN\ns2\t1\tN\n"
+    )
+    out_dir = tmp_path / "out"
+
+    argv = [
+        "pangenome_report_render.py",
+        "--frequency_table", str(frequency_table),
+        "--presence_matrix", str(presence_matrix),
+        "--classification_counts", str(classification_counts),
+        "--per_strain_summary", str(per_strain_summary),
+        "--n_permutations", "1",
+        "--out_dir", str(out_dir),
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    pangenome_report_render.main()
+
+    report_md = (out_dir / "report.md").read_text()
+    assert "# Pangenome Island + Pfam Enrichment Report" in report_md
+    assert "## Pangenome composition" in report_md
+    assert "## Pangenome openness" in report_md
+    assert "## Pair classification breakdown" in report_md
+    assert "## Accessory islands" not in report_md
+    assert "## Pfam domain enrichment" not in report_md
+    assert "## Marker co-occurrence" not in report_md
+    assert (out_dir / "figures" / "frequency_distribution.png").exists()
+    assert (out_dir / "figures" / "presence_absence_matrix.png").exists()
+    assert (out_dir / "figures" / "accumulation_curve.png").exists()
+    assert (out_dir / "figures" / "pair_classification_summary.png").exists()
+    assert not (out_dir / "figures" / "island_size_distribution.png").exists()
+    assert not (out_dir / "figures" / "island_domain_enrichment.png").exists()
+
+
 def test_main_prepends_diagnostics_banner_file_when_given(tmp_path, monkeypatch):
     frequency_table = tmp_path / "frequency_table.tsv"
     frequency_table.write_text("family\tfrequency\tbin\nfamA\t1.0\tcore\n")

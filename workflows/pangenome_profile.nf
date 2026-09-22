@@ -66,6 +66,14 @@ include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/e
 include { EMPTY_EVALUES_STUB as EMPTY_INVENTORY_STUB }        from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_TSV_STUB }       from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_FUNNEL_STUB }    from '../modules/empty_evalues_stub'
+// Issue #135: REPORT_TABLES/REPORT_RENDER now run unconditionally (not just
+// when --pangenome_island_pfam_hmm is set) -- these three feed it
+// empty (0-byte) stubs for the genuinely islands+Pfam-only inputs
+// (significant_islands/island_pfam_enrichment/domtblout) on a run where that
+// branch never executes. See modules/pangenome/report.nf's module docstring.
+include { EMPTY_EVALUES_STUB as EMPTY_SIGNIFICANT_ISLANDS_STUB } from '../modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_ISLAND_ENRICHMENT_STUB }   from '../modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_DOMTBLOUT_STUB }           from '../modules/empty_evalues_stub'
 
 workflow PANGENOME_PROFILE {
     take:
@@ -315,36 +323,68 @@ workflow PANGENOME_PROFILE {
             enrichment_for_report = DOMAIN_ENRICHMENT.out.enrichment
         }
 
-        REPORT_TABLES(
-            BUILD_ISLANDS.out.islands,
-            enrichment_for_report,
-            PAIR_CLASSIFICATION.out.classification,
-            rescued_matrix,
-            FREQUENCY_BINS.out.table,
-            pfam_domtblout,
-            CLUSTER_TIER1.out.cluster_tsv,
-            GENE_POSITIONS.out.positions,
-        )
+        significant_islands_ch = BUILD_ISLANDS.out.islands
+        pfam_domtblout_ch      = pfam_domtblout
+    }
+    else {
+        // Issue #135: REPORT_TABLES/REPORT_RENDER now run unconditionally
+        // below (outside this if-block) -- on a run with no
+        // --pangenome_island_pfam_hmm, these three islands+Pfam-only inputs
+        // never got computed, so feed them the same empty-stub convention
+        // rescue_funnel/tblastn_tsv_files/etc. already use above. See
+        // modules/pangenome/report.nf's module docstring.
+        EMPTY_SIGNIFICANT_ISLANDS_STUB()
+        significant_islands_ch = EMPTY_SIGNIFICANT_ISLANDS_STUB.out.evalues
+        EMPTY_ISLAND_ENRICHMENT_STUB()
+        enrichment_for_report = EMPTY_ISLAND_ENRICHMENT_STUB.out.evalues
+        EMPTY_DOMTBLOUT_STUB()
+        pfam_domtblout_ch = EMPTY_DOMTBLOUT_STUB.out.evalues
+    }
 
-        // Issue #134: pipeline diagnostics (rescue_redundancy today; other
-        // issue #134 table rows declared not_computed until their own
-        // statistic exists as a real pipeline output -- see
-        // bin/pangenome_diagnostics.py's module docstring). Feeds the
-        // Markdown/HTML banners REPORT_RENDER/ISLAND_SYNTENY prepend.
-        DIAGNOSTICS(rescue_funnel)
+    // --- 9b. Report tables + Markdown/figures render (unconditional; issue #135) ---
+    // Previously nested inside the `if (params.pangenome_island_pfam_hmm)`
+    // block above, so the core figures/sections (frequency distribution,
+    // presence/absence heatmap, accumulation curve, classification counts)
+    // -- which only ever needed PAIR_CLASSIFICATION/rescued_matrix/
+    // FREQUENCY_BINS, all computed unconditionally regardless of the
+    // islands+Pfam branch -- never rendered on most runs. See this file's
+    // header comment and modules/pangenome/report.nf's module docstring for
+    // the full mechanism (empty-stub inputs for the genuinely
+    // islands+Pfam-only pieces on a run where that branch didn't execute).
+    REPORT_TABLES(
+        significant_islands_ch,
+        enrichment_for_report,
+        PAIR_CLASSIFICATION.out.classification,
+        rescued_matrix,
+        FREQUENCY_BINS.out.table,
+        pfam_domtblout_ch,
+        CLUSTER_TIER1.out.cluster_tsv,
+        GENE_POSITIONS.out.positions,
+    )
 
-        REPORT_RENDER(
-            FREQUENCY_BINS.out.table,
-            rescued_matrix,
-            REPORT_TABLES.out.islands_with_domains,
-            REPORT_TABLES.out.size_distribution,
-            REPORT_TABLES.out.classification_counts,
-            enrichment_for_report,
-            REPORT_TABLES.out.marker_summary,
-            REPORT_TABLES.out.per_strain_summary,
-            DIAGNOSTICS.out.banner_md,
-        )
+    // Issue #134: pipeline diagnostics (rescue_redundancy today; other issue
+    // #134 table rows declared not_computed until their own statistic exists
+    // as a real pipeline output -- see bin/pangenome_diagnostics.py's module
+    // docstring). Feeds the Markdown/HTML banners REPORT_RENDER/
+    // ISLAND_SYNTENY prepend. Also unconditional (issue #135) -- rescue_funnel
+    // is already always available (real or EMPTY_RESCUE_FUNNEL_STUB, step 3).
+    DIAGNOSTICS(rescue_funnel)
 
+    REPORT_RENDER(
+        FREQUENCY_BINS.out.table,
+        rescued_matrix,
+        REPORT_TABLES.out.islands_with_domains,
+        REPORT_TABLES.out.size_distribution,
+        REPORT_TABLES.out.classification_counts,
+        enrichment_for_report,
+        REPORT_TABLES.out.marker_summary,
+        REPORT_TABLES.out.per_strain_summary,
+        DIAGNOSTICS.out.banner_md,
+    )
+
+    // --- 9c. Island synteny (still gated -- genuinely needs FAMILY_PFAM_SCAN,
+    // only computed inside the islands+Pfam branch) ------------------------
+    if (params.pangenome_island_pfam_hmm) {
         ISLAND_SYNTENY(
             REPORT_TABLES.out.islands_with_domains,
             rescued_matrix,

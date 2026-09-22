@@ -239,12 +239,21 @@ def add_outlier_flags(totals: list[dict], mad_multiplier: float = 0.6745, thresh
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--significant_islands", required=True)
-    ap.add_argument("--island_pfam_enrichment", required=True)
+    ap.add_argument(
+        "--significant_islands", default=None,
+        help="Optional (issue #135 core-report ungating): significant_islands.tsv "
+        "from BUILD_ISLANDS. Omitted on a run with no --pangenome_island_pfam_hmm "
+        "-- islands_with_domains.tsv/island_size_distribution.tsv/marker_summary.tsv "
+        "are then written empty (0 bytes) rather than computed, which "
+        "pangenome_report_render.py's own --islands_with_domains/"
+        "--island_size_distribution/--marker_summary treat as 'skip this section', "
+        "not an error.",
+    )
+    ap.add_argument("--island_pfam_enrichment", default=None)
     ap.add_argument("--pair_classification", required=True)
     ap.add_argument("--presence_matrix", required=True)
     ap.add_argument("--frequency_table", required=True)
-    ap.add_argument("--domtblout", required=True, action="append")
+    ap.add_argument("--domtblout", default=None, action="append")
     ap.add_argument("--domain_evalue", type=float, default=1e-3,
                      help="Domain-level i-Evalue cutoff for Pfam domain hits (default: 1e-3).")
     ap.add_argument("--cluster_tsv", required=True)
@@ -256,48 +265,61 @@ def main() -> int:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(args.significant_islands, newline="") as fh:
-        significant_islands_reader = csv.DictReader(fh, delimiter="\t")
-        islands_rows = list(significant_islands_reader)
-        significant_islands_fieldnames = significant_islands_reader.fieldnames or []
+    islands_available = args.significant_islands is not None
+    if islands_available:
+        with open(args.significant_islands, newline="") as fh:
+            significant_islands_reader = csv.DictReader(fh, delimiter="\t")
+            islands_rows = list(significant_islands_reader)
+            significant_islands_fieldnames = significant_islands_reader.fieldnames or []
 
-    family_domains = parse_domtblout(args.domtblout, max_ievalue=args.domain_evalue)
-    annotated = annotate_islands_with_domains(islands_rows, family_domains)
+        family_domains = parse_domtblout(args.domtblout, max_ievalue=args.domain_evalue) if args.domtblout else {}
+        annotated = annotate_islands_with_domains(islands_rows, family_domains)
 
-    member_to_rep = read_cluster_tsv(args.cluster_tsv)
-    gene_positions: dict[tuple[str, str], dict] = {}
-    with open_maybe_compressed(args.gene_positions) as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
-            gene_positions[(row["Short"], row["protein_id"])] = {
-                "contig": row["contig"], "start": int(row["start"]), "end": int(row["end"]),
-            }
-    annotated = add_island_locus(annotated, member_to_rep, gene_positions, id_sep=args.id_sep)
+        member_to_rep = read_cluster_tsv(args.cluster_tsv)
+        gene_positions: dict[tuple[str, str], dict] = {}
+        with open_maybe_compressed(args.gene_positions) as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                gene_positions[(row["Short"], row["protein_id"])] = {
+                    "contig": row["contig"], "start": int(row["start"]), "end": int(row["end"]),
+                }
+        annotated = add_island_locus(annotated, member_to_rep, gene_positions, id_sep=args.id_sep)
 
-    with open(out_dir / "islands_with_domains.tsv", "w", newline="") as out:
-        fieldnames = list(annotated[0].keys()) if annotated else [
-            "n_strains", "example_strain", "island_size", "member_families",
-            "n_supporting_pairs", "classifications", "pfam_domains",
-            "locus_id", "locus_contig", "locus_start", "locus_end",
-            "n_members_with_coordinates", "n_contigs_in_locus",
-        ]
-        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
-        writer.writeheader()
-        for row in sorted(annotated, key=lambda r: -int(r["island_size"])):
-            writer.writerow(row)
+        with open(out_dir / "islands_with_domains.tsv", "w", newline="") as out:
+            fieldnames = list(annotated[0].keys()) if annotated else [
+                "n_strains", "example_strain", "island_size", "member_families",
+                "n_supporting_pairs", "classifications", "pfam_domains",
+                "locus_id", "locus_contig", "locus_start", "locus_end",
+                "n_members_with_coordinates", "n_contigs_in_locus",
+            ]
+            writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            for row in sorted(annotated, key=lambda r: -int(r["island_size"])):
+                writer.writerow(row)
 
-    dist = island_size_distribution(islands_rows)
-    with open(out_dir / "island_size_distribution.tsv", "w") as out:
-        out.write("island_size\tcount\n")
-        for size, count in sorted(dist.items()):
-            out.write(f"{size}\t{count}\n")
+        dist = island_size_distribution(islands_rows)
+        with open(out_dir / "island_size_distribution.tsv", "w") as out:
+            out.write("island_size\tcount\n")
+            for size, count in sorted(dist.items()):
+                out.write(f"{size}\t{count}\n")
 
-    markers = marker_summary(islands_rows, significant_islands_fieldnames)
-    with open(out_dir / "marker_summary.tsv", "w", newline="") as out:
-        fieldnames = ["marker_name", "n_islands_with_marker", "n_islands_total", "pct_islands_with_marker"]
-        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
-        writer.writeheader()
-        for row in markers:
-            writer.writerow(row)
+        markers = marker_summary(islands_rows, significant_islands_fieldnames)
+        with open(out_dir / "marker_summary.tsv", "w", newline="") as out:
+            fieldnames = ["marker_name", "n_islands_with_marker", "n_islands_total", "pct_islands_with_marker"]
+            writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            for row in markers:
+                writer.writerow(row)
+    else:
+        # No --significant_islands (e.g. --pangenome_island_pfam_hmm not set)
+        # -- write these three outputs empty (0 bytes, not even a header) so
+        # a Nextflow `path(...)` output declaration always has a real file to
+        # emit, while `.size() > 0` checks on the consumer side (REPORT_RENDER)
+        # correctly read "not computed" rather than "computed, zero rows".
+        annotated = []
+        markers = []
+        (out_dir / "islands_with_domains.tsv").write_text("")
+        (out_dir / "island_size_distribution.tsv").write_text("")
+        (out_dir / "marker_summary.tsv").write_text("")
 
     counts = classification_counts(args.pair_classification)
     with open(out_dir / "classification_counts.tsv", "w") as out:
@@ -317,8 +339,9 @@ def main() -> int:
         for row in sorted(strain_rows, key=lambda r: r["n_families"]):
             writer.writerow(row)
 
+    islands_note = f"({len(annotated)} islands)" if islands_available else "(empty -- no --significant_islands)"
     print(f"pangenome_report_tables: wrote islands_with_domains.tsv "
-          f"({len(annotated)} islands), island_size_distribution.tsv, "
+          f"{islands_note}, island_size_distribution.tsv, "
           f"classification_counts.tsv, marker_summary.tsv ({len(markers)} markers), "
           f"per_strain_summary.tsv ({len(strain_rows)} strains) to {out_dir}", file=sys.stderr)
     return 0
