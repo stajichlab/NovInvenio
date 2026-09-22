@@ -121,6 +121,18 @@ def print_help() {
       --pangenome_module_min_size      Minimum module size MODULE_DOMAINS summarizes
                                        (default: 2 -- a singleton module has no
                                        internal co-occurrence structure to report).
+      --pangenome_qc_terminus_window_bp
+                                       Assembly-quality vs pangenome-content QC
+                                       (issue #130, runs on every pangenome run):
+                                       a protein span within this many bp of a
+                                       contig end counts as "at a contig terminus"
+                                       for the private-family mechanism check
+                                       (default: 1000).
+      --pangenome_qc_rho_warn_threshold
+                                       Emit a WARNING (stderr + assembly_quality_report.md)
+                                       when |rho| for accessory-family content vs
+                                       assembly quality (N50/contig count) exceeds
+                                       this (default: 0.3).
       --pangenome_top_islands_min_strains
                                        Minimum carrying strains for an island to
                                        appear in report.md's "Top islands (by size)"
