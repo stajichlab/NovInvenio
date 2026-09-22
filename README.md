@@ -92,7 +92,7 @@ nextflow run main.nf \
 Family-definition knobs (sensible defaults ship; sweep them for a new clade with
 a launcher like `NovInvenio_Investigations/legacy/novinvenio_scripts/run_param_sweep.sh`):
 `--family_min_seq_id` (0.3), `--family_cov` (0.8),
-`--hmm_presence_evalue` (1e-3), `--hmm_presence_cov` (0.5), and `--family_chunk_size`
+`--hmm_presence_evalue` (1e-3), `--hmm_presence_cov` (0.3), and `--family_chunk_size`
 (200 — how many families each parallel profile-build task handles).
 
 ### Which should I use?
@@ -369,7 +369,7 @@ need to bake it into the image.
 | `--family_min_seq_id` | `0.3` | mmseqs family-clustering identity threshold (`mmseqs` pathway) |
 | `--family_cov` | `0.8` | mmseqs family-clustering coverage (`mmseqs` pathway) |
 | `--hmm_presence_evalue` | `1e-3` | Family-HMM full-sequence E-value ceiling for presence (`mmseqs` pathway) |
-| `--hmm_presence_cov` | `0.5` | Family-HMM minimum profile coverage for presence (`mmseqs` pathway) |
+| `--hmm_presence_cov` | `0.3` | Family-HMM minimum profile coverage for presence (`mmseqs` pathway) |
 | `--family_chunk_size` | `200` | Families per parallel profile-build task (`mmseqs` pathway) |
 | `--evalue` | `1e-5` | Flat significance cutoff applied to every hit (`pairwise` pathway + novelty_discovery singletons) |
 | `--parse_evalue` | `0.01` | Loose noise ceiling applied when parsing raw pairwise hits; final filtering applies `--evalue` plus the paralog-competition filter |
