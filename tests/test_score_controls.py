@@ -215,3 +215,36 @@ def test_score_controls_cluster_membership_mode_ignores_matrix_presence_columns(
     )
     assert results[0]['actual_call'] == 'novel'
     assert results[0]['outcome'] == 'hit'
+
+
+# --- proteome_cols must be config-derived, not "everything except META_COLS" ---
+#
+# bin/annotate_presence_matrix.py's presence_matrix.function.tsv (what the sweep harness
+# actually passes as --matrix -- run_param_sweep.sh prefers it when non-empty) adds string
+# annotation columns (gene_name, product_description, Pfam_Names, ...) beyond the two
+# META_COLS this script knew about. family_presence_vector's `sub[proteome_cols].max(axis=0)
+# > 0` then compares strings to an int and raises TypeError -- a real bug hit on the
+# 2026-09 coverage sweep (recall/fp_rate silently blank in every run since the sweep
+# harness always prefers the annotated matrix). proteome_cols must be the CONFIG's known
+# species shorts (an allowlist), not "not META_COLS" (a blocklist that breaks on the next
+# new annotation column too).
+
+ANNOTATED_MATRIX = """\
+protein_id\tsource_proteome\tIn1\tIn2\tOut1\tgene_name\tproduct_description\tPfam_Names
+pA1\tIn1\t1\t1\t0\thex-1\tWoronin body protein\tPfamA
+pA2\tIn2\t1\t1\t0\t\t\t
+pB1\tIn1\t1\t1\t1\trpb2\tRNA polymerase II\t
+pB2\tIn2\t1\t1\t1\t\t\t
+"""
+
+
+def test_end_to_end_with_annotated_matrix_columns(tmp_path):
+    _setup(tmp_path, CONTROLS)
+    (tmp_path / 'matrix.tsv').write_text(ANNOTATED_MATRIX)   # overwrite the plain fixture
+    results, summary = _run(tmp_path)
+    assert results.loc['POS01', 'outcome'] == 'hit'
+    assert results.loc['NEG01', 'outcome'] == 'tn'
+    assert results.loc['NEG_FP', 'outcome'] == 'fp'
+    assert float(summary['recall']) == 1.0
+    assert float(summary['fp_rate']) == 0.5
+

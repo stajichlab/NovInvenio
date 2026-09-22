@@ -58,7 +58,20 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config  # noqa: E402
 
-META_COLS = ('protein_id', 'source_proteome')
+META_COLS = ('protein_id', 'source_proteome')  # kept for callers that still filter by it
+
+
+def proteome_columns(matrix, samples):
+    """The matrix's proteome columns, as an ALLOWLIST derived from the config's known
+    species shorts -- not META_COLS as a blocklist (everything not protein_id/
+    source_proteome). presence_matrix.function.tsv adds string annotation columns
+    (gene_name, product_description, Pfam_Names, ...) that a blocklist approach lets
+    through as if they were proteome presence columns, breaking family_presence_vector's
+    numeric max()/comparison the moment ANY row has a non-blank annotation. An allowlist
+    is also robust to the next annotation column annotate_presence_matrix.py adds, which
+    a blocklist is not."""
+    shorts = {s.short for s in samples}
+    return [c for c in matrix.columns if c in shorts]
 
 
 # --------------------------------------------------------------------------- controls
@@ -253,7 +266,7 @@ def build_cluster_membership_presence(rep_to_members, protein_to_proteome, prote
 def score_controls(controls, matrix, member_to_rep, rep_to_members, samples,
                    ingroup_min_frac, other_max_frac, busco_map, controls_dir,
                    profiles_hmm, cpus, presence_mode='hmm', protein_to_proteome=None):
-    proteome_cols = [c for c in matrix.columns if c not in META_COLS]
+    proteome_cols = proteome_columns(matrix, samples)
     # Coarse banding (see config_parser.INGROUP_ROLES/OUTGROUP_ROLES): must match
     # profile_to_matrix.py's/build_presence_matrix.py's keep-rule groups exactly, or
     # recall/FP-rate here silently diverge from what the pipeline itself called.
