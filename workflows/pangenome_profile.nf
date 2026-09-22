@@ -57,6 +57,7 @@ include { BUILD_ISLANDS; MARKER_HMMSEARCH }                                from 
 include { SELECT_BACKGROUND_REPS; HMMPRESS_PFAM; FAMILY_PFAM_SCAN;
           MERGE_PFAM_DOMTBLOUT; DOMAIN_ENRICHMENT }                 from '../modules/pangenome/pfam_enrichment'
 include { REPORT_TABLES; REPORT_RENDER }                                   from '../modules/pangenome/report'
+include { ASSEMBLY_QUALITY_QC }                                            from '../modules/pangenome/assembly_quality_qc'
 include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
 include { LEIDEN_MODULES; MODULE_DOMAINS }                                 from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
@@ -174,6 +175,15 @@ workflow PANGENOME_PROFILE {
     // --- 5. Frequency binning + co-occurrence ------------------------------
     FREQUENCY_BINS(rescued_matrix, effective_samplesheet, strain_inventory)
     COOCCURRENCE(rescued_matrix, FREQUENCY_BINS.out.table, effective_samplesheet, strain_inventory)
+
+    // --- 5b. Assembly-quality vs pangenome-content QC (issue #130) --------
+    // Runs unconditionally (cheap; no gating param) -- see
+    // modules/pangenome/assembly_quality_qc.nf's module docstring. Diagnostic
+    // only: never excludes a strain or alters a presence call.
+    ASSEMBLY_QUALITY_QC(
+        effective_samplesheet, data_dir_abs, rescued_matrix,
+        FREQUENCY_BINS.out.table, GENE_POSITIONS.out.positions, CLUSTER_TIER1.out.cluster_tsv,
+    )
 
     // --- 6. Family positions -------------------------------------------------
     // GENE_POSITIONS itself now runs at step 2b, above -- see this file's
@@ -342,4 +352,7 @@ workflow PANGENOME_PROFILE {
     pair_classification  = PAIR_CLASSIFICATION.out.classification
     family_modules       = LEIDEN_MODULES.out.family_modules
     module_summary       = LEIDEN_MODULES.out.module_summary
+    assembly_quality_table         = ASSEMBLY_QUALITY_QC.out.table
+    assembly_quality_correlations  = ASSEMBLY_QUALITY_QC.out.correlations
+    assembly_quality_report        = ASSEMBLY_QUALITY_QC.out.report
 }
