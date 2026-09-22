@@ -4,8 +4,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
 import pangenome_report_render
-from pangenome_report_render import render_report_markdown, fit_heaps_law, fit_core_decay
+from pangenome_report_render import render_report_markdown, fit_heaps_law, fit_core_decay, build_presence_bool_array
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from pangenome_matrix import PresenceMatrix, PRESENT, GENOME_ONLY, ABSENT
 
 
 def test_render_report_markdown_includes_key_sections():
@@ -423,3 +426,62 @@ def test_main_prepends_diagnostics_banner_file_when_given(tmp_path, monkeypatch)
 
     report_md = (out_dir / "report.md").read_text()
     assert report_md.startswith("## Pipeline diagnostics")
+
+
+def _make_mixed_state_matrix() -> PresenceMatrix:
+    """Small PresenceMatrix with PRESENT, GENOME_ONLY, ABSENT-by-explicit-call,
+    and ABSENT-by-omission (never called at all) cells -- the four cases
+    `build_presence_bool_array` must handle identically to `is_present`."""
+    matrix = PresenceMatrix(families=["famA", "famB", "famC"], strains=["s1", "s2", "s3"])
+    matrix.set_call("famA", "s1", PRESENT)
+    matrix.set_call("famA", "s2", ABSENT)
+    matrix.set_call("famB", "s1", GENOME_ONLY)
+    matrix.set_call("famB", "s3", PRESENT)
+    matrix.set_call("famC", "s2", ABSENT)
+    # famA/s3, famB/s2, famC/s1, famC/s3 are never set at all -> default ABSENT.
+    return matrix
+
+
+def test_build_presence_bool_array_matches_hand_written_expected():
+    matrix = _make_mixed_state_matrix()
+    family_order = ["famA", "famB", "famC"]
+    strain_order = ["s1", "s2", "s3"]
+    expected = np.array([
+        [True, False, False],   # famA: present, absent, absent(default)
+        [True, False, True],    # famB: genome_only, absent(default), present
+        [False, False, False],  # famC: absent(default), absent, absent(default)
+    ], dtype=bool)
+    result = build_presence_bool_array(matrix, family_order, strain_order)
+    assert result.dtype == bool
+    assert result.shape == expected.shape
+    assert np.array_equal(result, expected)
+
+
+def test_build_presence_bool_array_matches_naive_is_present_oracle():
+    matrix = _make_mixed_state_matrix()
+    # A different (non-identity) ordering, to also exercise permutation.
+    family_order = ["famC", "famA", "famB"]
+    strain_order = ["s3", "s1", "s2"]
+
+    # Ground-truth oracle: the exact naive double-loop the production code
+    # used to run, written fresh here rather than imported/duplicated from
+    # production, calling matrix.is_present() directly.
+    oracle = np.zeros((len(family_order), len(strain_order)), dtype=bool)
+    for i, fam in enumerate(family_order):
+        for j, strain in enumerate(strain_order):
+            oracle[i, j] = matrix.is_present(fam, strain)
+
+    result = build_presence_bool_array(matrix, family_order, strain_order)
+    assert np.array_equal(result, oracle)
+
+
+def test_build_presence_bool_array_ignores_calls_outside_requested_orders():
+    """A (family, strain) pair present in matrix.calls but not included in
+    the requested family_order/strain_order must not affect the result --
+    matches calling is_present() only for the requested rows/columns."""
+    matrix = _make_mixed_state_matrix()
+    family_order = ["famA"]
+    strain_order = ["s1"]
+    result = build_presence_bool_array(matrix, family_order, strain_order)
+    assert result.shape == (1, 1)
+    assert result[0, 0] == True  # noqa: E712 -- numpy bool identity check reads clearer this way here

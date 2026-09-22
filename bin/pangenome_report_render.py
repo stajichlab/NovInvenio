@@ -37,7 +37,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
-from pangenome_matrix import PresenceMatrix  # noqa: E402
+from pangenome_matrix import PresenceMatrix, PRESENT, GENOME_ONLY  # noqa: E402
 
 BAND_ORDER = ["core", "soft_core", "shell", "cloud", "singleton"]
 BAND_COLORS = {
@@ -85,6 +85,47 @@ def plot_frequency_bins(counts: dict[str, int], out_dir: Path) -> None:
     plt.close(fig)
 
 
+def build_presence_bool_array(
+    matrix: PresenceMatrix, family_order: list[str], strain_order: list[str],
+) -> np.ndarray:
+    """Materialize a `len(family_order) x len(strain_order)` boolean presence
+    array in ONE pass over `matrix.calls` (O(populated cells)), instead of
+    the double loop this replaced -- `for fam in family_order: for strain in
+    strain_order: arr[i, j] = matrix.is_present(fam, strain)` -- which was
+    O(families * strains) Python-level dict lookups + function calls. At real
+    study scale (47,743 tier-1 families x 529 strains) that's ~25M calls,
+    and `plot_presence_absence_matrix` and `accumulation_curve` each built
+    this same array redundantly from scratch.
+
+    `numpy` is not otherwise a `lib/` dependency (only `bin/` scripts import
+    it), so this stays in `bin/pangenome_report_render.py` rather than
+    becoming a `PresenceMatrix` method, to avoid adding a new dependency to
+    `lib/pangenome_matrix.py` for this alone.
+
+    `family_order`/`strain_order` set both the row/column ordering AND which
+    rows/columns are included in the result -- a family or strain omitted
+    from these lists is simply not represented, same as never calling
+    `is_present` for it. A `(family, strain)` pair in `matrix.calls` that
+    isn't covered by `family_order`/`strain_order` is skipped. A family or
+    strain in `family_order`/`strain_order` with no entry in `matrix.calls`
+    at all defaults to False (ABSENT), matching `PresenceMatrix.call`'s own
+    default.
+    """
+    family_idx = {fam: i for i, fam in enumerate(family_order)}
+    strain_idx = {strain: j for j, strain in enumerate(strain_order)}
+    arr = np.zeros((len(family_order), len(strain_order)), dtype=bool)
+    for (fam, strain), state in matrix.calls.items():
+        i = family_idx.get(fam)
+        if i is None:
+            continue
+        j = strain_idx.get(strain)
+        if j is None:
+            continue
+        if state in (PRESENT, GENOME_ONLY):
+            arr[i, j] = True
+    return arr
+
+
 def plot_presence_absence_matrix(matrix: PresenceMatrix, frequency_table_rows: list[dict], out_dir: Path) -> None:
     """Ported from plot_pangenome_summary.py's plot_presence_absence_matrix
     -- families (rows, frequency-sorted) x strains raster via imshow, kept
@@ -93,10 +134,7 @@ def plot_presence_absence_matrix(matrix: PresenceMatrix, frequency_table_rows: l
     freq_by_family = {r["family"]: float(r["frequency"]) for r in frequency_table_rows}
     family_order = sorted((f for f in matrix.families if f in freq_by_family), key=lambda f: -freq_by_family[f])
     strain_order = list(matrix.strains)
-    arr = np.zeros((len(family_order), len(strain_order)), dtype=bool)
-    for i, fam in enumerate(family_order):
-        for j, strain in enumerate(strain_order):
-            arr[i, j] = matrix.is_present(fam, strain)
+    arr = build_presence_bool_array(matrix, family_order, strain_order)
 
     fig, ax = plt.subplots(figsize=(8, 10))
     ax.imshow(arr, aspect="auto", cmap="Greys", interpolation="nearest")
@@ -116,10 +154,7 @@ def accumulation_curve(matrix: PresenceMatrix, n_permutations: int = 20, seed: i
     random strain orderings."""
     n_strains = len(matrix.strains)
     n_families = len(matrix.families)
-    arr = np.zeros((n_families, n_strains), dtype=bool)
-    for i, fam in enumerate(matrix.families):
-        for j, strain in enumerate(matrix.strains):
-            arr[i, j] = matrix.is_present(fam, strain)
+    arr = build_presence_bool_array(matrix, matrix.families, matrix.strains)
 
     rng = random.Random(seed)
     pan_runs = np.zeros((n_permutations, n_strains), dtype=int)
