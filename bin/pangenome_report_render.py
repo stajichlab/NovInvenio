@@ -53,6 +53,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.patches import Patch  # noqa: E402
 import numpy as np  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
@@ -162,6 +163,17 @@ def plot_presence_absence_matrix(matrix: PresenceMatrix, frequency_table_rows: l
     ax.set_title("Presence/absence matrix")
     ax.set_xticks([])
     ax.set_yticks([])
+    # Bug fix: this is a large raster with no other annotation of what
+    # black/white mean -- a reader has no way to know which color is
+    # "present" without this legend. "Greys" maps the boolean True (present)
+    # to black and False (absent) to white, so the patch colors here must
+    # mirror that mapping exactly.
+    legend_handles = [
+        Patch(facecolor="black", edgecolor="black", label="Present"),
+        Patch(facecolor="white", edgecolor="black", label="Absent"),
+    ]
+    ax.legend(handles=legend_handles, loc="upper right", bbox_to_anchor=(1.0, 1.08),
+              ncol=2, frameon=True, fontsize="small")
     fig.tight_layout()
     _savefig_both(fig, out_dir, "presence_absence_matrix")
     plt.close(fig)
@@ -298,6 +310,41 @@ def plot_island_size_distribution(size_dist: dict[int, int], out_dir: Path) -> N
     plt.close(fig)
 
 
+_ZERO_Q_FALLBACK_NEG_LOG_Q = 10.0
+"""Fixed fallback for cap_zero_q_sentinel's all-zero-q edge case: chosen as
+a value clearly visible on a -log10(q) axis (an FDR q of 1e-10 would be an
+extraordinarily strong result) without depending on any finite value in the
+data (there is none to scale off when every plotted domain has fdr_q == 0)."""
+
+
+def cap_zero_q_sentinel(
+    neg_log_q: list[float], is_zero_q: list[bool], multiple: float = 1.3,
+) -> list[float]:
+    """Replaces each zero-q placeholder value in `neg_log_q` (positions
+    flagged by `is_zero_q`) with a value scaled off the largest FINITE
+    (non-zero-q) value actually being plotted, capped at `multiple` times
+    that max -- instead of a fixed sentinel (the previous 300.0) that
+    dwarfs every real, meaningful bar on the same linear axis regardless of
+    what scale the rest of the chart is at.
+
+    A q=0 domain is the most statistically significant result on the chart
+    by construction (q=0 beats any q>0), so it should still read as the
+    tallest bar -- just not so tall the others become invisible by
+    comparison. `multiple` (default 1.3x the max finite value) keeps that
+    "still tallest" property while staying on a comparable visual scale.
+
+    Falls back to `_ZERO_Q_FALLBACK_NEG_LOG_Q` when every plotted value is
+    a zero-q placeholder (`is_zero_q` all True) -- there is no finite value
+    to scale off in that edge case.
+    """
+    finite_values = [v for v, is_zero in zip(neg_log_q, is_zero_q) if not is_zero]
+    if finite_values:
+        capped_value = max(finite_values) * multiple
+    else:
+        capped_value = _ZERO_Q_FALLBACK_NEG_LOG_Q
+    return [capped_value if is_zero else v for v, is_zero in zip(neg_log_q, is_zero_q)]
+
+
 def plot_domain_enrichment(top_domains: list[dict], out_dir: Path, top_n: int = 20) -> None:
     """Horizontal bar chart of the top-N (by fisher_p; `top_domains` arrives
     already sorted that way from main()) significantly enriched
@@ -309,7 +356,10 @@ def plot_domain_enrichment(top_domains: list[dict], out_dir: Path, top_n: int = 
         return
     fig, ax = plt.subplots(figsize=(8, max(4, 0.3 * len(domains))))
     labels = [d["domain"] for d in reversed(domains)]
-    neg_log_q = [-np.log10(float(d["fdr_q"])) if float(d["fdr_q"]) > 0 else 300.0 for d in reversed(domains)]
+    fdr_qs = [float(d["fdr_q"]) for d in reversed(domains)]
+    is_zero_q = [q == 0 for q in fdr_qs]
+    raw_neg_log_q = [-np.log10(q) if q > 0 else 0.0 for q in fdr_qs]
+    neg_log_q = cap_zero_q_sentinel(raw_neg_log_q, is_zero_q)
     ax.barh(labels, neg_log_q, color="#2c7fb8")
     ax.set_xlabel("-log10(FDR q)")
     ax.set_title(f"Top {len(domains)} enriched Pfam domains in accessory islands")
