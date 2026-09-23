@@ -86,7 +86,8 @@ with an optional absolute-evalue override on the second:
      rejects 1.18% of 2367 universally single-copy BUSCO ortholog pairs and flags
      11.0% of 1231 current outgroup presence hits; Q=15 gives 0.38% and 7.7%. BUSCO
      genes are conserved core genes, so these false-rejection rates are a lower
-     bound for real candidates, not an estimate.
+     bound for real candidates, not an estimate. Q=15 is the chosen value when the
+     floor is enabled (2026-09-23): it favours fewer false rejections.
 
      Query-group cells are never filtered: there a wrong rejection drops a
      candidate below --ingroup-min-frac with nothing downstream to recover it.
