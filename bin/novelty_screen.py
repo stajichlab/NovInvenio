@@ -158,6 +158,13 @@ def main():
                          'keep a hit the paralog beat by fewer than this many orders of '
                          'magnitude. Disabled by default and not recommended -- measured '
                          'non-selective, see bin/build_presence_matrix.py\'s docstring.')
+    ap.add_argument('--other-coverage-floor-qcov', type=float, default=None,
+                    dest='other_coverage_floor_qcov',
+                    help='OPT-IN filter 3 for singleton pairwise hits (issue #160, mirrors '
+                         'bin/build_presence_matrix.py, #158): a hit to an NEAR_INGROUP/BROAD_OUTGROUP '
+                         'proteome with query coverage below this percent counts as absent. '
+                         'Off by default; 0 also disables. Needs wide diamond/blast hits -- '
+                         'a missing qcov is a hard error. Family (HMM) presence is unaffected.')
     ap.add_argument('--config', required=True, help='Analysis description CSV')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
     ap.add_argument('--output-candidates', required=True, dest='output_candidates')
@@ -188,20 +195,34 @@ def main():
         hits = []
         for path in paths:
             short = proteome_short_from_hits_filename(path)
-            for query_id, target_id, evalue in parse_pairwise_tsv(path):
-                hits.append((query_id, target_id, evalue, short))
+            for query_id, target_id, evalue, qcov in parse_pairwise_tsv(path, with_qcov=True):
+                hits.append((query_id, target_id, evalue, short, qcov))
         return hits
 
-    near_in_singleton_presence, _ = score_singleton_hits(
-        _singleton_hits(args.near_in_singleton_hits), singleton_ids,
-        paralog_of, args.singleton_evalue, args.paralog_competition_scope,
-        rescue_evalue=args.paralog_rescue_evalue,
-        rescue_delta=args.paralog_rescue_delta)
-    broad_out_singleton_presence, _ = score_singleton_hits(
-        _singleton_hits(args.broad_out_singleton_hits), singleton_ids,
-        paralog_of, args.singleton_evalue, args.paralog_competition_scope,
-        rescue_evalue=args.paralog_rescue_evalue,
-        rescue_delta=args.paralog_rescue_delta)
+    # Filter 3 judges every hit here (floor_shorts=None): any NEAR_INGROUP or
+    # BROAD_OUTGROUP hit demotes a candidate, so both are the absence side.
+    def _score(paths, label):
+        stats = {}
+        try:
+            presence, _ = score_singleton_hits(
+                _singleton_hits(paths), singleton_ids,
+                paralog_of, args.singleton_evalue, args.paralog_competition_scope,
+                rescue_evalue=args.paralog_rescue_evalue,
+                rescue_delta=args.paralog_rescue_delta,
+                coverage_floor_qcov=args.other_coverage_floor_qcov,
+                stats=stats)
+        except ValueError as exc:
+            sys.exit(f'ERROR: --other-coverage-floor-qcov: {exc}')
+        msg = (f"{label} singleton hits rejected by filter 2 (paralog competition): "
+               f"{stats['filter2_rejected']} hit(s)")
+        if args.other_coverage_floor_qcov:
+            msg += (f"; by filter 3, coverage floor (qcov < "
+                    f"{args.other_coverage_floor_qcov:g}): {stats['floor_rejected']} hit(s)")
+        print(msg, file=sys.stderr)
+        return presence
+
+    near_in_singleton_presence = _score(args.near_in_singleton_hits, 'NEAR_INGROUP')
+    broad_out_singleton_presence = _score(args.broad_out_singleton_hits, 'BROAD_OUTGROUP')
 
     for short, ids in near_in_singleton_presence.items():
         near_in_presence.setdefault(short, set()).update(ids)
