@@ -1381,3 +1381,11 @@ SEPARATE decision, already recorded as DEFER in
 larger sample (only 4-6 curated controls resolve against the mmseqs-family matrix so
 far). This decision closes #135's investigation; it does not flip the pipeline default.
 **Tags**: presence-calling, diamond, sensitivity, tblastn, novelty, issue-135, alignment-coverage
+
+## 2026-09-23 — Other-group coverage floor: qcov threshold 15, default off (#158)
+
+**Context**: Phase 1 of `docs/superpowers/specs/2026-09-22-coverage-floor-sensitivity-design-handoff.md` adds `--other_coverage_floor_qcov` to `BUILD_PRESENCE_MATRIX`. The handoff left 15 vs 20 open.
+**Decision**: Use 15 when the floor is enabled. Keep the parameter default `null` (off).
+**Alternatives**: 20 (1.18% BUSCO 1:1 false-rejection, flags 11.0% of current outgroup presence hits) vs 15 (0.38%, 7.7%) on pezizo_set1.
+**Rationale**: The user chose fewer false rejections of real orthologs over catching more narrow hits. The default stays off until the false-rejection rate is re-measured on a second clade (handoff §8.2). The BUSCO rates are a lower bound for real candidates.
+**Follow-up**: mirror the floor into `lib/singleton_presence.py` and `bin/context_presence.py`; Phase 2 reporting column (#159).

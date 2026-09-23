@@ -422,3 +422,191 @@ def test_output_targets_sidecar_names_the_winning_hits_target_id(run_dir):
     assert row['In2'] == 'g1_in2_strong'  # the lower-evalue hit's target, not the weaker one
     assert row['In1'] == ''
     assert row['Out1'] == ''
+
+
+# --- Other-group coverage floor (--other-coverage-floor-qcov, issue #158) ----
+# A later filter stage, after filter 2: an absence-side hit (target proteome in the
+# *other* group) whose query coverage is below the floor is treated as absent. It is
+# the filter-side half of the design in docs/superpowers/specs/
+# 2026-09-22-coverage-floor-sensitivity-design-handoff.md: a narrow hit (e.g. spa-18's
+# qcov=15.1 short-motif match) is a domain-driven artifact candidate, a broad hit is
+# orthology. Query-group cells are never filtered (handoff §3 -- that would convert the
+# ingroup's cheap error into the expensive one).
+
+WIDE_HIT_HEADER = ('query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\t'
+                   'length\tpident\tqcov\tscov\tqlen\tslen\n')
+
+# narrow: spa-18-like hit to Out1 (qcov 15.1, pident 27.8). broad: wsc-like (qcov 59.9).
+# Both proteins also hit In2 broadly so they clear --ingroup-min-frac 1.0.
+FLOOR_HITS = (
+    'narrow\tn_in2\t1e-30\t200\tIn1\tIn2\t150\t50.0\t90.0\t88.0\t169\t170\n'
+    'narrow\tn_out1\t6.76e-08\t50\tIn1\tOut1\t25\t27.8\t15.1\t2.3\t169\t1117\n'
+    'broad\tb_in2\t1e-30\t200\tIn1\tIn2\t150\t50.0\t90.0\t88.0\t300\t310\n'
+    'broad\tb_out1\t4.1e-48\t180\tIn1\tOut1\t180\t47.4\t59.9\t58.0\t300\t320\n'
+)
+
+
+def run_floor(run_dir, hits_text, floor=None, header=WIDE_HIT_HEADER, query_group='IN',
+              rejections=False, extra=()):
+    """Like run(), but with a caller-chosen hit header and the floor flag. Returns
+    (CompletedProcess, matrix-or-None, candidates, rejections-df-or-None) and never
+    raises on a non-zero exit, so fail-loud cases can be asserted on."""
+    hits_path = run_dir / 'hits.tsv'
+    hits_path.write_text(header + hits_text)
+    matrix_out = run_dir / 'matrix.tsv'
+    candidates_out = run_dir / 'candidates.txt'
+    rej_out = run_dir / 'rejections.tsv'
+    cmd = [sys.executable, str(SCRIPT),
+           '--hits', str(hits_path),
+           '--config', str(run_dir / 'config.csv'),
+           '--ingroup-min-frac', '1.0',
+           '--query-group', query_group,
+           '--other-max-frac', '0.0',
+           '--output-matrix', str(matrix_out),
+           '--output-candidates', str(candidates_out), *extra]
+    if floor is not None:
+        cmd += ['--other-coverage-floor-qcov', floor]
+    if rejections:
+        cmd += ['--output-coverage-floor-rejections', str(rej_out)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        return proc, None, None, None
+    matrix = pd.read_csv(matrix_out, sep='\t')
+    candidates = candidates_out.read_text().splitlines() if candidates_out.stat().st_size else []
+    rej = pd.read_csv(rej_out, sep='\t') if rejections else None
+    return proc, matrix, candidates, rej
+
+
+def test_coverage_floor_is_off_by_default(run_dir):
+    # No flag: both Out1 hits count, so neither protein is a novelty.
+    proc, matrix, candidates, _ = run_floor(run_dir, FLOOR_HITS)
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'narrow'].iloc[0]['Out1'] == 1
+    assert matrix[matrix['protein_id'] == 'broad'].iloc[0]['Out1'] == 1
+    assert candidates == []
+
+
+def test_coverage_floor_zero_is_off(run_dir):
+    # 0 disables, matching --paralog-rescue-evalue's convention (and how a null
+    # nextflow param reaches the script).
+    proc, matrix, _, _ = run_floor(run_dir, FLOOR_HITS, floor='0')
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'narrow'].iloc[0]['Out1'] == 1
+
+
+def test_coverage_floor_rejects_narrow_other_group_hit_and_keeps_broad(run_dir):
+    proc, matrix, candidates, _ = run_floor(run_dir, FLOOR_HITS, floor='20')
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'narrow'].iloc[0]['Out1'] == 0
+    assert matrix[matrix['protein_id'] == 'broad'].iloc[0]['Out1'] == 1
+    assert candidates == ['In1::narrow']
+
+
+def test_coverage_floor_threshold_is_strict_less_than(run_dir):
+    # qcov 15.1 is not < 15, so a floor of 15 keeps the spa-18-like hit.
+    proc, matrix, _, _ = run_floor(run_dir, FLOOR_HITS, floor='15')
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'narrow'].iloc[0]['Out1'] == 1
+
+
+def test_coverage_floor_ignores_identity(run_dir):
+    # Coverage alone gates (handoff §5): a narrow hit is rejected at high pident too.
+    hits = (
+        'hiid\th_in2\t1e-30\t200\tIn1\tIn2\t150\t50.0\t90.0\t88.0\t169\t170\n'
+        'hiid\th_out1\t1e-12\t60\tIn1\tOut1\t30\t95.0\t10.0\t3.0\t300\t1000\n'
+    )
+    proc, matrix, _, _ = run_floor(run_dir, hits, floor='20')
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'hiid'].iloc[0]['Out1'] == 0
+
+
+def test_coverage_floor_never_filters_query_group_cells(run_dir):
+    # A narrow In2 hit is still ingroup presence: the floor is absence-side only.
+    hits = 'g\tg_in2\t1e-10\t60\tIn1\tIn2\t20\t60.0\t5.0\t5.0\t400\t420\n'
+    proc, matrix, candidates, _ = run_floor(run_dir, hits, floor='20')
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'g'].iloc[0]['In2'] == 1
+    assert candidates == ['In1::g']
+
+
+def test_coverage_floor_keeps_cell_when_another_hit_in_same_proteome_is_broad(run_dir):
+    # Presence is per (protein, proteome) cell: one broad surviving hit is enough.
+    hits = FLOOR_HITS + 'narrow\tn_out1_b\t1e-20\t90\tIn1\tOut1\t120\t35.0\t70.0\t60.0\t169\t200\n'
+    proc, matrix, _, _ = run_floor(run_dir, hits, floor='20')
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'narrow'].iloc[0]['Out1'] == 1
+
+
+def test_coverage_floor_applies_to_ingroup_targets_in_loss_direction(run_dir):
+    # --query-group OUT: the other group is the ingroup, so the floor gates In* cells.
+    # Self hits keep both proteins in the matrix (a protein with no surviving hit has
+    # no row), as in test_query_group_out_finds_a_loss_candidate.
+    hits = (
+        'h\th_self\t1e-90\t400\tOut1\tOut1\t250\t100.0\t100.0\t100.0\t250\t250\n'
+        'k\tk_self\t1e-90\t400\tOut1\tOut1\t250\t100.0\t100.0\t100.0\t250\t250\n'
+        'h\th_in1\t1e-12\t60\tOut1\tIn1\t25\t40.0\t10.0\t3.0\t250\t900\n'
+        'k\tk_in1\t1e-40\t200\tOut1\tIn1\t200\t40.0\t80.0\t70.0\t250\t260\n'
+    )
+    proc, matrix, candidates, _ = run_floor(run_dir, hits, floor='20', query_group='OUT')
+    assert proc.returncode == 0, proc.stderr
+    assert matrix[matrix['protein_id'] == 'h'].iloc[0]['In1'] == 0
+    assert matrix[matrix['protein_id'] == 'k'].iloc[0]['In1'] == 1
+    assert candidates == ['Out1::h']
+
+
+def test_coverage_floor_fails_loudly_on_narrow_hit_files(run_dir):
+    # A 6-column hit file (old narrow cache) carries no qcov at all. The floor must
+    # not silently no-op (lib/hits.py Hit docstring policy).
+    proc, *_ = run_floor(run_dir, 'narrow\tn_out1\t1e-8\t50\tIn1\tOut1\n',
+                         floor='20', header=HIT_HEADER)
+    assert proc.returncode != 0
+    assert 'qcov' in proc.stderr
+
+
+def test_coverage_floor_fails_loudly_on_blank_qcov(run_dir):
+    # Wide header, but blank metric cells (a phmmer hit, or a narrow cached file mixed
+    # into a wide run) on a row the floor would judge.
+    hits = (FLOOR_HITS
+            + 'mixed\tm_in2\t1e-30\t200\tIn1\tIn2\t150\t50.0\t90.0\t88.0\t169\t170\n'
+            + 'mixed\tm_out1\t1e-9\t50\tIn1\tOut1\t\t\t\t\t\t\n')
+    proc, *_ = run_floor(run_dir, hits, floor='20')
+    assert proc.returncode != 0
+    assert 'qcov' in proc.stderr
+
+
+def test_coverage_floor_without_geometry_is_fine_when_floor_off(run_dir):
+    # Narrow files stay valid input whenever the floor is not requested.
+    proc, matrix, _, _ = run_floor(run_dir, 'narrow\tn_out1\t1e-8\t50\tIn1\tOut1\n',
+                                   header=HIT_HEADER)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_coverage_floor_runs_after_filter2_and_logs_separately(run_dir):
+    # 'para' loses its narrow Out1 hit to filter 2 (its paralog wins on the same
+    # target), so the floor never sees it. 'narrow' loses its Out1 hit to the floor.
+    # The rejections sidecar must name only the floor's rejection, and stderr must
+    # report the two mechanisms as separate counts.
+    hits = FLOOR_HITS + (
+        'para\tshared\t1e-8\t50\tIn1\tOut1\t20\t30.0\t10.0\t3.0\t200\t900\n'
+        'para\tp_in2\t1e-30\t200\tIn1\tIn2\t150\t50.0\t90.0\t88.0\t200\t210\n'
+        'paraP\tshared\t1e-15\t80\tIn1\tOut1\t60\t40.0\t50.0\t10.0\t200\t900\n'
+    )
+    paralog_path = run_dir / 'paralog_cutoffs.tsv'
+    paralog_path.write_text(PARALOG_HEADER + 'para\tparaP\t300\t1e-90\nparaP\tpara\t300\t1e-90\n')
+    proc, matrix, _, rej = run_floor(
+        run_dir, hits, floor='20', rejections=True,
+        extra=('--paralog-cutoffs', str(paralog_path), '--paralog-rescue-evalue', '0'))
+    assert proc.returncode == 0, proc.stderr
+    assert list(rej['query_id']) == ['narrow']
+    assert rej.iloc[0]['target_id'] == 'n_out1'
+    assert rej.iloc[0]['qcov'] == pytest.approx(15.1)
+    assert 'filter 2 (paralog competition): 1 hit' in proc.stderr
+    assert 'coverage floor (qcov < 20): 1 hit' in proc.stderr
+    assert matrix[matrix['protein_id'] == 'para'].iloc[0]['Out1'] == 0
+
+
+def test_coverage_floor_rejections_sidecar_header_only_when_off(run_dir):
+    proc, _, _, rej = run_floor(run_dir, FLOOR_HITS, rejections=True)
+    assert proc.returncode == 0, proc.stderr
+    assert rej.empty
+    assert 'qcov' in rej.columns
