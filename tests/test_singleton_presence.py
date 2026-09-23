@@ -109,3 +109,97 @@ def test_delta_arm_handles_a_zero_paralog_evalue():
         ZERO_HITS, {'q'}, {'q': 'p', 'p': 'q'}, 1e-5,
         competition_scope='target', rescue_evalue=0, rescue_delta=45)
     assert 'q' not in presence['Out1']
+
+
+# --- Other-group coverage floor (issue #160, mirrors #158) ------------------
+# Hits are (query_id, target_id, evalue, proteome_short, qcov). The floor runs after
+# filter 2 and only judges hits to proteomes in floor_shorts (None = every proteome).
+
+import pytest  # noqa: E402
+
+from singleton_presence import parse_pairwise_tsv  # noqa: E402
+
+FLOOR_HITS = [
+    ('narrow', 'n_d1', 6.76e-08, 'D1', 15.1),   # spa-18-like short-motif hit
+    ('broad',  'b_d1', 4.1e-48,  'D1', 59.9),
+    ('narrow', 'n_t2', 1e-30,    'T2', 5.0),    # query-side cell: never floored
+]
+FLOOR_SINGLETONS = {'narrow', 'broad'}
+
+
+def floor_score(**kw):
+    presence, _ = score_singleton_hits(FLOOR_HITS, FLOOR_SINGLETONS, {}, 1e-5,
+                                       competition_scope='target', **kw)
+    return presence
+
+
+def test_coverage_floor_off_by_default():
+    assert 'narrow' in floor_score()['D1']
+
+
+def test_coverage_floor_zero_is_off():
+    assert 'narrow' in floor_score(coverage_floor_qcov=0)['D1']
+
+
+def test_coverage_floor_rejects_narrow_keeps_broad():
+    p = floor_score(coverage_floor_qcov=20, floor_shorts={'D1'})
+    assert p['D1'] == {'broad'}
+
+
+def test_coverage_floor_is_strict_less_than():
+    assert 'narrow' in floor_score(coverage_floor_qcov=15, floor_shorts={'D1'})['D1']
+
+
+def test_coverage_floor_skips_proteomes_outside_floor_shorts():
+    assert 'narrow' in floor_score(coverage_floor_qcov=20, floor_shorts={'D1'})['T2']
+
+
+def test_coverage_floor_none_floor_shorts_judges_every_proteome():
+    p = floor_score(coverage_floor_qcov=20)
+    assert 'narrow' not in p['D1'] and 'narrow' not in p['T2']
+
+
+def test_coverage_floor_counts_rejections_separately_from_filter2():
+    hits = FLOOR_HITS + [
+        ('para',  'shared', 1e-8,  'D1', 10.0),   # beaten by its paralog -> filter 2
+        ('paraP', 'shared', 1e-15, 'D1', 50.0),
+    ]
+    stats = {}
+    score_singleton_hits(hits, FLOOR_SINGLETONS | {'para'}, {'para': 'paraP'}, 1e-5,
+                         competition_scope='target', rescue_evalue=0,
+                         coverage_floor_qcov=20, floor_shorts={'D1'}, stats=stats)
+    assert stats == {'filter2_rejected': 1, 'floor_rejected': 1}
+
+
+def test_coverage_floor_fails_loudly_without_qcov():
+    hits = [('narrow', 'n_d1', 6.76e-08, 'D1')]       # 4-tuple: no geometry
+    with pytest.raises(ValueError, match='qcov'):
+        score_singleton_hits(hits, {'narrow'}, {}, 1e-5, coverage_floor_qcov=20)
+    hits = [('narrow', 'n_d1', 6.76e-08, 'D1', None)]  # blank qcov cell
+    with pytest.raises(ValueError, match='qcov'):
+        score_singleton_hits(hits, {'narrow'}, {}, 1e-5, coverage_floor_qcov=20)
+
+
+def test_coverage_floor_ignores_missing_qcov_outside_floor_shorts():
+    hits = [('narrow', 'n_t2', 1e-30, 'T2', None)]
+    presence, _ = score_singleton_hits(hits, {'narrow'}, {}, 1e-5,
+                                       coverage_floor_qcov=20, floor_shorts={'D1'})
+    assert presence['T2'] == {'narrow'}
+
+
+def test_parse_pairwise_tsv_with_qcov(tmp_path):
+    p = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    p.write_text('query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\t'
+                 'length\tpident\tqcov\tscov\tqlen\tslen\n'
+                 'a\tx\t1e-10\t100\t\t\t50\t40.0\t15.1\t3.0\t169\t1117\n'
+                 'b\ty\t1e-10\t100\t\t\t\t\t\t\t\t\n')
+    assert parse_pairwise_tsv(p) == [('a', 'x', 1e-10), ('b', 'y', 1e-10)]
+    assert parse_pairwise_tsv(p, with_qcov=True) == [('a', 'x', 1e-10, 15.1),
+                                                     ('b', 'y', 1e-10, None)]
+
+
+def test_parse_pairwise_tsv_with_qcov_on_narrow_file(tmp_path):
+    p = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    p.write_text('query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\n'
+                 'a\tx\t1e-10\t100\t\t\n')
+    assert parse_pairwise_tsv(p, with_qcov=True) == [('a', 'x', 1e-10, None)]

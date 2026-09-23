@@ -98,6 +98,7 @@ process NOVELTY_SCREEN_CLASSIFY {
         --paralog-competition-scope ${paralog_competition_scope} \
         --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
         ${params.paralog_rescue_delta != null ? "--paralog-rescue-delta ${params.paralog_rescue_delta}" : ''} \
+        ${params.other_coverage_floor_qcov ? "--other-coverage-floor-qcov ${params.other_coverage_floor_qcov}" : ''} \
         --config ${config_csv} \
         --output-matrix screened_presence_matrix.tsv \
         --output-candidates screened_candidates.txt

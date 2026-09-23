@@ -73,7 +73,7 @@ process CONTEXT_DIAMOND_SEARCH {
         diamond blastp \
             --query ${context_query_fa} \
             --db ${target_db.baseName} \
-            --outfmt 6 qseqid sseqid evalue bitscore \
+            --outfmt 6 qseqid sseqid evalue bitscore length pident qcovhsp scovhsp qlen slen \
             --evalue ${params.parse_evalue} \
             --threads ${task.cpus} \
             --quiet \
@@ -103,7 +103,7 @@ process CONTEXT_BLAST_SEARCH {
         blastp \
             -query ${context_query_fa} \
             -db ${meta_t.id}.blast_db \
-            -outfmt "6 qseqid sseqid evalue bitscore" \
+            -outfmt "6 qseqid sseqid evalue bitscore length pident qcovhsp qlen slen" \
             -evalue ${params.parse_evalue} \
             -num_threads ${task.cpus} \
             -out context_vs_${meta_t.id}.blast.tsv
@@ -162,6 +162,7 @@ process CONTEXT_PRESENCE {
         --paralog-competition-scope ${paralog_competition_scope} \
         --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
         ${params.paralog_rescue_delta != null ? "--paralog-rescue-delta ${params.paralog_rescue_delta}" : ''} \
+        ${params.other_coverage_floor_qcov ? "--other-coverage-floor-qcov ${params.other_coverage_floor_qcov}" : ''} \
         --default-evalue ${default_evalue} \
         --output-matrix context_presence.tsv \
         --output-evalues context_presence.evalues.tsv

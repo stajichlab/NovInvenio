@@ -130,6 +130,13 @@ def main():
                          'keep a hit the paralog beat by fewer than this many orders of '
                          'magnitude. Disabled by default and not recommended -- measured '
                          'non-selective, see bin/build_presence_matrix.py\'s docstring.')
+    ap.add_argument('--other-coverage-floor-qcov', type=float, default=None,
+                    dest='other_coverage_floor_qcov',
+                    help='OPT-IN filter 3 for singleton pairwise hits (issue #160, mirrors '
+                         'bin/build_presence_matrix.py, #158): a hit to an DISCOVERY_OUT '
+                         'proteome with query coverage below this percent counts as absent. '
+                         'Off by default; 0 also disables. Needs wide diamond/blast hits -- '
+                         'a missing qcov is a hard error. Family (HMM) presence is unaffected.')
     ap.add_argument('--min-covered-residues', type=int, default=0,
                     dest='min_covered_residues',
                     help='Alternative to --min-coverage for long, multi-domain HMMs: a '
@@ -208,17 +215,32 @@ def main():
     all_singleton_hits = []  # (query_id, target_id, evalue, proteome_short)
     for hits_path in args.singleton_hits:
         short = proteome_short_from_hits_filename(hits_path)
-        for query_id, target_id, evalue in parse_pairwise_tsv(hits_path):
-            all_singleton_hits.append((query_id, target_id, evalue, short))
+        for query_id, target_id, evalue, qcov in parse_pairwise_tsv(hits_path, with_qcov=True):
+            all_singleton_hits.append((query_id, target_id, evalue, short, qcov))
 
     # singleton_presence[proteome_short] = set of singleton protein IDs present
     # singleton_evalue[(proteome_short, protein_id)] = best (lowest) qualifying hit e-value
-    singleton_presence, singleton_evalue = score_singleton_hits(
-        all_singleton_hits, singleton_reps, paralog_of,
-        args.singleton_evalue, args.paralog_competition_scope,
-        rescue_evalue=args.paralog_rescue_evalue,
-        rescue_delta=args.paralog_rescue_delta,
-    )
+    # Filter 3 judges only DISCOVERY_OUT cells -- the absence side of phase 1. A narrow
+    # DISCOVERY_TARGET hit is still target presence (see bin/build_presence_matrix.py).
+    singleton_stats = {}
+    try:
+        singleton_presence, singleton_evalue = score_singleton_hits(
+            all_singleton_hits, singleton_reps, paralog_of,
+            args.singleton_evalue, args.paralog_competition_scope,
+            rescue_evalue=args.paralog_rescue_evalue,
+            rescue_delta=args.paralog_rescue_delta,
+            coverage_floor_qcov=args.other_coverage_floor_qcov,
+            floor_shorts={s.short for s in samples if s.group == 'DISCOVERY_OUT'},
+            stats=singleton_stats,
+        )
+    except ValueError as exc:
+        sys.exit(f'ERROR: --other-coverage-floor-qcov: {exc}')
+    print(f"Singleton hits rejected by filter 2 (paralog competition): "
+          f"{singleton_stats['filter2_rejected']} hit(s)", file=sys.stderr)
+    if args.other_coverage_floor_qcov:
+        print(f"Singleton hits rejected by filter 3, coverage floor "
+              f"(qcov < {args.other_coverage_floor_qcov:g}): "
+              f"{singleton_stats['floor_rejected']} hit(s)", file=sys.stderr)
 
     # --- Build combined presence matrix ---
     # Collect all proteins: family members + singletons

@@ -100,6 +100,10 @@ with an optional absolute-evalue override on the second:
      4-column cache, or any phmmer --tblout hit) is a hard error, never a silent
      no-op -- see lib/hits.py's Hit docstring.
 
+     Mirrored (issue #160), same semantics, in lib/singleton_presence.py's
+     score_singleton_hits() and bin/context_presence.py -- as with filter 2, a change
+     here must be made in all three.
+
   (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value
   must beat the query's own within-proteome paralog e-value, falling back to
   --default-evalue when no paralog was detected. Dropped: deriving an absolute

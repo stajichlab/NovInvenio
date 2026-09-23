@@ -10,6 +10,10 @@ for the report's benefit, using the *same* filtering:
   1. Significance filter: hit e-value < --default-evalue (flat, applied to every hit).
   2. Paralog-competition filter (--paralog-competition-scope, mirrors
      build_presence_matrix.py): disqualify a hit the candidate's paralog out-scores.
+  3. Other-group coverage floor (--other-coverage-floor-qcov, opt-in, issue #160):
+     after filter 2, a hit with query coverage below the floor counts as absent. Every
+     proteome here is NEAR_INGROUP/BROAD_OUTGROUP, so every hit is judged. Same rule as
+     build_presence_matrix.py's filter 3; a missing qcov is a hard error.
 
 (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value must beat
 the candidate's own within-proteome paralog e-value, falling back to --default-evalue
@@ -123,6 +127,12 @@ def main():
                          'keep a hit the paralog beat by fewer than this many orders of '
                          'magnitude. Disabled by default and not recommended -- measured '
                          'non-selective, see bin/build_presence_matrix.py\'s docstring.')
+    ap.add_argument('--other-coverage-floor-qcov', type=float, default=None,
+                    dest='other_coverage_floor_qcov',
+                    help='OPT-IN filter 3: a hit with query coverage below this percent '
+                         'counts as absent. Same semantics as bin/build_presence_matrix.py '
+                         '(#158/#160). Off by default; 0 also disables. Needs wide '
+                         'diamond/blast hits -- a missing qcov is a hard error.')
     ap.add_argument('--output-evalues', required=True, dest='output_evalues')
     args = ap.parse_args()
 
@@ -178,7 +188,33 @@ def main():
             with np.errstate(divide='ignore', invalid='ignore'):
                 delta = np.log10(cand['evalue']) - np.log10(paralog_ev)
             rescued |= pd.Series(delta, index=cand.index) < args.paralog_rescue_delta
-        cand = cand[~(disqualified & ~rescued)]
+        disqualified &= ~rescued
+        n_filter2 = int(disqualified.sum())
+        cand = cand[~disqualified]
+    else:
+        n_filter2 = 0
+
+    floor = args.other_coverage_floor_qcov
+    n_floor = 0
+    if floor and not cand.empty:
+        qcov = (pd.to_numeric(cand['qcov'], errors='coerce') if 'qcov' in cand.columns
+                else pd.Series(np.nan, index=cand.index))
+        n_unmeasured = int(qcov.isna().sum())
+        if n_unmeasured:
+            sys.exit(
+                f'ERROR: --other-coverage-floor-qcov {floor:g} was requested, but '
+                f'{n_unmeasured} of {len(cand)} context hits have no qcov (an old narrow '
+                'hit file, or a phmmer hit). Re-run with diamond/blast wide output, or '
+                'drop the floor.')
+        floor_hit = qcov < floor
+        n_floor = int(floor_hit.sum())
+        cand = cand[~floor_hit]
+
+    print(f'Context hits rejected by filter 2 (paralog competition): {n_filter2} hit(s)',
+          file=sys.stderr)
+    if floor:
+        print(f'Context hits rejected by filter 3, coverage floor (qcov < {floor:g}): '
+              f'{n_floor} hit(s)', file=sys.stderr)
 
     # Best (lowest) qualifying evalue per (protein_id, target_proteome).
     best_hit = (cand.groupby(['query_id', 'target_proteome'])['evalue'].min().to_dict()
