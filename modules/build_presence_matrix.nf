@@ -20,8 +20,12 @@ process BUILD_PRESENCE_MATRIX {
     path("${candidates_name}"), emit: candidates
     path("${evalues_name}"),    emit: evalues
     path("${targets_name}"),    emit: targets
+    // Only written when params.other_coverage_floor_qcov is set (issue #158).
+    path("${matrix_name.replaceAll(/\.tsv$/, '')}.coverage_floor_rejections.tsv"), emit: floor_rejections, optional: true
 
     script:
+    def floor = params.other_coverage_floor_qcov
+    def floor_args = floor ? "--other-coverage-floor-qcov ${floor} --output-coverage-floor-rejections ${matrix_name.replaceAll(/\.tsv$/, '')}.coverage_floor_rejections.tsv" : ''
     """
     build_presence_matrix.py \
         --hits ${parsed_tsvs} \
@@ -33,6 +37,7 @@ process BUILD_PRESENCE_MATRIX {
         --paralog-competition-scope ${params.paralog_competition_scope} \
         --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
         ${params.paralog_rescue_delta != null ? "--paralog-rescue-delta ${params.paralog_rescue_delta}" : ''} \
+        ${floor_args} \
         --output-matrix ${matrix_name} \
         --output-candidates ${candidates_name} \
         --output-evalues ${evalues_name} \

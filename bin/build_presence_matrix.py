@@ -72,6 +72,33 @@ with an optional absolute-evalue override on the second:
      same filter 2, so a change here must be made in all three or the same
      protein gets different answers from different pathways.
 
+  3. Other-group coverage floor (OPT-IN, OFF by default -- issue #158):
+     --other-coverage-floor-qcov Q treats a hit to an *other-group* proteome (the
+     absence side: outgroup in the novelty direction, ingroup in the loss
+     direction) as absent when its query coverage qcov < Q percent. A narrow hit
+     like spa-18's (qcov 15.1 against an unrelated 1117aa protein) is the shape of
+     a domain-driven or short-motif artifact, not orthology. Identity is NOT a
+     co-condition: an earlier `qcov<30 AND pident>=40` rule missed spa-18
+     (pident 27.8) and rejected more true orthologs.
+
+     Measured on pezizo_set1 (docs/superpowers/specs/
+     2026-09-22-coverage-floor-sensitivity-design-handoff.md, Sec 4-5): Q=20 wrongly
+     rejects 1.18% of 2367 universally single-copy BUSCO ortholog pairs and flags
+     11.0% of 1231 current outgroup presence hits; Q=15 gives 0.38% and 7.7%. BUSCO
+     genes are conserved core genes, so these false-rejection rates are a lower
+     bound for real candidates, not an estimate.
+
+     Query-group cells are never filtered: there a wrong rejection drops a
+     candidate below --ingroup-min-frac with nothing downstream to recover it.
+     The floor runs after filter 2 and its rejections are counted separately
+     (stderr, and --output-coverage-floor-rejections), so a hit such as HEX-1's,
+     already explained by filter 2, stays attributable to filter 2 alone.
+
+     The floor needs the wide hit layout (issue #129: diamond/blastp qcovhsp). A
+     requested floor with a missing or blank qcov on any hit it would judge (an old
+     4-column cache, or any phmmer --tblout hit) is a hard error, never a silent
+     no-op -- see lib/hits.py's Hit docstring.
+
   (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value
   must beat the query's own within-proteome paralog e-value, falling back to
   --default-evalue when no paralog was detected. Dropped: deriving an absolute
@@ -112,6 +139,9 @@ DEFAULT_EVALUE = 1e-5
 # params.paralog_rescue_evalue. 0 disables.
 DEFAULT_RESCUE_EVALUE = 1e-20
 
+REJECTION_COLUMNS = ['query_proteome', 'query_id', 'target_proteome', 'target_id',
+                     'evalue', 'qcov', 'pident', 'length', 'qlen', 'slen']
+
 
 def load_paralog_info(cutoff_files):
     """Return paralog_of: protein_id -> paralog_protein_id, from all paralog_cutoffs.tsv
@@ -129,10 +159,8 @@ def load_paralog_info(cutoff_files):
 HIT_COLUMNS = ['query_id', 'target_id', 'evalue', 'bitscore',
                'query_proteome', 'target_proteome',
                # Metric columns (issue #129), carried through by bin/parse_hits.py when
-               # the raw tool output has them; blank/absent otherwise. Not consumed by
-               # any filter in this script yet -- see Option 4 in the paralog-rescue
-               # spec (docs/superpowers/specs/2026-09-20-paralog-novelty-disqualifier-
-               # analysis.md) for what they will eventually gate.
+               # the raw tool output has them; blank/absent otherwise. qcov feeds the
+               # opt-in other-group coverage floor (filter 3, issue #158).
                'length', 'pident', 'qcov', 'scov', 'qlen', 'slen']
 
 
@@ -204,6 +232,18 @@ def main():
                          'paralog explained the hit away rather than whether the hit is strong '
                          'in absolute terms. Disabled (None) by default and NOT recommended -- '
                          'measured non-selective on real data, see the module docstring.')
+    ap.add_argument('--other-coverage-floor-qcov', type=float, default=None,
+                    dest='other_coverage_floor_qcov',
+                    help='OPT-IN filter 3: treat a hit to an other-group proteome as absent '
+                         'when its query coverage (qcov, percent) is below this value. Never '
+                         'applied to query-group cells. Off by default; 0 also disables. '
+                         'Requires wide hit files with qcov (diamond/blastp, issue #129) -- '
+                         'a missing or blank qcov is a hard error. See the module docstring '
+                         'for measured rates at 15 and 20.')
+    ap.add_argument('--output-coverage-floor-rejections', default=None,
+                    dest='output_coverage_floor_rejections',
+                    help='Optional TSV listing every hit filter 3 rejected (header only when '
+                         'the floor is off). Rejections by filter 2 are never listed here.')
     ap.add_argument('--output-matrix',     required=True)
     ap.add_argument('--output-candidates', required=True)
     ap.add_argument('--output-evalues', default=None, dest='output_evalues',
@@ -287,7 +327,45 @@ def main():
                 delta = np.log10(ing['evalue']) - np.log10(paralog_ev)
             rescued |= pd.Series(delta, index=ing.index) < args.paralog_rescue_delta
         disqualified &= ~rescued
+        n_filter2 = int(disqualified.sum())
         ing = ing[~disqualified]
+    else:
+        n_filter2 = 0
+
+    # Filter 3 (opt-in): other-group coverage floor. Runs after filter 2 so each
+    # rejected hit is attributable to exactly one mechanism.
+    floor = args.other_coverage_floor_qcov
+    rejected = pd.DataFrame(columns=REJECTION_COLUMNS)
+    n_cells_flipped = 0
+    if floor and not ing.empty:
+        judged = ing['target_proteome'].isin(other_ids)
+        qcov = (pd.to_numeric(ing['qcov'], errors='coerce') if 'qcov' in ing.columns
+                else pd.Series(np.nan, index=ing.index))
+        n_unmeasured = int((judged & qcov.isna()).sum())
+        if n_unmeasured:
+            sys.exit(
+                f'ERROR: --other-coverage-floor-qcov {floor:g} was requested, but '
+                f'{n_unmeasured} of {int(judged.sum())} other-group hits have no qcov '
+                '(an old 4-column cached hit file, or a phmmer --tblout hit). Re-run the '
+                'search with diamond/blast wide output (issue #129), or drop the floor. '
+                'Refusing to skip those hits silently.')
+        floor_hit = judged & (qcov < floor)
+        rejected = ing.loc[floor_hit].reindex(columns=REJECTION_COLUMNS)
+        cell_cols = ['query_proteome', 'query_id', 'target_proteome']
+        cells_before = set(map(tuple, ing.loc[judged, cell_cols].to_numpy()))
+        ing = ing[~floor_hit]
+        cells_after = set(map(tuple, ing.loc[ing['target_proteome'].isin(other_ids),
+                                             cell_cols].to_numpy()))
+        n_cells_flipped = len(cells_before - cells_after)
+
+    print(f'Hits rejected by filter 2 (paralog competition): {n_filter2} hit(s)',
+          file=sys.stderr)
+    if floor:
+        print(f'Hits rejected by filter 3, coverage floor (qcov < {floor:g}): '
+              f'{len(rejected)} hit(s); {n_cells_flipped} other-group presence cell(s) '
+              'now absent', file=sys.stderr)
+    if args.output_coverage_floor_rejections:
+        rejected.to_csv(args.output_coverage_floor_rejections, sep='\t', index=False)
 
     # protein_key (query_proteome, protein_id) -> set of target proteomes with qualifying hits
     presence: dict[tuple, set] = defaultdict(set)
