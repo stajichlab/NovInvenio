@@ -15,6 +15,7 @@ include { VALIDATE as LOSS_VALIDATE } from './workflows/validate'
 include { ANNOTATE } from './workflows/annotate'
 include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
 include { UNIPROT_XREF } from './modules/uniprot_xref'
+include { UNIPROT_INDEX_BUILD } from './workflows/uniprot_index'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
@@ -54,7 +55,7 @@ def resolve_fa(String basename, List<String> subdirs) {
     return hit
 }
 
-workflow {
+workflow NOVINVENIO {
     if (!params.config)   error "ERROR: --config <analysis_csv> is required"
     if (!params.data_dir) error "ERROR: --data_dir <fasta_directory> is required"
     if (!file(params.config).exists())   error "ERROR: --config file not found: ${params.config}"
@@ -369,4 +370,24 @@ workflow {
         file(params.config),
         data_dir_abs
     )
+}
+
+// One-time UniProt library index build (docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md):
+//   nextflow run main.nf --build_uniprot_index --uniprot_library <dir> \
+//       --uniprot_library_csv <csv name> --uniprot_index <out dir>
+// (Nextflow's strict parser does not support -entry, so a param selects it.)
+workflow UNIPROT_INDEX {
+    main:
+    if (!params.uniprot_library || !params.uniprot_library_csv || !params.uniprot_index) {
+        error "--build_uniprot_index needs --uniprot_library, --uniprot_library_csv and --uniprot_index"
+    }
+    UNIPROT_INDEX_BUILD(Channel.value(file(params.uniprot_library).toAbsolutePath().toString()))
+}
+
+workflow {
+    if (params.build_uniprot_index) {
+        UNIPROT_INDEX()
+    } else {
+        NOVINVENIO()
+    }
 }
