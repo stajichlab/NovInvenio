@@ -590,6 +590,16 @@ No web server is needed — `file://` works, including offline.
 > TBLASTN hits in outgroup genomes are *kept* and flagged rather than dropped. Tick
 > **No TBLASTN hit** to see the subset that is also absent at the nucleotide level.
 
+### UniProt links (`--uniprot_index`)
+
+With `--uniprot_index <dir>`, each protein is matched to a UniProt record by accession,
+RefSeq ID, or identical sequence (the species' own record first, then any fungal
+record). Its card then links to its own UniProt entry and AlphaFold structure, the
+cross-referenced databases on the record (FungiDB, NCBI Gene, PANTHER, OrthoDB, STRING,
+PDB, ...), and its publications. When the only match is another species' identical
+sequence, the card says so and leaves out gene-database links. Build the index once per
+UniProt release; see CLAUDE.md, "Building the UniProt library index".
+
 ### TBLASTN alignment popup (docs/ copy only)
 
 `docs/<project>/novelties.html` and `docs/<project>/losses.html` — the copies

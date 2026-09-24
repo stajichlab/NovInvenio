@@ -1389,3 +1389,10 @@ far). This decision closes #135's investigation; it does not flip the pipeline d
 **Alternatives**: 20 (1.18% BUSCO 1:1 false-rejection, flags 11.0% of current outgroup presence hits) vs 15 (0.38%, 7.7%) on pezizo_set1.
 **Rationale**: The user chose fewer false rejections of real orthologs over catching more narrow hits. The default stays off until the false-rejection rate is re-measured on a second clade (handoff §8.2). The BUSCO rates are a lower bound for real candidates.
 **Follow-up**: mirror the floor into `lib/singleton_presence.py` and `bin/context_presence.py`; Phase 2 reporting column (#159).
+
+## 2026-09-23 — UniProt linking moves into the pipeline (library index + UNIPROT_LINK)
+
+**Context**: UniProt annotation reached reports only through NII's post-run merge (UniProt-sourced studies) or UNIPROT_XREF (RefSeq IDs only, hand-set UniProtDatGz). Q7S6W2 lost its links when a study dir lacked annotations/, and the card's UniProt/AlphaFold buttons keyed off the SwissProt diamond hit, not the protein's own accession.
+**Decision**: A one-time `--build_uniprot_index` workflow over a pre-downloaded library (Fungi_2026_03), plus a per-run UNIPROT_LINK step matching every proteome by accession, RefSeq ID, or exact sequence (own species first, then any). Reports link from the protein's own record.
+**Alternatives**: parse each species' .dat per run (no cross-species fallback without scanning 19 GB); UniProt REST per protein (network from compute nodes, rate limits, not reproducible).
+**Rationale**: spec docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md. `-entry` is rejected by Nextflow 26's strict parser, so a param selects the index build.

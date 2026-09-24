@@ -73,7 +73,8 @@ NovInvenio/
 │   ├── tblastn.nf                 # TBLASTN — translated search vs outgroup genomes
 │   ├── hmmbuild.nf                # HMMBUILD (imported but not yet wired into cluster workflow)
 │   ├── hmmsearch.nf               # HMMSEARCH (imported but not yet wired into cluster workflow)
-│   └── uniprot_xref.nf            # UNIPROT_XREF — bin/build_uniprot_refseq_xref.py per species with a config UniProtDatGz column (issue #92)
+│   ├── uniprot_index.nf           # UNIPROT_PLAN_CHUNKS / UNIPROT_PARSE_CHUNK / UNIPROT_SEQ_INDEX — one-time UniProt library index (--build_uniprot_index)
+│   └── uniprot_link.nf            # UNIPROT_LINK — bin/uniprot_link.py per config proteome when --uniprot_index is set
 ├── workflows/
 │   ├── search.nf                  # SEARCH — pairwise search + self-hits + presence matrix (ingroup query)
 │   ├── loss_search.nf             # LOSS_SEARCH — same, outgroup query (loss-search direction)
@@ -89,8 +90,11 @@ NovInvenio/
 │   ├── build_presence_matrix.py   # Paralog-aware matrix construction + candidates.txt; --query-group IN|OUT
 │   ├── extract_candidates.py      # Pull candidate sequences from the given proteome FASTAs (ingroup or outgroup)
 │   ├── summarize_tblastn.py       # Aggregate per-genome TBLASTN TSVs → protein × genome matrix
-│   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns; --uniprot_xref_files adds uniprot_* columns (issue #92)
-│   ├── build_uniprot_refseq_xref.py# Cross-walk an NCBI RefSeq protein_id to its UniProt record via the DR RefSeq line (lib/uniprot_dat.py); feeds annotate_presence_matrix.py --uniprot_xref_files
+│   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns; --uniprot_xref_files adds uniprot_* columns (from UNIPROT_LINK)
+│   ├── uniprot_plan_chunks.py     # Group a UniProt library's .dat.gz files into parse batches by size (index build)
+│   ├── uniprot_parse_dat.py       # Parse one batch -> records/<UP>.records.tsv.zst + stats/<UP>.json (index build)
+│   ├── uniprot_build_index.py     # Merge records -> seq_index.sqlite + manifest.json (index build)
+│   ├── uniprot_link.py            # Match one proteome to UniProt by accession, RefSeq ID, or exact sequence (own species first) -> <Short>.uniprot_link.tsv
 │   ├── make_novelties.py          # Per-species novelties.<SHORT>.tsv (with --skip_tblastn_filter option)
 │   ├── make_report.py             # Self-contained interactive novelties.html
 │   ├── make_core_report.py        # Self-contained interactive core.html (near-universal genes)
@@ -109,7 +113,8 @@ NovInvenio/
 │   ├── config_parser.py           # parse_config() → list[Sample]; short_to_group()
 │   ├── fasta.py                   # FASTA utilities
 │   ├── model_organisms.py         # ModelOrgAnnotator — YAML-driven gene name lookup
-│   ├── uniprot_dat.py             # parse_dat_gz() — UniProt .dat.gz DR-line parser (GO/Pfam/InterPro/AlphaFold/xrefs), ported from NovInvenio_Investigations' extract_dat_annotations.py
+│   ├── uniprot_dat.py             # parse_dat_gz() — UniProt .dat parser (RECORD_COLUMNS: reviewed, PE, GO/Pfam/InterPro/AlphaFold, ~30 xref DBs, publications, sequence MD5); normalize_seq()/seq_md5()
+│   ├── uniprot_index.py           # UniProtIndex — reader for a UniProt library index (FORMAT_VERSION 1; lookups by accession/RefSeq/sequence MD5; IndexFormatError)
 │   ├── clusters.py                # build_families() + FamilyIndex — mmseqs cluster -> gene-family grouping
 │   ├── report_data.py             # build_payload() / build_core_payload() / build_losses_payload()
 │   ├── report_template.py         # HTML_TEMPLATE — the novelties.html page (canvas heatmap, HTML/CSS/JS, no deps)
@@ -215,26 +220,25 @@ view/                              # sibling of results/ — one shareable folde
      2. Pfam domain names (all unique domains per protein).
      3. SwissProt description (best hit, `sp|ACCN|ID` prefix stripped).
    - Adds columns: `gene_name`, `product_description`, `function_source`, `Best_Swissprot`, `Pfam_Names`.
-   - **UniProt cross-reference lookup (issue #92, optional).** For each species with a
-     `UniProtDatGz` config-CSV column set, `main.nf` runs `UNIPROT_XREF`
-     (`modules/uniprot_xref.nf` → `bin/build_uniprot_refseq_xref.py`), which cross-walks
-     that species' NCBI RefSeq protein IDs to their UniProt record via the record's own
-     `DR RefSeq;` line (parsed by `lib/uniprot_dat.py::parse_dat_gz`, not a sequence
-     search) — this is the reverse direction of a UniProt-native dataset, where
-     protein_id already equals the UniProt accession. All species' crosswalk TSVs are
-     collected and passed to `annotate_presence_matrix.py --uniprot_xref_files`, adding
-     `uniprot_accession`, `uniprot_gene_name`, `uniprot_description`, `uniprot_go_ids`,
-     `uniprot_pfam_ids`, `uniprot_pfam_names`, `uniprot_interpro_ids`,
-     `uniprot_ec_numbers`, `uniprot_alphafold_id`, and `uniprot_xrefs` columns —
-     deliberately independent of the `gene_name`/`Pfam_Names`/etc. columns above (which
-     come from this pipeline's own Pfam/SwissProt/modelorgs annotation, not UniProt's
-     precomputed one). `uniprot_xrefs` is what `lib/report_data.py`/`lib/report_common.py`
-     already render as the generic external-linkout registry (VEuPathDB/GeneID/RefSeq/
-     KEGG/EnsemblFungi — see `docs/superpowers/specs/2026-09-09-uniprot-xref-linkout-design.md`).
-     A species with no `UniProtDatGz` set (the common case — many proteomes have no
-     UniProt reference at all, e.g. *Schizophyllum commune*, checked 2026-09-10) is
-     simply absent from the crosswalk, not an error; real coverage on
-     `configs/agaricomycetes_v1.csv`'s other six species measured 89-100%.
+   - **UniProt linking (optional, `--uniprot_index`).** `main.nf` runs `UNIPROT_LINK`
+     (`modules/uniprot_link.nf` → `bin/uniprot_link.py`) once per config proteome against
+     a pre-built UniProt library index (see "Building the UniProt library index" below).
+     Each protein is matched by, in order: its ID as a UniProt accession (`id`), its ID as
+     a RefSeq accession on a record's `DR RefSeq` line (`refseq`), then its exact sequence
+     (MD5 of the normalized sequence) — preferring a record from the species' own taxid
+     (`NCBI_TaxID`, else the species binomial) (`seq_own`), else any fungal record
+     (`seq_other`). Ties: own taxid, then Swiss-Prot, then lowest accession. The TSVs go
+     to `annotate_presence_matrix.py --uniprot_xref_files`, adding `uniprot_accession`,
+     gene name, description, GO, Pfam IDs/names, InterPro, EC, AlphaFold ID,
+     `uniprot_xrefs` (~30 allow-listed databases), `uniprot_match`,
+     `uniprot_match_species`, `uniprot_reviewed`, `uniprot_pubs` and `uniprot_n_matches`.
+     These are independent of the pipeline's own Pfam/SwissProt/modelorgs columns. The
+     reports use them for the protein's own UniProt/AlphaFold links, cross-reference links,
+     InterPro/Pfam chips and a Publications field; gene-database links are suppressed for
+     `seq_other` matches (another species' identical sequence). An unmatched protein gets
+     empty columns, never an error; an unusable index is a hard error. Design:
+     `docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md`. This replaces
+     `UNIPROT_XREF` (issue #92, RefSeq-only, hand-set `UniProtDatGz`).
    - Produces `presence_matrix.function.tsv`.
 
 6. **SUMMARIZE workflow** (`workflows/summarize.nf`):
@@ -370,6 +374,11 @@ reports and a `report.html` landing page (run summary + links).
 | `--core_min_frac` | `0.95` | Presence fraction (across all proteomes, ingroup + outgroup) for the CORE genes report |
 | `--use_orthofinder` | `false` | Placeholder — OrthoFinder clustering not yet implemented |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
+| `--uniprot_index` | `null` | UniProt library index dir; enables `UNIPROT_LINK` (skipped with a log note if unset) |
+| `--build_uniprot_index` | `false` | Run the one-time index build instead of an analysis (needs the three params below) |
+| `--uniprot_library` | `null` | Pre-downloaded UniProt library dir (`data/<prefix>.dat.gz`), for `--build_uniprot_index` |
+| `--uniprot_library_csv` | `null` | Proteome CSV file name inside `--uniprot_library` (`proteome_id,tax_id,species_name,file_prefix,...`) |
+| `--uniprot_index_chunk_gb` | `8` | Compressed `.dat.gz` per `UNIPROT_PARSE_CHUNK` job (~48 min at 2.8 MB/s) |
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd`; skips SwissProt annotation if unset |
 | `--modelorgs_config` | `null` | Absolute path to model organisms YAML; skips gene-name lookup if unset |
 | `--report_sequences` | `novelties` | Which proteins carry a sequence in `novelties.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
@@ -788,12 +797,9 @@ IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,,Cimm,Pezi
   either (or the whole column) is never an error — see `lib/report_common.py`'s
   `genomeDbLink()`/`taxonomyLink()`.
 - `Strain` may be empty.
-- `UniProtDatGz` (issue #92) is optional, report/annotation-only, and never affects a
-  presence/novelty call. A basename resolved relative to `--data_dir` (also checked
-  under `uniprot_dat/`, `uniprot/`), pointing at a UniProt `{proteome}_{taxid}.dat.gz`
-  for that species — enables the UniProt cross-reference lookup described in the
-  ANNOTATE workflow section above. Omitting it is never an error; most species have no
-  UniProt reference proteome at all.
+- `UniProtDatGz` is **deprecated** (kept for one release): UniProt linking now comes from
+  `--uniprot_index`. If set, only its basename's `UP…` prefix is used, as the proteome that
+  counts as the species' own (`uniprot_link.py --restrict-proteome`); the file is not read.
 - The config CSV filename (without `.csv`) becomes the results output subdirectory name.
 - `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs).
 - `GFF3` is optional (may be an empty cell, or the column may be omitted entirely from
@@ -814,6 +820,22 @@ alternative splice isoforms. A single gene with multiple annotated transcripts s
 as multiple report rows — one per protein/transcript ID — each pointing to the same or
 very similar chrom/start. A dedup/filtering pass may be worth adding later; see
 `todo/TODO_REGISTRY.md`.
+
+## Building the UniProt library index
+
+One-time per UniProt release, from a pre-downloaded library (currently
+`/bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03`, release 2026_03, 1526 proteomes).
+Nextflow's strict parser does not support `-entry`, so a param selects the build:
+
+```bash
+nextflow run main.nf --build_uniprot_index -profile slurm -c conf/ucr_hpcc_slurm.config \
+    --uniprot_library /bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03 \
+    --uniprot_library_csv fungi_proteomes_2026_03.csv \
+    --uniprot_index /bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03/novinvenio_index/v1
+```
+
+The output (`manifest.json`, `seq_index.sqlite`, `records/`) is storeDir-cached; pass its
+path as `--uniprot_index` to analysis runs.
 
 ## Two-Phase Targeted Novelty Pipeline (`--cluster_tool novelty_discovery`)
 

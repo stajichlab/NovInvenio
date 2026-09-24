@@ -48,12 +48,12 @@ The index design assumes only this layout (a folder of `<file_prefix>.dat.gz` pl
 
 ## Components
 
-### 1. Index build: `-entry UNIPROT_INDEX`
+### 1. Index build: `--build_uniprot_index`
 
-New workflow `workflows/uniprot_index.nf`, run on its own:
+New workflow `workflows/uniprot_index.nf`, run on its own. (Implementation note, 2026-09-23: Nextflow's strict parser rejects `-entry`, so the entry workflow selects this build with `--build_uniprot_index`.)
 
 ```bash
-nextflow run main.nf -entry UNIPROT_INDEX -profile slurm \
+nextflow run main.nf --build_uniprot_index -profile slurm \
     --uniprot_library /bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03 \
     --uniprot_library_csv fungi_proteomes_2026_03.csv \
     --uniprot_index /bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03/novinvenio_index/v1
