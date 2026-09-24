@@ -1,8 +1,13 @@
 # Island locus view: exemplar-anchored synteny and shared indel breakpoints
 
-Status: **draft for review** (2026-09-24). Nothing here is implemented.
+Status: **draft, revised after PI review** (2026-09-24). Nothing here is implemented.
 Replaces "View A" of `2026-09-19-pangenome-gainloss-visualization-design.md` as the
-target design; the current page (`island_synteny.html`) stays until this ships.
+target design.
+
+**Decisions (PI, 2026-09-24):** `F = 5` flank genes; `k = 10` gene window, but a
+locus larger than `k` must still work (handled by chaining, section 5); keep the
+current page's code, renamed as a deprecated page (section 8); break types get
+different colours (section 5).
 
 ## Goal
 
@@ -90,10 +95,25 @@ Phase 2 (below).
 
 ### 5. Row classes and breakpoints
 
+**Chaining (why the window does not depend on locus size).** `k` is only used
+between neighbouring genes, never across the whole locus. Per strain, take the
+"in place" copies of the column families, sort them by that strain's own rank on
+each contig, and walk them in order. Consecutive chained copies with a gap of
+
+- `<= k` genes: normal adjacency;
+- `k < gap <= G_max` genes (default `G_max = 100`): an **insertion** of `gap - 1`
+  genes that the exemplar does not have at that point (drawn as a marker between
+  the two columns, with its size);
+- `> G_max`: a **break** in the chain.
+
+This way a locus of any length works, and a strain carrying a large extra
+insertion is shown as such instead of being dropped as "flanks not intact"
+(the first draft's fixed `locus length + 2k` span would have done that).
+
 Per strain, over the column states:
 
-- **flanks intact**: some left-flank and some right-flank family are "in place" on
-  the same contig, within `locus length + 2k` ranks of each other.
+- **flanks intact**: one chain on a single contig contains at least one
+  left-flank and one right-flank column.
 - **full locus**: flanks intact, all locus columns in place.
 - **empty site**: flanks intact, >= 80% of locus columns absent. This is the
   deletion (or pre-insertion) state.
@@ -103,17 +123,51 @@ Per strain, over the column states:
 
 Rows = strains collapsed into identical state vectors (as today), grouped by row
 class, then by species. Above the grid, a **breakpoint track**: for each boundary
-between adjacent columns, the number of flank-intact strains whose state changes
-between "in place" and "absent" there, split by species. A tall bar is a
-**shared breakpoint**; a bar present in only one species is a lineage-specific
-event.
+between adjacent columns, stacked counts of strains by **break type**, each in its
+own colour (colours from `lib/skins.py`, like every other page colour):
 
-### 6. Which loci to show
+| break type | meaning | reading |
+|---|---|---|
+| **indel edge** | flank-intact strain changes between in place and absent here | a shared bar is a shared insertion/deletion boundary |
+| **insertion** | chain gap of `k < gap <= G_max` genes here | strain-specific extra content at this point |
+| **contig break** | the strain's chain ends at a contig end here | assembly, not biology |
+| **rearrangement** | chain break (`gap > G_max`) or the family is "elsewhere" | moved or long-range change; order not tested (Phase 2) |
 
-Default ranking: loci with the most **informative polymorphism**: at least 10
-flank-intact strains in the empty-site class **and** at least 2 in the full-locus
-class, ranked by the smaller of those two counts. Alternative sorts: strain
-count, size (today's order), and a text search. `--top_loci` (default 50).
+Each type is also split by species (e.g. hatched vs solid), so a bar that occurs
+in only one species reads as a lineage-specific event.
+
+### 6. Which loci to show (ranking)
+
+Measured on the top 200 loci by strain count (same run; `F = 5`, `k = 10`,
+empty site = >= 80% of locus columns absent; e = empty-site strains, f =
+full-locus strains, among flank-intact strains):
+
+- 154/200 have >= 10 empty-site and >= 2 full-locus strains.
+- Widely carried loci are small: median 3 locus columns, max 9.
+- 128/200 differ between species at Fisher p < 0.05/200 (species x empty/full).
+  Strains are not independent (clonal structure), so this p-value is used only
+  to **rank**, never reported as a test of significance.
+- 20/200 are near-fixed differences (one species >= 95% full, the other >= 95%
+  empty, >= 20 strains each); 36/200 are polymorphic in **both** species
+  (>= 10 empty and >= 10 full in each).
+
+Candidate rankings and what they surface (top examples):
+
+| ranking | score | top example (e / f per species) | surfaces |
+|---|---|---|---|
+| A balanced polymorphism | min(e, f) | immitis 155e/10f, posadasii 90e/263f | common, polymorphic loci; mixes species-fixed and within-species patterns |
+| **B species-differentiated** | Fisher p, species x (e, f) | immitis 18e/145f, posadasii 355e/0f | indels that separate *C. immitis* from *C. posadasii* (lineage-specific) |
+| **E within-species polymorphism** | sum over species of min(e, f) | immitis 61e/53f, posadasii 166e/178f | the same indel polymorphic inside both species (shared among strains, not species-sorted) |
+| C most anchored | flank-intact strains | 527 anchored, 332 partial | well-assembled loci, often complex (many partial rows) |
+| D largest | locus columns | 9 columns, 443 anchored | big loci; fewer anchored strains |
+
+Top-50 lists of A and B share only 20 loci, so the choice matters.
+
+**Default:** two tabs, because the study's main comparison is reciprocal
+*C. immitis* vs *C. posadasii*: "Differs between species" (B) and "Polymorphic
+within species" (E). A, C, D and a text search stay as sort options. The page
+shows e/f per species for every locus, so the reader sees why it ranked where it
+did. (Default tab: PI to choose; B proposed.)
 
 ### 7. Page layout
 
@@ -128,6 +182,16 @@ count, size (today's order), and a text search. `--top_loci` (default 50).
 - Keep the diagnostics banner at the top. Add one line under it stating that
   accessory content is confounded with assembly quality on runs where
   `assembly_quality_confound` triggered, so "uninformative" rows are expected.
+
+### 8. The current page is kept, renamed
+
+The current page's code (`lib/island_synteny.py`, `lib/island_synteny_template.py`,
+`bin/pangenome_island_synteny.py`, the `ISLAND_SYNTENY` process) is not deleted.
+Its output is renamed `island_presence_grid.html` ("deprecated: presence anywhere
+in the genome, no positional test") and it keeps running behind a param
+(`--pangenome_legacy_island_grid`, default `false` once the new page ships). The new
+page is `island_locus.html`. The run report and site pages link to the new page;
+the legacy page is linked only when it was produced.
 
 ## Data and wiring
 
@@ -192,9 +256,8 @@ selects mostly 2-strain loci, where most strains have no anchored flanks.
 
 ## Open questions for review
 
-1. `F = 5` flank genes, `k = 10` window, empty-site threshold 80%, locus grouping
-   at 50% containment: defaults from the feasibility run, not swept.
-2. Default ranking: informative polymorphism (section 6) vs strain count.
-3. Keep the current `island_synteny.html` as a second page, or replace it?
-4. Should the breakpoint track also count "contig break" boundaries, as a
-   separate colour, to make assembly effects visible?
+1. Settled: `F = 5`, `k = 10` with chaining. Still defaults, not swept: `G_max = 100`,
+   empty-site threshold 80%, locus grouping at 50% containment.
+2. Default ranking: see section 6 (revised after measurement).
+3. Settled: current page kept as `island_presence_grid.html`, deprecated.
+4. Settled: contig breaks are drawn, in their own colour.
