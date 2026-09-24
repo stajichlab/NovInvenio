@@ -14,7 +14,8 @@ include { VALIDATE } from './workflows/validate'
 include { VALIDATE as LOSS_VALIDATE } from './workflows/validate'
 include { ANNOTATE } from './workflows/annotate'
 include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
-include { UNIPROT_XREF } from './modules/uniprot_xref'
+include { UNIPROT_LINK } from './modules/uniprot_link'
+include { UNIPROT_INDEX_BUILD } from './workflows/uniprot_index'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
@@ -60,7 +61,7 @@ def resolve_fa(String basename, List<String> subdirs) {
     return hit
 }
 
-workflow {
+workflow NOVINVENIO {
     if (!params.config)   error "ERROR: --config <analysis_csv> is required"
     if (!params.data_dir) error "ERROR: --data_dir <fasta_directory> is required"
     if (!file(params.config).exists())   error "ERROR: --config file not found: ${params.config}"
@@ -115,24 +116,22 @@ workflow {
             [ meta, protein_fa, dna_fa ]
         }
 
-    // Optional UniProt cross-reference lookup (issue #92): a species may set an
-    // optional UniProtDatGz config-CSV column pointing at a UniProt {proteome}.dat.gz
-    // (resolved under --data_dir, also checked under uniprot_dat/). Parsed as its own
-    // channel, independent of samples_ch's [meta, protein_fa, dna_fa] tuple shape, so
-    // every existing samples_ch consumer above is unaffected by this addition. A
-    // species with no UniProtDatGz value (the common case -- most proteomes have no
-    // UniProt reference, e.g. Schizophyllum commune, checked 2026-09-10) is filtered
-    // out here, not an error.
-    uniprot_xref_ch = Channel
+    // UniProt linking (docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md):
+    // every config proteome, when --uniprot_index is set. UniProtDatGz is a deprecated
+    // alias kept for one release: its basename's UP... id restricts the own-species
+    // proteome (bin/uniprot_link.py --restrict-proteome); the .dat.gz itself is not read.
+    uniprot_link_ch = Channel
         .fromPath(params.config)
         .splitCsv(header: true)
         .map { row ->
-            def dat_gz_name = row.UniProtDatGz?.trim()
-            if (!dat_gz_name) return null
-            [ [id: row.Short], resolve_fa(row.Protein, ['pep', 'proteins']),
-              resolve_fa(dat_gz_name, ['uniprot_dat', 'uniprot']) ]
+            def dat = row.UniProtDatGz?.trim()
+            def restrict = dat ? file(dat).name.tokenize('_')[0] : null
+            if (dat) log.warn "UniProtDatGz is deprecated (${row.Short}); use --uniprot_index. " +
+                              "Treated as --restrict-proteome ${restrict}"
+            [ [id: row.Short, species: row.Species, taxid: row.NCBI_TaxID?.trim() ?: null,
+               uniprot_restrict: restrict],
+              resolve_fa(row.Protein, ['pep', 'proteins']) ]
         }
-        .filter { it != null }
 
     ingroup_prot_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'IN' }
                                    .map    { meta, prot, dna -> [ meta, prot ] }
@@ -157,13 +156,16 @@ workflow {
     broad_out_dna_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUTGROUP' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
 
-    // UniProt cross-reference lookup (issue #92) -- run once for every species that
-    // set UniProtDatGz, regardless of IN/OUT/direction, and hand the whole collected
-    // list to both ANNOTATE calls below (see workflows/annotate.nf's take: comment for
-    // why passing it unfiltered to both directions is correct). Empty when no species
-    // in the config has a UniProtDatGz value.
-    UNIPROT_XREF(uniprot_xref_ch)
-    uniprot_xref_files = UNIPROT_XREF.out.tsv.collect().ifEmpty([])
+    // UniProt linking -- once per config proteome, regardless of IN/OUT/direction; the
+    // whole collected list goes to both ANNOTATE calls below (see workflows/annotate.nf's
+    // take: comment). Skipped, with an empty list, when --uniprot_index is unset.
+    if (params.uniprot_index) {
+        UNIPROT_LINK(uniprot_link_ch, file(params.uniprot_index).toAbsolutePath().toString())
+        uniprot_xref_files = UNIPROT_LINK.out.tsv.collect().ifEmpty([])
+    } else {
+        log.info "--uniprot_index not set: UniProt linking skipped"
+        uniprot_xref_files = Channel.value([])
+    }
 
     // Novelty-direction presence matrix + candidates. --cluster_tool selects the producer:
     //   pairwise (default) — the O(N^2) phmmer/diamond/blast SEARCH workflow.
@@ -394,4 +396,30 @@ workflow {
         file(params.config),
         data_dir_abs
     )
+}
+
+// One-time UniProt library index build (docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md):
+//   nextflow run main.nf --build_uniprot_index --uniprot_library <dir> \
+//       --uniprot_library_csv <csv name> --uniprot_index <out dir>
+// (Nextflow's strict parser does not support -entry, so a param selects it.)
+workflow UNIPROT_INDEX {
+    main:
+    if (!params.uniprot_library || !params.uniprot_library_csv || !params.uniprot_index) {
+        error "--build_uniprot_index needs --uniprot_library, --uniprot_library_csv and --uniprot_index"
+    }
+    if (file("${params.uniprot_index}/manifest.json").exists()) {
+        // The index is complete (manifest.json is written last): skip re-parsing the
+        // whole library, which storeDir on the final step alone would not prevent.
+        log.info "UniProt index already built: ${params.uniprot_index}/manifest.json exists; nothing to do"
+    } else {
+        UNIPROT_INDEX_BUILD(Channel.value(file(params.uniprot_library).toAbsolutePath().toString()))
+    }
+}
+
+workflow {
+    if (params.build_uniprot_index) {
+        UNIPROT_INDEX()
+    } else {
+        NOVINVENIO()
+    }
 }

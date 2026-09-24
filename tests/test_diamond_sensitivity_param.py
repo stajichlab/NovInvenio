@@ -36,12 +36,13 @@ def _search_script_block():
     return DIAMOND.split('process DIAMOND_SEARCH', 1)[1]
 
 
-def test_param_is_declared_and_defaults_to_diamonds_own_fast_mode():
+def test_param_is_declared_and_defaults_to_very_sensitive():
     m = re.search(r"diamond_sensitivity\s*=\s*(['\"])(.*?)\1", CONFIG)
     assert m, 'params.diamond_sensitivity is not declared in nextflow.config'
-    assert m.group(2) == '', (
-        'the default must be empty (diamond fast mode) so adding this flag changes no '
-        'existing result; adopting a sensitive default is a separate, recorded decision')
+    assert m.group(2) == 'very-sensitive', (
+        'the default is very-sensitive since issue #171 (diamond-sensitivity benchmark: '
+        'TBLASTN-contradicted candidates 29-69% -> 9-33%); changing it again is a '
+        'recorded decision')
 
 
 def test_diamond_search_passes_the_flag_through_when_set():

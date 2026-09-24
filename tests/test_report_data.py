@@ -958,3 +958,64 @@ def test_losses_payload_carries_xrefs_field(tmp_path, samples):
     idx = payload['fields'].index('xrefs')
     rows = {r[payload['fields'].index('id')]: r for r in payload['rows']}
     assert rows['loss1'][idx] == 'GeneID:999'
+
+
+# UNIPROT_LINK columns (bin/uniprot_link.py -> annotate_presence_matrix.py). n1 carries
+# a seq_other match with a publication; n2 has every uniprot column empty.
+_UNIPROT_COLS = ('uniprot_accession\tuniprot_match\tuniprot_match_species\t'
+                 'uniprot_reviewed\tuniprot_pubs')
+_UNIPROT_N1 = 'Q7S6W2\tseq_other\tSaccharomyces cerevisiae\t1\t1;;protein;T'
+_UNIPROT_N2 = '\t\t\t\t'
+
+
+def _build_all_three(tmp_path, samples):
+    """Novelty, core and losses payloads over matrices that all carry rows n1/n2
+    with the UniProt link columns. Presence patterns differ per builder so each
+    keeps both rows: novelty (ingroup-only), core (everywhere, ingroup-sourced),
+    losses (outgroup-only, outgroup-sourced)."""
+    head = 'protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\t' + _UNIPROT_COLS + '\n'
+    shapes = {
+        'novelty': ('n1\tNcra\t1\t1\t0\t0', 'n2\tAfum\t1\t1\t0\t0'),
+        'core': ('n1\tNcra\t1\t1\t1\t1', 'n2\tAfum\t1\t1\t1\t1'),
+        'losses': ('n1\tSpom\t0\t0\t1\t1', 'n2\tScer\t0\t0\t1\t1'),
+    }
+    paths = {}
+    for name, (r1, r2) in shapes.items():
+        p = tmp_path / f'uniprot_{name}.tsv'
+        p.write_text(head + r1 + '\t' + _UNIPROT_N1 + '\n' + r2 + '\t' + _UNIPROT_N2 + '\n')
+        paths[name] = p
+    return [
+        build_payload(paths['novelty'], samples, candidates_fa=None, tblastn_path=None),
+        build_core_payload(paths['core'], samples),
+        build_losses_payload(paths['losses'], samples),
+    ]
+
+
+def test_uniprot_link_fields_reach_all_three_payloads(tmp_path, samples):
+    for payload in _build_all_three(tmp_path, samples):
+        F = {n: i for i, n in enumerate(payload['fields'])}
+        rows = {r[F['id']]: r for r in payload['rows']}
+        assert set(rows) == {'n1', 'n2'}
+        n1 = rows['n1']
+        assert n1[F['uacc']] == 'Q7S6W2'
+        assert n1[F['umatch']] == 'seq_other'
+        assert n1[F['usp']] == 'Saccharomyces cerevisiae'
+        assert n1[F['urev']] == 1
+        assert payload['pub_sets'][n1[F['pubs']]] == '1;;protein;T'
+        n2 = rows['n2']
+        assert n2[F['uacc']] == ''
+        assert n2[F['umatch']] == '' and n2[F['usp']] == ''
+        assert n2[F['urev']] == -1 and n2[F['pubs']] == -1
+
+
+def test_uniprot_match_species_only_kept_for_seq_other(tmp_path, samples):
+    head = ('protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\t' + _UNIPROT_COLS + '\n')
+    (tmp_path / 'm.tsv').write_text(
+        head + 'n1\tNcra\t1\t1\t0\t0\tQ7S6W2\tseq_own\tNeurospora crassa\t0\t\n')
+    payload = build_payload(tmp_path / 'm.tsv', samples, candidates_fa=None, tblastn_path=None)
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    n1 = payload['rows'][0]
+    assert n1[F['umatch']] == 'seq_own'
+    assert n1[F['usp']] == ''
+    assert n1[F['urev']] == 0
+    assert n1[F['pubs']] == -1

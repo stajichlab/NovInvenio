@@ -1,0 +1,4 @@
+proteome_id,tax_id,species_name,oscode,n_canonical,n_isoform,file_prefix,lineage
+"UP000000001","367110","Neurospora crassa (strain ATCC 24698 / 74-OR23-1A)","NEUCR","2","0","UP000000001_367110","Fungi"
+"UP000000002","559292","Saccharomyces cerevisiae (strain ATCC 204508 / S288c)","YEAST","1","0","UP000000002_559292","Fungi"
+"UP000000003","1","Missing fungus","MISS","1","0","UP000000003_1","Fungi"
