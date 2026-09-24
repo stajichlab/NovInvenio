@@ -193,6 +193,26 @@ in the genome, no positional test") and it keeps running behind a param
 page is `island_locus.html`. The run report and site pages link to the new page;
 the legacy page is linked only when it was produced.
 
+### 9. "Core" must not come from the ingroup alone
+
+`frequency_table.tsv` bins count only the dereplicated **ingroup**
+representatives (in `rescue_freqpol_immitis_in_posadasii_out`: 133 *C. immitis*
+strains; a *C. posadasii*-only family is binned "singleton" even when 98% of
+*C. posadasii* strains carry it). `BUILD_ISLANDS` uses those bins for its
+core/non-core split in **every** strain, so in outgroup strains the islands
+include genes that are core in their own species. For this view:
+
+- flank anchors ("core" in section 3) are taken from a frequency computed over
+  **all** strains of the run (or per species), not from `frequency_table.tsv`;
+- the per-species e/f counts (section 6) are computed from the matrix directly,
+  never from the bins;
+- whether `BUILD_ISLANDS` itself should use an all-strain core is a separate
+  pipeline question, to be raised as an issue, not changed inside this view.
+
+Found by the HrmA analysis (NII `studies/fungi/coccidioides_pangenome/analysis/
+2026-09-24-hrmA-presence-and-neighbourhoods.md`), confirmed from the run
+(max `strain_count` = 133; `5 / 0.0376 = 133`).
+
 ## Data and wiring
 
 All inputs already exist per run: `islands_with_domains.tsv`,
