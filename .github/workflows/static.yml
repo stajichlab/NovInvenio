@@ -36,8 +36,10 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: 'view'
+          # site/ is a small landing page. Study reports are published by
+          # NovInvenio_Investigations at nii.fungalgenomes.org; this repo holds
+          # no analysis output (view/ was untracked in #175).
+          path: 'site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

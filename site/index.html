@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NovInvenio</title>
+<link rel="icon" href="NI_logo_favicon.ico">
+<style>
+:root { color-scheme: light dark; --bg: #f7f7f5; --fg: #1a1a1a; --muted: #555; --card: #fff; --line: #ddd; --link: #0b5cad; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #16181c; --fg: #e6e6e6; --muted: #aaa; --card: #22252b; --line: #33373f; --link: #7db4ff; }
+}
+body { margin: 0; padding: 2rem 1rem; background: var(--bg); color: var(--fg);
+       font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+main { max-width: 40rem; margin: 0 auto; }
+.title { display: flex; align-items: center; gap: 0.8rem; }
+.title img { width: 48px; height: 48px; border-radius: 8px; }
+h1 { font-size: 1.6rem; margin: 0; }
+p { color: var(--muted); }
+a { color: var(--link); }
+.card { display: block; border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem;
+        margin: 1rem 0; background: var(--card); text-decoration: none; color: inherit; }
+.card:hover { border-color: var(--muted); }
+.card h2 { font-size: 1.05rem; margin: 0 0 0.3rem; color: var(--link); }
+.card p { margin: 0; font-size: 0.92rem; }
+</style>
+</head>
+<body>
+<main>
+  <div class="title"><img src="NI_logo_card-96.png" alt=""><h1>NovInvenio</h1></div>
+  <p>A Nextflow pipeline that identifies lineage-specific (novel) genes: proteins present
+  in an ingroup but absent from all outgroup proteomes and genomes. It also profiles
+  pangenomes (gene families, accessory islands, gain/loss).</p>
+  <a class="card" href="https://nii.fungalgenomes.org/">
+    <h2>Study results &rarr; nii.fungalgenomes.org</h2>
+    <p>Published studies and their reports, from the NovInvenio Investigations repository.</p>
+  </a>
+  <a class="card" href="https://github.com/stajichlab/NovInvenio">
+    <h2>Pipeline source and documentation &rarr; GitHub</h2>
+    <p>Code, usage, and design records (docs/).</p>
+  </a>
+</main>
+</body>
+</html>
