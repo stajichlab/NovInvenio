@@ -764,3 +764,19 @@ large fraction of #135's population moot. Full decomposition posted to issue #13
 - Tier P rejected the candidate, but only on that single outgroup hit.
 **Why it matters**: A family HMM built from few, long, mostly low-complexity members can miss the one conserved domain in divergent outgroups. This is the worked example in NII `notes/diamond-sensitivity/README.md`.
 **Tags**: cluster-tool, hmm, false-positive, low-complexity, diamond, sensitivity, tblastn
+
+## 2026-09-23 — "Results copied into worktrees" are tracked files, not a copy step
+
+**Context**: Every new worktree held `results/Antarctolithica_obscura/` and `view/` (8 projects). The last handoff called them untracked and blamed an unknown process.
+**Finding**:
+- 38 files (87 MB) under `results/` and `view/` are still tracked on `origin/main`. `git worktree add` checks them out; `git worktree remove` deletes them.
+- `git ls-files results view` shows them. `results/` being in `.gitignore` does not untrack files already committed.
+**Why it matters**: These files break the "repo never holds results" rule in CLAUDE.md. Untracking them needs `git rm --cached` in its own PR (not done yet).
+**Tags**: git, worktree, results, docs-pollution
+
+## 2026-09-23 — A closure in `process.container` logs "undefined parameter container_version"
+
+**Context**: Every run logged `Access to undefined parameter container_version` although `nextflow.config` defines it.
+**Finding**: Nextflow 26 evaluates a closure-valued `process.container` at session init, before params are bound. A toy config reproduced it (closure: 1 warning; plain string: 0). A plain interpolated string still honours a CLI `--container_version` (`nextflow inspect`: all 55 processes change tag). Fixed in PR #170 (#169).
+**Why it matters**: Use a plain string for config values that only read params. `nextflow config` does not accept `--param` overrides; use `nextflow inspect -format config` to check resolved per-process directives.
+**Tags**: nextflow, config, container, warning
