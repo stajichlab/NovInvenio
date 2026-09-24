@@ -362,13 +362,14 @@ workflow PANGENOME_PROFILE {
         GENE_POSITIONS.out.positions,
     )
 
-    // Issue #134: pipeline diagnostics (rescue_redundancy today; other issue
+    // Issue #134: pipeline diagnostics (rescue_redundancy + assembly_quality_
+    // confound, the latter fed by ASSEMBLY_QUALITY_QC, step 5b; other issue
     // #134 table rows declared not_computed until their own statistic exists
     // as a real pipeline output -- see bin/pangenome_diagnostics.py's module
     // docstring). Feeds the Markdown/HTML banners REPORT_RENDER/
     // ISLAND_SYNTENY prepend. Also unconditional (issue #135) -- rescue_funnel
     // is already always available (real or EMPTY_RESCUE_FUNNEL_STUB, step 3).
-    DIAGNOSTICS(rescue_funnel)
+    DIAGNOSTICS(rescue_funnel, ASSEMBLY_QUALITY_QC.out.correlations)
 
     REPORT_RENDER(
         FREQUENCY_BINS.out.table,
