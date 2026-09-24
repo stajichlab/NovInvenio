@@ -7,6 +7,8 @@
 .nextflow.log*
 work/
 results/
+# report bundles (COLLATE_REPORTS); analysis output never belongs in this repo (#175)
+/view/
 # per-sweep isolated nextflow launch directories (bin/run_param_sweep.sh)
 /.nf_launch/
 
