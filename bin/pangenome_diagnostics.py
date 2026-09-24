@@ -17,11 +17,13 @@ Diagnostics wired to REAL computed data in this pipeline today:
   - rescue_redundancy (issue #133): from pangenome_rescue_pass.py's funnel-
     stats sidecar (--rescue_funnel), written when RESCUE_PASS is given
     --funnel_tsv.
+  - assembly_quality_confound (issue #130): from ASSEMBLY_QUALITY_QC's
+    assembly_quality_correlations.tsv (--assembly_correlations). Same trip
+    rule as that script's own report warning, so the two never disagree.
 
 Diagnostics named in issue #134's table that this pipeline does not yet
-compute the underlying statistic for (assembly N50 vs. accessory-count
-correlation, PCoA/split-half-ARI clade validity, gain/loss event
-classification) are reported with status=not_computed rather than
+compute the underlying statistic for (PCoA/split-half-ARI clade validity,
+gain/loss event classification) are reported with status=not_computed rather than
 fabricated -- see not_computed_diagnostic()'s docstring. Wiring a real one
 in means adding an `evaluate_*` function here fed by that statistic's own
 pipeline output, the same way evaluate_rescue_redundancy() is fed by
@@ -29,6 +31,7 @@ pangenome_rescue_pass.py's sidecar.
 
 Usage:
   pangenome_diagnostics.py --rescue_funnel rescue_funnel.tsv \\
+      --assembly_correlations assembly_quality_correlations.tsv \\
       --out_dir diagnostics/ [--pangenome_strict]
 
 Writes, into --out_dir:
@@ -110,6 +113,64 @@ def evaluate_rescue_redundancy(funnel: dict[str, int], threshold: float = 0.5) -
     return Diagnostic("rescue_redundancy", "ok", False, detail, [])
 
 
+def read_correlations_tsv(path: "str | Path") -> list[dict[str, str]]:
+    """Reads pangenome_assembly_quality_qc.py's
+    assembly_quality_correlations.tsv into a list of row dicts (values kept
+    as strings; an undefined rho is the literal "-")."""
+    with open(path, newline="") as fh:
+        return list(csv.DictReader(fh, delimiter="\t"))
+
+
+def evaluate_assembly_quality_confound(rows: list[dict[str, str]], threshold: float = 0.3) -> Diagnostic:
+    """Issue #130/#134: trips when |rho| (raw OR partial, controlling
+    total_length) exceeds `threshold` for any accessory_present comparison
+    (vs n_contigs or n50). This is the same rule
+    pangenome_assembly_quality_qc.py uses for its own report WARNING, and
+    the default threshold matches that script's --rho_warn_threshold
+    default (0.3). core_missing rows are ignored here, as they are there.
+
+    Every accessory_present rho undefined ("-", fewer than 3 strains) is
+    reported `ok` with that stated -- never a fabricated correlation."""
+    worst_name, worst_value = None, None
+    for row in rows:
+        if row.get("y") != "accessory_present":
+            continue
+        for key in ("rho_raw", "rho_partial_length"):
+            value = row.get(key, "-")
+            if value in ("-", ""):
+                continue
+            rho = float(value)
+            if worst_value is None or abs(rho) > abs(worst_value):
+                label = "raw" if key == "rho_raw" else "partial, controlling total_length"
+                worst_name, worst_value = f"accessory_present vs {row['x']} ({label})", rho
+    if worst_value is None:
+        return Diagnostic(
+            "assembly_quality_confound", "ok", False,
+            "every accessory_present rho is undefined (fewer than 3 strains) "
+            "-- nothing to assess.",
+            [],
+        )
+    n_strains = next((r.get("n_strains") for r in rows if r.get("y") == "accessory_present"), "?")
+    detail = (
+        f"max |rho| = {abs(worst_value):.2f} (rho = {worst_value:.4f}, "
+        f"{worst_name}, n = {n_strains} strains); threshold {threshold}. "
+        "See assembly_quality_report.md (issue #130)."
+    )
+    if abs(worst_value) > threshold:
+        return Diagnostic(
+            "assembly_quality_confound", "triggered", True,
+            detail + " Between-strain accessory-content comparisons are "
+            "confounded by assembly fragmentation on this dataset.",
+            [
+                "exclude or flag the most fragmented assemblies (highest "
+                "n_contigs in assembly_quality_vs_content.tsv) and rerun",
+                "report accessory-content comparisons with assembly quality "
+                "as a covariate, not as raw per-strain counts",
+            ],
+        )
+    return Diagnostic("assembly_quality_confound", "ok", False, detail, [])
+
+
 def not_computed_diagnostic(diagnostic_id: str, tracking_issue: str, description: str) -> Diagnostic:
     """A diagnostic named in issue #134's table whose underlying statistic
     this pipeline does not yet compute anywhere (no N50/PCoA/gain-loss
@@ -126,13 +187,9 @@ def not_computed_diagnostic(diagnostic_id: str, tracking_issue: str, description
 
 
 def default_not_computed_diagnostics() -> list[Diagnostic]:
-    """The three issue #134 diagnostics with no computed input in this
-    pipeline yet (see module docstring)."""
+    """The issue #134 diagnostics with no computed input in this pipeline
+    yet (see module docstring)."""
     return [
-        not_computed_diagnostic(
-            "assembly_quality_confound", "#130",
-            "abs(rho) between accessory-family count and assembly N50 > ~0.3",
-        ),
         not_computed_diagnostic(
             "clade_structure_validity", "#131",
             "PCoA1 variance share < ~50%, split-half ARI < 0.8, or "
@@ -216,6 +273,18 @@ def main() -> None:
         "different family's gene above which rescue_redundancy triggers "
         "(default 0.5).",
     )
+    ap.add_argument(
+        "--assembly_correlations", default=None,
+        help="pangenome_assembly_quality_qc.py's "
+        "assembly_quality_correlations.tsv. Omit to report "
+        "assembly_quality_confound as not_computed.",
+    )
+    ap.add_argument(
+        "--assembly_rho_threshold", type=float, default=0.3,
+        help="|rho| above which assembly_quality_confound triggers "
+        "(default 0.3, same as pangenome_assembly_quality_qc.py's "
+        "--rho_warn_threshold default).",
+    )
     ap.add_argument("--out_dir", required=True)
     args = ap.parse_args()
 
@@ -230,6 +299,16 @@ def main() -> None:
         diagnostics.append(not_computed_diagnostic(
             "rescue_redundancy", "issue #133",
             ">50% of rescuable cells overlap another family's gene",
+        ))
+    if args.assembly_correlations:
+        diagnostics.append(evaluate_assembly_quality_confound(
+            read_correlations_tsv(args.assembly_correlations),
+            threshold=args.assembly_rho_threshold,
+        ))
+    else:
+        diagnostics.append(not_computed_diagnostic(
+            "assembly_quality_confound", "#130",
+            "abs(rho) between accessory-family count and assembly N50 > ~0.3",
         ))
     diagnostics += default_not_computed_diagnostics()
 

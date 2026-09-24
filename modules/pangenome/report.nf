@@ -126,6 +126,7 @@ process DIAGNOSTICS {
 
     input:
     path(rescue_funnel)
+    path(assembly_correlations)
 
     output:
     path("diagnostics/diagnostics.tsv"), emit: tsv
@@ -139,9 +140,14 @@ process DIAGNOSTICS {
     // reported not_computed rather than erroring.
     def strict_arg = params.pangenome_strict ? '--pangenome_strict' : ''
     def funnel_arg = (rescue_funnel.size() > 0) ? "--rescue_funnel ${rescue_funnel}" : ''
+    // assembly_correlations is ASSEMBLY_QUALITY_QC's correlations table
+    // (issue #130). Its trip threshold reuses pangenome_qc_rho_warn_threshold
+    // so this diagnostic and assembly_quality_report.md's WARNING agree.
     """
     pangenome_diagnostics.py \
         ${funnel_arg} \
+        --assembly_correlations ${assembly_correlations} \
+        --assembly_rho_threshold ${params.pangenome_qc_rho_warn_threshold} \
         --rescue_redundancy_threshold ${params.pangenome_rescue_redundancy_threshold} \
         ${strict_arg} \
         --out_dir diagnostics
