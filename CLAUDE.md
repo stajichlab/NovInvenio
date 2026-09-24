@@ -360,6 +360,7 @@ reports and a `report.html` landing page (run summary + links).
 | `--outdir` | `results` | Root output directory |
 | `--cluster_tool` | `pairwise` | Presence-matrix producer: `pairwise` (O(N²) SEARCH) or `mmseqs` (family-profile pathway, ADR-0002). Applies to both novelty and loss directions |
 | `--run_tool` | `phmmer` | `phmmer`, `diamond`, or `blast` (pairwise search + self-search paralog lookup) |
+| `--diamond_sensitivity` | `very-sensitive` | Main pairwise `DIAMOND_SEARCH` mode (default since issue #171; `''` = diamond's fast mode). Benchmark: TBLASTN-contradicted candidates 29-69% (fast) → 9-33%, controls unchanged, search cost ≤1.7× (NII `notes/diamond-sensitivity/README.md`) |
 | `--family_min_seq_id` | `0.3` | mmseqs family-clustering identity (`--cluster_tool mmseqs`) |
 | `--family_cov` | `0.8` | mmseqs family-clustering coverage (`--cluster_tool mmseqs`) |
 | `--hmm_presence_evalue` | `1e-3` | Family-HMM presence E-value ceiling (`--cluster_tool mmseqs` and `novelty_discovery`); swept by a launcher like NovInvenio_Investigations/legacy/novinvenio_scripts/run_param_sweep.sh |
@@ -375,7 +376,7 @@ reports and a `report.html` landing page (run summary + links).
 | `--core_min_frac` | `0.95` | Presence fraction (across all proteomes, ingroup + outgroup) for the CORE genes report |
 | `--use_orthofinder` | `false` | Placeholder — OrthoFinder clustering not yet implemented |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
-| `--uniprot_index` | `null` | UniProt library index dir; enables `UNIPROT_LINK` (skipped with a log note if unset) |
+| `--uniprot_index` | `null` (UCR: Fungi_2026_03 index) | UniProt library index dir; enables `UNIPROT_LINK` (skipped with a log note if unset). `conf/ucr_hpcc_slurm.config` sets it to `/bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03/novinvenio_index/v1` (issue #171); `--uniprot_index false` skips |
 | `--build_uniprot_index` | `false` | Run the one-time index build instead of an analysis (needs the three params below) |
 | `--uniprot_library` | `null` | Pre-downloaded UniProt library dir (`data/<prefix>.dat.gz`), for `--build_uniprot_index` |
 | `--uniprot_library_csv` | `null` | Proteome CSV file name inside `--uniprot_library` (`proteome_id,tax_id,species_name,file_prefix,...`) |

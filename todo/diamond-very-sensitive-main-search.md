@@ -15,7 +15,7 @@ FASTA. Full decomposition: https://github.com/stajichlab/NovInvenio/issues/135#i
 | **Date** | 2026-09-10 |
 | **Author** | Jason Stajich |
 | **Priority** | medium |
-| **Status** | open |
+| **Status** | complete |
 | **Category** | validation |
 | **Related analyses** | NovInvenio_Investigations/studies/fungi/pezizo_set1 (HEX1_NEUCR novelty-candidate investigation) |
 | **Related data** | results/pezizo_set1/search_cache/Ncra_vs_Ncra.diamond.tsv.gz, ad hoc Ncra-vs-Mcir benchmark (not archived) |
@@ -164,3 +164,12 @@ novelties while adding none of the unvalidated 1438. Untested. Sequence after #1
 - [x] Full-study wall-clock benchmark recorded (ratio not reliably measured; see caveats)
 - [x] Candidate-count diff characterized, spot-checked in both directions
 - [x] Explicit decision recorded: **DEFER** (2026-09-20, Jason Stajich) -- do not adopt a project-wide default yet; revisit after #129 (alignment coverage) lets the 1438 newly-novel candidates be validated. Not rejected.
+
+
+## Resolution (2026-09-23)
+
+Adopted as the default (issue #171). A full-study benchmark covered 3 clades × default / sensitive / very-sensitive, plus a qcov-15 floor and a simulated stricter other-group E-value (NII `notes/diamond-sensitivity/README.md`):
+- Share of candidates with an other-group TBLASTN hit: 29-69% (fast mode) → 9-33% (very-sensitive).
+- Controls unchanged; search cost ≤1.7×.
+- The qcov-15 floor adds little. A stricter other-group E-value is worse at every threshold. Keep `--evalue 1e-5`.
+- Existing studies change on rerun.
