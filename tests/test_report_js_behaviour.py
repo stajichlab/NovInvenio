@@ -82,7 +82,8 @@ OUT,Saccharomyces cerevisiae,S288c,Scer.pep.fa,Scer.dna.fa,Scer,Saccharomycotina
 MATRIX = (
     "protein_id\tsource_proteome\tNcra\tAfum\tDrome\tSpom\tScer\tgene_name\t"
     "product_description\tfunction_source\tBest_Swissprot\tPfam_Names\t"
-    "Pfam_Accessions\tPfam_Evalues\tuniprot_xrefs\n"
+    "Pfam_Accessions\tPfam_Evalues\tuniprot_xrefs\tuniprot_accession\t"
+    "uniprot_alphafold_id\tuniprot_match\tuniprot_match_species\tuniprot_pubs\n"
     # n1/n2 stay present across ALL THREE ingroup species (Ncra/Afum/Drome),
     # not just the original two -- with a 3rd ingroup species now in play,
     # the default ingroup_min_frac recomputation needs their ingroup coverage
@@ -97,13 +98,22 @@ MATRIX = (
     # 4/4 before Drome existed) -- 4/5=0.8 would silently drop it below
     # 0.9 and empty the whole core report.
     "n1\tNcra\t1\t1\t1\t0\t0\tada-1\tall development altered-1\tModelOrg_Ncra\t\t"
-    "bZIP_1\tPF00170.27\t4.5e-09\tVEuPathDB:FungiDB:NCU10683|GeneID:5847462|KEGG:ncr:NCU10683|UnknownDB:xyz\n"
-    "n2\tAfum\t1\t1\t1\t0\t0\t\t\t\t\t\t\t\t\n"
-    "n3\tDrome\t0\t0\t1\t0\t0\t\t\t\t\t\t\t\t\n"
+    "bZIP_1\tPF00170.27\t4.5e-09\tVEuPathDB:FungiDB:NCU10683|GeneID:5847462|KEGG:ncr:NCU10683|UnknownDB:xyz\t\t\t\t\t\n"
+    "n2\tAfum\t1\t1\t1\t0\t0\t\t\t\t\t\t\t\t\t\t\t\t\t\n"
+    "n3\tDrome\t0\t0\t1\t0\t0\t\t\t\t\t\t\t\t\t\t\t\t\t\n"
     "shared\tNcra\t1\t1\t1\t1\t1\t\tconserved thing\tPfam\t"
-    "sp|P12345|TEST_YEAST Some protein\tAAA\tPF00004.31\t1e-20\t\n"
+    "sp|P12345|TEST_YEAST Some protein\tAAA\tPF00004.31\t1e-20\t\t\t\t\t\t\n"
+    # n4: no SwissProt hit, but its own UNIPROT_LINK match -- a seq_other one
+    # (identical sequence found only in another species' UniProt proteome), so
+    # gene-database xrefs (VEuPathDB) must be suppressed while family/structure
+    # xrefs (PANTHER, PDB) stay. The Evil: xref and the <script> title are hostile
+    # strings that must render as text or not at all.
+    "n4\tAfum\t1\t1\t1\t0\t0\t\t\t\t\t\t\t\t"
+    "VEuPathDB:FungiDB:NCU05603|PANTHER:PTHR10000|PDB:6YWS|Evil:<img src=x onerror=alert(1)>\t"
+    "Q7S6W2\tQ7S6W2\tseq_other\tSaccharomyces cerevisiae (strain S288c)\t"
+    "12712197;10.1038/nature01554;proteome;Genome paper|99999999;;protein;<script>alert(1)</script> title\n"
 )
-TBLASTN = "protein_id\tSpom\tScer\nn1\t0\t0\nn2\t0\t1\nn3\t0\t0\n"
+TBLASTN = "protein_id\tSpom\tScer\nn1\t0\t0\nn2\t0\t1\nn3\t0\t0\nn4\t0\t0\n"
 
 # island_synteny.html (issue #120). Two islands so sidebar selection is
 # observable (locus_id changes); island A has two haplotypes with different
@@ -175,6 +185,7 @@ def _fasta() -> str:
         f'>n2 another\n{short_seq}\n'
         f'>n3 ncbipep candidate\n{short_seq}\n'
         f'>shared thing\n{"MKQTA" * 30}\n'
+        f'>n4 seq_other candidate\n{short_seq}\n'
     )
 
 

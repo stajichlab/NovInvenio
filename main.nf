@@ -14,7 +14,8 @@ include { VALIDATE } from './workflows/validate'
 include { VALIDATE as LOSS_VALIDATE } from './workflows/validate'
 include { ANNOTATE } from './workflows/annotate'
 include { ANNOTATE as LOSS_ANNOTATE } from './workflows/annotate'
-include { UNIPROT_XREF } from './modules/uniprot_xref'
+include { UNIPROT_LINK } from './modules/uniprot_link'
+include { UNIPROT_INDEX_BUILD } from './workflows/uniprot_index'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
@@ -41,6 +42,12 @@ def normalizeGroup(String group) {
     return aliases[group] ?: group
 }
 
+// True if at least one config row in GROUP `grp` (after alias normalization) has a
+// non-empty DNA value -- used by the launch-time TBLASTN panel check (issue #166).
+def panelHasDna(List rows, String grp) {
+    return rows.any { row -> normalizeGroup(row.GROUP?.trim()) == grp && row.DNA?.trim() }
+}
+
 // Resolve a FASTA basename against data_dir, checking the flat layout first
 // then the listed subdirectories (so configs that reference bare basenames
 // still find files under data_dir/pep/ and data_dir/dna/).
@@ -54,7 +61,7 @@ def resolve_fa(String basename, List<String> subdirs) {
     return hit
 }
 
-workflow {
+workflow NOVINVENIO {
     if (!params.config)   error "ERROR: --config <analysis_csv> is required"
     if (!params.data_dir) error "ERROR: --data_dir <fasta_directory> is required"
     if (!file(params.config).exists())   error "ERROR: --config file not found: ${params.config}"
@@ -62,8 +69,21 @@ workflow {
     if (params.run_tool !in ['phmmer', 'diamond', 'blast']) error "ERROR: --run_tool must be phmmer, diamond, or blast (got: ${params.run_tool})"
     if (params.diamond_sensitivity !in ['', 'sensitive', 'more-sensitive', 'very-sensitive', 'ultra-sensitive']) error "ERROR: --diamond_sensitivity must be empty (default), sensitive, more-sensitive, very-sensitive, or ultra-sensitive (got: ${params.diamond_sensitivity})"
     if (params.other_coverage_floor_qcov && params.run_tool == 'phmmer') error "ERROR: --other_coverage_floor_qcov needs alignment coverage (qcov), which phmmer --tblout does not report. Use --run_tool diamond or blast, or drop the floor (issue #158)."
-    if (params.other_coverage_floor_qcov && params.cluster_tool != 'pairwise') log.warn "--other_coverage_floor_qcov only applies to --cluster_tool pairwise (BUILD_PRESENCE_MATRIX); it has no effect with --cluster_tool ${params.cluster_tool}."
+    if (params.other_coverage_floor_qcov && params.cluster_tool == 'mmseqs') log.warn "--other_coverage_floor_qcov only judges pairwise hits (pairwise matrix, novelty_discovery singletons, context search); --cluster_tool mmseqs family presence uses --hmm_presence_cov instead, so the floor has no effect here."
     if (params.cluster_tool !in ['pairwise', 'mmseqs', 'novelty_discovery']) error "ERROR: --cluster_tool must be pairwise, mmseqs, or novelty_discovery (got: ${params.cluster_tool})"
+
+    // TBLASTN validation needs at least one genome per searched panel. DNA is optional per
+    // species, but if a whole panel has none, VALIDATE's / NOVELTY_DISCOVERY's
+    // TBLASTN.out...collect() emits nothing, SUMMARIZE_TBLASTN never runs, and neither do
+    // SUMMARIZE or REPORT -- the run still exits successfully with no reports (issue #166).
+    // Fail at launch instead.
+    def cfg_rows = file(params.config).splitCsv(header: true)
+    def dna_panels = params.cluster_tool == 'novelty_discovery'
+        ? ['DISCOVERY_OUT': 'phase-1 TBLASTN validation']
+        : ['OUT': 'novelty-direction TBLASTN validation', 'IN': 'loss-direction TBLASTN validation']
+    dna_panels.each { grp, use ->
+        if (!panelHasDna(cfg_rows, grp)) error "ERROR: no ${grp} row in ${params.config} has a DNA file, but ${use} needs at least one genome. Add a DNA column value for at least one ${grp} species."
+    }
 
     // Resolve DB paths to absolute at launch time and pass them as val inputs —
     // params mutations do not reliably propagate into process script closures.
@@ -96,24 +116,22 @@ workflow {
             [ meta, protein_fa, dna_fa ]
         }
 
-    // Optional UniProt cross-reference lookup (issue #92): a species may set an
-    // optional UniProtDatGz config-CSV column pointing at a UniProt {proteome}.dat.gz
-    // (resolved under --data_dir, also checked under uniprot_dat/). Parsed as its own
-    // channel, independent of samples_ch's [meta, protein_fa, dna_fa] tuple shape, so
-    // every existing samples_ch consumer above is unaffected by this addition. A
-    // species with no UniProtDatGz value (the common case -- most proteomes have no
-    // UniProt reference, e.g. Schizophyllum commune, checked 2026-09-10) is filtered
-    // out here, not an error.
-    uniprot_xref_ch = Channel
+    // UniProt linking (docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md):
+    // every config proteome, when --uniprot_index is set. UniProtDatGz is a deprecated
+    // alias kept for one release: its basename's UP... id restricts the own-species
+    // proteome (bin/uniprot_link.py --restrict-proteome); the .dat.gz itself is not read.
+    uniprot_link_ch = Channel
         .fromPath(params.config)
         .splitCsv(header: true)
         .map { row ->
-            def dat_gz_name = row.UniProtDatGz?.trim()
-            if (!dat_gz_name) return null
-            [ [id: row.Short], resolve_fa(row.Protein, ['pep', 'proteins']),
-              resolve_fa(dat_gz_name, ['uniprot_dat', 'uniprot']) ]
+            def dat = row.UniProtDatGz?.trim()
+            def restrict = dat ? file(dat).name.tokenize('_')[0] : null
+            if (dat) log.warn "UniProtDatGz is deprecated (${row.Short}); use --uniprot_index. " +
+                              "Treated as --restrict-proteome ${restrict}"
+            [ [id: row.Short, species: row.Species, taxid: row.NCBI_TaxID?.trim() ?: null,
+               uniprot_restrict: restrict],
+              resolve_fa(row.Protein, ['pep', 'proteins']) ]
         }
-        .filter { it != null }
 
     ingroup_prot_ch   = samples_ch.filter { meta, prot, dna -> meta.group == 'IN' }
                                    .map    { meta, prot, dna -> [ meta, prot ] }
@@ -138,13 +156,16 @@ workflow {
     broad_out_dna_ch  = samples_ch.filter { meta, prot, dna -> meta.group == 'BROAD_OUTGROUP' && dna }
                                    .map    { meta, prot, dna -> [ meta, dna ] }
 
-    // UniProt cross-reference lookup (issue #92) -- run once for every species that
-    // set UniProtDatGz, regardless of IN/OUT/direction, and hand the whole collected
-    // list to both ANNOTATE calls below (see workflows/annotate.nf's take: comment for
-    // why passing it unfiltered to both directions is correct). Empty when no species
-    // in the config has a UniProtDatGz value.
-    UNIPROT_XREF(uniprot_xref_ch)
-    uniprot_xref_files = UNIPROT_XREF.out.tsv.collect().ifEmpty([])
+    // UniProt linking -- once per config proteome, regardless of IN/OUT/direction; the
+    // whole collected list goes to both ANNOTATE calls below (see workflows/annotate.nf's
+    // take: comment). Skipped, with an empty list, when --uniprot_index is unset.
+    if (params.uniprot_index) {
+        UNIPROT_LINK(uniprot_link_ch, file(params.uniprot_index).toAbsolutePath().toString())
+        uniprot_xref_files = UNIPROT_LINK.out.tsv.collect().ifEmpty([])
+    } else {
+        log.info "--uniprot_index not set: UniProt linking skipped"
+        uniprot_xref_files = Channel.value([])
+    }
 
     // Novelty-direction presence matrix + candidates. --cluster_tool selects the producer:
     //   pairwise (default) — the O(N^2) phmmer/diamond/blast SEARCH workflow.
@@ -369,4 +390,30 @@ workflow {
         file(params.config),
         data_dir_abs
     )
+}
+
+// One-time UniProt library index build (docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md):
+//   nextflow run main.nf --build_uniprot_index --uniprot_library <dir> \
+//       --uniprot_library_csv <csv name> --uniprot_index <out dir>
+// (Nextflow's strict parser does not support -entry, so a param selects it.)
+workflow UNIPROT_INDEX {
+    main:
+    if (!params.uniprot_library || !params.uniprot_library_csv || !params.uniprot_index) {
+        error "--build_uniprot_index needs --uniprot_library, --uniprot_library_csv and --uniprot_index"
+    }
+    if (file("${params.uniprot_index}/manifest.json").exists()) {
+        // The index is complete (manifest.json is written last): skip re-parsing the
+        // whole library, which storeDir on the final step alone would not prevent.
+        log.info "UniProt index already built: ${params.uniprot_index}/manifest.json exists; nothing to do"
+    } else {
+        UNIPROT_INDEX_BUILD(Channel.value(file(params.uniprot_library).toAbsolutePath().toString()))
+    }
+}
+
+workflow {
+    if (params.build_uniprot_index) {
+        UNIPROT_INDEX()
+    } else {
+        NOVINVENIO()
+    }
 }

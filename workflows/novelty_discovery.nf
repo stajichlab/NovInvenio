@@ -172,9 +172,10 @@ process SINGLETON_DIAMOND_SEARCH {
         diamond blastp \
             --query ${singletons_fa} \
             --db ${target_db.baseName} \
-            --outfmt 6 qseqid sseqid evalue bitscore \
+            --outfmt 6 qseqid sseqid evalue bitscore length pident qcovhsp scovhsp qlen slen \
             --evalue ${params.parse_evalue} \
             --threads ${task.cpus} \
+            ${params.diamond_sensitivity ? "--${params.diamond_sensitivity}" : ''} \
             --quiet \
             --out singletons_vs_${meta_t.id}.diamond.tsv
     else
@@ -202,7 +203,7 @@ process SINGLETON_BLAST_SEARCH {
         blastp \
             -query ${singletons_fa} \
             -db ${meta_t.id}.blast_db \
-            -outfmt "6 qseqid sseqid evalue bitscore" \
+            -outfmt "6 qseqid sseqid evalue bitscore length pident qcovhsp qlen slen" \
             -evalue ${params.parse_evalue} \
             -num_threads ${task.cpus} \
             -out singletons_vs_${meta_t.id}.blast.tsv
@@ -304,6 +305,7 @@ process NOVELTY_PRESENCE_MATRIX {
         --paralog-competition-scope ${paralog_competition_scope} \
         --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
         ${params.paralog_rescue_delta != null ? "--paralog-rescue-delta ${params.paralog_rescue_delta}" : ''} \
+        ${params.other_coverage_floor_qcov ? "--other-coverage-floor-qcov ${params.other_coverage_floor_qcov}" : ''} \
         --output-matrix presence_matrix.tsv \
         --output-candidates candidates.txt \
         --output-evalues presence_matrix.evalues.tsv

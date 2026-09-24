@@ -8,6 +8,12 @@ pathway to a singleton pairwise search's hits:
      'proteome' (the paralog's best hit anywhere in the target proteome) or 'target'
      (only on the same target protein), matching build_presence_matrix.py's
      --paralog-competition-scope semantics.
+  3. Other-group coverage floor (opt-in, off by default -- issue #160, mirroring #158's
+     filter 3 in bin/build_presence_matrix.py): after filter 2, a hit to a proteome in
+     floor_shorts whose query coverage qcov < coverage_floor_qcov counts as absent.
+     Callers pass only absence-side proteomes (DISCOVERY_OUT in phase 1; every
+     NEAR_INGROUP/BROAD_OUTGROUP proteome in phase 2, where any hit demotes a
+     candidate). A judged hit with no qcov is a ValueError, never a silent pass.
 
 Used by bin/novelty_presence_matrix.py (phase 1, vs DISCOVERY_OUT) and
 bin/novelty_screen.py (phase 2, vs NEAR_INGROUP/BROAD_OUTGROUP) so a singleton's
@@ -34,15 +40,18 @@ from collections import defaultdict
 from pathlib import Path
 
 
-def parse_pairwise_tsv(path):
+def parse_pairwise_tsv(path, with_qcov=False):
     """Return list of (query_id, target_id, evalue) tuples from a parsed hits TSV.
 
     Only the first three columns (query_id, target_id, evalue) are used; bitscore/
-    query_proteome/target_proteome, if present, are ignored.
+    query_proteome/target_proteome, if present, are ignored. with_qcov=True appends the
+    hit's qcov (float) as a fourth element -- None when the file has no qcov column or
+    the cell is blank (a narrow/phmmer hit), never 0 (see lib/hits.py's Hit docstring).
     """
     hits = []
     with open(path) as fh:
-        next(fh, None)  # header
+        header = next(fh, '').rstrip('\n').split('\t')
+        qcov_idx = header.index('qcov') if 'qcov' in header else None
         for line in fh:
             line = line.rstrip('\n')
             if not line:
@@ -54,7 +63,13 @@ def parse_pairwise_tsv(path):
                 evalue = float(parts[2])
             except ValueError:
                 continue
-            hits.append((parts[0], parts[1], evalue))
+            if not with_qcov:
+                hits.append((parts[0], parts[1], evalue))
+                continue
+            qcov = None
+            if qcov_idx is not None and qcov_idx < len(parts) and parts[qcov_idx]:
+                qcov = float(parts[qcov_idx])
+            hits.append((parts[0], parts[1], evalue, qcov))
     return hits
 
 
@@ -120,10 +135,11 @@ def _rescued(ev, paralog_ev, rescue_evalue, rescue_delta):
 
 def score_singleton_hits(hits, singleton_ids, paralog_of,
                          default_evalue, competition_scope='proteome',
-                         rescue_evalue=DEFAULT_RESCUE_EVALUE, rescue_delta=None):
+                         rescue_evalue=DEFAULT_RESCUE_EVALUE, rescue_delta=None,
+                         coverage_floor_qcov=None, floor_shorts=None, stats=None):
     """Filter a singleton search's hits down to qualifying presence calls.
 
-    hits: iterable of (query_id, target_id, evalue, proteome_short) tuples -- covers
+    hits: iterable of (query_id, target_id, evalue, proteome_short[, qcov]) tuples -- covers
     both true singletons and, where detected, their own within-genome paralog (searched
     together so filter 2 has something to compare against; see
     bin/extend_singleton_query.py).
@@ -135,6 +151,13 @@ def score_singleton_hits(hits, singleton_ids, paralog_of,
     default_evalue: flat significance cutoff (filter 1), applied to every hit regardless
     of query -- see module docstring for why this is no longer per-query paralog-derived.
 
+    coverage_floor_qcov: filter 3 threshold (percent); None or 0 disables. floor_shorts:
+    set of proteome shorts filter 3 judges (None = every proteome). A judged hit with no
+    qcov (a 4-tuple, or qcov None) raises ValueError.
+
+    stats: optional dict, filled with 'filter2_rejected' and 'floor_rejected' hit counts
+    so callers can log the two mechanisms separately.
+
     Returns (presence, evalue):
       presence[proteome_short] = set of singleton_ids present
       evalue[(proteome_short, singleton_id)] = best (lowest) qualifying hit e-value
@@ -142,14 +165,17 @@ def score_singleton_hits(hits, singleton_ids, paralog_of,
     hits = list(hits)
 
     best_ev = {}
-    for query_id, target_id, ev, short in hits:
+    for hit in hits:
+        query_id, target_id, ev, short = hit[:4]
         key = (query_id, short if competition_scope == 'proteome' else target_id)
         if key not in best_ev or ev < best_ev[key]:
             best_ev[key] = ev
 
     presence = defaultdict(set)
     evalue = {}
-    for query_id, target_id, ev, short in hits:
+    n_filter2 = n_floor = 0
+    for hit in hits:
+        query_id, target_id, ev, short = hit[:4]
         if query_id not in singleton_ids:
             continue
 
@@ -162,11 +188,27 @@ def score_singleton_hits(hits, singleton_ids, paralog_of,
             paralog_ev = best_ev.get(key)
             if (paralog_ev is not None and paralog_ev < ev
                     and not _rescued(ev, paralog_ev, rescue_evalue, rescue_delta)):
+                n_filter2 += 1
                 continue  # disqualified: the paralog explains this hit better
+
+        if coverage_floor_qcov and (floor_shorts is None or short in floor_shorts):
+            qcov = hit[4] if len(hit) > 4 else None
+            if qcov is None:
+                raise ValueError(
+                    f'coverage floor (qcov < {coverage_floor_qcov:g}) requested, but hit '
+                    f'{query_id} -> {target_id} ({short}) has no qcov: an old narrow hit '
+                    'file or a phmmer hit. Re-run with diamond/blast wide output, or drop '
+                    'the floor.')
+            if qcov < coverage_floor_qcov:
+                n_floor += 1
+                continue
 
         presence[short].add(query_id)
         prev = evalue.get((short, query_id))
         if prev is None or ev < prev:
             evalue[(short, query_id)] = ev
 
+    if stats is not None:
+        stats['filter2_rejected'] = n_filter2
+        stats['floor_rejected'] = n_floor
     return presence, evalue

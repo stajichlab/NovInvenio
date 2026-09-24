@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 BIN = Path(__file__).resolve().parent.parent / 'bin' / 'novelty_presence_matrix.py'
 
@@ -319,3 +320,32 @@ def test_singleton_default_floor_protects_the_hexa_like_ortholog(tmp_path):
     matrix, _ = _run(tmp_path, singleton_hits=[hits], paralog_cutoffs=[paralog],
                      **{'paralog-competition-scope': 'proteome'})
     assert matrix[matrix['protein_id'] == 'pS1'].iloc[0]['D1'] == 1
+
+
+# --- Other-group coverage floor (issue #160) --------------------------------
+WIDE_HIT_HEADER = ('query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\t'
+                   'length\tpident\tqcov\tscov\tqlen\tslen\n')
+
+
+def test_singleton_coverage_floor_judges_only_discovery_out(tmp_path):
+    # pS1's narrow D1 hit is rejected; its equally narrow T2 hit (target side) is kept.
+    _setup(tmp_path)
+    d1 = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    d1.write_text(WIDE_HIT_HEADER + 'pS1\td1_x\t6.76e-08\t50\tT1\tD1\t25\t27.8\t15.1\t2.3\t169\t1117\n')
+    t2 = tmp_path / 'singletons_vs_T2.parsed.tsv'
+    t2.write_text(WIDE_HIT_HEADER + 'pS1\tt2_x\t1e-30\t200\tT1\tT2\t20\t60.0\t5.0\t5.0\t400\t420\n')
+    matrix, cands = _run(tmp_path, singleton_hits=[d1, t2])
+    assert matrix[matrix['protein_id'] == 'pS1'].iloc[0]['D1'] == 1
+    matrix, cands = _run(tmp_path, singleton_hits=[d1, t2],
+                         **{'other-coverage-floor-qcov': 20})
+    row = matrix[matrix['protein_id'] == 'pS1'].iloc[0]
+    assert row['D1'] == 0 and row['T2'] == 1
+    assert 'T1::pS1' in cands
+
+
+def test_singleton_coverage_floor_fails_loudly_on_narrow_hits(tmp_path):
+    _setup(tmp_path)
+    d1 = tmp_path / 'singletons_vs_D1.parsed.tsv'
+    _write_hits(d1, 'pS1\td1_x\t1e-10\t100\tT1\tD1\n')
+    with pytest.raises(subprocess.CalledProcessError):
+        _run(tmp_path, singleton_hits=[d1], **{'other-coverage-floor-qcov': 15})

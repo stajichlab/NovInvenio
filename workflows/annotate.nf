@@ -29,9 +29,9 @@ workflow ANNOTATE {
     output_prefix    // val: '' (novelty direction) or 'loss_' (loss direction) —
                       //   prefixes all three output filenames so a second ANNOTATE
                       //   call does not overwrite the first
-    uniprot_xref_files // path list: UNIPROT_XREF output TSVs, one per species with a
-                        //   configured UniProtDatGz (possibly empty — see main.nf's
-                        //   uniprot_xref_ch). Passed to both the novelty- and loss-
+    uniprot_xref_files // path list: UNIPROT_LINK output TSVs, one per config proteome
+                        //   when --uniprot_index is set (empty otherwise — see main.nf's
+                        //   uniprot_link_ch). Passed to both the novelty- and loss-
                         //   direction ANNOTATE calls unfiltered; a file only matches
                         //   rows whose protein_id came from that same species anyway,
                         //   so there's no need to split it by direction.
@@ -61,7 +61,7 @@ process ANNOTATE_MATRIX {
     val(swissprot_dmnd)  // absolute path to SwissProt .dmnd, or ''
     val(morgs_config)    // absolute path to modelorgs YAML, or ''
     val(output_prefix)   // '' or 'loss_'
-    path(uniprot_xref_files) // UNIPROT_XREF TSVs, one per species (filenames are
+    path(uniprot_xref_files) // UNIPROT_LINK TSVs, one per proteome (filenames are
                               // already unique — meta.id is unique per config); [] when none
 
     output:

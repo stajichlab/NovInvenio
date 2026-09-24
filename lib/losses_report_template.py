@@ -535,11 +535,17 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       sprot: row[F.sprot],
       geneUrl: row[F.gene_url],
       xrefs: row[F.xrefs],
+      uacc: row[F.uacc],
+      af: row[F.af],
+      umatch: row[F.umatch],
+      usp: row[F.usp],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: "",
       proteome: row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null
     })));
+    var pubsNode = row[F.pubs] >= 0 ? publicationsNode(DATA.pub_sets[row[F.pubs]]) : null;
+    if (pubsNode) detailEl.appendChild(field("Publications (outgroup protein)", pubsNode));
   }
 
   function select(ri) {

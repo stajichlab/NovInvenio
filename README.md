@@ -376,7 +376,7 @@ need to bake it into the image.
 | `--ingroup_min_frac` | `0.75` | Min fraction of ingroup proteomes that must contain a hit |
 | `--outgroup_min_frac` | `0.75` | Min fraction of outgroup proteomes that must contain a hit, for the loss-search direction (`loss_presence_matrix.tsv`) |
 | `--loss_ingroup_max_frac` | `0.0` | Max fraction of the ingroup a loss candidate may still be present in. `0.0` = strictly absent from the ingroup; raise it (e.g. `0.1`) to allow genes *nearly*, but not entirely, lost — retained in a few ingroup species |
-| `--other_coverage_floor_qcov` | `null` (off) | Opt-in, `--cluster_tool pairwise` only. Treat a hit to an *other-group* proteome (outgroup for novelties, ingroup for losses) as absent when its query coverage is below this percent. Never filters query-group cells. Needs `--run_tool diamond` or `blast`. Rejected hits go to `<matrix>.coverage_floor_rejections.tsv`. Use `15` when enabling it. On pezizo_set1, `15` wrongly rejected 0.38% and `20` 1.18% of BUSCO 1:1 ortholog pairs (issue #158) |
+| `--other_coverage_floor_qcov` | `null` (off) | Opt-in. Judges pairwise hits in `--cluster_tool pairwise` (matrix and NEAR_INGROUP/BROAD_OUTGROUP context) and `novelty_discovery` (singletons vs DISCOVERY_OUT, NEAR_INGROUP, BROAD_OUTGROUP); no effect with `mmseqs`. Treat a hit to an *other-group* proteome (outgroup for novelties, ingroup for losses) as absent when its query coverage is below this percent. Never filters query-group cells. Needs `--run_tool diamond` or `blast`. Rejected hits go to `<matrix>.coverage_floor_rejections.tsv`. Use `15` when enabling it. On pezizo_set1, `15` wrongly rejected 0.38% and `20` 1.18% of BUSCO 1:1 ortholog pairs (issues #158, #160) |
 | `--core_min_frac` | `0.95` | Min presence fraction across *all* proteomes (ingroup + outgroup) for `core.html` |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd` database; skips if unset |
@@ -402,6 +402,9 @@ IN,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
 - `GROUP`: `IN` (ingroup) or `OUT` (outgroup)
 - `Short`: ≤8-char unique identifier used in all output filenames
 - `Protein`, `DNA`: FASTA basenames resolved relative to `--data_dir`
+  (`DNA` may be empty for a species, but at least one `OUT` and one `IN` row — or one
+  `DISCOVERY_OUT` row for `--cluster_tool novelty_discovery` — need a genome for TBLASTN;
+  the pipeline stops at launch otherwise)
 - Config filename (without `.csv`) becomes the results subdirectory
 - `SourceDB`, `NCBI_TaxID` (both optional, report-only): `SourceDB` gives each species a
   per-gene database linkout in the HTML reports — `fungidb`, `mycocosm:<portal>`,
@@ -589,6 +592,16 @@ No web server is needed — `file://` works, including offline.
 > **Tip:** `SUMMARIZE` currently runs with `--skip_tblastn_filter`, so proteins with
 > TBLASTN hits in outgroup genomes are *kept* and flagged rather than dropped. Tick
 > **No TBLASTN hit** to see the subset that is also absent at the nucleotide level.
+
+### UniProt links (`--uniprot_index`)
+
+With `--uniprot_index <dir>`, each protein is matched to a UniProt record by accession,
+RefSeq ID, or identical sequence (the species' own record first, then any fungal
+record). Its card then links to its own UniProt entry and AlphaFold structure, the
+cross-referenced databases on the record (FungiDB, NCBI Gene, PANTHER, OrthoDB, STRING,
+PDB, ...), and its publications. When the only match is another species' identical
+sequence, the card says so and leaves out gene-database links. Build the index once per
+UniProt release; see CLAUDE.md, "Building the UniProt library index".
 
 ### TBLASTN alignment popup (docs/ copy only)
 

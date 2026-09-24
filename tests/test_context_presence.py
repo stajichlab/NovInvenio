@@ -169,3 +169,52 @@ def test_hits_flag_with_zero_filenames_does_not_crash(tmp_path):
     assert result.returncode == 0, result.stderr
     matrix = pd.read_csv(matrix_out, sep='\t')
     assert list(matrix.columns) == ['protein_id', 'source_proteome']
+
+
+# --- Other-group coverage floor (issue #160) --------------------------------
+WIDE_HIT_HEADER = ('query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\t'
+                   'length\tpident\tqcov\tscov\tqlen\tslen\n')
+
+
+def run_floor(run_dir, hits_text, floor=None, header=WIDE_HIT_HEADER):
+    hits_path = run_dir / 'hits.tsv'
+    hits_path.write_text(header + hits_text)
+    (run_dir / 'candidates.txt').write_text('In1::g\n')
+    cmd = [sys.executable, str(SCRIPT), '--hits', str(hits_path),
+           '--candidates', str(run_dir / 'candidates.txt'),
+           '--config', str(run_dir / 'config.csv'),
+           '--output-matrix', str(run_dir / 'm.tsv'),
+           '--output-evalues', str(run_dir / 'e.tsv')]
+    if floor is not None:
+        cmd += ['--other-coverage-floor-qcov', floor]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    matrix = pd.read_csv(run_dir / 'm.tsv', sep='\t') if proc.returncode == 0 else None
+    return proc, matrix
+
+
+FLOOR_CTX_HITS = (
+    'g\tn1\t1e-10\t100\tIn1\tNear1\t25\t30.0\t12.0\t2.0\t200\t900\n'
+    'g\tb1\t1e-40\t200\tIn1\tBroad1\t180\t45.0\t70.0\t60.0\t200\t260\n'
+)
+
+
+def test_context_coverage_floor_off_by_default(run_dir):
+    proc, matrix = run_floor(run_dir, FLOOR_CTX_HITS)
+    assert proc.returncode == 0, proc.stderr
+    row = matrix.iloc[0]
+    assert row['Near1'] == 1 and row['Broad1'] == 1
+
+
+def test_context_coverage_floor_rejects_narrow_keeps_broad(run_dir):
+    proc, matrix = run_floor(run_dir, FLOOR_CTX_HITS, floor='15')
+    assert proc.returncode == 0, proc.stderr
+    row = matrix.iloc[0]
+    assert row['Near1'] == 0 and row['Broad1'] == 1
+    assert 'coverage floor (qcov < 15): 1 hit' in proc.stderr
+
+
+def test_context_coverage_floor_fails_loudly_on_narrow_hits(run_dir):
+    proc, _ = run_floor(run_dir, 'g\tn1\t1e-10\t100\tIn1\tNear1\n', floor='15',
+                        header=HIT_HEADER)
+    assert proc.returncode != 0
+    assert 'qcov' in proc.stderr

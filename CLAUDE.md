@@ -63,7 +63,7 @@ NovInvenio/
 ├── pixi.toml                      # [workspace] table — tool dependencies
 ├── modules/
 │   ├── phmmer.nf                  # PHMMER_SEARCH — phmmer pairwise search, storeDir
-│   ├── diamond.nf                 # DIAMOND_SEARCH — diamond blastp pairwise, storeDir
+│   ├── diamond.nf                 # DIAMOND_SEARCH — diamond blastp, one job per query genome; publishDir + -resume (not storeDir)
 │   ├── blast.nf                   # BLAST_SEARCH — blastp pairwise, storeDir
 │   ├── self_search.nf             # PHMMER_SELF / DIAMOND_SELF / BLAST_SELF — self-vs-self, storeDir
 │   ├── parse_hits.nf              # PARSE_HITS — normalises raw hits → common TSV
@@ -73,7 +73,8 @@ NovInvenio/
 │   ├── tblastn.nf                 # TBLASTN — translated search vs outgroup genomes
 │   ├── hmmbuild.nf                # HMMBUILD (imported but not yet wired into cluster workflow)
 │   ├── hmmsearch.nf               # HMMSEARCH (imported but not yet wired into cluster workflow)
-│   └── uniprot_xref.nf            # UNIPROT_XREF — bin/build_uniprot_refseq_xref.py per species with a config UniProtDatGz column (issue #92)
+│   ├── uniprot_index.nf           # UNIPROT_PLAN_CHUNKS / UNIPROT_PARSE_CHUNK / UNIPROT_SEQ_INDEX — one-time UniProt library index (--build_uniprot_index)
+│   └── uniprot_link.nf            # UNIPROT_LINK — bin/uniprot_link.py per config proteome when --uniprot_index is set
 ├── workflows/
 │   ├── search.nf                  # SEARCH — pairwise search + self-hits + presence matrix (ingroup query)
 │   ├── loss_search.nf             # LOSS_SEARCH — same, outgroup query (loss-search direction)
@@ -89,8 +90,11 @@ NovInvenio/
 │   ├── build_presence_matrix.py   # Paralog-aware matrix construction + candidates.txt; --query-group IN|OUT
 │   ├── extract_candidates.py      # Pull candidate sequences from the given proteome FASTAs (ingroup or outgroup)
 │   ├── summarize_tblastn.py       # Aggregate per-genome TBLASTN TSVs → protein × genome matrix
-│   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns; --uniprot_xref_files adds uniprot_* columns (issue #92)
-│   ├── build_uniprot_refseq_xref.py# Cross-walk an NCBI RefSeq protein_id to its UniProt record via the DR RefSeq line (lib/uniprot_dat.py); feeds annotate_presence_matrix.py --uniprot_xref_files
+│   ├── annotate_presence_matrix.py# Add gene_name / Pfam / SwissProt columns; --uniprot_xref_files adds uniprot_* columns (from UNIPROT_LINK)
+│   ├── uniprot_plan_chunks.py     # Group a UniProt library's .dat.gz files into parse batches by size (index build)
+│   ├── uniprot_parse_dat.py       # Parse one batch -> records/<UP>.records.tsv.zst + stats/<UP>.json (index build)
+│   ├── uniprot_build_index.py     # Merge records -> seq_index.sqlite + manifest.json (index build)
+│   ├── uniprot_link.py            # Match one proteome to UniProt by accession, RefSeq ID, or exact sequence (own species first) -> <Short>.uniprot_link.tsv
 │   ├── make_novelties.py          # Per-species novelties.<SHORT>.tsv (with --skip_tblastn_filter option)
 │   ├── make_report.py             # Self-contained interactive novelties.html
 │   ├── make_core_report.py        # Self-contained interactive core.html (near-universal genes)
@@ -109,7 +113,8 @@ NovInvenio/
 │   ├── config_parser.py           # parse_config() → list[Sample]; short_to_group()
 │   ├── fasta.py                   # FASTA utilities
 │   ├── model_organisms.py         # ModelOrgAnnotator — YAML-driven gene name lookup
-│   ├── uniprot_dat.py             # parse_dat_gz() — UniProt .dat.gz DR-line parser (GO/Pfam/InterPro/AlphaFold/xrefs), ported from NovInvenio_Investigations' extract_dat_annotations.py
+│   ├── uniprot_dat.py             # parse_dat_gz() — UniProt .dat parser (RECORD_COLUMNS: reviewed, PE, GO/Pfam/InterPro/AlphaFold, ~30 xref DBs, publications, sequence MD5); normalize_seq()/seq_md5()
+│   ├── uniprot_index.py           # UniProtIndex — reader for a UniProt library index (FORMAT_VERSION 1; lookups by accession/RefSeq/sequence MD5; IndexFormatError)
 │   ├── clusters.py                # build_families() + FamilyIndex — mmseqs cluster -> gene-family grouping
 │   ├── report_data.py             # build_payload() / build_core_payload() / build_losses_payload()
 │   ├── report_template.py         # HTML_TEMPLATE — the novelties.html page (canvas heatmap, HTML/CSS/JS, no deps)
@@ -149,7 +154,7 @@ NovInvenio/
 │                                   #   --extra-pool: Drosophila/C. elegans/mouse/Monosiga brevicollis).
 └── results/
     └── <config_basename>/
-        ├── search_cache/          # storeDir — pairwise + self-hit raw outputs, never re-run
+        ├── search_cache/          # pairwise + self-hit raw outputs (storeDir, except DIAMOND_SEARCH: publishDir)
         ├── self_hits/             # Per-species paralog_cutoffs.tsv files
         ├── clusters/              # mmseqs2 cluster FASTA and TSV
         ├── presence_matrix.tsv
@@ -181,14 +186,14 @@ view/                              # sibling of results/ — one shareable folde
 
 2. **SEARCH workflow** (`workflows/search.nf`):
    - Cross-joins every ingroup proteome against all other proteomes (ingroup ∪ outgroup, excluding self-pairs).
-   - Runs the selected tool (`PHMMER_SEARCH` / `DIAMOND_SEARCH` / `BLAST_SEARCH`), output cached in `search_cache/` via `storeDir`.
+   - Runs the selected tool (`PHMMER_SEARCH` / `DIAMOND_SEARCH` / `BLAST_SEARCH`), output in `search_cache/` — via `storeDir` for `PHMMER_SEARCH`/`BLAST_SEARCH`; `DIAMOND_SEARCH` batches all targets per query genome in one job and is cached by `-resume` only, publishing (`publishDir`) the same filenames for every `--diamond_sensitivity` mode, so a later run with a different mode overwrites them.
    - `PARSE_HITS` normalises each raw result into a TSV with columns `query_id, target_id, evalue, bitscore, query_proteome, target_proteome`.
    - Also runs self-vs-self searches (`PHMMER_SELF` / `DIAMOND_SELF` / `BLAST_SELF`, `-E 100 --max-target-seqs 2`) to capture the rank-2 (best paralog) hit per protein. Outputs also `storeDir`-cached.
    - `PARSE_SELF_HITS` → `<Short>.paralog_cutoffs.tsv` (columns: `protein_ID, paralog_protein_ID, bitscore, evalue`). Proteins with no within-proteome paralog are omitted. Only the `paralog_protein_ID` column is consumed downstream (by the paralog-competition filter); the `evalue` column is not used for gating (see the SEARCH workflow notes above).
    - `BUILD_PRESENCE_MATRIX` applies two filters:
      1. **Significance filter**: hit evalue must be < `--default-evalue` (flat, 1e-5), applied to every hit. (2026-09-03: this was previously a per-query "paralog-cutoff" — hit evalue < the query's own within-proteome paralog evalue — dropped as unsound: it swung both too tight, an unreachable bar whenever the query happened to have a close in-genome paralog regardless of relevance, and too loose, since the self-search that produces the paralog evalue is reported down to E=100 rather than a real significance floor, so a protein with no genuine paralog still got a noise-derived "cutoff" looser than the intended default. See `lib/singleton_presence.py`'s module docstring for the empirical writeup.)
      2. **Paralog-competition filter**: if the query's paralog hits the same target proteome with a better evalue, the hit is disqualified — this is the actual paralogy test (a direct head-to-head comparison), unaffected by the change above.
-     3. **Other-group coverage floor** (opt-in, `--other_coverage_floor_qcov`, issue #158): after filter 2, a hit to an other-group proteome with query coverage below the floor counts as absent. Query-group cells are never filtered. Needs wide diamond/blast hits (`qcov`); missing `qcov` is a hard error.
+     3. **Other-group coverage floor** (opt-in, `--other_coverage_floor_qcov`, issue #158): after filter 2, a hit to an other-group proteome with query coverage below the floor counts as absent. Query-group cells are never filtered. Needs wide diamond/blast hits (`qcov`); missing `qcov` is a hard error. Mirrored (issue #160) in `lib/singleton_presence.py` (novelty_discovery singletons: DISCOVERY_OUT in phase 1, NEAR_INGROUP/BROAD_OUTGROUP in phase 2) and `bin/context_presence.py`; no effect on `--cluster_tool mmseqs` family presence.
    - The `candidates.txt` keep filter is `query_frac >= min_frac AND other_frac <= --other-max-frac` (`other_frac` = fraction of the *other* group the protein is present in). `--other-max-frac` defaults to `0.0` — absent from every other-group proteome, the strict novelty/loss rule. The loss direction passes `params.loss_ingroup_max_frac` here to allow "nearly missing" candidates; the novelty direction always passes `0.0`. Note: this filter shapes only `candidates.txt`, not the matrix — the matrix always holds every scored row.
    - Produces `presence_matrix.tsv` (protein × proteome 0/1 matrix with `protein_id` and `source_proteome` columns) and `candidates.txt` (lines of `source_proteome::protein_id`).
 
@@ -215,26 +220,26 @@ view/                              # sibling of results/ — one shareable folde
      2. Pfam domain names (all unique domains per protein).
      3. SwissProt description (best hit, `sp|ACCN|ID` prefix stripped).
    - Adds columns: `gene_name`, `product_description`, `function_source`, `Best_Swissprot`, `Pfam_Names`.
-   - **UniProt cross-reference lookup (issue #92, optional).** For each species with a
-     `UniProtDatGz` config-CSV column set, `main.nf` runs `UNIPROT_XREF`
-     (`modules/uniprot_xref.nf` → `bin/build_uniprot_refseq_xref.py`), which cross-walks
-     that species' NCBI RefSeq protein IDs to their UniProt record via the record's own
-     `DR RefSeq;` line (parsed by `lib/uniprot_dat.py::parse_dat_gz`, not a sequence
-     search) — this is the reverse direction of a UniProt-native dataset, where
-     protein_id already equals the UniProt accession. All species' crosswalk TSVs are
-     collected and passed to `annotate_presence_matrix.py --uniprot_xref_files`, adding
-     `uniprot_accession`, `uniprot_gene_name`, `uniprot_description`, `uniprot_go_ids`,
-     `uniprot_pfam_ids`, `uniprot_pfam_names`, `uniprot_interpro_ids`,
-     `uniprot_ec_numbers`, `uniprot_alphafold_id`, and `uniprot_xrefs` columns —
-     deliberately independent of the `gene_name`/`Pfam_Names`/etc. columns above (which
-     come from this pipeline's own Pfam/SwissProt/modelorgs annotation, not UniProt's
-     precomputed one). `uniprot_xrefs` is what `lib/report_data.py`/`lib/report_common.py`
-     already render as the generic external-linkout registry (VEuPathDB/GeneID/RefSeq/
-     KEGG/EnsemblFungi — see `docs/superpowers/specs/2026-09-09-uniprot-xref-linkout-design.md`).
-     A species with no `UniProtDatGz` set (the common case — many proteomes have no
-     UniProt reference at all, e.g. *Schizophyllum commune*, checked 2026-09-10) is
-     simply absent from the crosswalk, not an error; real coverage on
-     `configs/agaricomycetes_v1.csv`'s other six species measured 89-100%.
+   - **UniProt linking (optional, `--uniprot_index`).** `main.nf` runs `UNIPROT_LINK`
+     (`modules/uniprot_link.nf` → `bin/uniprot_link.py`) once per config proteome against
+     a pre-built UniProt library index (see "Building the UniProt library index" below).
+     Each protein is matched by, in order: its ID as a UniProt accession (`id`), its ID as
+     a RefSeq accession on a record's `DR RefSeq` line (`refseq`), then its exact sequence
+     (MD5 of the normalized sequence) — preferring a record from the species' own taxids
+     (`NCBI_TaxID` plus every library proteome with the same genus+species binomial --
+     config taxids are often species-level, UniProt's strain-level) (`seq_own`), else any fungal record
+     (`seq_other`). Ties: own taxid, then Swiss-Prot, then lowest accession. The TSVs go
+     to `annotate_presence_matrix.py --uniprot_xref_files`, adding `uniprot_accession`,
+     gene name, description, GO, Pfam IDs/names, InterPro, EC, AlphaFold ID,
+     `uniprot_xrefs` (~30 allow-listed databases), `uniprot_match`,
+     `uniprot_match_species`, `uniprot_reviewed`, `uniprot_pubs` and `uniprot_n_matches`.
+     These are independent of the pipeline's own Pfam/SwissProt/modelorgs columns. The
+     reports use them for the protein's own UniProt/AlphaFold links, cross-reference links,
+     InterPro/Pfam chips and a Publications field; gene-database links are suppressed for
+     `seq_other` matches (another species' identical sequence). An unmatched protein gets
+     empty columns, never an error; an unusable index is a hard error. Design:
+     `docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md`. This replaces
+     `UNIPROT_XREF` (issue #92, RefSeq-only, hand-set `UniProtDatGz`).
    - Produces `presence_matrix.function.tsv`.
 
 6. **SUMMARIZE workflow** (`workflows/summarize.nf`):
@@ -366,10 +371,15 @@ reports and a `report.html` landing page (run summary + links).
 | `--ingroup_min_frac` | `0.75` | Fraction of ingroup proteomes that must contain a hit |
 | `--outgroup_min_frac` | `0.75` | Fraction of outgroup proteomes that must contain a hit, for `LOSS_SEARCH` (the loss-search direction's own presence threshold) |
 | `--loss_ingroup_max_frac` | `0.0` | Max fraction of the ingroup a loss candidate may still be present in (loss-search direction). `0.0` = strictly absent from the ingroup; raise for "nearly missing" losses. Wired through to `build_presence_matrix.py --other-max-frac` and `make_losses_report.py --loss_ingroup_max_frac` |
-| `--other_coverage_floor_qcov` | `null` | Opt-in filter 3; use `15` when enabling (chosen 2026-09-23) in `BUILD_PRESENCE_MATRIX` (issue #158): an other-group hit with `qcov <` this percent counts as absent; query-group cells never filtered; runs after filter 2, rejections logged separately (`<matrix>.coverage_floor_rejections.tsv`); hard error if a judged hit has no qcov (phmmer, narrow cache). See `docs/superpowers/specs/2026-09-22-coverage-floor-sensitivity-design-handoff.md` |
+| `--other_coverage_floor_qcov` | `null` | Opt-in filter 3; use `15` when enabling (chosen 2026-09-23) in `BUILD_PRESENCE_MATRIX` (issue #158): an other-group hit with `qcov <` this percent counts as absent; query-group cells never filtered; runs after filter 2, rejections logged separately (`<matrix>.coverage_floor_rejections.tsv`); hard error if a judged hit has no qcov (phmmer, narrow cache). Also applied to novelty_discovery singleton hits and CONTEXT_SEARCH (#160). See `docs/superpowers/specs/2026-09-22-coverage-floor-sensitivity-design-handoff.md` |
 | `--core_min_frac` | `0.95` | Presence fraction (across all proteomes, ingroup + outgroup) for the CORE genes report |
 | `--use_orthofinder` | `false` | Placeholder — OrthoFinder clustering not yet implemented |
 | `--pfam_hmm` | `null` | Path to Pfam-A.hmm; skips Pfam annotation if unset |
+| `--uniprot_index` | `null` | UniProt library index dir; enables `UNIPROT_LINK` (skipped with a log note if unset) |
+| `--build_uniprot_index` | `false` | Run the one-time index build instead of an analysis (needs the three params below) |
+| `--uniprot_library` | `null` | Pre-downloaded UniProt library dir (`data/<prefix>.dat.gz`), for `--build_uniprot_index` |
+| `--uniprot_library_csv` | `null` | Proteome CSV file name inside `--uniprot_library` (`proteome_id,tax_id,species_name,file_prefix,...`) |
+| `--uniprot_index_chunk_gb` | `8` | Compressed `.dat.gz` per `UNIPROT_PARSE_CHUNK` job (~48 min at 2.8 MB/s) |
 | `--swissprot_dmnd` | `null` | Path to SwissProt `.dmnd`; skips SwissProt annotation if unset |
 | `--modelorgs_config` | `null` | Absolute path to model organisms YAML; skips gene-name lookup if unset |
 | `--report_sequences` | `novelties` | Which proteins carry a sequence in `novelties.html`: `novelties`, `all`, or `none`. Sequences dominate the file size |
@@ -430,7 +440,7 @@ Sets `params.config`, `params.data_dir`, and `params.project` from `tests/data/t
 nextflow run main.nf -resume --config configs/... --data_dir ...
 ```
 
-`-resume` reuses completed tasks from `work/`. The `search_cache/` directory is additionally protected by `storeDir` — those steps are never re-run even across separate invocations.
+`-resume` reuses completed tasks from `work/`. Most of `search_cache/` is additionally protected by `storeDir` (`PHMMER_SEARCH`, `BLAST_SEARCH`, the self-searches, the `*_MAKEDB` databases) — those steps are never re-run even across separate invocations. `DIAMOND_SEARCH` is the exception: it relies on `-resume` task caching and publishes into `search_cache/`, so a fresh (non-`-resume`) run re-runs it.
 
 ### Running multiple pipelines concurrently
 
@@ -740,7 +750,7 @@ When a process produces a pair result, the meta is `[id: "${meta_q.id}_vs_${meta
 
 | Directive | Use for | Behaviour |
 |---|---|---|
-| `storeDir` | Pairwise + self-search results in `search_cache/` | Skips the process if the output file already exists, even across pipeline runs |
+| `storeDir` | Pairwise (phmmer/blast) + self-search results and search DBs in `search_cache/` | Skips the process if the output file already exists, even across pipeline runs. `DIAMOND_SEARCH` is not `storeDir` (variable-length batched output) — see `modules/diamond.nf` |
 | `publishDir` | Final results in `results/<project>/` | Copies/links on every run; does not affect task execution |
 
 Never apply both to the same process output.
@@ -788,14 +798,11 @@ IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,,Cimm,Pezi
   either (or the whole column) is never an error — see `lib/report_common.py`'s
   `genomeDbLink()`/`taxonomyLink()`.
 - `Strain` may be empty.
-- `UniProtDatGz` (issue #92) is optional, report/annotation-only, and never affects a
-  presence/novelty call. A basename resolved relative to `--data_dir` (also checked
-  under `uniprot_dat/`, `uniprot/`), pointing at a UniProt `{proteome}_{taxid}.dat.gz`
-  for that species — enables the UniProt cross-reference lookup described in the
-  ANNOTATE workflow section above. Omitting it is never an error; most species have no
-  UniProt reference proteome at all.
+- `UniProtDatGz` is **deprecated** (kept for one release): UniProt linking now comes from
+  `--uniprot_index`. If set, only its basename's `UP…` prefix is used, as the proteome that
+  counts as the species' own (`uniprot_link.py --restrict-proteome`); the file is not read.
 - The config CSV filename (without `.csv`) becomes the results output subdirectory name.
-- `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs).
+- `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs). `DNA` may be empty for a species, but each TBLASTN panel needs at least one genome: `OUT` and `IN` (pairwise/mmseqs), `DISCOVERY_OUT` (novelty_discovery). `main.nf` errors at launch otherwise (issue #166).
 - `GFF3` is optional (may be an empty cell, or the column may be omitted entirely from
   older config CSVs — `lib/config_parser.py`'s `parse_config()` defaults it to `''`).
   When present, it's a basename resolved relative to `--data_dir` the same way as
@@ -814,6 +821,22 @@ alternative splice isoforms. A single gene with multiple annotated transcripts s
 as multiple report rows — one per protein/transcript ID — each pointing to the same or
 very similar chrom/start. A dedup/filtering pass may be worth adding later; see
 `todo/TODO_REGISTRY.md`.
+
+## Building the UniProt library index
+
+One-time per UniProt release, from a pre-downloaded library (currently
+`/bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03`, release 2026_03, 1526 proteomes).
+Nextflow's strict parser does not support `-entry`, so a param selects the build:
+
+```bash
+nextflow run main.nf --build_uniprot_index -profile slurm -c conf/ucr_hpcc_slurm.config \
+    --uniprot_library /bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03 \
+    --uniprot_library_csv fungi_proteomes_2026_03.csv \
+    --uniprot_index /bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03/novinvenio_index/v1
+```
+
+The output (`manifest.json`, `seq_index.sqlite`, `records/`) is storeDir-cached; pass its
+path as `--uniprot_index` to analysis runs.
 
 ## Two-Phase Targeted Novelty Pipeline (`--cluster_tool novelty_discovery`)
 

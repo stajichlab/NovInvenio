@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 BIN = Path(__file__).resolve().parent.parent / 'bin' / 'novelty_screen.py'
 
@@ -354,3 +355,39 @@ def test_singleton_paralog_added_to_search_is_never_itself_a_row(tmp_path):
     ))
     matrix, cands = _run(tmp_path, broad_out_singleton_hits=[broad_hits])
     assert 'pParalog' not in set(matrix['protein_id'])
+
+
+# --- Other-group coverage floor (issue #160) --------------------------------
+WIDE_HIT_HEADER = ('query_id\ttarget_id\tevalue\tbitscore\tquery_proteome\ttarget_proteome\t'
+                   'length\tpident\tqcov\tscov\tqlen\tslen\n')
+
+
+def test_singleton_coverage_floor_keeps_target_specific_on_narrow_broad_hit(tmp_path):
+    _setup(tmp_path)
+    broad = tmp_path / 'singletons_vs_B1.parsed.tsv'
+    broad.write_text(WIDE_HIT_HEADER + 'pC1\tb1_x\t1e-10\t100\tT1\tB1\t25\t30.0\t12.0\t2.0\t200\t900\n')
+    matrix, _ = _run(tmp_path, broad_out_singleton_hits=[broad])
+    assert matrix[matrix['protein_id'] == 'pC1'].iloc[0]['novelty_category'] == 'false_novelty'
+    matrix, cands = _run(tmp_path, broad_out_singleton_hits=[broad],
+                         **{'other-coverage-floor-qcov': 15})
+    row = matrix[matrix['protein_id'] == 'pC1'].iloc[0]
+    assert row['B1'] == 0
+    assert row['novelty_category'] == 'target_specific'
+    assert 'T1::pC1' in cands
+
+
+def test_singleton_coverage_floor_applies_to_near_ingroup_too(tmp_path):
+    _setup(tmp_path)
+    near = tmp_path / 'singletons_vs_N1.parsed.tsv'
+    near.write_text(WIDE_HIT_HEADER + 'pC1\tn1_x\t1e-10\t100\tT1\tN1\t25\t30.0\t12.0\t2.0\t200\t900\n')
+    matrix, _ = _run(tmp_path, near_in_singleton_hits=[near],
+                     **{'other-coverage-floor-qcov': 15})
+    assert matrix[matrix['protein_id'] == 'pC1'].iloc[0]['novelty_category'] == 'target_specific'
+
+
+def test_singleton_coverage_floor_fails_loudly_on_narrow_hits(tmp_path):
+    _setup(tmp_path)
+    broad = tmp_path / 'singletons_vs_B1.parsed.tsv'
+    _write_hits(broad, 'pC1\tb1_x\t1e-10\t100\tT1\tB1\n')
+    with pytest.raises(subprocess.CalledProcessError):
+        _run(tmp_path, broad_out_singleton_hits=[broad], **{'other-coverage-floor-qcov': 15})

@@ -725,3 +725,11 @@ building a TBLASTN-based disqualifier for #135 -- fixing presence-calling upstre
 principled than patching around a protein-search miss at the genome level, and may make a
 large fraction of #135's population moot. Full decomposition posted to issue #135.
 **Tags**: presence-calling, diamond, sensitivity, tblastn, novelty, false-positive, todo-validated
+
+## 2026-09-23 — UniProt library index: build cost and match coverage (Fungi_2026_03)
+
+**Build**: --build_uniprot_index over 1526 proteomes / 17,344,385 records (= the CSV's canonical total). Two parse batches ran 1 h 03 min and 41 min (~1.75 cpu-h); SQLite merge 7 min, 73 MB RSS; index 3.0 GB sqlite + 1.9 GB records. At /bigdata/stajichlab/shared/db/Uniprot/Fungi_2026_03/novinvenio_index/v1.
+**Coverage, UniProt-sourced study** (sordariales_shallow, 12 proteomes): 100% matched by accession; 1-4 s per proteome.
+**Coverage, BFD/funannotate gene models** (configs/Crypneof_pathogen_cryptococcus.csv, 9 species): only 7-54% of proteins have an exact-sequence UniProt match (median ~21%): C. amylolentus 54%, C. cinerea 48%, S. pombe 46%, C. deneoformans 41%, S. cerevisiae 21%, C. bacillisporus 15%, N. crassa 14%, A. nidulans 8%, C. neoformans T4 7%. Re-annotated gene models rarely match UniProt's exactly, and a different strain (T4 vs UniProt's H99) shares few identical sequences. Near-identical matching (out of scope in the spec) is what would raise this.
+**Gotcha**: species synonyms defeat the binomial own-species lookup. All 668 A. nidulans matches were seq_other, because UniProt names it "Emericella nidulans (strain FGSC A4) (Aspergillus nidulans)". Setting NCBI_TaxID to the UniProt proteome's taxid fixes it for that row.
+**Tags**: uniprot, annotation, coverage, pipeline, performance
