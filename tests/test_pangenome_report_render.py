@@ -4,7 +4,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
 import pangenome_report_render
-from pangenome_report_render import render_report_markdown, fit_heaps_law, fit_core_decay, build_presence_bool_array
+from pangenome_report_render import (
+    render_report_markdown, fit_heaps_law, fit_core_decay, build_presence_bool_array,
+    cap_zero_q_sentinel,
+)
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
@@ -575,3 +578,78 @@ def test_build_presence_bool_array_ignores_calls_outside_requested_orders():
     result = build_presence_bool_array(matrix, family_order, strain_order)
     assert result.shape == (1, 1)
     assert result[0, 0] == True  # noqa: E712 -- numpy bool identity check reads clearer this way here
+
+
+def test_plot_presence_absence_matrix_has_legend_with_two_entries(tmp_path, monkeypatch):
+    # Bug 1: the raster has no legend at all, so a reader can't tell whether
+    # black or white means "present" -- confirmed by rendering it with
+    # synthetic data. Capture the figure right before plt.close(fig) is
+    # called (the production function closes it internally, so this is the
+    # only point at which the test can still inspect it) and assert a
+    # legend with exactly the present/absent entries exists.
+    captured = {}
+    real_close = pangenome_report_render.plt.close
+
+    def fake_close(fig):
+        captured["fig"] = fig
+        real_close(fig)
+
+    monkeypatch.setattr(pangenome_report_render.plt, "close", fake_close)
+
+    matrix = _make_mixed_state_matrix()
+    frequency_table_rows = [
+        {"family": "famA", "frequency": "0.5"},
+        {"family": "famB", "frequency": "0.8"},
+        {"family": "famC", "frequency": "0.1"},
+    ]
+    pangenome_report_render.plot_presence_absence_matrix(matrix, frequency_table_rows, tmp_path)
+
+    fig = captured["fig"]
+    ax = fig.axes[0]
+    legend = ax.get_legend()
+    assert legend is not None
+    assert len(legend.get_texts()) == 2
+    legend_labels = {t.get_text().lower() for t in legend.get_texts()}
+    assert any("present" in label for label in legend_labels)
+    assert any("absent" in label for label in legend_labels)
+
+
+def test_cap_zero_q_sentinel_caps_at_multiple_of_max_finite():
+    # Bug 2: a fixed 300.0 sentinel for fdr_q == 0 dwarfs every other bar on
+    # a linear axis. The replacement must scale off the actual finite
+    # (non-zero-q) values plotted alongside it.
+    # Position 1 is flagged as a zero-q placeholder -- its raw input value
+    # (0.0, since -log10(0) is undefined) is irrelevant and gets replaced
+    # entirely; only positions 0 and 2 (is_zero_q=False) count as "finite"
+    # values to scale off.
+    neg_log_q = [2.0, 0.0, 4.0]
+    capped = cap_zero_q_sentinel(neg_log_q, is_zero_q=[False, True, False], multiple=1.3)
+    max_finite = 4.0
+    assert capped[1] == max_finite * 1.3
+    # Untouched values pass through unchanged.
+    assert capped[0] == 2.0
+    assert capped[2] == 4.0
+
+
+def test_cap_zero_q_sentinel_all_zero_q_falls_back_to_fixed_value():
+    # Edge case: every domain plotted has fdr_q == 0 -- there is no finite
+    # value to scale off, so this falls back to a fixed, documented value
+    # rather than raising or producing a degenerate all-equal chart.
+    neg_log_q = [0.0, 0.0]
+    capped = cap_zero_q_sentinel(neg_log_q, is_zero_q=[True, True])
+    assert capped[0] == capped[1]
+    assert capped[0] > 0
+
+
+def test_plot_domain_enrichment_zero_q_bar_does_not_dwarf_others(tmp_path):
+    # Regression test at the plot_domain_enrichment level (not just the
+    # helper in isolation): one fdr_q=0.0 domain among several real,
+    # meaningful q-values must not visually erase the others by rendering
+    # at a fixed 300.0 while the rest sit at 2-6.
+    domains = [
+        {"domain": "PF00001", "fisher_p": "1e-2", "fdr_q": "0.0"},
+        {"domain": "PF00002", "fisher_p": "1e-3", "fdr_q": "1e-4"},
+        {"domain": "PF00003", "fisher_p": "1e-2", "fdr_q": "1e-3"},
+    ]
+    pangenome_report_render.plot_domain_enrichment(domains, tmp_path)
+    assert (tmp_path / "figures" / "island_domain_enrichment.png").exists()
