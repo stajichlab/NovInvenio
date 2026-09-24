@@ -111,7 +111,7 @@ Match order per protein. The first rule that matches wins:
 
 1. **`id`**: the protein ID is a UniProt accession. The pattern is `sp|ACC|…`, `tr|ACC|…`, or a bare accession matching the UniProt accession pattern. It must be present in `acc`.
 2. **`refseq`**: the protein ID (first token, version kept) is in `refseq`.
-3. **`seq_own`**: an exact `seq_md5` match whose `taxid` equals the row's own taxid. The own taxid comes from `NCBI_TaxID` if set. Otherwise it is looked up by exact `species_name` match in `proteome`, and failing that it is unknown. The deprecated `UniProtDatGz` restricts this rule to that one proteome.
+3. **`seq_own`**: an exact `seq_md5` match whose `taxid` is one of the row's own taxids: `NCBI_TaxID` if set, plus every library proteome whose species binomial (first two words, case-insensitive) matches the config `Species`. (Implementation note, 2026-09-23: config taxids are often species-level, e.g. *C. neoformans* 5207, while UniProt reference proteomes are strain-level, e.g. H99 235443, so an exact taxid alone would miss same-species records.) The deprecated `UniProtDatGz` restricts this rule to that one proteome.
 4. **`seq_other`**: an exact `seq_md5` match in any proteome.
 
 Tie rule, when one sequence matches several accessions: prefer the own taxid, then `reviewed = 1`, then the lowest accession in lexical order. The number of candidates is kept in `uniprot_n_matches`.

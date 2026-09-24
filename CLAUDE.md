@@ -225,8 +225,9 @@ view/                              # sibling of results/ — one shareable folde
      a pre-built UniProt library index (see "Building the UniProt library index" below).
      Each protein is matched by, in order: its ID as a UniProt accession (`id`), its ID as
      a RefSeq accession on a record's `DR RefSeq` line (`refseq`), then its exact sequence
-     (MD5 of the normalized sequence) — preferring a record from the species' own taxid
-     (`NCBI_TaxID`, else the species binomial) (`seq_own`), else any fungal record
+     (MD5 of the normalized sequence) — preferring a record from the species' own taxids
+     (`NCBI_TaxID` plus every library proteome with the same genus+species binomial --
+     config taxids are often species-level, UniProt's strain-level) (`seq_own`), else any fungal record
      (`seq_other`). Ties: own taxid, then Swiss-Prot, then lowest accession. The TSVs go
      to `annotate_presence_matrix.py --uniprot_xref_files`, adding `uniprot_accession`,
      gene name, description, GO, Pfam IDs/names, InterPro, EC, AlphaFold ID,
