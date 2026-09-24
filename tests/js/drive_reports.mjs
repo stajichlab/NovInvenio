@@ -225,6 +225,34 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   await sleep(220);
   check('novelties: search box filters', d.getElementById('count').textContent.includes('1'),
         d.getElementById('count').textContent);
+
+  // ---- ingroup low-coverage column + sort (issue #159) ----
+  {
+    q.value = '';
+    q.dispatchEvent(ev(w, 'input'));
+    await sleep(220);
+    const heads = [...d.querySelectorAll('#tbl-head th')].map((t) => t.textContent);
+    check('lowcov: column shown with its threshold', heads.includes('Low-cov ingroup (qcov<15%)'),
+          heads.join('|'));
+    const sortSel = d.getElementById('f-sort');
+    check('lowcov: sort option offered', [...sortSel.options].some((o) => o.value === 'lowcov'));
+    sortSel.value = 'lowcov';
+    sortSel.dispatchEvent(ev(w, 'change'));
+    await sleep(30);
+    const ids = [...d.querySelectorAll('#tbl-body tr')].map((r) => r.textContent);
+    check('lowcov: sort puts the most low-coverage row first',
+          ids.findIndex((t) => t.includes('n2')) < ids.findIndex((t) => t.includes('n1')),
+          ids.join(' / '));
+    const n2row = pick([...d.querySelectorAll('#tbl-body tr')], 'n2');
+    n2row.dispatchEvent(ev(w, 'click'));
+    check('lowcov: detail names the low-coverage proteomes',
+          /2 ingroup presence cell\(s\) rest only on hits with query coverage below 15%: Drome, Ncra/
+            .test(detail().textContent), detail().textContent);
+    pick([...d.querySelectorAll('#tbl-body tr')], 'n1').dispatchEvent(ev(w, 'click'));
+    check('lowcov: a zero count reads as full coverage, not blank',
+          /Every ingroup presence cell has a hit with query coverage of at least 15%/
+            .test(detail().textContent));
+  }
 }
 
 // --------------------------------------------------------------------- core
@@ -258,6 +286,11 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   tblTab.dispatchEvent(ev(w, 'click'));
   await sleep(30);
   const rows = [...d.querySelectorAll('#tbl-body tr')];
+  // hostile.html is built without --query_lowcov (issue #159): no column, no sort.
+  check('lowcov: no column when the run did not compute it',
+        ![...d.querySelectorAll('#tbl-head th')].some((t) => /Low-cov/.test(t.textContent)));
+  check('lowcov: no sort option when the run did not compute it',
+        ![...d.getElementById('f-sort').options].some((o) => o.value === 'lowcov'));
   rows.find((r) => r.textContent.includes('n1')).dispatchEvent(ev(w, 'click'));
   const det = d.getElementById('detail');
   const all = [...det.querySelectorAll('a')].map((a) => a.getAttribute('href') || '');

@@ -238,6 +238,15 @@ def fixture_dir(tmp_path_factory):
         'tr|Q1|Q1_AFUM\tafuA\tSome Aspergillus protein\n'
     )
 
+    # issue #159: n2 rests on two narrow ingroup hits, n1 on none; n3/shared have
+    # no sidecar row (not computed) and must not show as zeros.
+    (d / 'query_lowcov.tsv').write_text(
+        'protein_id\tsource_proteome\tqcov_threshold\tquery_hit_cells\t'
+        'query_lowcov_cells\tquery_lowcov_proteomes\n'
+        'n1\tNcra\t15.0\t2\t0\t\n'
+        'n2\tAfum\t15.0\t2\t2\tDrome,Ncra\n'
+    )
+
     def run(script, *args):
         proc = subprocess.run(
             [sys.executable, str(REPO / 'bin' / script), *args],
@@ -250,7 +259,8 @@ def fixture_dir(tmp_path_factory):
               '--candidates_fa', str(d / 'candidates.fa')]
     run('make_report.py', '--config', str(d / 'config.csv'),
         *common, '--evalues', str(d / 'evalues.tsv'), '--targets', str(d / 'targets.tsv'),
-        '--descriptions', str(d / 'descriptions.tsv'), '--output', str(d / 'novelties.html'))
+        '--descriptions', str(d / 'descriptions.tsv'),
+        '--query_lowcov', str(d / 'query_lowcov.tsv'), '--output', str(d / 'novelties.html'))
     run('make_report.py', '--config', str(d / 'hostile_config.csv'),
         *common, '--output', str(d / 'hostile.html'))
     run('make_core_report.py', '--matrix', str(d / 'matrix.tsv'),

@@ -610,3 +610,147 @@ def test_coverage_floor_rejections_sidecar_header_only_when_off(run_dir):
     assert proc.returncode == 0, proc.stderr
     assert rej.empty
     assert 'qcov' in rej.columns
+
+
+# --- Query-group low-coverage report sidecar (--output-query-lowcov, issue #159) --
+# Phase 2 of the coverage-floor design: per matrix row, count the query-group presence
+# cells that filter 3 WOULD flip if it applied to the query group (every qualifying hit
+# in the cell has qcov < --other-coverage-floor-qcov). Report-only: it must never change
+# a presence cell or a candidate call.
+
+LOWCOV_CONFIG = """\
+GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup
+IN,In one,,in1.pep.fa,,In1,X
+IN,In two,,in2.pep.fa,,In2,X
+IN,In three,,in3.pep.fa,,In3,X
+OUT,Out one,,out1.pep.fa,,Out1,Y
+OUT,Out two,,out2.pep.fa,,Out2,Y
+"""
+
+# 'mixed': narrow In2 hit, broad In3 hit -> 1 low-coverage cell (In2).
+# 'weak':  narrow In2 and In3 hits -> 2 low-coverage cells.
+# 'rescued': one narrow and one broad hit in In2 -> the cell is not low-coverage.
+# 'strong': broad everywhere -> 0.
+LOWCOV_HITS = (
+    'mixed\tm_in2\t1e-10\t60\tIn1\tIn2\t20\t60.0\t12.0\t5.0\t400\t420\n'
+    'mixed\tm_in3\t1e-40\t200\tIn1\tIn3\t350\t60.0\t88.0\t85.0\t400\t410\n'
+    'weak\tw_in2\t1e-10\t60\tIn1\tIn2\t20\t60.0\t9.0\t5.0\t400\t420\n'
+    'weak\tw_in3\t1e-10\t60\tIn1\tIn3\t20\t60.0\t14.9\t5.0\t400\t420\n'
+    'rescued\tr_in2a\t1e-10\t60\tIn1\tIn2\t20\t60.0\t5.0\t5.0\t400\t420\n'
+    'rescued\tr_in2b\t1e-30\t150\tIn1\tIn2\t300\t60.0\t75.0\t70.0\t400\t410\n'
+    'strong\ts_in2\t1e-40\t200\tIn1\tIn2\t350\t60.0\t88.0\t85.0\t400\t410\n'
+)
+
+
+def run_lowcov(run_dir, hits_text, floor='15', query_group='IN', min_frac='0.5',
+               config=LOWCOV_CONFIG, header=WIDE_HIT_HEADER):
+    """Run with --output-query-lowcov. Returns (proc, matrix, candidates, lowcov-df);
+    the last three are None on a non-zero exit."""
+    (run_dir / 'config.csv').write_text(config)
+    hits_path = run_dir / 'hits.tsv'
+    hits_path.write_text(header + hits_text)
+    out = {k: run_dir / f'{k}.tsv' for k in ('matrix', 'candidates', 'lowcov')}
+    cmd = [sys.executable, str(SCRIPT),
+           '--hits', str(hits_path),
+           '--config', str(run_dir / 'config.csv'),
+           '--ingroup-min-frac', min_frac,
+           '--query-group', query_group,
+           '--output-matrix', str(out['matrix']),
+           '--output-candidates', str(out['candidates']),
+           '--output-query-lowcov', str(out['lowcov'])]
+    if floor is not None:
+        cmd += ['--other-coverage-floor-qcov', floor]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        return proc, None, None, None
+    matrix = pd.read_csv(out['matrix'], sep='\t')
+    cands = out['candidates'].read_text().splitlines() if out['candidates'].stat().st_size else []
+    lowcov = pd.read_csv(out['lowcov'], sep='\t', keep_default_na=False)
+    return proc, matrix, cands, lowcov
+
+
+def _lowcov_row(lowcov, pid):
+    return lowcov[lowcov['protein_id'] == pid].iloc[0]
+
+
+def test_query_lowcov_counts_cells_with_no_hit_at_or_above_the_floor(run_dir):
+    proc, _, _, lowcov = run_lowcov(run_dir, LOWCOV_HITS)
+    assert proc.returncode == 0, proc.stderr
+    assert list(lowcov.columns) == ['protein_id', 'source_proteome', 'qcov_threshold',
+                                    'query_hit_cells', 'query_lowcov_cells',
+                                    'query_lowcov_proteomes']
+    mixed = _lowcov_row(lowcov, 'mixed')
+    assert (mixed['query_hit_cells'], mixed['query_lowcov_cells']) == (2, 1)
+    assert mixed['query_lowcov_proteomes'] == 'In2'
+    assert mixed['qcov_threshold'] == pytest.approx(15)
+    weak = _lowcov_row(lowcov, 'weak')
+    assert (weak['query_hit_cells'], weak['query_lowcov_cells']) == (2, 2)
+    assert weak['query_lowcov_proteomes'] == 'In2,In3'
+    # One broad hit in the cell is enough, the same per-cell rule filter 3 uses.
+    assert _lowcov_row(lowcov, 'rescued')['query_lowcov_cells'] == 0
+    strong = _lowcov_row(lowcov, 'strong')
+    assert (strong['query_hit_cells'], strong['query_lowcov_cells']) == (1, 0)
+    assert strong['query_lowcov_proteomes'] == ''
+
+
+def test_query_lowcov_threshold_is_strict_less_than(run_dir):
+    hits = 'eq\te_in2\t1e-10\t60\tIn1\tIn2\t20\t60.0\t15.0\t5.0\t400\t420\n'
+    proc, _, _, lowcov = run_lowcov(run_dir, hits, floor='15')
+    assert proc.returncode == 0, proc.stderr
+    assert _lowcov_row(lowcov, 'eq')['query_lowcov_cells'] == 0
+
+
+def test_query_lowcov_is_report_only(run_dir):
+    # Same presence cells and candidates as a run with the floor off: the floor never
+    # touches query-group cells, and the sidecar must not change that.
+    _, m_off, c_off, _ = run_lowcov(run_dir, LOWCOV_HITS, floor=None)
+    proc, m_on, c_on, _ = run_lowcov(run_dir, LOWCOV_HITS, floor='15')
+    assert proc.returncode == 0, proc.stderr
+    pd.testing.assert_frame_equal(m_off, m_on)
+    assert c_off == c_on
+    assert 'In1::weak' in c_on
+
+
+def test_query_lowcov_has_one_row_per_matrix_row(run_dir):
+    _, matrix, _, lowcov = run_lowcov(run_dir, LOWCOV_HITS)
+    assert (sorted(zip(lowcov['source_proteome'], lowcov['protein_id']))
+            == sorted(zip(matrix['source_proteome'], matrix['protein_id'])))
+
+
+def test_query_lowcov_ignores_hits_removed_by_filter1(run_dir):
+    # The narrow In2 hit fails the flat 1e-5 significance filter, so In2 is not a
+    # presence cell at all and cannot be a low-coverage one.
+    hits = ('f\tf_in2\t1e-3\t20\tIn1\tIn2\t20\t60.0\t5.0\t5.0\t400\t420\n'
+            'f\tf_in3\t1e-40\t200\tIn1\tIn3\t350\t60.0\t88.0\t85.0\t400\t410\n')
+    proc, _, _, lowcov = run_lowcov(run_dir, hits)
+    assert proc.returncode == 0, proc.stderr
+    row = _lowcov_row(lowcov, 'f')
+    assert (row['query_hit_cells'], row['query_lowcov_cells']) == (1, 0)
+
+
+def test_query_lowcov_counts_outgroup_cells_in_loss_direction(run_dir):
+    # --query-group OUT: the query group is the outgroup, so Out* cells are counted
+    # and In* cells (judged by filter 3 instead) are not.
+    hits = ('h\th_out2\t1e-10\t60\tOut1\tOut2\t20\t60.0\t8.0\t5.0\t400\t420\n'
+            'h\th_self\t1e-90\t400\tOut1\tOut1\t400\t100.0\t100.0\t100.0\t400\t400\n')
+    proc, _, _, lowcov = run_lowcov(run_dir, hits, query_group='OUT')
+    assert proc.returncode == 0, proc.stderr
+    row = _lowcov_row(lowcov, 'h')
+    assert (row['query_hit_cells'], row['query_lowcov_cells']) == (1, 1)
+    assert row['query_lowcov_proteomes'] == 'Out2'
+
+
+def test_query_lowcov_sidecar_is_header_only_when_floor_off(run_dir):
+    proc, _, _, lowcov = run_lowcov(run_dir, LOWCOV_HITS, floor=None)
+    assert proc.returncode == 0, proc.stderr
+    assert lowcov.empty
+    assert 'query_lowcov_cells' in lowcov.columns
+
+
+def test_query_lowcov_fails_loudly_on_blank_query_group_qcov(run_dir):
+    # The floor is requested and the sidecar would judge a query-group hit with no
+    # qcov. Refuse rather than report a silent 0.
+    hits = LOWCOV_HITS + 'blank\tb_in2\t1e-10\t60\tIn1\tIn2\t\t\t\t\t\t\n'
+    proc, *_ = run_lowcov(run_dir, hits)
+    assert proc.returncode != 0
+    assert 'qcov' in proc.stderr

@@ -97,6 +97,7 @@ workflow SEARCH {
     candidates    = BUILD_PRESENCE_MATRIX.out.candidates
     evalues       = BUILD_PRESENCE_MATRIX.out.evalues
     targets       = BUILD_PRESENCE_MATRIX.out.targets
+    query_lowcov  = BUILD_PRESENCE_MATRIX.out.query_lowcov  // issue #159, report-only
     self_hits     = PARSE_SELF_HITS.out.tsv    // [meta, self_hits_tsv] — one per ingroup proteome
     descriptions  = EXTRACT_PROTEIN_DESCRIPTIONS.out.tsv
 }

@@ -186,6 +186,9 @@ workflow NOVINVENIO {
         novelty_evalues      = EMPTY_EVALUES_STUB.out.evalues
         novelty_targets      = EMPTY_EVALUES_STUB.out.evalues
         novelty_descriptions = EMPTY_EVALUES_STUB.out.evalues
+        // Query-group low-coverage counts (issue #159) come from the pairwise matrix
+        // builder only; family-HMM presence has no per-hit qcov.
+        novelty_query_lowcov = EMPTY_EVALUES_STUB.out.evalues
         // NEAR_INGROUP/BROAD_OUTGROUP context search (issue #48) is pairwise-only for now
         // -- mmseqs/PROFILE_SEARCH has no self-vs-self paralog cutoffs to filter against.
         EMPTY_CONTEXT_MATRIX_STUB()
@@ -240,6 +243,7 @@ workflow NOVINVENIO {
         EMPTY_EVALUES_STUB()
         novelty_targets      = EMPTY_EVALUES_STUB.out.evalues
         novelty_descriptions = EMPTY_EVALUES_STUB.out.evalues
+        novelty_query_lowcov = EMPTY_EVALUES_STUB.out.evalues   // pairwise-only (issue #159)
         // novelty_discovery already has its own NEAR_INGROUP/BROAD_OUTGROUP screen
         // (NOVELTY_SCREEN) -- the pairwise-only context search (issue #48) doesn't apply.
         EMPTY_CONTEXT_MATRIX_STUB()
@@ -283,6 +287,7 @@ workflow NOVINVENIO {
         novelty_evalues      = SEARCH.out.evalues
         novelty_targets      = SEARCH.out.targets
         novelty_descriptions = SEARCH.out.descriptions
+        novelty_query_lowcov = SEARCH.out.query_lowcov
 
         CLUSTER(novelty_candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
         cand_fa          = CLUSTER.out.candidates_fa
@@ -384,6 +389,7 @@ workflow NOVINVENIO {
         novelty_descriptions,
         context_matrix,
         context_evalues,
+        novelty_query_lowcov,
         loss_annotated_matrix,
         loss_tblastn_summary,
         loss_cand_cluster_tsv,
