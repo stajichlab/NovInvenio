@@ -691,6 +691,14 @@ HTML_TEMPLATE = r"""<!doctype html>
         };
       }
     }
+    else if (s === "lowcov") cmp = function (a, b) {
+      // Most low-coverage ingroup cells first (issue #159); rows not computed go last.
+      var la = ROWS[a][F.lowcov], lb = ROWS[b][F.lowcov];
+      if (la == null && lb == null) return (inN[b] - inN[a]) || cmpId(a, b);
+      if (la == null) return 1;
+      if (lb == null) return -1;
+      return (lb - la) || (inN[b] - inN[a]) || cmpId(a, b);
+    };
     else if (s === "pos") cmp = function (a, b) {
       var ca = ROWS[a][F.chrom] || "", cb = ROWS[b][F.chrom] || "";
       if (ca !== cb) return ca < cb ? -1 : 1;
@@ -983,6 +991,15 @@ HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(field("Novelty category", catText));
     }
 
+    // Ingroup coverage (issue #159) -- report-only, never part of the novelty call.
+    if (DATA.has_lowcov && row[F.lowcov] != null) {
+      var qc = DATA.lowcov_qcov;
+      detailEl.appendChild(field("Ingroup hit coverage", row[F.lowcov]
+        ? row[F.lowcov] + " ingroup presence cell(s) rest only on hits with query coverage below " +
+          qc + "%: " + String(row[F.lowcov_p]).replace(/,/g, ", ") + "."
+        : "Every ingroup presence cell has a hit with query coverage of at least " + qc + "%."));
+    }
+
     // Cross-method support (only when a second method's matrix was supplied).
     if (DATA.methods && DATA.methods.length > 1) {
       var sup = String(row[F.support] || "");
@@ -1186,6 +1203,15 @@ HTML_TEMPLATE = r"""<!doctype html>
       render: function (td, r) { td.appendChild(pfamLinksInline(ROWS[r][F.pfam_n], ROWS[r][F.pfam_a])); }
     }
   ];
+  // Ingroup low-coverage count (issue #159): only when the run computed it. Placed
+  // after the TBLASTN column so the evidence-count columns stay together.
+  if (DATA.has_lowcov) {
+    var tbCol = TBL_COLS.map(function (c) { return c.label; }).indexOf("TBLASTN");
+    TBL_COLS.splice(tbCol + 1, 0, {
+      label: "Low-cov ingroup (qcov<" + DATA.lowcov_qcov + "%)", cls: "num", sortKey: "lowcov",
+      get: function (r) { var v = ROWS[r][F.lowcov]; return v == null ? "" : String(v); }
+    });
+  }
   // Per-proteome presence columns keep the table a true twin of the heatmap. Context
   // columns (issue #48) are labelled distinctly -- they're shown, never scored.
   PROTEOMES.forEach(function (p, i) {
@@ -1482,6 +1508,12 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("f-sort").value = "ingroup";
     refresh(true);
   });
+
+  // The low-coverage sort only exists when the run computed the counts (issue #159).
+  if (DATA.has_lowcov) {
+    document.getElementById("f-sort").appendChild(
+      new Option("Sort: most low-coverage ingroup hits", "lowcov"));
+  }
 
   // The concordant filter only makes sense with a second method's matrix.
   if (DATA.methods && DATA.methods.length > 1) {

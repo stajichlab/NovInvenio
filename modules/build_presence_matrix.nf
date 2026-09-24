@@ -20,6 +20,9 @@ process BUILD_PRESENCE_MATRIX {
     path("${candidates_name}"), emit: candidates
     path("${evalues_name}"),    emit: evalues
     path("${targets_name}"),    emit: targets
+    // Report-only query-group low-coverage counts (issue #159); header only when
+    // params.other_coverage_floor_qcov is unset.
+    path("${matrix_name.replaceAll(/\.tsv$/, '')}.query_lowcov.tsv"), emit: query_lowcov
     // Only written when params.other_coverage_floor_qcov is set (issue #158).
     path("${matrix_name.replaceAll(/\.tsv$/, '')}.coverage_floor_rejections.tsv"), emit: floor_rejections, optional: true
 
@@ -41,6 +44,7 @@ process BUILD_PRESENCE_MATRIX {
         --output-matrix ${matrix_name} \
         --output-candidates ${candidates_name} \
         --output-evalues ${evalues_name} \
-        --output-targets ${targets_name}
+        --output-targets ${targets_name} \
+        --output-query-lowcov ${matrix_name.replaceAll(/\.tsv$/, '')}.query_lowcov.tsv
     """
 }

@@ -104,6 +104,15 @@ with an optional absolute-evalue override on the second:
      score_singleton_hits() and bin/context_presence.py -- as with filter 2, a change
      here must be made in all three.
 
+     Query-group low-coverage report (issue #159, report-only): with the floor set,
+     --output-query-lowcov writes one row per matrix row counting the query-group
+     presence cells that the floor WOULD flip if it applied to the query group --
+     every qualifying hit in the cell has qcov < Q. It never changes a cell or a
+     candidate call. It lets a reviewer see which candidates rest on narrow ingroup
+     hits. The same threshold is used on purpose, so the two sides are read against
+     one rule. With the floor off the sidecar is header-only. A missing qcov on a
+     query-group hit it would count is a hard error, as for filter 3.
+
   (2026-09-03: filter 1 used to be a per-query "paralog-cutoff" -- hit e-value
   must beat the query's own within-proteome paralog e-value, falling back to
   --default-evalue when no paralog was detected. Dropped: deriving an absolute
@@ -143,6 +152,9 @@ DEFAULT_EVALUE = 1e-5
 # Filter-2 rescue floor, ON by default (issue #128). Mirrors nextflow.config's
 # params.paralog_rescue_evalue. 0 disables.
 DEFAULT_RESCUE_EVALUE = 1e-20
+
+LOWCOV_COLUMNS = ['protein_id', 'source_proteome', 'qcov_threshold',
+                  'query_hit_cells', 'query_lowcov_cells', 'query_lowcov_proteomes']
 
 REJECTION_COLUMNS = ['query_proteome', 'query_id', 'target_proteome', 'target_id',
                      'evalue', 'qcov', 'pident', 'length', 'qlen', 'slen']
@@ -249,6 +261,11 @@ def main():
                     dest='output_coverage_floor_rejections',
                     help='Optional TSV listing every hit filter 3 rejected (header only when '
                          'the floor is off). Rejections by filter 2 are never listed here.')
+    ap.add_argument('--output-query-lowcov', default=None, dest='output_query_lowcov',
+                    help='Optional report-only TSV, one row per matrix row: how many '
+                         'query-group presence cells have no qualifying hit with qcov >= '
+                         '--other-coverage-floor-qcov (issue #159). Header only when the '
+                         'floor is off. Never affects presence or candidate calls.')
     ap.add_argument('--output-matrix',     required=True)
     ap.add_argument('--output-candidates', required=True)
     ap.add_argument('--output-evalues', default=None, dest='output_evalues',
@@ -372,6 +389,33 @@ def main():
     if args.output_coverage_floor_rejections:
         rejected.to_csv(args.output_coverage_floor_rejections, sep='\t', index=False)
 
+    # Query-group low-coverage cells (issue #159, report-only). A cell is low-coverage
+    # when its best qcov is still below the floor -- the same per-cell rule filter 3
+    # applies on the other side. The self cell has no hit and is never counted.
+    lowcov_cells: dict[tuple, list] = defaultdict(list)
+    query_hit_cells: dict[tuple, int] = defaultdict(int)
+    if floor and args.output_query_lowcov and not ing.empty:
+        judged_q = (ing['target_proteome'].isin(query_ids)
+                    & (ing['target_proteome'] != ing['query_proteome']))
+        qcov_q = (pd.to_numeric(ing['qcov'], errors='coerce') if 'qcov' in ing.columns
+                  else pd.Series(np.nan, index=ing.index))
+        n_unmeasured = int((judged_q & qcov_q.isna()).sum())
+        if n_unmeasured:
+            sys.exit(
+                f'ERROR: --output-query-lowcov with --other-coverage-floor-qcov {floor:g} '
+                f'was requested, but {n_unmeasured} of {int(judged_q.sum())} query-group '
+                'hits have no qcov. Re-run the search with diamond/blast wide output '
+                '(issue #129), or drop the floor. Refusing to report them as covered.')
+        best_qcov = (qcov_q[judged_q]
+                     .groupby([ing.loc[judged_q, 'query_proteome'],
+                               ing.loc[judged_q, 'query_id'],
+                               ing.loc[judged_q, 'target_proteome']])
+                     .max())
+        for (qp, qid, tp), q in best_qcov.items():
+            query_hit_cells[(qp, qid)] += 1
+            if q < floor:
+                lowcov_cells[(qp, qid)].append(tp)
+
     # protein_key (query_proteome, protein_id) -> set of target proteomes with qualifying hits
     presence: dict[tuple, set] = defaultdict(set)
     for qp, qid, tp in zip(ing['query_proteome'], ing['query_id'], ing['target_proteome']):
@@ -424,6 +468,17 @@ def main():
     if args.output_targets:
         targets_df = pd.DataFrame(target_rows, columns=columns)
         targets_df.to_csv(args.output_targets, sep='\t', index=False)
+
+    if args.output_query_lowcov:
+        lowcov_rows = [] if not floor else [
+            {'protein_id': pid, 'source_proteome': qp, 'qcov_threshold': floor,
+             'query_hit_cells': query_hit_cells.get((qp, pid), 0),
+             'query_lowcov_cells': len(lowcov_cells.get((qp, pid), [])),
+             'query_lowcov_proteomes': ','.join(sorted(lowcov_cells.get((qp, pid), [])))}
+            for (qp, pid) in presence
+        ]
+        pd.DataFrame(lowcov_rows, columns=LOWCOV_COLUMNS).to_csv(
+            args.output_query_lowcov, sep='\t', index=False)
 
     n_query     = len(query_ids)
     query_cols  = sorted(query_ids)

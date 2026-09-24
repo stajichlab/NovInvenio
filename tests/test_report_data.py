@@ -224,6 +224,50 @@ def test_payload_has_evalues_false_without_evalues_path(run_dir, samples):
     assert row[ev_idx] == ',' * (len(payload['proteomes']) - 1)
 
 
+LOWCOV_HEADER = ('protein_id\tsource_proteome\tqcov_threshold\tquery_hit_cells\t'
+                 'query_lowcov_cells\tquery_lowcov_proteomes\n')
+
+
+def test_payload_query_lowcov_carries_count_proteomes_and_threshold(run_dir, samples):
+    # issue #159: per-row count of ingroup cells resting only on narrow hits, plus the
+    # threshold it was judged at. A matrix row missing from the sidecar gets null.
+    (run_dir / 'lowcov.tsv').write_text(
+        LOWCOV_HEADER
+        + 'n1\tNcra\t15.0\t1\t1\tAfum\n'
+        + 'n2\tAfum\t15.0\t1\t0\t\n'
+    )
+    payload = payload_for(run_dir, samples, query_lowcov_path=run_dir / 'lowcov.tsv')
+    assert payload['has_lowcov'] is True
+    assert payload['lowcov_qcov'] == 15.0
+    rows = rows_by_id(payload)
+    lc, lp = payload['fields'].index('lowcov'), payload['fields'].index('lowcov_p')
+    assert (rows['n1'][lc], rows['n1'][lp]) == (1, 'Afum')
+    assert (rows['n2'][lc], rows['n2'][lp]) == (0, '')
+    assert (rows['lonely'][lc], rows['lonely'][lp]) == (None, '')
+
+
+def test_payload_query_lowcov_keys_on_source_proteome_too(run_dir, samples):
+    # The same protein_id under a different source proteome is a different row.
+    (run_dir / 'lowcov.tsv').write_text(LOWCOV_HEADER + 'n1\tAfum\t15.0\t1\t1\tNcra\n')
+    payload = payload_for(run_dir, samples, query_lowcov_path=run_dir / 'lowcov.tsv')
+    assert rows_by_id(payload)['n1'][payload['fields'].index('lowcov')] is None
+
+
+@pytest.mark.parametrize('content', [None, '', LOWCOV_HEADER])
+def test_payload_has_lowcov_false_without_data(run_dir, samples, content):
+    # Missing path, an empty stub (mmseqs/novelty_discovery), or header-only (floor
+    # off) all mean "not computed" -- never a column of zeros.
+    kw = {}
+    if content is not None:
+        (run_dir / 'lowcov.tsv').write_text(content)
+        kw['query_lowcov_path'] = run_dir / 'lowcov.tsv'
+    payload = payload_for(run_dir, samples, **kw)
+    assert payload['has_lowcov'] is False
+    assert payload['lowcov_qcov'] is None
+    lc = payload['fields'].index('lowcov')
+    assert all(r[lc] is None for r in payload['rows'])
+
+
 def test_payload_targets_align_with_presence_bitstring_and_resolve_a_name(run_dir, samples):
     (run_dir / 'targets.tsv').write_text(
         'protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\n'

@@ -73,6 +73,11 @@ def main():
                          'NEAR_INGROUP/BROAD_OUTGROUP rows in the config).')
     ap.add_argument('--context_evalues',
                     help='context_presence.evalues.tsv sidecar for --context_matrix')
+    ap.add_argument('--query_lowcov',
+                    help='presence_matrix.query_lowcov.tsv (optional; issue #159) -- per '
+                         'row, ingroup presence cells resting only on hits below the '
+                         'coverage floor. Report-only. Missing/empty/header-only means not '
+                         'computed (floor off, or --cluster_tool other than pairwise).')
     ap.add_argument('--project', default=None,
                     help='Project name shown in the report title (default: matrix parent dir)')
     ap.add_argument('--ingroup_min_frac', type=float, default=0.75,
@@ -126,6 +131,7 @@ def main():
         descriptions_path=args.descriptions,
         context_matrix_path=args.context_matrix,
         context_evalues_path=args.context_evalues,
+        query_lowcov_path=args.query_lowcov,
         ingroup_min_frac=args.ingroup_min_frac,
         project=project,
         sequences=args.sequences,

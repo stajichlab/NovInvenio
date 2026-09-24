@@ -94,6 +94,11 @@ ROW_FIELDS = [
                  # there's no qualifying hit. Resolved to a display name client-side via
                  # payload['protein_names'] (falls back to the bare ID when unresolved).
                  # Report-only, same as 'ev': never affects presence/novelty calls.
+    'lowcov',    # query-group presence cells with no hit at qcov >= payload['lowcov_qcov']
+                 # (bin/build_presence_matrix.py's --output-query-lowcov, issue #159), int,
+                 # or null when not computed (floor off, non-pairwise pathway, or no sidecar
+                 # row). Report-only: flags candidates resting on narrow ingroup hits.
+    'lowcov_p',  # comma-separated shorts of those low-coverage cells, '' when none/null
 ]
 
 class _StringTable:
@@ -223,6 +228,26 @@ def read_targets(path: str | Path | None) -> dict[str, dict[str, str]]:
     evidence" contract as read_evalues().
     """
     return read_evalues(path)
+
+
+def read_query_lowcov(path: str | Path | None) -> tuple[float | None, dict[tuple, tuple]]:
+    """Return (qcov_threshold, {(source_proteome, protein_id): (count, proteomes)}) from
+    bin/build_presence_matrix.py's --output-query-lowcov sidecar (issue #159).
+
+    A missing, empty (EMPTY_EVALUES_STUB) or header-only (floor off) file returns
+    (None, {}) -- "not computed", which the report must not show as zeros.
+    """
+    if not path or not Path(path).exists() or not Path(path).stat().st_size:
+        return None, {}
+    threshold = None
+    out: dict[tuple, tuple] = {}
+    with open(path, newline='') as fh:
+        for row in csv.DictReader(fh, delimiter='\t'):
+            if threshold is None and row.get('qcov_threshold'):
+                threshold = float(row['qcov_threshold'])
+            out[(row['source_proteome'], row['protein_id'])] = (
+                int(row['query_lowcov_cells']), row.get('query_lowcov_proteomes', '') or '')
+    return (threshold, out) if out else (None, {})
 
 
 def read_descriptions(path: str | Path | None) -> dict[str, tuple[str, str]]:
@@ -389,6 +414,7 @@ def build_payload(
     descriptions_path=None,
     context_matrix_path=None,
     context_evalues_path=None,
+    query_lowcov_path=None,
     ingroup_min_frac=0.75,
     project='NovInvenio',
     sequences='novelties',
@@ -451,6 +477,11 @@ def build_payload(
     {'context': True}, extending 'pres'/'ev' to cover them — but they are
     never counted toward ingroup/outgroup novelty stats.
 
+    query_lowcov_path (issue #159): optional presence_matrix.query_lowcov.tsv
+    sidecar -- per row, how many ingroup presence cells rest only on hits below
+    the coverage floor. Fills 'lowcov'/'lowcov_p' and payload['lowcov_qcov'];
+    report-only, null when not computed.
+
     gff3_paths: optional {short: resolved GFF3 file path} (see
     lib/gff3_genes.resolve_gff3_paths) — supplies each row's 'chrom'/'start'
     from the source proteome's GFF3. A short with no entry (no --config GFF3
@@ -461,6 +492,7 @@ def build_payload(
     evalue_lookup = read_evalues(evalues_path)
     target_lookup = read_targets(targets_path)
     descriptions_lookup = read_descriptions(descriptions_path)
+    lowcov_qcov, lowcov_lookup = read_query_lowcov(query_lowcov_path)
     referenced_target_ids: set[str] = set()
     gff3_paths = gff3_paths or {}
     gff3_cache: dict[str, dict] = {}
@@ -576,6 +608,7 @@ def build_payload(
             categories.add(category)
 
         chrom, start = _chrom_start(pid, src, gff3_paths, gff3_cache)
+        lowcov, lowcov_p = lowcov_lookup.get((src, pid), (None, ''))
 
         out_rows.append([
             pid,
@@ -604,6 +637,8 @@ def build_payload(
             start,
             row.get('uniprot_xrefs', '') or '',
             tgt,
+            lowcov,
+            lowcov_p,
         ])
 
     return {
@@ -629,6 +664,8 @@ def build_payload(
         'has_evalues': bool(evalue_lookup),
         'has_targets': bool(target_lookup),
         'has_context': bool(context_shorts),
+        'has_lowcov': bool(lowcov_lookup),
+        'lowcov_qcov': lowcov_qcov,
         'protein_names': {
             tid: {'gene_name': descriptions_lookup[tid][0], 'description': descriptions_lookup[tid][1]}
             for tid in referenced_target_ids if tid in descriptions_lookup
