@@ -453,7 +453,10 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   var GUTTER = 170;
   var GLYPH_H = 14;
   var LABEL_ANGLE = Math.PI / 3;
-  var HEAD_H = 74;
+  // Label header height is computed per island from the longest label
+  // (labelLayout), not fixed: a fixed 74 px header cut off any label longer
+  // than ~70 px, and family IDs ("Short|protein-id") are usually longer.
+  var LABEL_MAX_W = 230;
 
   function colX(i) { return GUTTER + i * CELL_W; }
 
@@ -482,7 +485,23 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     return text.slice(0, Math.max(0, lo - 1)) + "…";
   }
 
-  var LABEL_FONT = "600 10px system-ui, -apple-system, 'Segoe UI', sans-serif";
+  var LABEL_FONT = "600 11px system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+  // Rotated labels rise LABEL_ANGLE from the column centre. Adjacent labels
+  // are CELL_W * sin(LABEL_ANGLE) ~ 19 px apart perpendicular to the text,
+  // so 11 px text does not overlap. The header is as tall as the longest
+  // label needs, and as wide as the last label's overhang to the right.
+  function labelLayout(isl) {
+    hctx.font = LABEL_FONT;
+    var maxW = 0;
+    isl.families.forEach(function (fam) {
+      maxW = Math.max(maxW, Math.min(LABEL_MAX_W, hctx.measureText(fam).width));
+    });
+    return {
+      head: Math.ceil(maxW * Math.sin(LABEL_ANGLE)) + GLYPH_H + 26,
+      extraW: Math.ceil(maxW * Math.cos(LABEL_ANGLE)) + 12
+    };
+  }
 
   // A family's own class, guarding against an older/short payload (no
   // per-family arrays) rather than throwing mid-render.
@@ -495,29 +514,34 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
   function drawGlyphStrip(isl, totalW) {
     var P = palette();
-    sizeCanvas(glyphCanvas, hctx, totalW, HEAD_H);
-    hctx.clearRect(0, 0, totalW, HEAD_H);
+    var L = labelLayout(isl);
+    var H = L.head, W = totalW + L.extraW;
+    var glyphY = H - GLYPH_H - 6;
+    sizeCanvas(glyphCanvas, hctx, W, H);
+    hctx.clearRect(0, 0, W, H);
     hctx.fillStyle = P.surface;
-    hctx.fillRect(0, 0, totalW, HEAD_H);
+    hctx.fillRect(0, 0, W, H);
 
     isl.families.forEach(function (fam, i) {
       var x = colX(i);
+      // Class-coloured glyph sits just above the grid; the label rises from
+      // above the glyph, so the two never overlap.
       hctx.fillStyle = classColor(familyClassAt(isl, i));
-      hctx.fillRect(x + 3, 6, CELL_W - 6, GLYPH_H);
+      hctx.fillRect(x + 3, glyphY, CELL_W - 6, GLYPH_H);
 
       hctx.save();
-      hctx.translate(x + CELL_W / 2, HEAD_H - 8);
+      hctx.translate(x + CELL_W / 2, glyphY - 6);
       hctx.rotate(-LABEL_ANGLE);
       hctx.fillStyle = P.primary;
       hctx.font = LABEL_FONT;
       hctx.textAlign = "left";
       hctx.textBaseline = "middle";
-      hctx.fillText(ellipsize(hctx, fam, 110), 0, 0);
+      hctx.fillText(ellipsize(hctx, fam, LABEL_MAX_W), 0, 0);
       hctx.restore();
     });
 
     hctx.fillStyle = P.axis;
-    hctx.fillRect(0, GLYPH_H + 10, totalW, 1);
+    hctx.fillRect(0, H - 1, W, 1);
   }
 
   function drawGrid(isl, haps, totalW) {
@@ -599,23 +623,46 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     }
     return -1;
   }
+  // Column position in the island's example strain (payload
+  // family_locations, from gene_positions + the tier-1 cluster table). An
+  // older payload without it, or a column with no annotated protein in that
+  // strain (e.g. a rescued genome_only call), says so instead of guessing.
+  function appendLocation(isl, ci) {
+    var locs = isl.family_locations;
+    if (!locs) return;
+    var loc = locs[ci];
+    var who = isl.example_strain || "the example strain";
+    if (!loc) {
+      tipEl.appendChild(el("div", null, "No annotated gene in " + who));
+      return;
+    }
+    if (loc.rescued) {
+      tipEl.appendChild(el("div", null, "No annotated gene in " + who +
+        "; TBLASTN rescue hit (genome_only) at " + loc.contig + ":" + loc.start.toLocaleString()));
+      return;
+    }
+    tipEl.appendChild(el("div", null, "Location in " + who + ": " + loc.contig + ":" +
+      loc.start.toLocaleString() + "-" + loc.end.toLocaleString() +
+      " (" + (loc.end - loc.start + 1).toLocaleString() + " bp)"));
+    tipEl.appendChild(el("div", null, "Protein: " + loc.protein +
+      (loc.n_copies > 1 ? " (" + loc.n_copies + " copies in this strain)" : "")));
+  }
+  function appendColumnInfo(isl, ci) {
+    tipEl.appendChild(el("div", "tip-id", isl.families[ci]));
+    tipEl.appendChild(el("div", null, "Column " + (ci + 1) + " of " + isl.families.length));
+    appendLocation(isl, ci);
+    tipEl.appendChild(el("div", null, classLabel(familyClassAt(isl, ci))));
+    var doms = familyDomainsAt(isl, ci);
+    tipEl.appendChild(el("div", null, doms ? "Domains: " + doms : "No annotated Pfam domain"));
+  }
   glyphCanvas.addEventListener("mousemove", function (e) {
     var isl = ISLANDS[state.selected];
     if (!isl) return;
     var ci = colAtGlyph(e.clientX, isl);
     if (ci < 0) { tipEl.style.display = "none"; return; }
     tipEl.textContent = "";
-    tipEl.appendChild(el("div", "tip-id", isl.families[ci]));
-    tipEl.appendChild(el("div", null, classLabel(familyClassAt(isl, ci))));
-    var doms = familyDomainsAt(isl, ci);
-    tipEl.appendChild(el("div", null, doms ? "Domains: " + doms : "No annotated Pfam domain"));
-    tipEl.style.display = "block";
-    var w = tipEl.offsetWidth, hgt = tipEl.offsetHeight;
-    var left = e.clientX + 14, top = e.clientY + 14;
-    if (left + w > window.innerWidth - 8) left = e.clientX - w - 14;
-    if (top + hgt > window.innerHeight - 8) top = e.clientY - hgt - 14;
-    tipEl.style.left = Math.max(8, left) + "px";
-    tipEl.style.top = Math.max(8, top) + "px";
+    appendColumnInfo(isl, ci);
+    positionTip(e);
   });
   glyphCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
 
@@ -643,21 +690,34 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     var ri = Math.floor((clientY - rect.top) / ROW_H);
     return ri;
   }
-  if (Object.keys(SPECIES).length) {
-    gridCanvas.addEventListener("mousemove", function (e) {
-      var hap = currentHaps[rowAtGrid(e.clientY)];
-      if (!hap) { tipEl.style.display = "none"; return; }
-      tipEl.textContent = "";
-      tipEl.appendChild(el("div", "tip-id", speciesBandLabel(hap, SPECIES)));
+  // Cell hover: the row (strains, and their species breakdown when the
+  // payload has species data) plus the column's family, presence in this
+  // row, and location in the example strain.
+  gridCanvas.addEventListener("mousemove", function (e) {
+    var isl = ISLANDS[state.selected];
+    var hap = currentHaps[rowAtGrid(e.clientY)];
+    if (!isl || !hap) { tipEl.style.display = "none"; return; }
+    var ci = colAtGlyph(e.clientX, isl);
+    tipEl.textContent = "";
+    var rowName = Object.keys(SPECIES).length ? speciesBandLabel(hap, SPECIES)
+      : (hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1) + " more");
+    tipEl.appendChild(el("div", "tip-id", rowName + " (" + hap.count +
+      (hap.count === 1 ? " strain)" : " strains)")));
+    if (Object.keys(SPECIES).length) {
       var counts = speciesCounts(hap, SPECIES);
       Object.keys(counts).sort().forEach(function (sp) {
         tipEl.appendChild(el("div", null, (sp || "Unknown species") + ": " + counts[sp] +
           (counts[sp] === 1 ? " strain" : " strains")));
       });
-      positionTip(e);
-    });
-    gridCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
-  }
+    }
+    if (ci >= 0) {
+      var on = hap.pattern.charAt(ci) === "1";
+      tipEl.appendChild(el("div", null, (on ? "Present" : "Absent") + " in this row"));
+      appendColumnInfo(isl, ci);
+    }
+    positionTip(e);
+  });
+  gridCanvas.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
 
   // ---- legend ---------------------------------------------------------------
   // One swatch per DISTINCT class actually present among this island's
@@ -709,7 +769,11 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       isl.size + " families in locus order · " + isl.n_strains + " strains carry this island · " +
       isl.haplotypes.length + " distinct presence patterns" +
       (isl.locus_contig ? " · " + isl.locus_contig +
-        (isl.locus_start >= 0 ? ":" + isl.locus_start + "-" + isl.locus_end : "") : "");
+        (isl.locus_start >= 0 ? ":" + isl.locus_start + "-" + isl.locus_end : "") : "") +
+      ". Columns: consecutive genes along this contig in " + (isl.example_strain || "the example strain") +
+      ", left to right by position (a run of non-core families with no core gene between them). " +
+      "Rows: strains with the same presence pattern; a filled cell means the family is present " +
+      "in that strain somewhere in the genome, not necessarily at this locus.";
 
     renderLegend(isl);
 

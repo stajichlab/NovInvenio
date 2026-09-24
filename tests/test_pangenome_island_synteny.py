@@ -510,3 +510,55 @@ def test_cli_config_missing_a_strain_does_not_crash(tmp_path):
     payload = payload_of(run_cli(tmp_path, "--config", str(config)))
     assert payload["species"] == {"S1": "Coccidioides immitis"}
     assert "S2" not in payload["species"]
+
+
+# --- genomic locations for the hover popup ------------------------------------
+
+def write_location_inputs(tmp_path):
+    cluster = tmp_path / "tier1_cluster.tsv"
+    cluster.write_text("famA\tS1|pA\nfamA\tS2|pA2\nfamB\tS1|pB\nfamC\tS2|pC\n")
+    genes = tmp_path / "gene_positions.tsv"
+    genes.write_text("Short\tprotein_id\tcontig\tstart\tend\n"
+                     "S1\tpA\tc1\t100\t200\nS1\tpB\tc1\t300\t400\n"
+                     "S2\tpA2\tc2\t5\t50\nS2\tpC\tc2\t1\t900\n")
+    return cluster, genes
+
+
+def test_load_gene_locations_filters_to_families_and_strains(tmp_path):
+    from pangenome_island_synteny import load_gene_locations
+    cluster, genes = write_location_inputs(tmp_path)
+    locs = load_gene_locations(str(cluster), str(genes), {"famA", "famB"}, {"S1"})
+    assert locs == {("S1", "famA"): [("pA", "c1", 100, 200)],
+                    ("S1", "famB"): [("pB", "c1", 300, 400)]}
+
+
+def test_cli_with_gene_positions_adds_family_locations(tmp_path):
+    cluster, genes = write_location_inputs(tmp_path)
+    payload = payload_of(run_cli(tmp_path, "--gene_positions", str(genes),
+                                 "--cluster_tsv", str(cluster)))
+    locs = payload["islands"][0]["family_locations"]
+    assert [(x["protein"], x["start"], x["end"]) for x in locs] == [("pA", 100, 200), ("pB", 300, 400)]
+
+
+def test_cli_without_gene_positions_has_no_family_locations(tmp_path):
+    payload = payload_of(run_cli(tmp_path))
+    assert "family_locations" not in payload["islands"][0]
+
+
+def test_cli_rescue_positions_fill_genome_only_columns(tmp_path):
+    cluster, genes = write_location_inputs(tmp_path)
+    cluster.write_text("famA\tS1|pA\n")          # famB has no protein in S1
+    rescue = tmp_path / "rescue_positions.tsv"
+    rescue.write_text("Short\tfamily\tcontig\tstart\nS1\tfamB\tc1\t350\n")
+    payload = payload_of(run_cli(tmp_path, "--gene_positions", str(genes), "--cluster_tsv",
+                                 str(cluster), "--rescue_positions", str(rescue)))
+    assert payload["islands"][0]["family_locations"][1] == {"rescued": True, "contig": "c1", "start": 350}
+
+
+def test_cli_empty_rescue_positions_is_ignored(tmp_path):
+    cluster, genes = write_location_inputs(tmp_path)
+    rescue = tmp_path / "rescue_positions.tsv"
+    rescue.write_text("")
+    payload = payload_of(run_cli(tmp_path, "--gene_positions", str(genes), "--cluster_tsv",
+                                 str(cluster), "--rescue_positions", str(rescue)))
+    assert all(x and "protein" in x for x in payload["islands"][0]["family_locations"])

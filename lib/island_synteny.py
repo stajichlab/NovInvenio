@@ -134,11 +134,52 @@ def order_families_by_locus(families: list[str],
     return [f for _, f in sorted(ranked)] + unranked
 
 
+def column_locations(families: list[str], strain: str, contig: str | None,
+                     start: int, end: int,
+                     gene_locations: dict[tuple[str, str], list[tuple]],
+                     rescue_locations: dict[tuple[str, str], list[tuple]] | None = None,
+                     ) -> list[dict | None]:
+    """Genomic location of each column's gene in `strain` (the island's
+    example strain), for the page's hover popup.
+
+    `gene_locations[(strain, family)]` lists that family's member proteins in
+    the strain as (protein_id, contig, start, end). A family can have more than
+    one copy (paralogs), so the copy is chosen in this order: on the island's
+    locus contig AND inside [start, end]; else on the locus contig; else any
+    copy. Ties go to the lowest start. A family with no annotated member in the
+    strain gives None, not an invented position -- unless `rescue_locations`
+    has a TBLASTN rescue hit for it ((contig, start) pairs from
+    rescue_positions.tsv, a genome_only call): then the entry is
+    {"rescued": True, "contig", "start"}, preferring a hit on the locus
+    contig."""
+    out: list[dict | None] = []
+    for fam in families:
+        copies = gene_locations.get((strain, fam)) or []
+        on_contig = [c for c in copies if contig and c[1] == contig]
+        in_span = [c for c in on_contig if start >= 0 and c[2] <= end and c[3] >= start]
+        pool = in_span or on_contig or copies
+        if not pool:
+            hits = (rescue_locations or {}).get((strain, fam)) or []
+            if hits:
+                on = [h for h in hits if contig and h[0] == contig]
+                ctg, s0 = min(on or hits, key=lambda h: h[1])
+                out.append({"rescued": True, "contig": ctg, "start": s0})
+            else:
+                out.append(None)
+            continue
+        prot, ctg, s0, e0 = min(pool, key=lambda c: (c[2], c[0]))
+        out.append({"protein": prot, "contig": ctg, "start": s0, "end": e0,
+                    "n_copies": len(copies)})
+    return out
+
+
 def build_payload(island_rows: list[dict], matrix, positions: dict,
                   project: str, min_strains: int = 2,
                   top_n: int = 50,
                   family_domains: dict[str, set[str]] | None = None,
-                  species_of: dict[str, str] | None = None) -> dict:
+                  species_of: dict[str, str] | None = None,
+                  gene_locations: dict[tuple[str, str], list[tuple]] | None = None,
+                  rescue_locations: dict[tuple[str, str], list[tuple]] | None = None) -> dict:
     """The JSON payload embedded in the island synteny page.
 
     `matrix` is a lib.pangenome_matrix.PresenceMatrix; `positions` maps
@@ -178,6 +219,11 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
     rather than raising -- the species sort option is hidden client-side
     when the map is empty, exactly mirroring how the novelty report hides
     its category filter when the payload carries no category data.
+
+    `gene_locations` is optional: {(strain, family): [(protein_id, contig,
+    start, end), ...]}. When given, each island carries `family_locations`
+    (one entry per column, see column_locations()); when omitted the key is
+    absent and the page shows no location line.
     """
     fam_domain_map = family_domains or {}
     species_map = species_of or {}
@@ -200,7 +246,7 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
         }
         domains = [d for d in row.get("pfam_domains", "").split(",") if d]
         family_domain_sets = [sorted(fam_domain_map.get(f, set())) for f in ordered]
-        islands.append({
+        island = {
             "locus_id": row.get("locus_id", "-"),
             "locus_contig": row.get("locus_contig", ""),
             "locus_start": _as_int(row.get("locus_start"), -1),
@@ -214,7 +260,13 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
             "domains": domains,
             "dominant_class": dominant_class(domains),
             "haplotypes": collapse_haplotypes(presence_rows),
-        })
+        }
+        if gene_locations is not None:
+            island["family_locations"] = column_locations(
+                ordered, example, locus_contig or None,
+                _as_int(row.get("locus_start"), -1), _as_int(row.get("locus_end"), -1),
+                gene_locations, rescue_locations)
+        islands.append(island)
 
     return {
         "project": project,

@@ -393,6 +393,9 @@ workflow PANGENOME_PROFILE {
             FAMILY_PFAM_SCAN.out.domtblout,
             samplesheet,
             DIAGNOSTICS.out.banner_html,
+            GENE_POSITIONS.out.positions,
+            CLUSTER_TIER1.out.cluster_tsv,
+            rescue_positions,
         )
     }
 

@@ -67,6 +67,55 @@ def load_positions(path: str,
     return positions
 
 
+def load_gene_locations(cluster_tsv: str, gene_positions: str, families: set[str],
+                        strains: set[str], id_sep: str = "|") -> dict[tuple[str, str], list[tuple]]:
+    """{(strain, family): [(protein_id, contig, start, end), ...]} for the
+    popup's genomic location, restricted WHILE STREAMING to `families` (the
+    drawn islands' members) and `strains` (their example strains): the tier-1
+    cluster TSV (rep, member) maps a family to its member proteins, whose
+    member IDs are `Short<id_sep>protein_id`, and gene_positions.tsv[.zst]
+    (Short, protein_id, contig, start, end) gives their coordinates."""
+    member_family: dict[tuple[str, str], str] = {}
+    with open_maybe_compressed(cluster_tsv) as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 2 or parts[0] not in families:
+                continue
+            short, sep, prot = parts[1].partition(id_sep)
+            if sep and short in strains:
+                member_family[(short, prot)] = parts[0]
+    locations: dict[tuple[str, str], list[tuple]] = {}
+    with open_maybe_compressed(gene_positions) as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            fam = member_family.get((row.get("Short"), row.get("protein_id")))
+            if fam is None:
+                continue
+            try:
+                entry = (row["protein_id"], row["contig"], int(row["start"]), int(row["end"]))
+            except (KeyError, ValueError):
+                continue
+            locations.setdefault((row["Short"], fam), []).append(entry)
+    return locations
+
+
+def load_rescue_locations(path: str, families: set[str],
+                          strains: set[str]) -> dict[tuple[str, str], list[tuple]]:
+    """{(strain, family): [(contig, start), ...]} from rescue_positions.tsv
+    (Short, family, contig, start): TBLASTN rescue hits behind genome_only
+    calls, which have no annotated protein. Filtered while streaming."""
+    out: dict[tuple[str, str], list[tuple]] = {}
+    with open_maybe_compressed(path) as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            key = (row.get("Short"), row.get("family"))
+            if key[1] not in families or key[0] not in strains:
+                continue
+            try:
+                out.setdefault(key, []).append((row["contig"], int(row["start"])))
+            except (KeyError, ValueError):
+                continue
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--islands_with_domains", required=True)
@@ -92,6 +141,18 @@ def main() -> int:
         "snippet (issue #134) -- inserted at the top of the page body, "
         "before any results.",
     )
+    ap.add_argument("--gene_positions", default=None,
+                    help="Optional gene_positions.tsv[.zst] (Short, protein_id, contig, "
+                    "start, end). With --cluster_tsv, adds each column's genomic "
+                    "location in the island's example strain to the hover popup.")
+    ap.add_argument("--cluster_tsv", default=None,
+                    help="Optional tier-1 cluster TSV (rep, member); see --gene_positions.")
+    ap.add_argument("--rescue_positions", default=None,
+                    help="Optional rescue_positions.tsv (Short, family, contig, start): "
+                    "TBLASTN rescue hits, shown for genome_only columns that have no "
+                    "annotated protein. An empty file is treated as absent.")
+    ap.add_argument("--id_sep", default="|",
+                    help="Short-prefix separator in cluster member IDs (default '|').")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -123,10 +184,22 @@ def main() -> int:
     species_of = ({s.short: s.species for s in parse_config(args.config)}
                   if args.config else None)
 
+    gene_locations = None
+    if args.gene_positions and args.cluster_tsv:
+        example_strains = {row.get("example_strain", "") for row in selected}
+        gene_locations = load_gene_locations(args.cluster_tsv, args.gene_positions,
+                                             needed_families, example_strains, args.id_sep)
+    rescue_locations = None
+    if (gene_locations is not None and args.rescue_positions
+            and Path(args.rescue_positions).stat().st_size > 0):
+        rescue_locations = load_rescue_locations(args.rescue_positions, needed_families,
+                                                 example_strains)
+
     payload = build_payload(
         island_rows, matrix, positions, project=args.project,
         min_strains=args.min_strains, top_n=args.top_islands,
         family_domains=family_domains, species_of=species_of,
+        gene_locations=gene_locations, rescue_locations=rescue_locations,
     )
 
     # Escape `</` so a Pfam description or family ID cannot close the

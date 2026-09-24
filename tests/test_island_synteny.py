@@ -408,3 +408,49 @@ def test_family_class_and_domain_arrays_are_the_same_length_as_families():
     island = payload["islands"][0]
     assert len(island["family_classes"]) == len(island["families"])
     assert len(island["family_domains"]) == len(island["families"])
+
+
+# --- column locations (hover popup) ------------------------------------------
+
+from island_synteny import column_locations  # noqa: E402
+
+
+def test_column_location_prefers_copy_inside_the_locus_span():
+    locs = {("S1", "famA"): [("pA_far", "c1", 9000, 9500), ("pA", "c1", 100, 200),
+                             ("pA_other", "c9", 10, 20)]}
+    out = column_locations(["famA"], "S1", "c1", 50, 400, locs)
+    assert out == [{"protein": "pA", "contig": "c1", "start": 100, "end": 200, "n_copies": 3}]
+
+
+def test_column_location_falls_back_to_locus_contig_then_any_copy():
+    locs = {("S1", "famA"): [("pA_far", "c1", 9000, 9500), ("pA_other", "c9", 10, 20)],
+            ("S1", "famB"): [("pB_other", "c9", 10, 20)]}
+    out = column_locations(["famA", "famB"], "S1", "c1", 50, 400, locs)
+    assert out[0]["protein"] == "pA_far"
+    assert out[1]["protein"] == "pB_other"
+
+
+def test_column_location_is_none_without_an_annotated_member():
+    # e.g. a rescued genome_only call: no protein, so no invented position
+    assert column_locations(["famZ"], "S1", "c1", 0, 10, {}) == [None]
+
+
+def test_build_payload_adds_family_locations_only_when_given():
+    m = PresenceMatrix(families=["famA", "famB"], strains=["S1", "S2"])
+    for f in ("famA", "famB"):
+        m.set_call(f, "S1", "present")
+    row = {"locus_id": "S1:c1:100-400", "locus_contig": "c1", "locus_start": "100",
+           "locus_end": "400", "example_strain": "S1", "island_size": "2",
+           "n_strains": "2", "member_families": "famA,famB", "pfam_domains": "-"}
+    positions = {("S1", "famA"): [("c1", 1)], ("S1", "famB"): [("c1", 2)]}
+    without = build_payload([row], m, positions, "demo")
+    assert "family_locations" not in without["islands"][0]
+    locs = {("S1", "famA"): [("pA", "c1", 100, 200)], ("S1", "famB"): [("pB", "c1", 300, 400)]}
+    with_locs = build_payload([row], m, positions, "demo", gene_locations=locs)
+    assert [x["protein"] for x in with_locs["islands"][0]["family_locations"]] == ["pA", "pB"]
+
+
+def test_column_location_uses_rescue_hit_when_no_protein():
+    rescue = {("S1", "famZ"): [("c9", 5), ("c1", 700), ("c1", 300)]}
+    out = column_locations(["famZ"], "S1", "c1", 0, 1000, {}, rescue)
+    assert out == [{"rescued": True, "contig": "c1", "start": 300}]
