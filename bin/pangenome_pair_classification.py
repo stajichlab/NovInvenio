@@ -178,6 +178,15 @@ def classify_pair(
     return "ambiguous_linkage", frac
 
 
+# Columns from pangenome_cooccurrence.py passed through unchanged when present
+# (design decision Q4 outgroup-frequency polarity). Older inputs lack them.
+PASSTHROUGH_COLUMNS = ["asymmetry_a", "direction_a_freq"]
+
+
+def passthrough_columns(idx: dict[str, int]) -> list[str]:
+    return [c for c in PASSTHROUGH_COLUMNS if c in idx]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cooccurring_pairs", required=True)
@@ -214,9 +223,11 @@ def main() -> None:
          open_maybe_compressed_write(args.output) as out:
         header = fh.readline().rstrip("\n").split("\t")
         idx = {name: i for i, name in enumerate(header)}
+        extra = passthrough_columns(idx)
         out.write(
             "family_a\tfamily_b\tclassification\tlinkage_fraction\tjaccard\t"
-            "fisher_p\tfdr_q\tpermutation_p\tdirection_a\tclade_composition\n"
+            "fisher_p\tfdr_q\tpermutation_p\tdirection_a\tclade_composition"
+            + "".join(f"\t{c}" for c in extra) + "\n"
         )
         n = 0
         for line in fh:
@@ -236,7 +247,8 @@ def main() -> None:
                 f"{family_a}\t{family_b}\t{classification}\t{frac:.4f}\t"
                 f"{parts[idx['jaccard']]}\t{parts[idx['fisher_p']]}\t"
                 f"{parts[idx['fdr_q']]}\t{parts[idx['permutation_p']]}\t"
-                f"{parts[idx['direction_a']]}\t{parts[idx['clade_composition']]}\n"
+                f"{parts[idx['direction_a']]}\t{parts[idx['clade_composition']]}"
+                + "".join(f"\t{parts[idx[c]]}" for c in extra) + "\n"
             )
             n += 1
             if n % 100_000 == 0:

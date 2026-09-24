@@ -59,6 +59,8 @@ process COOCCURRENCE {
         --min_strain_count ${params.pangenome_min_strain_count} \
         --fdr_alpha ${params.pangenome_fdr_alpha} \
         --screen_alpha ${params.pangenome_screen_alpha} \
+        --polarity_loss_min_frac ${params.pangenome_polarity_loss_min_frac} \
+        --polarity_gain_max_frac ${params.pangenome_polarity_gain_max_frac} \
         --output cooccurring_pairs.tsv.zst
     """
 }
