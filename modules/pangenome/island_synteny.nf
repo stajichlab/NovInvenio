@@ -32,6 +32,9 @@ process ISLAND_SYNTENY {
     path(domtblout)
     path(samplesheet)
     path(diagnostics_banner_html)
+    path(gene_positions)
+    path(cluster_tsv)
+    path(rescue_positions)
 
     output:
     path("island_synteny.html"), emit: page
@@ -49,6 +52,10 @@ process ISLAND_SYNTENY {
         --top_islands ${params.pangenome_viz_top_islands} \
         --config ${samplesheet} \
         --diagnostics_banner ${diagnostics_banner_html} \
+        --gene_positions ${gene_positions} \
+        --cluster_tsv ${cluster_tsv} \
+        --rescue_positions ${rescue_positions} \
+        --id_sep '${params.pangenome_id_sep}' \
         --output island_synteny.html
     """
 }
