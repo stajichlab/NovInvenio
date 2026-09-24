@@ -166,6 +166,49 @@ def polarize_direction(outgroup_present_count: int, outgroup_total: int) -> str:
     return "gain"
 
 
+# Outgroup-frequency polarity (design decision Q4, 2026-09-20). Defaults calibrated on
+# the 529-strain Coccidioides rescued matrix: of families present in >=99% of one
+# species' strains, 89.6% (immitis -> posadasii, n=4,069) and 94.2% (posadasii ->
+# immitis, n=4,213) reach >=0.90 in the other species, while only 10.6% / 32.6% are
+# present in ALL of its strains. See docs/pangenome-assumptions.md.
+DEFAULT_LOSS_MIN_FRAC = 0.9
+DEFAULT_GAIN_MAX_FRAC = 0.1
+
+
+def outgroup_fraction(outgroup_present_count: int, outgroup_total: int) -> float | None:
+    """`asymmetry_a`: fraction of outgroup strains carrying the family. None when
+    there are no outgroup strains (nothing to measure)."""
+    if outgroup_total == 0:
+        return None
+    return outgroup_present_count / outgroup_total
+
+
+def validate_polarity_thresholds(loss_min: float, gain_max: float) -> None:
+    if not (0.0 <= gain_max < loss_min <= 1.0):
+        raise ValueError(
+            f"polarity thresholds need 0 <= gain_max < loss_min <= 1 "
+            f"(got gain_max={gain_max}, loss_min={loss_min})")
+
+
+def polarize_by_frequency(outgroup_present_count: int, outgroup_total: int,
+                          loss_min: float = DEFAULT_LOSS_MIN_FRAC,
+                          gain_max: float = DEFAULT_GAIN_MAX_FRAC) -> str:
+    """Frequency-threshold version of polarize_direction(). "loss" when at least
+    `loss_min` of outgroup strains carry the family, "gain" when at most
+    `gain_max` do, "ambiguous" in between or with no outgroup. Unlike the strict
+    rule, one missed call in a many-strain outgroup does not make a family
+    unpolarisable. With a single outgroup strain the fraction is 0 or 1 and the
+    two rules agree."""
+    frac = outgroup_fraction(outgroup_present_count, outgroup_total)
+    if frac is None:
+        return "ambiguous"
+    if frac >= loss_min:
+        return "loss"
+    if frac <= gain_max:
+        return "gain"
+    return "ambiguous"
+
+
 def clade_composition(strains_present: list[str], clade_of_strain: dict[str, str]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for s in strains_present:
@@ -230,6 +273,8 @@ def find_cooccurring_pairs(
     strains: list[str] | None = None,
     screen_alpha: float = 0.2,
     species_tree=None,
+    polarity_loss_min: float = DEFAULT_LOSS_MIN_FRAC,
+    polarity_gain_max: float = DEFAULT_GAIN_MAX_FRAC,
 ) -> list[dict]:
     """`strains` restricts every ingroup statistic (the strain-count floor,
     Fisher presence vectors, clade composition) to that subset -- callers
@@ -335,6 +380,10 @@ def find_cooccurring_pairs(
             "permutation_p": exact_stratified_pvalue(vec_a, vec_b, clades),
             "direction_a": polarize_direction(out_count_a, out_total_a),
             "clade_composition": clade_composition(strains_present_a, clade_of_strain),
+            # Reported ALONGSIDE direction_a (design decision Q4), like the tree columns.
+            "asymmetry_a": outgroup_fraction(out_count_a, out_total_a),
+            "direction_a_freq": polarize_by_frequency(
+                out_count_a, out_total_a, polarity_loss_min, polarity_gain_max),
         })
         if species_tree is not None:
             res, direction = dollo_for(fam_a)
@@ -413,8 +462,22 @@ def main() -> None:
         "-- a pair only gets the expensive exact Fisher test if the fast "
         "normal-approximation screen clears this; see quick_screen_pvalue",
     )
+    ap.add_argument(
+        "--polarity_loss_min_frac", type=float, default=DEFAULT_LOSS_MIN_FRAC,
+        help="direction_a_freq = loss when at least this fraction of outgroup strains "
+        "carry the family (default %(default)s; see DEFAULT_LOSS_MIN_FRAC)",
+    )
+    ap.add_argument(
+        "--polarity_gain_max_frac", type=float, default=DEFAULT_GAIN_MAX_FRAC,
+        help="direction_a_freq = gain when at most this fraction of outgroup strains "
+        "carry the family (default %(default)s; symmetric choice, not calibrated)",
+    )
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
+    try:
+        validate_polarity_thresholds(args.polarity_loss_min_frac, args.polarity_gain_max_frac)
+    except ValueError as e:
+        ap.error(str(e))
 
     sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
     from config_parser import parse_config  # noqa: E402
@@ -483,20 +546,26 @@ def main() -> None:
         args.min_strain_count, args.fdr_alpha,
         strains=ingroup_shorts, screen_alpha=args.screen_alpha,
         species_tree=species_tree,
+        polarity_loss_min=args.polarity_loss_min_frac,
+        polarity_gain_max=args.polarity_gain_max_frac,
     )
-    # New columns are APPENDED, and only when --species_tree was given, so a run
+    # asymmetry_a / direction_a_freq are always appended after clade_composition
+    # (consumers read columns by name). New columns are APPENDED, and only when --species_tree was given, so a run
     # without a tree produces a byte-identical header to before (issue #140).
     tree_cols = ["direction_a_tree", "gain_node", "n_loss_events", "loss_clades",
                  "asr_method"] if species_tree is not None else []
     with open_maybe_compressed_write(args.output) as fh:
         fh.write("\t".join(
             ["family_a", "family_b", "jaccard", "fisher_p", "fdr_q", "permutation_p",
-             "direction_a", "clade_composition"] + tree_cols) + "\n")
+             "direction_a", "clade_composition", "asymmetry_a", "direction_a_freq"]
+            + tree_cols) + "\n")
         for row in pairs:
             line = (
                 f"{row['family_a']}\t{row['family_b']}\t{row['jaccard']:.4f}\t"
                 f"{row['fisher_p']:.2e}\t{row['fdr_q']:.2e}\t{row['permutation_p']:.4f}\t"
-                f"{row['direction_a']}\t{row['clade_composition']}"
+                f"{row['direction_a']}\t{row['clade_composition']}\t"
+                f"{'' if row['asymmetry_a'] is None else format(row['asymmetry_a'], '.4f')}\t"
+                f"{row['direction_a_freq']}"
             )
             for c in tree_cols:
                 line += f"\t{row[c]}"
