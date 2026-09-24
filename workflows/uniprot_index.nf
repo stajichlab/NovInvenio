@@ -2,7 +2,7 @@ nextflow.enable.dsl=2
 
 include { UNIPROT_PLAN_CHUNKS; UNIPROT_PARSE_CHUNK; UNIPROT_SEQ_INDEX } from '../modules/uniprot_index'
 
-// One-time build of a UniProt library index (run via: nextflow run main.nf -entry UNIPROT_INDEX).
+// One-time build of a UniProt library index (run via: nextflow run main.nf --build_uniprot_index; see main.nf).
 workflow UNIPROT_INDEX_BUILD {
     take:
     library   // val: absolute path to the UniProt library directory

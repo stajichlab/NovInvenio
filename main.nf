@@ -382,7 +382,13 @@ workflow UNIPROT_INDEX {
     if (!params.uniprot_library || !params.uniprot_library_csv || !params.uniprot_index) {
         error "--build_uniprot_index needs --uniprot_library, --uniprot_library_csv and --uniprot_index"
     }
-    UNIPROT_INDEX_BUILD(Channel.value(file(params.uniprot_library).toAbsolutePath().toString()))
+    if (file("${params.uniprot_index}/manifest.json").exists()) {
+        // The index is complete (manifest.json is written last): skip re-parsing the
+        // whole library, which storeDir on the final step alone would not prevent.
+        log.info "UniProt index already built: ${params.uniprot_index}/manifest.json exists; nothing to do"
+    } else {
+        UNIPROT_INDEX_BUILD(Channel.value(file(params.uniprot_library).toAbsolutePath().toString()))
+    }
 }
 
 workflow {
