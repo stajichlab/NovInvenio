@@ -70,9 +70,9 @@ def test_load_uniprot_xrefs_merges_multiple_species_files_by_protein_id(tmp_path
 
     merged = load_uniprot_xrefs([str(f1), str(f2)])
 
-    assert set(merged) == {'XP_001.1', 'XP_002.1'}
-    assert merged['XP_001.1']['uniprot_accession'] == 'A8MZR5'
-    assert merged['XP_002.1']['uniprot_xrefs'] == 'RefSeq:XP_002.1|GeneID:456'
+    assert set(merged) == {('Ccin', 'XP_001.1'), ('Agbi', 'XP_002.1')}
+    assert merged[('Ccin', 'XP_001.1')]['uniprot_accession'] == 'A8MZR5'
+    assert merged[('Agbi', 'XP_002.1')]['uniprot_xrefs'] == 'RefSeq:XP_002.1|GeneID:456'
 
 
 def test_annotate_presence_matrix_cli_adds_uniprot_columns(tmp_path):
@@ -140,3 +140,27 @@ def test_uniprot_link_columns_pass_through(tmp_path):
     assert rows["n1"]["uniprot_pubs"] == "1;;protein;T"
     assert rows["n1"]["uniprot_n_matches"] == "2"
     assert rows["n2"]["uniprot_match"] == ""
+
+
+def test_uniprot_link_rows_keyed_by_proteome_not_just_protein_id(tmp_path):
+    # MAG/prodigal locus tags collide across proteomes (k141_81591_30 in A and B);
+    # each matrix row must get its own proteome's link row, not the last file's.
+    matrix = tmp_path / "m.tsv"
+    matrix.write_text("protein_id\tsource_proteome\tA\tB\nk1\tA\t1\t1\nk1\tB\t1\t1\n")
+    cols = ["protein_id", "uniprot_accession", "uniprot_gene_name", "uniprot_description",
+            "uniprot_go_ids", "uniprot_pfam_ids", "uniprot_pfam_names", "uniprot_interpro_ids",
+            "uniprot_ec_numbers", "uniprot_alphafold_id", "uniprot_xrefs", "uniprot_match",
+            "uniprot_match_species", "uniprot_reviewed", "uniprot_pubs", "uniprot_n_matches"]
+    for short, acc in (("A", "P0000A"), ("B", "P0000B")):
+        vals = ["k1", acc] + [""] * 9 + ["seq_own", "", "0", "", "1"]
+        (tmp_path / f"{short}.uniprot_link.tsv").write_text(
+            "\t".join(cols) + "\n" + "\t".join(vals) + "\n")
+    out = tmp_path / "out.tsv"
+    subprocess.run([sys.executable, str(REPO / "bin" / "annotate_presence_matrix.py"),
+                    "--matrix", str(matrix), "--output", str(out), "--uniprot_xref_files",
+                    str(tmp_path / "A.uniprot_link.tsv"), str(tmp_path / "B.uniprot_link.tsv")],
+                   check=True)
+    with open(out) as fh:
+        rows = {r["source_proteome"]: r for r in csv.DictReader(fh, delimiter="\t")}
+    assert rows["A"]["uniprot_accession"] == "P0000A"
+    assert rows["B"]["uniprot_accession"] == "P0000B"

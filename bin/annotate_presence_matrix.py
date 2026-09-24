@@ -5,9 +5,9 @@ Pfam_Names, and Model_Org_Gene_URL columns to presence_matrix.tsv.
 
 --uniprot_xref_files (optional, repeatable) adds a further, independent set of
 uniprot_*-prefixed columns (uniprot_accession, uniprot_gene_name, ..., uniprot_xrefs)
-from bin/uniprot_link.py's per-proteome UniProt link TSVs -- keyed by
-protein_id, globally unique across species, so files from every proteome in the run
-can be passed together with no risk of collision. This is deliberately independent of
+from bin/uniprot_link.py's per-proteome UniProt link TSVs (<Short>.uniprot_link.tsv) --
+matched to matrix rows by (source_proteome, protein_id), since protein IDs such as
+MAG/prodigal locus tags can repeat across proteomes. This is deliberately independent of
 the gene_name/product_description/Pfam_Names columns above (which come from this
 pipeline's own Pfam/SwissProt/modelorgs annotation, not UniProt's precomputed one) --
 uniprot_xrefs specifically is what lib/report_data.py's ROW_FIELDS reads to render the
@@ -91,21 +91,29 @@ UNIPROT_XREF_COLS = ['uniprot_accession', 'uniprot_gene_name', 'uniprot_descript
                       'uniprot_reviewed', 'uniprot_pubs', 'uniprot_n_matches']
 
 
-def load_uniprot_xrefs(paths):
-    """Merge one or more bin/uniprot_link.py TSVs (one per proteome), keyed by protein_id.
+LINK_SUFFIX = '.uniprot_link.tsv'
 
-    Each protein_id comes from exactly one proteome FASTA in a run, so files from every
-    proteome can be merged with no collision risk -- a later file
-    overwriting an earlier one for the same protein_id would only ever happen if the
-    same accession were listed twice, which is itself worth surfacing rather than
-    silently picking one, but is not checked here (matches this script's existing
-    "first hit wins" style elsewhere, e.g. parse_swissprot_hits).
+
+def _short_from_path(path):
+    """<Short>.uniprot_link.tsv -> Short (UNIPROT_LINK names each file by the config
+    Short); any other name -> the part before the first '.'."""
+    name = Path(path).name
+    return name[:-len(LINK_SUFFIX)] if name.endswith(LINK_SUFFIX) else name.split('.')[0]
+
+
+def load_uniprot_xrefs(paths):
+    """Merge bin/uniprot_link.py TSVs (one per proteome) into {(Short, protein_id): row}.
+
+    Keyed by proteome as well as protein_id: MAG/prodigal-style locus tags (e.g.
+    k141_81591_30) repeat across proteomes, and a protein_id-only key would give one
+    genome's matrix row another genome's UniProt record without any error.
     """
     merged = {}
     for path in paths:
+        short = _short_from_path(path)
         with open(path) as fh:
             for row in csv.DictReader(fh, delimiter='\t'):
-                merged[row['protein_id']] = row
+                merged[(short, row['protein_id'])] = row
     return merged
 
 
@@ -220,7 +228,7 @@ def main():
             if args.candidates_fa:
                 row['protein_sequence'] = sequences.get(pid, '')
             if args.uniprot_xref_files:
-                xref_row = uniprot_xrefs.get(pid, {})
+                xref_row = uniprot_xrefs.get((row.get('source_proteome', ''), pid), {})
                 for col in UNIPROT_XREF_COLS:
                     row[col] = xref_row.get(col, '')
             writer.writerow(row)
