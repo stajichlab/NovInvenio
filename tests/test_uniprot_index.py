@@ -74,3 +74,15 @@ def test_wrong_format_version_is_a_hard_error(tmp_path):
     (idx_dir / "manifest.json").write_text(json.dumps(m))
     with pytest.raises(IndexFormatError, match="format_version 99"):
         UniProtIndex(idx_dir)
+
+
+def test_species_key_rules():
+    from uniprot_index import species_key
+    assert species_key("Neurospora crassa (strain OR74A)") == "neurospora crassa"
+    assert species_key("[Candida] glabrata") == species_key("Candida glabrata") == "candida glabrata"
+    # Unnamed species must never match each other as "own species".
+    assert species_key("Mucor sp. XYZ") == ""
+    assert species_key("Mucor spp.") == ""
+    assert species_key("Mucor cf. circinelloides") == ""
+    assert species_key("Mucor") == ""
+    assert species_key("") == ""

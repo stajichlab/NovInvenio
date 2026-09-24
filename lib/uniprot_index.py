@@ -18,10 +18,19 @@ class IndexFormatError(Exception):
     """The index directory is missing a file or has an unsupported format."""
 
 
-def _binomial(name):
-    """First two words, lower case -- 'Neurospora crassa (strain ...)' and
-    'Neurospora crassa OR74A' both give 'neurospora crassa'."""
-    return " ".join((name or "").lower().replace("(", " ").split()[:2])
+UNNAMED_EPITHETS = {"sp.", "sp", "spp.", "spp", "cf.", "cf", "aff.", "aff"}
+
+
+def species_key(name):
+    """Genus + species epithet, lower case, for own-species matching:
+    'Neurospora crassa (strain ...)' and 'Neurospora crassa OR74A' both give
+    'neurospora crassa'; '[Candida] glabrata' gives 'candida glabrata'. Returns ''
+    for names with no species epithet ('Mucor sp. XYZ', 'Mucor cf. x', 'Mucor'), so
+    different unnamed species never count as each other's own species."""
+    words = (name or "").lower().replace("(", " ").replace("[", "").replace("]", "").split()
+    if len(words) < 2 or words[1] in UNNAMED_EPITHETS:
+        return ""
+    return f"{words[0]} {words[1]}"
 
 
 class UniProtIndex:
@@ -56,15 +65,16 @@ class UniProtIndex:
     def taxid_for_species(self, name):
         """Taxid of the library proteome(s) whose species binomial matches, when exactly
         one taxid matches; else None."""
-        want = _binomial(name)
-        taxids = {tax for tax, sp in self._species.values() if _binomial(sp) == want}
+        taxids = self.taxids_for_species(name)
         return taxids.pop() if len(taxids) == 1 else None
 
     def taxids_for_species(self, name):
         """Every library taxid whose species binomial matches (strain-level taxids of the
         same species all count), as a set; empty when none match."""
-        want = _binomial(name)
-        return {tax for tax, sp in self._species.values() if _binomial(sp) == want}
+        want = species_key(name)
+        if not want:
+            return set()
+        return {tax for tax, sp in self._species.values() if species_key(sp) == want}
 
     def species_name(self, proteome_id):
         return self._species.get(proteome_id, (None, ""))[1]
