@@ -8,13 +8,18 @@ verified definition of "ambiguous family" this module implements.
 A family is ambiguous iff:
   1. it is not in --oversized-families (excluded -- refinement cost is O(k^2) per
      family and a pathologically large cluster would dominate the whole run), AND
-  2. at least one ingroup species contributes >=2 members (species-duplication --
+  2. at least one seed-group species contributes >=2 members (species-duplication --
      the only signal available before any HMM exists; confirmed exact on HEX1:
      Neurospora crassa contributes both HEX1_NEUCR and IF5A_NEUCR to one family), AND
   3. it is already a near-miss novelty candidate in the existing (Tier C+H)
-     presence_matrix.tsv: ingroup presence fraction >= --ingroup-min-frac AND
-     outgroup presence fraction > --other-max-frac (i.e. currently rejected only
-     because of outgroup presence).
+     presence_matrix.tsv: seed-group presence fraction >= --ingroup-min-frac AND
+     other-group presence fraction > --other-max-frac (i.e. currently rejected only
+     because of other-group presence).
+
+--query-group picks the seed group, as in build_presence_matrix.py: IN (default)
+for the gain direction (families/, seeded from the ingroup), OUT for the loss
+direction (loss_families/, seeded from the outgroup). With OUT the roles swap:
+the outgroup is the seed group and the ingroup is the other group (issue #164).
 
 Ambiguous families are refined by a single within-family diamond all-vs-all (over
 the union of every ambiguous family's members, not one diamond call per family --
@@ -41,6 +46,17 @@ DEFAULT_DIAMOND_EVALUE = 1e-5
 
 
 # --------------------------------------------------------------------- ambiguity
+def seed_and_other_groups(samples, query_group):
+    """(seed_ids, other_ids) for --query-group IN (gain) or OUT (loss)."""
+    ingroup_ids = {s.short for s in samples if s.group in INGROUP_ROLES}
+    outgroup_ids = {s.short for s in samples if s.group in OUTGROUP_ROLES}
+    if query_group == 'IN':
+        return ingroup_ids, outgroup_ids
+    if query_group == 'OUT':
+        return outgroup_ids, ingroup_ids
+    raise ValueError(f'query_group must be IN or OUT, not {query_group!r}')
+
+
 def species_of(protein_id, protein_to_proteome):
     return protein_to_proteome.get(protein_id)
 
@@ -274,12 +290,17 @@ def main():
     ap.add_argument('--oversized-families', default=None, dest='oversized_families',
                     help="run's oversized_families.tsv (excluded from refinement)")
     ap.add_argument('--config', required=True, help='Analysis description CSV')
+    ap.add_argument('--query-group', choices=['IN', 'OUT'], default='IN', dest='query_group',
+                    help='Seed group of --cluster-tsv: IN (default, gain direction, '
+                         'families/) or OUT (loss direction, loss_families/)')
     ap.add_argument('--pep', nargs='+', required=True,
-                    help='Short=path.pep.fa pairs for every ingroup proteome')
+                    help='Short=path.pep.fa pairs for every seed-group proteome')
     ap.add_argument('--self-hits', nargs='+', required=True, dest='self_hits',
                     help='self_hits/<Short>.paralog_cutoffs.tsv files (already '
                          'published by the pairwise run for these same genomes)')
-    ap.add_argument('--ingroup-min-frac', type=float, default=0.75, dest='ingroup_min_frac')
+    ap.add_argument('--ingroup-min-frac', type=float, default=0.75, dest='ingroup_min_frac',
+                    help='Min seed-group presence fraction (the ingroup for '
+                         '--query-group IN, the outgroup for OUT)')
     ap.add_argument('--other-max-frac', type=float, default=0.0, dest='other_max_frac')
     ap.add_argument('--diamond-evalue', type=float, default=DEFAULT_DIAMOND_EVALUE,
                     dest='diamond_evalue')
@@ -292,8 +313,7 @@ def main():
     import pandas as pd  # local import: only main() needs it, unlike the pure fns above
 
     samples = parse_config(args.config)
-    ingroup_ids = {s.short for s in samples if s.group in INGROUP_ROLES}
-    outgroup_ids = {s.short for s in samples if s.group in OUTGROUP_ROLES}
+    seed_ids, other_ids = seed_and_other_groups(samples, args.query_group)
     pep_paths = {}
     for pair in args.pep:
         short, path = pair.split('=', 1)
@@ -325,7 +345,7 @@ def main():
                     oversized_reps.add(parts[0])
 
     ambiguous = detect_ambiguous_families(
-        fam_members, protein_to_proteome, presence_by_protein, ingroup_ids, outgroup_ids,
+        fam_members, protein_to_proteome, presence_by_protein, seed_ids, other_ids,
         oversized_reps, args.ingroup_min_frac, args.other_max_frac)
     print(f'{len(ambiguous)} / {len(fam_members)} families flagged ambiguous', file=sys.stderr)
 
