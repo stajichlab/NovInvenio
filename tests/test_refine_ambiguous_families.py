@@ -26,7 +26,7 @@ def test_family_fractions():
     assert out == 0.5   # Out1 present, Out2 absent
 
 
-def test_detect_ambiguous_families_matches_hex1_ada1_split():
+def test_detect_ambiguous_families_matches_hex1_ada1_split(monkeypatch):
     # HEX1-like family: species-duplicated (In1 x2) AND a near-miss novelty candidate
     # (ingroup_frac=1.0 >= 0.75, outgroup_frac=1.0 > 0.0) -> ambiguous.
     # ADA1-like family: no duplication -> never ambiguous regardless of presence.
@@ -42,19 +42,19 @@ def test_detect_ambiguous_families_matches_hex1_ada1_split():
     # real pipeline via presence_matrix.tsv; here we inject it directly via a stub.)
     def fake_fractions(rep, members, presence_by_protein, ingroup_ids, outgroup_ids):
         return (1.0, 1.0)
-    raf.family_fractions = fake_fractions
+    monkeypatch.setattr(raf, 'family_fractions', fake_fractions)
     ambiguous = raf.detect_ambiguous_families(
         fam_members, p2p, {}, ingroup_ids, outgroup_ids, oversized_reps=set(),
         ingroup_min_frac=0.75, other_max_frac=0.0)
     assert ambiguous == {'hex1_rep'}
 
 
-def test_detect_ambiguous_families_excludes_oversized():
+def test_detect_ambiguous_families_excludes_oversized(monkeypatch):
     fam_members = {'big_rep': ['a', 'b', 'c']}
     p2p = {'a': 'In1', 'b': 'In1', 'c': 'In2'}
     def fake_fractions(rep, members, presence_by_protein, ingroup_ids, outgroup_ids):
         return (1.0, 1.0)
-    raf.family_fractions = fake_fractions
+    monkeypatch.setattr(raf, 'family_fractions', fake_fractions)
     ambiguous = raf.detect_ambiguous_families(
         fam_members, p2p, {}, {'In1', 'In2'}, {'Out1'}, oversized_reps={'big_rep'},
         ingroup_min_frac=0.75, other_max_frac=0.0)
@@ -217,3 +217,33 @@ def test_split_family_does_not_split_with_redundant_bridging_edge():
     subfamilies = raf.split_family(members, edges, paralog_map)
     assert len(subfamilies) == 1
     assert set(subfamilies[0]) == {'hex1', 'eif5a', 'bridge'}
+
+
+def _samples():
+    from collections import namedtuple
+    S = namedtuple('S', 'short group')
+    return [S('In1', 'IN'), S('In2', 'IN'), S('Out1', 'OUT'), S('Out2', 'OUT')]
+
+
+def test_seed_and_other_groups_in_and_out():
+    assert raf.seed_and_other_groups(_samples(), 'IN') == ({'In1', 'In2'}, {'Out1', 'Out2'})
+    assert raf.seed_and_other_groups(_samples(), 'OUT') == ({'Out1', 'Out2'}, {'In1', 'In2'})
+
+
+def test_seed_and_other_groups_rejects_unknown():
+    import pytest
+    with pytest.raises(ValueError):
+        raf.seed_and_other_groups(_samples(), 'BOTH')
+
+
+def test_detect_ambiguous_families_loss_direction():
+    # Loss-direction family seeded from the outgroup: Out1 contributes 2 members,
+    # present in both outgroup proteomes, and in In1 -> ambiguous only when the
+    # outgroup is the seed group.
+    fam = {'o1': ['o1', 'o1b', 'o2']}
+    p2p = {'o1': 'Out1', 'o1b': 'Out1', 'o2': 'Out2'}
+    presence = {'o1': {'Out1': 1, 'Out2': 1, 'In1': 1, 'In2': 0}}
+    seed, other = raf.seed_and_other_groups(_samples(), 'OUT')
+    assert raf.detect_ambiguous_families(fam, p2p, presence, seed, other, set(), 0.75, 0.0) == {'o1'}
+    seed, other = raf.seed_and_other_groups(_samples(), 'IN')
+    assert raf.detect_ambiguous_families(fam, p2p, presence, seed, other, set(), 0.75, 0.0) == set()
