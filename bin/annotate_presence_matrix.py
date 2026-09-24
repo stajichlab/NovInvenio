@@ -5,7 +5,7 @@ Pfam_Names, and Model_Org_Gene_URL columns to presence_matrix.tsv.
 
 --uniprot_xref_files (optional, repeatable) adds a further, independent set of
 uniprot_*-prefixed columns (uniprot_accession, uniprot_gene_name, ..., uniprot_xrefs)
-from bin/build_uniprot_refseq_xref.py's per-species crosswalk TSVs -- keyed by
+from bin/uniprot_link.py's per-proteome UniProt link TSVs -- keyed by
 protein_id, globally unique across species, so files from every proteome in the run
 can be passed together with no risk of collision. This is deliberately independent of
 the gene_name/product_description/Pfam_Names columns above (which come from this
@@ -13,8 +13,8 @@ pipeline's own Pfam/SwissProt/modelorgs annotation, not UniProt's precomputed on
 uniprot_xrefs specifically is what lib/report_data.py's ROW_FIELDS reads to render the
 generic external-linkout registry in lib/report_common.py (see
 docs/superpowers/specs/2026-09-09-uniprot-xref-linkout-design.md). A protein with no
-matching crosswalk row (no UniProt proteome configured for its species, or no RefSeq
-DR-line match) simply gets empty uniprot_* columns -- never an error.
+matching link row (no UniProt record found by accession, RefSeq ID or exact sequence --
+see bin/uniprot_link.py) simply gets empty uniprot_* columns -- never an error.
 
 Model_Org_Gene_URL is '' unless the modelorgs.yaml entry that resolved
 gene_name also sets gene_url_template (see lib/model_organisms.py) -- there is
@@ -87,14 +87,15 @@ def parse_swissprot_hits(tsv_path):
 UNIPROT_XREF_COLS = ['uniprot_accession', 'uniprot_gene_name', 'uniprot_description',
                       'uniprot_go_ids', 'uniprot_pfam_ids', 'uniprot_pfam_names',
                       'uniprot_interpro_ids', 'uniprot_ec_numbers', 'uniprot_alphafold_id',
-                      'uniprot_xrefs']
+                      'uniprot_xrefs', 'uniprot_match', 'uniprot_match_species',
+                      'uniprot_reviewed', 'uniprot_pubs', 'uniprot_n_matches']
 
 
 def load_uniprot_xrefs(paths):
-    """Merge one or more bin/build_uniprot_refseq_xref.py TSVs, keyed by protein_id.
+    """Merge one or more bin/uniprot_link.py TSVs (one per proteome), keyed by protein_id.
 
-    protein_id (an NCBI RefSeq accession) is globally unique across species, so files
-    from every proteome in a run can be merged with no collision risk -- a later file
+    Each protein_id comes from exactly one proteome FASTA in a run, so files from every
+    proteome can be merged with no collision risk -- a later file
     overwriting an earlier one for the same protein_id would only ever happen if the
     same accession were listed twice, which is itself worth surfacing rather than
     silently picking one, but is not checked here (matches this script's existing
@@ -125,7 +126,7 @@ def main():
     ap.add_argument('--candidates_fa',
                     help='FASTA file of candidate proteins; adds protein_sequence column when provided')
     ap.add_argument('--uniprot_xref_files', nargs='+', default=[],
-                    help='One or more bin/build_uniprot_refseq_xref.py output TSVs '
+                    help='One or more bin/uniprot_link.py output TSVs '
                          '(one per species with a configured UniProtDatGz); adds '
                          'uniprot_*-prefixed columns, keyed by protein_id')
     ap.add_argument('--output', required=True,

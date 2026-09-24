@@ -116,3 +116,27 @@ def test_annotate_presence_matrix_cli_without_uniprot_flag_omits_columns(tmp_pat
 
     header = open(output).readline().rstrip('\n').split('\t')
     assert 'uniprot_xrefs' not in header
+
+
+def test_uniprot_link_columns_pass_through(tmp_path):
+    matrix = tmp_path / "m.tsv"
+    matrix.write_text("protein_id\tsource_proteome\tA\nn1\tA\t1\nn2\tA\t1\n")
+    link = tmp_path / "A.uniprot_link.tsv"
+    cols = ["protein_id", "uniprot_accession", "uniprot_gene_name", "uniprot_description",
+            "uniprot_go_ids", "uniprot_pfam_ids", "uniprot_pfam_names", "uniprot_interpro_ids",
+            "uniprot_ec_numbers", "uniprot_alphafold_id", "uniprot_xrefs", "uniprot_match",
+            "uniprot_match_species", "uniprot_reviewed", "uniprot_pubs", "uniprot_n_matches"]
+    vals = ["n1", "Q7S6W2", "", "", "", "", "", "", "", "Q7S6W2", "", "seq_other",
+            "Saccharomyces cerevisiae", "0", "1;;protein;T", "2"]
+    link.write_text("\t".join(cols) + "\n" + "\t".join(vals) + "\n")
+    out = tmp_path / "out.tsv"
+    subprocess.run([sys.executable, str(REPO / "bin" / "annotate_presence_matrix.py"),
+                    "--matrix", str(matrix), "--output", str(out),
+                    "--uniprot_xref_files", str(link)], check=True)
+    with open(out) as fh:
+        rows = {r["protein_id"]: r for r in csv.DictReader(fh, delimiter="\t")}
+    assert rows["n1"]["uniprot_match"] == "seq_other"
+    assert rows["n1"]["uniprot_match_species"] == "Saccharomyces cerevisiae"
+    assert rows["n1"]["uniprot_pubs"] == "1;;protein;T"
+    assert rows["n1"]["uniprot_n_matches"] == "2"
+    assert rows["n2"]["uniprot_match"] == ""
