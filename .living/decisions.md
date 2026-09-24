@@ -1403,3 +1403,12 @@ far). This decision closes #135's investigation; it does not flip the pipeline d
 **Alternatives**: Add `--query-group` to the script (a code change; ticket → branch → PR), or skip loss-side Tier R.
 **Rationale**: No code change was needed for a one-off measurement. The swap reproduces the loss direction's seed group exactly. A `--query-group` flag is the cleaner long-term fix if Tier R is kept.
 **Update 2026-09-23**: superseded by `--query-group OUT` (issue #164, PR #165). Checked on real data: the same 2926 ambiguous families were flagged, and 12357 of 12359 output families match exactly. The one difference is inside diamond, not the query-group logic.
+
+
+## 2026-09-23 — Default --diamond_sensitivity very-sensitive; UCR default --uniprot_index (#171)
+
+**Context**: Benchmark in NovInvenio_Investigations notes/diamond-sensitivity/README.md (3 clades × 3 modes, plus a qcov-15 floor and a simulated stricter other-group E-value).
+**Decision**: `params.diamond_sensitivity = 'very-sensitive'`, and `--evalue 1e-5` stays. `conf/ucr_hpcc_slurm.config` sets `params.uniprot_index` to the shared Fungi_2026_03 index.
+**Alternatives**: keep fast mode (29-69% of candidates contradicted by TBLASTN); add the qcov-15 floor (little extra effect); a stricter other-group E-value (worse at every threshold tested).
+**Rationale**: very-sensitive cut TBLASTN-contradicted candidates to 9-33% with controls unchanged, at ≤1.7× search cost. The UniProt index gives every protein its own UniProt/AlphaFold/xref links (100% on UniProt-sourced proteomes, 7-54% on BFD gene models by exact sequence).
+**Consequence**: every study's results change on rerun.
