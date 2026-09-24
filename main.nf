@@ -41,6 +41,12 @@ def normalizeGroup(String group) {
     return aliases[group] ?: group
 }
 
+// True if at least one config row in GROUP `grp` (after alias normalization) has a
+// non-empty DNA value -- used by the launch-time TBLASTN panel check (issue #166).
+def panelHasDna(List rows, String grp) {
+    return rows.any { row -> normalizeGroup(row.GROUP?.trim()) == grp && row.DNA?.trim() }
+}
+
 // Resolve a FASTA basename against data_dir, checking the flat layout first
 // then the listed subdirectories (so configs that reference bare basenames
 // still find files under data_dir/pep/ and data_dir/dna/).
@@ -64,6 +70,19 @@ workflow {
     if (params.other_coverage_floor_qcov && params.run_tool == 'phmmer') error "ERROR: --other_coverage_floor_qcov needs alignment coverage (qcov), which phmmer --tblout does not report. Use --run_tool diamond or blast, or drop the floor (issue #158)."
     if (params.other_coverage_floor_qcov && params.cluster_tool == 'mmseqs') log.warn "--other_coverage_floor_qcov only judges pairwise hits (pairwise matrix, novelty_discovery singletons, context search); --cluster_tool mmseqs family presence uses --hmm_presence_cov instead, so the floor has no effect here."
     if (params.cluster_tool !in ['pairwise', 'mmseqs', 'novelty_discovery']) error "ERROR: --cluster_tool must be pairwise, mmseqs, or novelty_discovery (got: ${params.cluster_tool})"
+
+    // TBLASTN validation needs at least one genome per searched panel. DNA is optional per
+    // species, but if a whole panel has none, VALIDATE's / NOVELTY_DISCOVERY's
+    // TBLASTN.out...collect() emits nothing, SUMMARIZE_TBLASTN never runs, and neither do
+    // SUMMARIZE or REPORT -- the run still exits successfully with no reports (issue #166).
+    // Fail at launch instead.
+    def cfg_rows = file(params.config).splitCsv(header: true)
+    def dna_panels = params.cluster_tool == 'novelty_discovery'
+        ? ['DISCOVERY_OUT': 'phase-1 TBLASTN validation']
+        : ['OUT': 'novelty-direction TBLASTN validation', 'IN': 'loss-direction TBLASTN validation']
+    dna_panels.each { grp, use ->
+        if (!panelHasDna(cfg_rows, grp)) error "ERROR: no ${grp} row in ${params.config} has a DNA file, but ${use} needs at least one genome. Add a DNA column value for at least one ${grp} species."
+    }
 
     // Resolve DB paths to absolute at launch time and pass them as val inputs —
     // params mutations do not reliably propagate into process script closures.

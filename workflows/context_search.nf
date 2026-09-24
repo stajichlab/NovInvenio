@@ -76,6 +76,7 @@ process CONTEXT_DIAMOND_SEARCH {
             --outfmt 6 qseqid sseqid evalue bitscore length pident qcovhsp scovhsp qlen slen \
             --evalue ${params.parse_evalue} \
             --threads ${task.cpus} \
+            ${params.diamond_sensitivity ? "--${params.diamond_sensitivity}" : ''} \
             --quiet \
             --out context_vs_${meta_t.id}.diamond.tsv
     else
@@ -153,11 +154,14 @@ process CONTEXT_PRESENCE {
     path("context_presence.evalues.tsv"), emit: evalues
 
     script:
+    // Omit the flag for an empty list, like NOVELTY_PRESENCE_MATRIX -- argparse's
+    // nargs='+' rejects a bare --paralog-cutoffs (issue #166).
+    def paralog_arg = paralog_cutoffs ? "--paralog-cutoffs ${paralog_cutoffs}" : ''
     """
     context_presence.py \
         --hits ${hit_tsvs} \
         --candidates ${candidates_txt} \
-        --paralog-cutoffs ${paralog_cutoffs} \
+        ${paralog_arg} \
         --config ${config_csv} \
         --paralog-competition-scope ${paralog_competition_scope} \
         --paralog-rescue-evalue ${params.paralog_rescue_evalue ?: 0} \
