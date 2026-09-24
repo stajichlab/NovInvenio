@@ -63,7 +63,7 @@ NovInvenio/
 ├── pixi.toml                      # [workspace] table — tool dependencies
 ├── modules/
 │   ├── phmmer.nf                  # PHMMER_SEARCH — phmmer pairwise search, storeDir
-│   ├── diamond.nf                 # DIAMOND_SEARCH — diamond blastp pairwise, storeDir
+│   ├── diamond.nf                 # DIAMOND_SEARCH — diamond blastp, one job per query genome; publishDir + -resume (not storeDir)
 │   ├── blast.nf                   # BLAST_SEARCH — blastp pairwise, storeDir
 │   ├── self_search.nf             # PHMMER_SELF / DIAMOND_SELF / BLAST_SELF — self-vs-self, storeDir
 │   ├── parse_hits.nf              # PARSE_HITS — normalises raw hits → common TSV
@@ -149,7 +149,7 @@ NovInvenio/
 │                                   #   --extra-pool: Drosophila/C. elegans/mouse/Monosiga brevicollis).
 └── results/
     └── <config_basename>/
-        ├── search_cache/          # storeDir — pairwise + self-hit raw outputs, never re-run
+        ├── search_cache/          # pairwise + self-hit raw outputs (storeDir, except DIAMOND_SEARCH: publishDir)
         ├── self_hits/             # Per-species paralog_cutoffs.tsv files
         ├── clusters/              # mmseqs2 cluster FASTA and TSV
         ├── presence_matrix.tsv
@@ -181,7 +181,7 @@ view/                              # sibling of results/ — one shareable folde
 
 2. **SEARCH workflow** (`workflows/search.nf`):
    - Cross-joins every ingroup proteome against all other proteomes (ingroup ∪ outgroup, excluding self-pairs).
-   - Runs the selected tool (`PHMMER_SEARCH` / `DIAMOND_SEARCH` / `BLAST_SEARCH`), output cached in `search_cache/` via `storeDir`.
+   - Runs the selected tool (`PHMMER_SEARCH` / `DIAMOND_SEARCH` / `BLAST_SEARCH`), output in `search_cache/` — via `storeDir` for `PHMMER_SEARCH`/`BLAST_SEARCH`; `DIAMOND_SEARCH` batches all targets per query genome in one job and is cached by `-resume` only, publishing (`publishDir`) the same filenames for every `--diamond_sensitivity` mode, so a later run with a different mode overwrites them.
    - `PARSE_HITS` normalises each raw result into a TSV with columns `query_id, target_id, evalue, bitscore, query_proteome, target_proteome`.
    - Also runs self-vs-self searches (`PHMMER_SELF` / `DIAMOND_SELF` / `BLAST_SELF`, `-E 100 --max-target-seqs 2`) to capture the rank-2 (best paralog) hit per protein. Outputs also `storeDir`-cached.
    - `PARSE_SELF_HITS` → `<Short>.paralog_cutoffs.tsv` (columns: `protein_ID, paralog_protein_ID, bitscore, evalue`). Proteins with no within-proteome paralog are omitted. Only the `paralog_protein_ID` column is consumed downstream (by the paralog-competition filter); the `evalue` column is not used for gating (see the SEARCH workflow notes above).
@@ -430,7 +430,7 @@ Sets `params.config`, `params.data_dir`, and `params.project` from `tests/data/t
 nextflow run main.nf -resume --config configs/... --data_dir ...
 ```
 
-`-resume` reuses completed tasks from `work/`. The `search_cache/` directory is additionally protected by `storeDir` — those steps are never re-run even across separate invocations.
+`-resume` reuses completed tasks from `work/`. Most of `search_cache/` is additionally protected by `storeDir` (`PHMMER_SEARCH`, `BLAST_SEARCH`, the self-searches, the `*_MAKEDB` databases) — those steps are never re-run even across separate invocations. `DIAMOND_SEARCH` is the exception: it relies on `-resume` task caching and publishes into `search_cache/`, so a fresh (non-`-resume`) run re-runs it.
 
 ### Running multiple pipelines concurrently
 
@@ -740,7 +740,7 @@ When a process produces a pair result, the meta is `[id: "${meta_q.id}_vs_${meta
 
 | Directive | Use for | Behaviour |
 |---|---|---|
-| `storeDir` | Pairwise + self-search results in `search_cache/` | Skips the process if the output file already exists, even across pipeline runs |
+| `storeDir` | Pairwise (phmmer/blast) + self-search results and search DBs in `search_cache/` | Skips the process if the output file already exists, even across pipeline runs. `DIAMOND_SEARCH` is not `storeDir` (variable-length batched output) — see `modules/diamond.nf` |
 | `publishDir` | Final results in `results/<project>/` | Copies/links on every run; does not affect task execution |
 
 Never apply both to the same process output.
@@ -795,7 +795,7 @@ IN,Coccidioidies immitis,WA_211,Cocci_WA211.pep.fa,Cocci_WA211.dna.fa,,Cimm,Pezi
   ANNOTATE workflow section above. Omitting it is never an error; most species have no
   UniProt reference proteome at all.
 - The config CSV filename (without `.csv`) becomes the results output subdirectory name.
-- `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs).
+- `Protein` and `DNA` are basenames resolved relative to `--data_dir` (also checked under `pep/`, `dna/`, `genome/`, `scaffolds/` subdirs). `DNA` may be empty for a species, but each TBLASTN panel needs at least one genome: `OUT` and `IN` (pairwise/mmseqs), `DISCOVERY_OUT` (novelty_discovery). `main.nf` errors at launch otherwise (issue #166).
 - `GFF3` is optional (may be an empty cell, or the column may be omitted entirely from
   older config CSVs — `lib/config_parser.py`'s `parse_config()` defaults it to `''`).
   When present, it's a basename resolved relative to `--data_dir` the same way as

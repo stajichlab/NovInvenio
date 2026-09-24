@@ -402,6 +402,9 @@ IN,Aspergillus fumigatus,Af293,Afum.pep.fa,Afum.dna.fa,Afum,Pezizomycotina
 - `GROUP`: `IN` (ingroup) or `OUT` (outgroup)
 - `Short`: ≤8-char unique identifier used in all output filenames
 - `Protein`, `DNA`: FASTA basenames resolved relative to `--data_dir`
+  (`DNA` may be empty for a species, but at least one `OUT` and one `IN` row — or one
+  `DISCOVERY_OUT` row for `--cluster_tool novelty_discovery` — need a genome for TBLASTN;
+  the pipeline stops at launch otherwise)
 - Config filename (without `.csv`) becomes the results subdirectory
 - `SourceDB`, `NCBI_TaxID` (both optional, report-only): `SourceDB` gives each species a
   per-gene database linkout in the HTML reports — `fungidb`, `mycocosm:<portal>`,

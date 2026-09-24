@@ -175,6 +175,7 @@ process SINGLETON_DIAMOND_SEARCH {
             --outfmt 6 qseqid sseqid evalue bitscore length pident qcovhsp scovhsp qlen slen \
             --evalue ${params.parse_evalue} \
             --threads ${task.cpus} \
+            ${params.diamond_sensitivity ? "--${params.diamond_sensitivity}" : ''} \
             --quiet \
             --out singletons_vs_${meta_t.id}.diamond.tsv
     else
