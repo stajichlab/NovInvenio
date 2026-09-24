@@ -53,6 +53,8 @@ def test_reader_lookups(tmp_path):
     assert idx.taxid_for_species("Neurospora crassa") == 367110
     assert idx.taxid_for_species("Neurospora crassa OR74A") == 367110
     assert idx.taxid_for_species("Nonexistent fungus") is None
+    assert idx.taxids_for_species("Neurospora crassa") == {367110}
+    assert idx.taxids_for_species("Nonexistent fungus") == set()
     assert "Saccharomyces cerevisiae" in idx.species_name("UP000000002")
     recs = idx.records("UP000000001", {"Q7S6W2"})
     assert list(recs) == ["Q7S6W2"] and recs["Q7S6W2"]["alphafold_id"] == "Q7S6W2"

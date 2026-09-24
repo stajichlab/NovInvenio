@@ -25,11 +25,11 @@ def test_choose_order():
     own = {"accession": "B2", "proteome_id": "UP1", "taxid": 1, "reviewed": 0}
     other_rev = {"accession": "A1", "proteome_id": "UP2", "taxid": 2, "reviewed": 1}
     other_unrev = {"accession": "A0", "proteome_id": "UP3", "taxid": 3, "reviewed": 0}
-    assert ul.choose([other_rev, own], 1, None) == (own, "seq_own")
-    assert ul.choose([other_unrev, other_rev], 1, None) == (other_rev, "seq_other")
-    assert ul.choose([other_unrev, other_rev], None, None) == (other_rev, "seq_other")
-    assert ul.choose([own, other_rev], 1, "UP2") == (other_rev, "seq_own")
-    assert ul.choose([], 1, None) == (None, "")
+    assert ul.choose([other_rev, own], {1}, None) == (own, "seq_own")
+    assert ul.choose([other_unrev, other_rev], {1}, None) == (other_rev, "seq_other")
+    assert ul.choose([other_unrev, other_rev], set(), None) == (other_rev, "seq_other")
+    assert ul.choose([own, other_rev], {1}, "UP2") == (other_rev, "seq_own")
+    assert ul.choose([], {1}, None) == (None, "")
 
 
 def _run(idx, tmp_path, fasta, *args):
@@ -91,3 +91,13 @@ def test_explicit_taxid_and_restrict(tmp_path):
 def test_unusable_index_is_a_hard_error(tmp_path):
     p, _ = _run(tmp_path / "nope", tmp_path, ">g1\nMK\n", "--short", "X", "--species", "X y")
     assert p.returncode != 0 and "incomplete" in p.stderr
+
+
+def test_species_level_taxid_still_counts_same_species_strain_as_own(tmp_path):
+    # Config NCBI_TaxID is often species-level (e.g. 5207 C. neoformans) while UniProt
+    # reference proteomes are strain-level (235443 H99): a binomial match must still
+    # count as own species, not fall to seq_other (which hides gene-database links).
+    idx = build_fixture_index(tmp_path)
+    _, rows = _run(idx, tmp_path, ">g1\nMKVLLAQ\n", "--short", "Ncra",
+                   "--species", "Neurospora crassa", "--taxid", "5141")
+    assert (rows["g1"]["uniprot_accession"], rows["g1"]["uniprot_match"]) == ("Q7S6W2", "seq_own")

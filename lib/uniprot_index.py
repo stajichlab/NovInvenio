@@ -60,6 +60,12 @@ class UniProtIndex:
         taxids = {tax for tax, sp in self._species.values() if _binomial(sp) == want}
         return taxids.pop() if len(taxids) == 1 else None
 
+    def taxids_for_species(self, name):
+        """Every library taxid whose species binomial matches (strain-level taxids of the
+        same species all count), as a set; empty when none match."""
+        want = _binomial(name)
+        return {tax for tax, sp in self._species.values() if _binomial(sp) == want}
+
     def species_name(self, proteome_id):
         return self._species.get(proteome_id, (None, ""))[1]
 

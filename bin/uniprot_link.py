@@ -5,8 +5,10 @@ Match order per protein, first rule that matches wins:
   id        the protein ID is a UniProt accession (sp|ACC|..., tr|ACC|..., bare ACC,
             isoform suffix -N stripped) present in the index
   refseq    the protein ID (version kept) is a RefSeq ID on a record's DR RefSeq line
-  seq_own   exact sequence (lib/uniprot_dat.seq_md5) match in the species' own taxid
-            (--taxid, else species binomial lookup), or in --restrict-proteome
+  seq_own   exact sequence (lib/uniprot_dat.seq_md5) match in the species' own taxids:
+            --taxid plus every library proteome with the same species binomial
+            (config taxids are often species-level, UniProt's strain-level), or
+            only --restrict-proteome when that is given
   seq_other exact sequence match in any other proteome
 Ties: own first, then reviewed (Swiss-Prot), then lowest accession.
 
@@ -48,15 +50,16 @@ def accession_from_id(pid):
     return token if ACC_RE.match(token) else None
 
 
-def choose(cands, own_taxid, restrict):
-    """(best candidate, 'seq_own'|'seq_other') from by_md5() hits, or (None, '')."""
+def choose(cands, own_taxids, restrict):
+    """(best candidate, 'seq_own'|'seq_other') from by_md5() hits, or (None, '').
+    own_taxids: set of taxids that count as the species' own."""
     if not cands:
         return None, ""
 
     def own(c):
         if restrict:
             return c["proteome_id"] == restrict
-        return own_taxid is not None and c["taxid"] == own_taxid
+        return c["taxid"] in own_taxids
 
     best = sorted(cands, key=lambda c: (not own(c), -int(c["reviewed"]), c["accession"]))[0]
     return best, ("seq_own" if own(best) else "seq_other")
@@ -76,7 +79,7 @@ def read_fasta(path):
         yield pid, "".join(chunks)
 
 
-def match_proteome(idx, fasta, own_taxid, restrict):
+def match_proteome(idx, fasta, own_taxids, restrict):
     """{protein_id: (hit dict, match type, n candidates)}, Counter of match types."""
     chosen, counts = {}, Counter()
     for pid, seq in read_fasta(fasta):
@@ -91,7 +94,7 @@ def match_proteome(idx, fasta, own_taxid, restrict):
                 chosen[pid] = (hit, "refseq", len(refs))
             else:
                 cands = idx.by_md5(seq_md5(seq))
-                best, kind = choose(cands, own_taxid, restrict)
+                best, kind = choose(cands, own_taxids, restrict)
                 if best:
                     chosen[pid] = (best, kind, len(cands))
         counts[chosen[pid][1] if pid in chosen else "none"] += 1
@@ -114,8 +117,10 @@ def main():
         idx = UniProtIndex(a.index)
     except IndexFormatError as e:
         sys.exit(f"ERROR: {e}")
-    own_taxid = a.taxid if a.taxid is not None else idx.taxid_for_species(a.species)
-    chosen, counts = match_proteome(idx, a.protein_fasta, own_taxid, a.restrict)
+    own_taxids = idx.taxids_for_species(a.species)
+    if a.taxid is not None:
+        own_taxids.add(a.taxid)
+    chosen, counts = match_proteome(idx, a.protein_fasta, own_taxids, a.restrict)
 
     wanted = defaultdict(set)
     for hit, _, _ in chosen.values():
@@ -141,7 +146,7 @@ def main():
             w.writerow(row)
     n_total = sum(counts.values())
     summary = " ".join(f"{k}={counts[k]}" for k in MATCH_TYPES)
-    print(f"{a.short}: {n_total} proteins; {summary} (own taxid {own_taxid})", file=sys.stderr)
+    print(f"{a.short}: {n_total} proteins; {summary} (own taxids {sorted(own_taxids)})", file=sys.stderr)
 
 
 if __name__ == "__main__":
