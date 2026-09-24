@@ -94,6 +94,12 @@ ROW_FIELDS = [
                  # there's no qualifying hit. Resolved to a display name client-side via
                  # payload['protein_names'] (falls back to the bare ID when unresolved).
                  # Report-only, same as 'ev': never affects presence/novelty calls.
+    'uacc',      # uniprot_accession (bin/uniprot_link.py via UNIPROT_LINK), or ''
+    'umatch',    # uniprot_match: id | refseq | seq_own | seq_other | ''
+    'usp',       # uniprot_match_species when umatch == 'seq_other', else ''
+    'urev',      # uniprot_reviewed as int (1 Swiss-Prot, 0 TrEMBL), -1 when no match
+    'pubs',      # index into payload['pub_sets'], or -1 -- uniprot_pubs,
+                 # "PMID;DOI;scope;title|..." (title is the last ;-field), interned
 ]
 
 class _StringTable:
@@ -520,6 +526,7 @@ def build_payload(
     descriptions = _StringTable()
     go_sets = _StringTable()
     ipr_sets = _StringTable()
+    pub_sets = _StringTable()
     out_rows = []
     categories: set[str] = set()
 
@@ -604,6 +611,11 @@ def build_payload(
             start,
             row.get('uniprot_xrefs', '') or '',
             tgt,
+            row.get('uniprot_accession', '') or '',
+            row.get('uniprot_match', '') or '',
+            (row.get('uniprot_match_species', '') or '') if row.get('uniprot_match') == 'seq_other' else '',
+            int(row['uniprot_reviewed']) if (row.get('uniprot_reviewed') or '') != '' else -1,
+            pub_sets.intern(row.get('uniprot_pubs', '') or ''),
         ])
 
     return {
@@ -625,6 +637,7 @@ def build_payload(
         'descriptions': descriptions.table,
         'go_sets': go_sets.table,
         'ipr_sets': ipr_sets.table,
+        'pub_sets': pub_sets.table,
         'novelty_categories': sorted(categories),
         'has_evalues': bool(evalue_lookup),
         'has_targets': bool(target_lookup),
@@ -661,6 +674,12 @@ CORE_ROW_FIELDS = [
     'chrom',     # GFF3-derived chromosome/scaffold/contig name (see ROW_FIELDS' 'chrom')
     'start',     # GFF3-derived 1-based start coordinate, int or null (see ROW_FIELDS' 'start')
     'xrefs',     # uniprot_xrefs, or '' -- see ROW_FIELDS' 'xrefs'
+    'uacc',      # uniprot_accession (bin/uniprot_link.py via UNIPROT_LINK), or ''
+    'umatch',    # uniprot_match: id | refseq | seq_own | seq_other | ''
+    'usp',       # uniprot_match_species when umatch == 'seq_other', else ''
+    'urev',      # uniprot_reviewed as int (1 Swiss-Prot, 0 TrEMBL), -1 when no match
+    'pubs',      # index into payload['pub_sets'], or -1 -- uniprot_pubs,
+                 # "PMID;DOI;scope;title|..." (title is the last ;-field), interned
 ]
 
 
@@ -714,6 +733,7 @@ def build_core_payload(
     descriptions = _StringTable()
     go_sets = _StringTable()
     ipr_sets = _StringTable()
+    pub_sets = _StringTable()
     out_rows = []
 
     for row in rows:
@@ -760,6 +780,11 @@ def build_core_payload(
             chrom,
             start,
             row.get('uniprot_xrefs', '') or '',
+            row.get('uniprot_accession', '') or '',
+            row.get('uniprot_match', '') or '',
+            (row.get('uniprot_match_species', '') or '') if row.get('uniprot_match') == 'seq_other' else '',
+            int(row['uniprot_reviewed']) if (row.get('uniprot_reviewed') or '') != '' else -1,
+            pub_sets.intern(row.get('uniprot_pubs', '') or ''),
         ])
 
     return {
@@ -769,6 +794,7 @@ def build_core_payload(
         'descriptions': descriptions.table,
         'go_sets': go_sets.table,
         'ipr_sets': ipr_sets.table,
+        'pub_sets': pub_sets.table,
         'proteomes': [
             _proteome_meta(s)
             for s in proteomes
@@ -815,6 +841,12 @@ LOSSES_ROW_FIELDS = [
                    # *outgroup* protein's GFF3 (that's where the gene is) — see ROW_FIELDS
     'start',       # GFF3-derived 1-based start coordinate, int or null — see ROW_FIELDS
     'xrefs',       # uniprot_xrefs, or '' -- see ROW_FIELDS' 'xrefs'
+    'uacc',      # uniprot_accession (bin/uniprot_link.py via UNIPROT_LINK), or ''
+    'umatch',    # uniprot_match: id | refseq | seq_own | seq_other | ''
+    'usp',       # uniprot_match_species when umatch == 'seq_other', else ''
+    'urev',      # uniprot_reviewed as int (1 Swiss-Prot, 0 TrEMBL), -1 when no match
+    'pubs',      # index into payload['pub_sets'], or -1 -- uniprot_pubs,
+                 # "PMID;DOI;scope;title|..." (title is the last ;-field), interned
 ]
 
 
@@ -929,6 +961,7 @@ def build_losses_payload(
     descriptions = _StringTable()
     go_sets = _StringTable()
     ipr_sets = _StringTable()
+    pub_sets = _StringTable()
     out_rows = []
     for row, pid, src, out_frac, out_present, in_present, fam_i in kept:
         fsrc = row.get('function_source', '') or ''
@@ -975,6 +1008,11 @@ def build_losses_payload(
             chrom,
             start,
             row.get('uniprot_xrefs', '') or '',
+            row.get('uniprot_accession', '') or '',
+            row.get('uniprot_match', '') or '',
+            (row.get('uniprot_match_species', '') or '') if row.get('uniprot_match') == 'seq_other' else '',
+            int(row['uniprot_reviewed']) if (row.get('uniprot_reviewed') or '') != '' else -1,
+            pub_sets.intern(row.get('uniprot_pubs', '') or ''),
         ])
 
     return {
@@ -994,6 +1032,7 @@ def build_losses_payload(
         'descriptions': descriptions.table,
         'go_sets': go_sets.table,
         'ipr_sets': ipr_sets.table,
+        'pub_sets': pub_sets.table,
         'families': fam_index.payload(),
         'rows': out_rows,
     }

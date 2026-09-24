@@ -191,6 +191,34 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !h.some((x) => x.includes('uniprot.org/blast')) &&
         !btns(detail()).some((x) => /Copy FASTA/.test(x)));
 
+  // n4 -- no SwissProt hit, but its own UNIPROT_LINK match of type seq_other
+  // (identical sequence only in another species' UniProt proteome).
+  pick(allRows, 'n4').dispatchEvent(ev(w, 'click'));
+  h = hrefs(detail());
+  check('n4: own UniProt accession links to UniProt with no SwissProt hit',
+        h.some((x) => x.includes('uniprot.org/uniprotkb/Q7S6W2')), h.join(' '));
+  check('n4: own accession gives an AlphaFold link',
+        h.some((x) => x.includes('alphafold.ebi.ac.uk/entry/Q7S6W2')));
+  check('n4: seq_other suppresses gene-database links',
+        !h.some((x) => x.includes('fungidb.org')), h.join(' '));
+  check('n4: seq_other suppresses the SourceDB genome link too',
+        !h.some((x) => x.includes('mycocosm.jgi.doe.gov')), h.join(' '));
+  check('n4: seq_other keeps family/structure links',
+        h.some((x) => x.includes('pantherdb.org')) && h.some((x) => x.includes('rcsb.org/structure/6YWS')),
+        h.join(' '));
+  check('n4: seq_other match is labelled with the other species',
+        /Identical sequence in Saccharomyces cerevisiae/.test(detail().textContent));
+  check('n4: unknown xref DB renders no link and no markup',
+        !detail().querySelector('img') && !h.some((x) => x.includes('onerror')));
+  check('n4: protein-scope publication links to PubMed',
+        h.some((x) => x.includes('pubmed.ncbi.nlm.nih.gov/99999999')), h.join(' '));
+  check('n4: genome paper collapsed to one line',
+        /Genome paper/.test(detail().textContent) &&
+        h.filter((x) => x.includes('pubmed.ncbi.nlm.nih.gov/12712197')).length === 1,
+        h.join(' '));
+  check('n4: publication title is text, not markup',
+        !detail().querySelector('script') && /<script>alert\(1\)<\/script> title/.test(detail().textContent));
+
   const q = d.getElementById('f-search');
   q.value = 'n2';
   q.dispatchEvent(ev(w, 'input'));

@@ -321,6 +321,10 @@ BASE_PAGE_CSS = r"""
   .links-note {
     font-size: 11px; color: var(--muted); margin: 8px 0 4px;
   }
+  .pubs { display: flex; flex-direction: column; gap: 4px; }
+  .pub { font-size: 12px; }
+  .pub a { color: var(--series-1); text-decoration: none; }
+  .pub a:hover { text-decoration: underline; }
   .badge {
     display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10.5px;
     border: 1px solid var(--border); color: var(--text-secondary);
@@ -507,6 +511,39 @@ LINKOUT_HELPERS_JS = r"""
     a.target = "_blank"; a.rel = "noopener noreferrer";
     a.title = "AlphaFold DB: " + afId;
     return a;
+  }
+  // uniprot_pubs: "PMID;DOI;scope;title|..." (bin/uniprot_link.py). The title
+  // is the last ;-field and may itself contain ";", so it is re-joined.
+  // Genome-sequencing papers (scope=proteome) collapse to one line; up to 5
+  // protein-scope papers are listed. Titles are untrusted text: extLink()
+  // sets them via textContent.
+  function doiHref(doi) {
+    return "https://doi.org/" + doi.split("/").map(encodeURIComponent).join("/");
+  }
+  function publicationsNode(pubsStr) {
+    if (!pubsStr) return null;
+    var box = el("div", "pubs");
+    var genome = null, n = 0;
+    pubsStr.split("|").forEach(function (entry) {
+      var p = entry.split(";");
+      var pmid = p[0] || "", doi = p[1] || "", scope = p[2] || "", title = p.slice(3).join(";");
+      var href = pmid ? "https://pubmed.ncbi.nlm.nih.gov/" + encodeURIComponent(pmid) + "/"
+                      : (doi ? doiHref(doi) : "");
+      if (!href) return;
+      if (scope === "proteome") { if (!genome) genome = { href: href, title: title }; return; }
+      if (n >= 5) return;
+      n += 1;
+      var row = el("div", "pub");
+      row.appendChild(extLink(title || (pmid ? "PubMed " + pmid : doi), href,
+                              pmid ? "PubMed " + pmid : "DOI " + doi));
+      box.appendChild(row);
+    });
+    if (genome) {
+      var g = el("div", "pub");
+      g.appendChild(extLink("Genome paper: " + (genome.title || ""), genome.href, "Proteome-wide reference"));
+      box.appendChild(g);
+    }
+    return box.childNodes.length ? box : null;
   }
   // The detail panel's protein-ID heading as a UniProt hotlink, when the ID is a
   // UniProt FASTA header token ("sp|ACC|NAME" or "tr|ACC|NAME" -- see NII's
@@ -715,6 +752,10 @@ EXTERNAL_LINKS_JS = r"""
   //   o.seq       protein sequence ('' when the payload carries no sequences)
   //   o.proteome  payload proteomes[] entry for the row's source species
   //   o.xrefs     UniProt DR-line cross-references, "DB:id|DB:id" ('' if none)
+  //   o.uacc      the protein's own matched UniProt accession (UNIPROT_LINK), or ''
+  //   o.af        AlphaFold DB id for that accession, or ''
+  //   o.umatch    match type: id | refseq | seq_own | seq_other | ''
+  //   o.usp       the other species' name when o.umatch == "seq_other", else ''
   // ---- generic UniProt DR-cross-reference linkouts ------------------------
   // o.xrefs is "DB:id|DB:id" (NII bin/extract_dat_annotations.py's DR-line
   // extraction, lib/report_data.py's 'xrefs' field) -- split each entry on
@@ -774,7 +815,31 @@ EXTERNAL_LINKS_JS = r"""
                  href: "https://bacteria.ensembl.org/id/" + encodeURIComponent(id),
                  title: "Ensembl Bacteria gene " + id };
       }
-    }
+    },
+    // Family / domain / structure / pathway databases (lib/uniprot_dat.py's
+    // wider DR allow-list). Each builds its URL from a fixed template with the
+    // ID encodeURIComponent-escaped; a DB not listed here renders no link.
+    PDB:      { render: function (id) { return { label: "PDB " + id, href: "https://www.rcsb.org/structure/" + encodeURIComponent(id), title: "PDB structure " + id }; } },
+    PANTHER:  { render: function (id) { return { label: "PANTHER " + id, href: "https://www.pantherdb.org/panther/family.do?clsAccession=" + encodeURIComponent(id), title: "PANTHER family " + id }; } },
+    OrthoDB:  { render: function (id) { return { label: "OrthoDB " + id, href: "https://www.orthodb.org/?query=" + encodeURIComponent(id), title: "OrthoDB " + id }; } },
+    STRING:   { render: function (id) { return { label: "STRING " + id, href: "https://string-db.org/network/" + encodeURIComponent(id), title: "STRING network " + id }; } },
+    eggNOG:   { render: function (id) { return { label: "eggNOG " + id, href: "http://eggnog5.embl.de/#/app/results?target_nogs=" + encodeURIComponent(id), title: "eggNOG " + id }; } },
+    Gene3D:   { render: function (id) { return { label: "Gene3D " + id, href: "https://www.cathdb.info/version/latest/superfamily/" + encodeURIComponent(id.replace(/^G3DSA:/, "")), title: "CATH/Gene3D " + id }; } },
+    SUPFAM:   { render: function (id) { return { label: "SUPFAM " + id, href: "https://supfam.org/SUPERFAMILY/cgi-bin/scop.cgi?ipid=" + encodeURIComponent(id), title: "SUPERFAMILY " + id }; } },
+    PROSITE:  { render: function (id) { return { label: "PROSITE " + id, href: "https://prosite.expasy.org/" + encodeURIComponent(id), title: "PROSITE " + id }; } },
+    SMART:    { render: function (id) { return { label: "SMART " + id, href: "https://smart.embl.de/smart/do_annotation.pl?DOMAIN=" + encodeURIComponent(id), title: "SMART " + id }; } },
+    CDD:      { render: function (id) { return { label: "CDD " + id, href: "https://www.ncbi.nlm.nih.gov/Structure/cdd/cddsrv.cgi?uid=" + encodeURIComponent(id), title: "NCBI CDD " + id }; } },
+    PRINTS:   { render: function (id) { return { label: "PRINTS " + id, href: "https://www.ebi.ac.uk/interpro/entry/prints/" + encodeURIComponent(id), title: "PRINTS " + id }; } },
+    PIRSF:    { render: function (id) { return { label: "PIRSF " + id, href: "https://www.ebi.ac.uk/interpro/entry/pirsf/" + encodeURIComponent(id), title: "PIRSF " + id }; } },
+    HAMAP:    { render: function (id) { return { label: "HAMAP " + id, href: "https://hamap.expasy.org/rule/" + encodeURIComponent(id), title: "HAMAP rule " + id }; } },
+    NCBIfam:  { render: function (id) { return { label: "NCBIfam " + id, href: "https://www.ebi.ac.uk/interpro/entry/ncbifam/" + encodeURIComponent(id), title: "NCBIfam " + id }; } },
+    FunFam:   { render: function (id) { return { label: "FunFam " + id, href: "https://www.cathdb.info/search?q=" + encodeURIComponent(id), title: "CATH FunFam " + id }; } },
+    MEROPS:   { render: function (id) { return { label: "MEROPS " + id, href: "https://www.ebi.ac.uk/merops/cgi-bin/pepsum?id=" + encodeURIComponent(id), title: "MEROPS " + id }; } },
+    CAZy:     { render: function (id) { return { label: "CAZy " + id, href: "http://www.cazy.org/" + encodeURIComponent(id) + ".html", title: "CAZy family " + id }; } },
+    ESTHER:   { render: function (id) { return { label: "ESTHER " + id, href: "https://bioweb.supagro.inrae.fr/ESTHER/gene_locus?name=" + encodeURIComponent(id), title: "ESTHER " + id }; } },
+    TCDB:     { render: function (id) { return { label: "TCDB " + id, href: "https://www.tcdb.org/search/result.php?tc=" + encodeURIComponent(id), title: "TCDB " + id }; } },
+    BRENDA:   { render: function (id) { return { label: "BRENDA " + id, href: "https://www.brenda-enzymes.org/enzyme.php?ecno=" + encodeURIComponent(id), title: "BRENDA EC " + id }; } },
+    UniPathway: { render: function (id) { return { label: "UniPathway " + id, href: "https://www.uniprot.org/unipathway/" + encodeURIComponent(id), title: "UniPathway " + id }; } }
   };
   // Returns {links: [<a> node, ...], hasVEuPathDB: bool} -- the caller (see
   // externalLinksNode below) needs to know whether a VEuPathDB xref fired so
@@ -782,7 +847,12 @@ EXTERNAL_LINKS_JS = r"""
   // link for the same row (that one resolves against o.id, which for a
   // UniProt-sourced protein is the wrong ID space -- see the dedup comment in
   // externalLinksNode below).
-  function xrefLinkNodes(xrefsStr) {
+  // Gene-database xrefs: they name a gene record in the species the UniProt
+  // entry belongs to. For a seq_other match (identical sequence, but the
+  // record is another species') they would point at the wrong organism's
+  // gene, so the caller passes suppressGeneDb and they are skipped.
+  var GENE_DB_XREFS = { VEuPathDB: 1, GeneID: 1, KEGG: 1, RefSeq: 1, EnsemblFungi: 1, EnsemblBacteria: 1 };
+  function xrefLinkNodes(xrefsStr, suppressGeneDb) {
     var links = [];
     var hasVEuPathDB = false;
     (xrefsStr ? xrefsStr.split("|") : []).filter(Boolean).forEach(function (entry) {
@@ -792,6 +862,7 @@ EXTERNAL_LINKS_JS = r"""
       var id = entry.slice(i + 1);
       var tmpl = XREF_LINK_TEMPLATES[db];
       if (!tmpl || !id) return;
+      if (suppressGeneDb && GENE_DB_XREFS[db]) return;
       var r = tmpl.render(id);
       links.push(extLink(r.label, r.href, r.title));
       if (db === "VEuPathDB") hasVEuPathDB = true;
@@ -801,16 +872,29 @@ EXTERNAL_LINKS_JS = r"""
   function externalLinksNode(o) {
     var box = document.createDocumentFragment();
     var links = el("div", "links");
-    var acc = uniprotAcc(o.sprot);
+    // The protein's own UniProt record (o.uacc, from UNIPROT_LINK) wins over
+    // the best SwissProt hit; the hit is still shown when it names a
+    // different entry.
+    var own = o.uacc || "";
+    var hitAcc = uniprotAcc(o.sprot);
+    var acc = own || hitAcc;
     if (acc) {
       links.appendChild(extLink("UniProt " + acc,
-        "https://www.uniprot.org/uniprotkb/" + acc + "/entry"));
+        "https://www.uniprot.org/uniprotkb/" + encodeURIComponent(acc) + "/entry"));
       links.appendChild(extLink("AlphaFold",
-        "https://alphafold.ebi.ac.uk/entry/" + acc,
-        "Predicted structure for " + acc));
+        "https://alphafold.ebi.ac.uk/entry/" + encodeURIComponent(o.af || acc),
+        "Predicted structure for " + (o.af || acc)));
     }
-    var db = genomeDbLink(o.proteome && o.proteome.source_db, o.id);
-    var xrefResult = xrefLinkNodes(o.xrefs);
+    if (own && hitAcc && hitAcc !== own) {
+      links.appendChild(extLink("Best SwissProt hit: " + hitAcc,
+        "https://www.uniprot.org/uniprotkb/" + encodeURIComponent(hitAcc) + "/entry"));
+    }
+    // seq_other: the matched record belongs to another species, so every
+    // gene-database link (the config's SourceDB and the gene-db xrefs) would
+    // name the wrong organism's gene. Family/domain/structure links stay.
+    var otherSpecies = o.umatch === "seq_other";
+    var db = otherSpecies ? null : genomeDbLink(o.proteome && o.proteome.source_db, o.id);
+    var xrefResult = xrefLinkNodes(o.xrefs, otherSpecies);
     // FungiDB dedup: genomeDbLink's "fungidb" branch resolves against
     // geneIdFromProteinId(o.id), which for a UniProt-sourced protein is the
     // UniProt accession, not a real FungiDB gene ID -- that link is already
@@ -854,12 +938,16 @@ EXTERNAL_LINKS_JS = r"""
         "blastp against UniProtKB"));
     }
     box.appendChild(links);
+    if (otherSpecies && o.usp) {
+      box.appendChild(el("p", "links-note",
+        "Identical sequence in " + o.usp + " (" + own + "); gene-database links omitted."));
+    }
 
     // A candidate with neither a Pfam domain nor a SwissProt hit is the whole
     // point of this pipeline, and it is exactly the row for which an ID-based
     // NCBI search returns nothing. Give it the remote-homology and structure
     // tools that are the real next step.
-    if (o.seq && !acc && !o.pfam) {
+    if (o.seq && !hitAcc && !o.pfam) {
       box.appendChild(el("p", "links-note",
         "No Pfam domain and no SwissProt hit — remote-homology and structure searches:"));
       var more = el("div", "links");

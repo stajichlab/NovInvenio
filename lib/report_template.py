@@ -221,6 +221,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--page);
   }
   .links a:hover, .links button:hover { border-color: var(--series-1); }
+  .pubs { display: flex; flex-direction: column; gap: 4px; }
+  .pub { font-size: 12px; }
+  .pub a { color: var(--series-1); text-decoration: none; }
+  .pub a:hover { text-decoration: underline; }
   .seq {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 10.5px;
@@ -1127,11 +1131,17 @@ HTML_TEMPLATE = r"""<!doctype html>
       sprot: row[F.sprot],
       geneUrl: row[F.gene_url],
       xrefs: row[F.xrefs],
+      uacc: row[F.uacc],
+      af: row[F.af],
+      umatch: row[F.umatch],
+      usp: row[F.usp],
       pfam: row[F.pfam_n],
       fsrcName: row[F.fsrc] >= 0 ? DATA.fsources[row[F.fsrc]] : "",
       seq: seq,
       proteome: row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null
     })));
+    var pubsNode = row[F.pubs] >= 0 ? publicationsNode(DATA.pub_sets[row[F.pubs]]) : null;
+    if (pubsNode) detailEl.appendChild(field("Publications", pubsNode));
 
     if (seq) {
       detailEl.appendChild(field("Protein sequence (" + seq.length + " aa)", el("div", "seq", seq)));
