@@ -1396,3 +1396,10 @@ far). This decision closes #135's investigation; it does not flip the pipeline d
 **Decision**: A one-time `--build_uniprot_index` workflow over a pre-downloaded library (Fungi_2026_03), plus a per-run UNIPROT_LINK step matching every proteome by accession, RefSeq ID, or exact sequence (own species first, then any). Reports link from the protein's own record.
 **Alternatives**: parse each species' .dat per run (no cross-species fallback without scanning 19 GB); UniProt REST per protein (network from compute nodes, rate limits, not reproducible).
 **Rationale**: spec docs/superpowers/specs/2026-09-23-uniprot-library-index-design.md. `-entry` is rejected by Nextflow 26's strict parser, so a param selects the index build.
+## 2026-09-23 — Loss-side Tier R via IN<->OUT swapped config (sordariales_shallow)
+
+**Context**: `bin/refine_ambiguous_families.py` has no `--query-group` option. It always treats IN as the seed group.
+**Decision**: For the loss direction, run it with a copy of the config where the IN and OUT labels are swapped.
+**Alternatives**: Add `--query-group` to the script (a code change; ticket → branch → PR), or skip loss-side Tier R.
+**Rationale**: No code change was needed for a one-off measurement. The swap reproduces the loss direction's seed group exactly. A `--query-group` flag is the cleaner long-term fix if Tier R is kept.
+**Update 2026-09-23**: superseded by `--query-group OUT` (issue #164, PR #165). Checked on real data: the same 2926 ambiguous families were flagged, and 12357 of 12359 output families match exactly. The one difference is inside diamond, not the query-group logic.
