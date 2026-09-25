@@ -14,6 +14,9 @@ complex gene twice is far less likely than losing it twice.
     1. Place the single gain on the branch leading to the MRCA of every tip that
        carries the family.
     2. Below that node, each MAXIMAL all-absent clade is ONE loss event, on its stem.
+    3. A node with more than two children is treated as a SOFT polytomy (unknown
+       order, e.g. collapsed for low support): its absent children together are ONE
+       loss, the minimum-loss resolution (issue #185).
 
 Step 2 is the point of using a tree at all. Two absent sister tips are ONE loss, not
 two, because a single loss on their shared stem explains both. A raw count of absent
@@ -115,7 +118,16 @@ def dollo_polarize(tree, present_tips) -> DolloResult:
             # children are explained by this single event.
             losses.append(tips)
             return
-        for child in clade.clades:
+        children = clade.clades
+        if len(children) > 2:
+            # Soft polytomy (e.g. a node collapsed for low support): the order of
+            # its children is unknown. The minimum-loss resolution puts all absent
+            # children in one clade, so together they are ONE loss (issue #185).
+            absent = [c for c in children if not (set(_tips(c)) & present)]
+            if absent:
+                losses.append(tuple(sorted(t for c in absent for t in _tips(c))))
+            children = [c for c in children if c not in absent]
+        for child in children:
             walk(child)
 
     walk(gain_clade)

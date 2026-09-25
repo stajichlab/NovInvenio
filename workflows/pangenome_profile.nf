@@ -64,6 +64,7 @@ include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_INVENTORY_STUB }        from '../modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_SPECIES_TREE_STUB }     from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_TSV_STUB }       from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_FUNNEL_STUB }    from '../modules/empty_evalues_stub'
 // Issue #135: REPORT_TABLES/REPORT_RENDER now run unconditionally (not just
@@ -188,7 +189,15 @@ workflow PANGENOME_PROFILE {
 
     // --- 5. Frequency binning + co-occurrence ------------------------------
     FREQUENCY_BINS(rescued_matrix, effective_samplesheet, strain_inventory)
-    COOCCURRENCE(rescued_matrix, FREQUENCY_BINS.out.table, effective_samplesheet, strain_inventory)
+    // Issue #185: optional rooted strain tree for Dollo gain/loss polarization.
+    if (params.pangenome_species_tree) {
+        species_tree_ch = file(params.pangenome_species_tree, checkIfExists: true)
+    } else {
+        EMPTY_SPECIES_TREE_STUB()
+        species_tree_ch = EMPTY_SPECIES_TREE_STUB.out.evalues
+    }
+    COOCCURRENCE(rescued_matrix, FREQUENCY_BINS.out.table, effective_samplesheet, strain_inventory,
+                 species_tree_ch)
 
     // --- 5b. Assembly-quality vs pangenome-content QC (issue #130) --------
     // Runs unconditionally (cheap; no gating param) -- see

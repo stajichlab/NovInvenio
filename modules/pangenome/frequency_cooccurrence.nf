@@ -44,18 +44,21 @@ process COOCCURRENCE {
     path(frequency_table)
     path(samplesheet)
     path(inventory)
+    path(species_tree)   // empty stub when params.pangenome_species_tree is null (issue #185)
 
     output:
     path("cooccurring_pairs.tsv.zst"), emit: pairs
 
     script:
     def inventory_arg = params.pangenome_dereplicate ? "--inventory ${inventory}" : ''
+    def tree_arg = species_tree.size() > 0 ? "--species_tree ${species_tree}" : ''
     """
     pangenome_cooccurrence.py \
         --matrix ${matrix} --frequency_table ${frequency_table} --config ${samplesheet} \
         --ingroup_label '${params.pangenome_ingroup_label}' \
         --outgroup_label '${params.pangenome_outgroup_label}' \
         ${inventory_arg} \
+        ${tree_arg} \
         --min_strain_count ${params.pangenome_min_strain_count} \
         --fdr_alpha ${params.pangenome_fdr_alpha} \
         --screen_alpha ${params.pangenome_screen_alpha} \

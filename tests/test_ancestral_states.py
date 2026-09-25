@@ -134,3 +134,31 @@ def test_family_absent_from_every_strain_is_absent():
 def test_gain_confined_to_the_outgroup_is_not_an_ingroup_event():
     r = dollo_polarize(tree(NESTED), {'E', 'F'})
     assert tree_direction(r, carriers={'E', 'F'}, ingroup=INGROUP) == 'outgroup_only'
+
+
+# ---- soft polytomies (issue #185) --------------------------------------------------
+# A node collapsed for low support is a SOFT polytomy: the true order is unknown. The
+# minimum-loss resolution groups all absent children into one clade, so they are ONE
+# loss, not one per child. Without this, collapsing poorly supported nodes (the point
+# of doing it) would inflate loss counts instead of making them conservative.
+
+def test_absent_children_of_a_polytomy_are_one_loss():
+    r = dollo_polarize(tree('((A,B,C,D),E);'), {'A', 'B', 'E'})
+    assert r.n_loss_events == 1
+    assert r.loss_clades == [('C', 'D')]
+
+
+def test_one_absent_child_of_a_polytomy_is_one_loss():
+    r = dollo_polarize(tree('((A,B,C),D);'), {'A', 'B', 'D'})
+    assert r.loss_clades == [('C',)]
+
+
+def test_polytomy_absent_children_still_count_separately_from_other_losses():
+    r = dollo_polarize(tree('(((A,B,C,D),(E,F)),G);'), {'A', 'B', 'E', 'G'})
+    assert r.n_loss_events == 2
+    assert r.loss_clades == [('C', 'D'), ('F',)]
+
+
+def test_bifurcating_behaviour_is_unchanged():
+    r = dollo_polarize(tree(NESTED), {'A', 'E'})
+    assert r.n_loss_events == 3
