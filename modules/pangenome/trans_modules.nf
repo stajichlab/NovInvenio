@@ -56,3 +56,41 @@ process MODULE_DOMAINS {
         --output module_domains.tsv
     """
 }
+
+// MODULE_NEIGHBORHOOD -- View B1 (issue #182): for each Leiden module, how close
+// its member genes sit inside each strain's own assembly, against a permutation
+// null drawn from the same strain. Pairs on different contigs are excluded as
+// uninformative, and the excluded fraction is reported. Positions are never
+// compared across strains. Scale, null pool, n_perm and seed are written into
+// every output row. See lib/pangenome_neighborhood.py.
+process MODULE_NEIGHBORHOOD {
+    label 'low_cpu'
+    tag "module_neighborhood"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/pangenome" }, mode: 'copy'
+
+    input:
+    path(family_modules)
+    path(gene_positions)
+    path(cluster_tsv)
+    path(frequency_table)
+
+    output:
+    path("module_neighborhood.tsv"), emit: table
+
+    script:
+    """
+    pangenome_neighborhood.py \
+        --family_modules ${family_modules} \
+        --gene_positions ${gene_positions} \
+        --cluster_tsv ${cluster_tsv} \
+        --frequency_table ${frequency_table} \
+        --max_kb ${params.pangenome_neighborhood_max_kb} \
+        --min_gene_gap ${params.pangenome_neighborhood_min_gene_gap} \
+        --n_perm ${params.pangenome_neighborhood_n_perm} \
+        --seed ${params.pangenome_neighborhood_seed} \
+        --null_pool ${params.pangenome_neighborhood_null_pool} \
+        --min_module_size ${params.pangenome_module_min_size} \
+        --output module_neighborhood.tsv
+    """
+}

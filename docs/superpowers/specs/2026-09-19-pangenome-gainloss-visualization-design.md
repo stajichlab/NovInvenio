@@ -183,6 +183,41 @@ comparable. Rejected for that reason.
   the most frequent class among its domains, ties broken by that same
   precedence order.
 
+## B1 implementation and empirical pass (2026-09-25, issue #182)
+
+Implemented in `lib/pangenome_neighborhood.py`, `bin/pangenome_neighborhood.py` and
+the `MODULE_NEIGHBORHOOD` process; `report.md` gets one table. Two changes from the
+text above:
+
+- **Two statistics, each with its own null.** The fraction above is conditional on
+  "same contig" (`obs_frac`). Its effect ratio is capped at 1/null, and on
+  fragmented assemblies (many contigs about 100 kb long) almost every same-contig
+  pair is within 100 kb. So the output also carries colocalized / all pairs
+  (`*_total`). It is not a fragmentation measure: the null comes from the same
+  strain and so has the same contig breaks.
+- **Null pool.** `accessory` (genes of non-core families, the default) or `all`.
+
+Empirical pass: 529-strain Coccidioides `rescue_structural_genus_vs_ureesii` run,
+7 Leiden modules, 200 permutations, 25/50/100/200 kb x accessory/all, 4 min per
+setting on 1 CPU (3.3 GB RSS).
+
+| Module (families) | Effect, same-contig statistic, 25 / 50 / 100 / 200 kb (accessory null) | Effect, all pairs, 100 kb |
+|---|---|---|
+| 0 (8,070) | 0.97 / 0.99 / 1.00 / 1.00 | 1.04 |
+| 1 (5,101) | 0.94 / 1.00 / 1.00 / 1.01 | 1.02 |
+| 2 (2,184) | 1.16 / 1.52 / 1.27 / 1.09 | 1.63 |
+| 3 (1,095) | 13.69 / 4.10 / 2.26 / 1.39 | 13.18 |
+| 4 (321) | 0.86 / 0.82 / 0.89 / 0.96 | 0.84 |
+| 5 (9) | 29.6 / 11.4 / 3.79 / 2.20 | 28.2 |
+
+- The module calls are the same at every scale, so the 100 kb / 11-gene defaults
+  stand. `min_gene_gap` was not swept.
+- 91-99% of member pairs are on different contigs and are excluded.
+- With the all-genes null, the non-clustered modules 0 and 1 show 1.2-1.3x at 25 kb;
+  with the accessory null they stay at 0.94-0.97. The accessory null is the default.
+- With millions of pairs, a 1.02-1.04x effect still reaches the permutation floor
+  p = 1/201. Read the effect ratio first.
+
 ## Output format and storage
 
 One self-contained HTML page, data embedded as JSON, drawn client-side

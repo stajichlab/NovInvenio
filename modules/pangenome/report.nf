@@ -79,6 +79,7 @@ process REPORT_RENDER {
     path(marker_summary)
     path(per_strain_summary)
     path(diagnostics_banner_md)
+    path(module_neighborhood)   // View B1 (issue #182)
 
     output:
     path("report/report.md"), emit: report
@@ -106,6 +107,7 @@ process REPORT_RENDER {
         --n_permutations ${params.pangenome_accumulation_permutations} \
         --seed ${params.pangenome_accumulation_seed} \
         ${diagnostics_arg} \
+        --module_neighborhood ${module_neighborhood} \
         --out_dir report
     """
 }
