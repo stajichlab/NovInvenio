@@ -1,6 +1,7 @@
 # Island locus view: exemplar-anchored synteny and shared indel breakpoints
 
-Status: **draft for review** (2026-09-24). Nothing here is implemented.
+Status: **reviewed 2026-09-24; approved as a starting design with the `F_min = 3`
+flank fallback (section 2).** Nothing here is implemented.
 Replaces "View A" of `2026-09-19-pangenome-gainloss-visualization-design.md` as the
 target design; the current page (`island_synteny.html`) stays until this ships.
 
@@ -61,13 +62,19 @@ For each locus, the exemplar is the strain that:
    at a contig end);
 3. ties: highest N50 (`assembly_quality_vs_content.tsv`), then strain name.
 
-If no strain meets (2), use the one with the most flank genes and mark the locus
-"exemplar at contig end" on the page.
+If no strain meets (2) at `F`, retry (2) at `F_min` genes per side (default
+`F_min = 3`; reviewer decision 2026-09-24). This keeps a flank anchor for a locus
+that sits near a contig end in every strain, where 5 genes are not available.
+The locus then uses `F_min` flank columns, and the page marks it "short flanks".
+If no strain meets (2) even at `F_min`, use the one with the most flank genes and
+mark the locus "exemplar at contig end" on the page.
 
 ### 3. Columns
 
 `F` flank genes left + the locus genes + `F` flank genes right, in the exemplar's
-gene order (`family_positions` rank). Default `F = 5`. Each column carries family
+gene order (`family_positions` rank). Default `F = 5`, or `F_min = 3` for a locus
+whose exemplar was chosen at the `F_min` tier (section 2). The per-strain "flanks
+intact" test in section 4 uses the same flank columns the locus shows. Each column carries family
 ID, frequency bin (core/shell/...), Pfam class, and the exemplar's location
 (contig:start-end, protein), as PR #179 already does. Flank columns are visually
 marked as anchors.
@@ -192,7 +199,7 @@ selects mostly 2-strain loci, where most strains have no anchored flanks.
 
 ## Open questions for review
 
-1. `F = 5` flank genes, `k = 10` window, empty-site threshold 80%, locus grouping
+1. `F = 5` flank genes (`F_min = 3` fallback near contig ends, decided 2026-09-24), `k = 10` window, empty-site threshold 80%, locus grouping
    at 50% containment: defaults from the feasibility run, not swept.
 2. Default ranking: informative polymorphism (section 6) vs strain count.
 3. Keep the current `island_synteny.html` as a second page, or replace it?
