@@ -1,6 +1,6 @@
 # Island locus view: exemplar-anchored synteny and shared indel breakpoints
 
-Status: **draft, revised after PI review** (2026-09-24). Nothing here is implemented.
+Status: **approved by PI** (2026-09-24), except the > 2 species rule (section 6). Nothing here is implemented.
 Replaces "View A" of `2026-09-19-pangenome-gainloss-visualization-design.md` as the
 target design.
 
@@ -163,11 +163,22 @@ Candidate rankings and what they surface (top examples):
 
 Top-50 lists of A and B share only 20 loci, so the choice matters.
 
-**Default:** two tabs, because the study's main comparison is reciprocal
-*C. immitis* vs *C. posadasii*: "Differs between species" (B) and "Polymorphic
-within species" (E). A, C, D and a text search stay as sort options. The page
-shows e/f per species for every locus, so the reader sees why it ranked where it
-did. (Default tab: PI to choose; B proposed.)
+**Decided (PI, 2026-09-24):** two tabs, because the study's main comparison is
+reciprocal *C. immitis* vs *C. posadasii*. A, C, D and a text search stay as sort
+options, not tabs. The page shows e/f per species for every locus, so the reader
+sees why it ranked where it did.
+
+| setting | decision |
+|---|---|
+| default tab | **B "Differs between species"** |
+| locus scored only when | >= 10 flank-intact strains in **each** species |
+| tab B ranking | **effect size**: difference between species in the fraction of flank-intact strains with the full locus. Fisher p shown for information only (strains are clonal, so p is not a test) |
+| tab B filter | "near-fixed only" toggle: one species >= 95% full, the other >= 95% empty |
+| tab E "polymorphic" in a species | >= 10 empty-site **and** >= 10 full-locus strains in that species |
+| tab E scope | polymorphic in **either** species (default), toggle for **both** |
+| tab E ranking | sum over species of min(empty-site, full-locus) |
+| C "most anchored" | sort option only |
+| > 2 species (e.g. B's score) | **not decided**; not needed for this study. Options: largest pairwise difference, or each group vs the rest |
 
 ### 7. Page layout
 
@@ -278,6 +289,6 @@ selects mostly 2-strain loci, where most strains have no anchored flanks.
 
 1. Settled: `F = 5`, `k = 10` with chaining. Still defaults, not swept: `G_max = 100`,
    empty-site threshold 80%, locus grouping at 50% containment.
-2. Default ranking: see section 6 (revised after measurement).
+2. Settled: ranking and tabs in section 6.
 3. Settled: current page kept as `island_presence_grid.html`, deprecated.
 4. Settled: contig breaks are drawn, in their own colour.
