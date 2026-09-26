@@ -36,6 +36,6 @@ All future work items, ideas, and planned improvements for this project are trac
 | Evaluate --very-sensitive for the main pairwise DIAMOND_SEARCH | high | complete | validation | 2026-09-10 | Jason Stajich | [diamond-very-sensitive-main-search.md](diamond-very-sensitive-main-search.md) |
 | Real-data concordance benchmark for the diamond tier-1 clustering backend | medium | complete | validation | 2026-09-16 | Jason Stajich | [diamond-tier1-cluster-backend.md](diamond-tier1-cluster-backend.md) |
 | Pin CLUSTER_TIER1's mmseqs branch to AVX2-capable nodes | n/a | wont-do | bug | 2026-09-17 | Jason Stajich | [pangenome-cluster-tier1-avx2-pin.md](pangenome-cluster-tier1-avx2-pin.md) |
-| Gain/loss polarization should use a real strain phylogeny | high | open | methodology | 2026-09-19 | Jason Stajich | [pangenome-phylogeny-aware-gain-loss.md](pangenome-phylogeny-aware-gain-loss.md) |
+| Gain/loss polarization should use a real strain phylogeny | high | in-progress | methodology | 2026-09-19 | Jason Stajich | [pangenome-phylogeny-aware-gain-loss.md](pangenome-phylogeny-aware-gain-loss.md) |
 
 <!-- Add new entries above this line -->

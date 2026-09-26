@@ -433,6 +433,21 @@ def warn_if_unstratified(
     return True
 
 
+def prune_tree_to_strains(tree, strains) -> int:
+    """Drop tree tips that are not matrix strains, in place; return how many.
+
+    A study-wide tree usually has more tips than one run's matrix (strains removed
+    by dereplication, or from another run). Left in, Dollo would read each one as
+    an absence and add losses that no data supports (issue #185)."""
+    keep = set(strains)
+    extra = [t for t in tree.get_terminals() if t.name not in keep]
+    for t in extra:
+        tree.prune(t)
+    while len(tree.root.clades) == 1:
+        tree.root = tree.root.clades[0]
+    return len(extra)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--matrix", required=True)
@@ -540,6 +555,9 @@ def main() -> None:
                 f"--species_tree is missing {len(missing)} matrix strain(s): "
                 f"{sorted(missing)[:10]} -- tip labels must match strain IDs exactly"
             )
+        n_pruned = prune_tree_to_strains(species_tree, matrix.strains)
+        print(f"--species_tree: {len(tips)} tips, {n_pruned} not in the matrix pruned, "
+              f"{len(tips) - n_pruned} used", file=sys.stderr)
 
     pairs = find_cooccurring_pairs(
         matrix, frequency_table, clade_of_strain, outgroup_presence,

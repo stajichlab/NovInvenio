@@ -1,7 +1,13 @@
 # Gain/loss polarization should use a real strain phylogeny, not outgroup presence/absence counts alone
 
 - **Priority**: high
-- **Status**: open
+- **Status**: in-progress (2026-09-25)
+  - Done: Dollo reconstruction (#140/#141); pipeline wiring via `--pangenome_species_tree`,
+    soft-polytomy losses and extra-tip pruning (#185); a Coccidioides tree from the existing
+    50-locus BUSCO CDS tree (NII `coccidioides_pangenome/analysis/species_tree/`).
+  - Open: the tree root is not tested by an outgroup (rooted on Ci|Cp, U. reesii added as
+    sister); re-examine `clade_composition` / the permutation stratification (step 3);
+    revisit the genus_vs_ureesii findings with the tree columns (step 4).
 - **Category**: methodology / pangenome co-occurrence
 - **Date**: 2026-09-19
 - **Author**: Jason Stajich

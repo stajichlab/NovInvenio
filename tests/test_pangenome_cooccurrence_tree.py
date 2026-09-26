@@ -86,3 +86,25 @@ def test_count_based_direction_is_untouched_by_the_tree():
     with_tree = run(ANCESTRAL_LOST)[0]
     without = run(ANCESTRAL_LOST, tree=False)[0]
     assert with_tree['direction_a'] == without['direction_a']
+
+
+# ---- tree tips outside the matrix (issue #185) -------------------------------------
+# A tree built for a whole study usually has more tips than a run's matrix (e.g.
+# strains dropped by dereplication). Left in, Dollo would read them as absences and
+# invent losses, so they are pruned before any reconstruction.
+
+def test_extra_tree_tips_are_pruned_before_reconstruction():
+    t = Phylo.read(io.StringIO('((((A,B),Z1),(C,D)),((E,F),Z2));'), 'newick')
+    n = coocc.prune_tree_to_strains(t, ALL_STRAINS)
+    assert n == 2
+    assert sorted(x.name for x in t.get_terminals()) == sorted(ALL_STRAINS)
+    # X present in A,B only: with Z1 (absent) left in, it would cost an extra loss.
+    from ancestral_states import dollo_polarize
+    assert dollo_polarize(t, {'A', 'B'}).n_loss_events == 0
+
+
+def test_pruning_keeps_the_tree_rooted_and_bifurcating_at_the_root():
+    t = Phylo.read(io.StringIO('((A,B),(Z1,Z2));'), 'newick')
+    coocc.prune_tree_to_strains(t, ['A', 'B'])
+    assert sorted(x.name for x in t.get_terminals()) == ['A', 'B']
+    assert len(t.root.clades) <= 2
