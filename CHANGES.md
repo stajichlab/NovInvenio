@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### pangenome.nf project-name fallback fix (#194); BUILD_PRESENCE_MATRIX memory scaling (#189)
+
+- **`lib/Helpers.groovy`** — `projectName(params)` now falls back through
+  `params.project`, `params.pangenome_project`, the basename of `params.config`,
+  and the basename of `params.pangenome_samplesheet` (extension stripped) before
+  landing on the literal `'output'`. Previously `pangenome.nf` tried to supply the
+  samplesheet-basename fallback itself by assigning `params.project = ...` inside
+  its `workflow {}` block; that assignment silently does not persist on Nextflow
+  26.04.6 for a param already declared (even with a null default) in
+  `nextflow.config`'s `params {}` block, so every pangenome run without
+  `--pangenome_project`/`--project` actually still fell through to `'output'`
+  regardless of what the (now-removed) warning printed.
+- **Layout change**: a pangenome run without `--pangenome_project`/`--project`
+  now publishes under `<outdir>/<samplesheet basename>/pangenome/` instead of
+  `<outdir>/output/pangenome/`. With `--pangenome_project` (or `--project`), it
+  publishes under that name, unchanged.
+- **`pangenome.nf`** — the warning now reports the value `Helpers.projectName(params)`
+  actually resolves to, instead of interpolating the (previously ineffective)
+  local `params.project` assignment, which always printed the literal word `null`.
+- **`nextflow.config`** — added `withName: '.*BUILD_PRESENCE_MATRIX' { memory =
+  { 16.GB * task.attempt } }`, mirroring the existing `ASSEMBLY_QUALITY_QC`/
+  `HMMSEARCH_CHUNK` pattern. `BUILD_PRESENCE_MATRIX` previously only had
+  `label 'low_cpu'`'s flat 4 GB with no scaling across retries, so a study large
+  enough to OOM it (exit 137) hit the identical wall on every attempt.
+  `conf/ucr_hpcc_slurm.config`'s `errorStrategy`/`maxRetries` already retry
+  unconditionally on any non-zero exit, so this alone is enough to give a retry
+  a real chance to succeed.
+
 ### island synteny view: strain lists in popups, per-column counts, sized gutter, logo
 
 - **`lib/island_synteny_template.py`** — the row-hover tooltip now lists every strain

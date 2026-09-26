@@ -5,12 +5,41 @@
 class Helpers {
     /**
      * Return the project name for output directory construction.
-     * Uses params.project if set; otherwise derives it from the config CSV basename.
-     * Falls back to 'output' only if neither is available (should never happen in normal runs).
+     *
+     * Fallback order: params.project, then params.pangenome_project, then the
+     * basename of params.config (main.nf's --config), then the basename of
+     * params.pangenome_samplesheet (pangenome.nf's --pangenome_samplesheet,
+     * extension stripped the same way as --config), then the literal 'output'
+     * if none of those are set.
+     *
+     * pangenome.nf used to try to plug this gap itself by assigning
+     * `params.project = ...` at the top of its workflow{} block when neither
+     * --project nor --pangenome_project was given. That assignment silently
+     * no-ops on Nextflow 26.04.6: once a param is declared in
+     * nextflow.config's `params {}` block (both `project` and
+     * `pangenome_project` are, with default null), a later `params.x = y`
+     * assignment in the script/workflow body does not persist -- a read of
+     * params.x immediately afterward still sees the original config-declared
+     * value. Undeclared params are unaffected (assigning a param
+     * nextflow.config never mentions works normally). Verified with a
+     * minimal local reproduction: a two-line nextflow.config (`params {
+     * project = null }`) plus a workflow{} that assigns `params.project =
+     * "world"` and immediately re-reads it comes back null. This is why a
+     * real run without --pangenome_project printed "defaulting
+     * params.project to 'null'" and then published under
+     * <outdir>/output/pangenome/ instead of
+     * <outdir>/<samplesheet-basename>/pangenome/ -- the assignment never
+     * took, so every downstream publishDir/storeDir closure calling
+     * projectName(params) fell through to the 'output' literal regardless of
+     * what the warning printed. Fix: derive the samplesheet-basename
+     * fallback here, inside projectName() itself, instead of relying on a
+     * script-side mutation of params.project (issue #194).
      */
     static String projectName(params) {
-        if (params.project) return params.project
-        if (params.config)  return new File(params.config.toString()).name.replaceFirst(/\.[^.]+$/, '')
+        if (params.project)               return params.project
+        if (params.pangenome_project)      return params.pangenome_project
+        if (params.config)                 return new File(params.config.toString()).name.replaceFirst(/\.[^.]+$/, '')
+        if (params.pangenome_samplesheet)  return new File(params.pangenome_samplesheet.toString()).name.replaceFirst(/\.[^.]+$/, '')
         return 'output'
     }
 
