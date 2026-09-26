@@ -71,9 +71,9 @@ process ANNOTATE_MATRIX {
 
     script:
     def n_mpi           = params.hmm_mpi_tasks ?: params.max_cpus
-    def mpi_cmd         = params.hmm_mpi ? "mpirun -np ${n_mpi}" : ""
-    def pfam_cpu        = params.hmm_mpi ? "--mpi" : "--cpu ${task.cpus}"
-    def diamond_threads = params.hmm_mpi ? n_mpi : task.cpus
+    def mpi_cmd         = Helpers.asBool(params.hmm_mpi) ? "mpirun -np ${n_mpi}" : ""
+    def pfam_cpu        = Helpers.asBool(params.hmm_mpi) ? "--mpi" : "--cpu ${task.cpus}"
+    def diamond_threads = Helpers.asBool(params.hmm_mpi) ? n_mpi : task.cpus
     def pfam_out        = "${output_prefix}candidates.pfam.tblout"
     def sprot_out        = "${output_prefix}candidates.swissprot.tsv"
 
@@ -81,7 +81,7 @@ process ANNOTATE_MATRIX {
     // ("CPU binding outside of job step allocation") -- --cpu-bind is an srun-only flag
     // (sbatch rejects it), so it's exported here rather than passed via clusterOptions.
     // No-op in thread mode. See nextflow-hpcc skill / modules/hmmsearch.nf.
-    def bind_env = params.hmm_mpi ? "export SLURM_CPU_BIND=none" : ""
+    def bind_env = Helpers.asBool(params.hmm_mpi) ? "export SLURM_CPU_BIND=none" : ""
 
     // Guard on candidates_fa actually having content: an empty candidate set is a real,
     // legitimate outcome (e.g. a direction/lineage with zero clade-specific losses), not

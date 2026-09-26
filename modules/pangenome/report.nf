@@ -138,7 +138,7 @@ process DIAGNOSTICS {
     // convention as this pipeline's other optional-input stubs) when
     // params.pangenome_rescue_enable is false -- rescue_redundancy is then
     // reported not_computed rather than erroring.
-    def strict_arg = params.pangenome_strict ? '--pangenome_strict' : ''
+    def strict_arg = Helpers.asBool(params.pangenome_strict) ? '--pangenome_strict' : ''
     def funnel_arg = (rescue_funnel.size() > 0) ? "--rescue_funnel ${rescue_funnel}" : ''
     // assembly_correlations is ASSEMBLY_QUALITY_QC's correlations table
     // (issue #130). Its trip threshold reuses pangenome_qc_rho_warn_threshold

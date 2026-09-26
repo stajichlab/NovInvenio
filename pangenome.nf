@@ -20,6 +20,15 @@ nextflow.enable.dsl=2
 //       [--pangenome_captain_hmm /path/to/captain.hmm | \
 //        --pangenome_captain_hmm_name NAME --pangenome_pfam_hmm /path/to/Pfam-A.hmm]
 //
+// Fast route, no rescue: add `--pangenome_rescue_enable false`. Rescue (TBLASTN of
+// every absent family against every genome) dominates cost on large or divergent
+// sets -- ~1,182 cpu-h on 529 Coccidioides strains, estimated ~13,000 cpu-h per
+// direction for 328 Fusarium strains -- while clustering, frequency bins,
+// co-occurrence, islands and modules run in a few cpu-h. Without rescue, a gene
+// missed by annotation counts as absent, so accessory counts are upper bounds; use
+// it for general patterns, then rescue the subset you report on. Boolean flags work
+// on the command line since issue #191 (read through Helpers.asBool).
+//
 // Samplesheet schema (same shape as main.nf's --config, plus GFF3 is
 // REQUIRED here -- pair classification's physical-linkage test has no
 // genomic-position source without it):
@@ -152,7 +161,7 @@ def print_help() {
 }
 
 workflow {
-    if (params.help) {
+    if (Helpers.asBool(params.help)) {
         print_help()
         exit 0
     }

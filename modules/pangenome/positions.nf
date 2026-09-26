@@ -77,7 +77,7 @@ process FAMILY_POSITIONS {
     path("family_positions.tsv.zst"), emit: positions
 
     script:
-    def rescue_arg = params.pangenome_rescue_enable ? "--rescue_positions ${rescue_positions}" : ''
+    def rescue_arg = Helpers.asBool(params.pangenome_rescue_enable) ? "--rescue_positions ${rescue_positions}" : ''
     """
     pangenome_build_family_positions.py \
         --gene_positions ${gene_positions} --cluster_tsv ${cluster_tsv} \

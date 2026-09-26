@@ -417,7 +417,7 @@ workflow UNIPROT_INDEX {
 }
 
 workflow {
-    if (params.build_uniprot_index) {
+    if (Helpers.asBool(params.build_uniprot_index)) {
         UNIPROT_INDEX()
     } else {
         NOVINVENIO()
