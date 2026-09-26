@@ -27,4 +27,21 @@ class Helpers {
         def outdirAbs = outdirFile.isAbsolute() ? outdirFile : new File(launchDir.toString(), outdirFile.path)
         return new File(outdirAbs.canonicalFile.parentFile, 'docs').path
     }
+
+    /**
+     * Boolean value of a params flag (issue #191). Nextflow 26 passes a command-line
+     * `--flag false` to the script as the String "false", which is truthy in Groovy,
+     * so `if (params.flag)` stays on. The same value from -params-file arrives as a
+     * Boolean. The CLI value overrides the config after it is read, so this cannot be
+     * fixed in nextflow.config; read every boolean param through this function.
+     * A bare `--flag` arrives as the String "true".
+     */
+    static boolean asBool(v) {
+        if (v == null) return false
+        if (v instanceof Boolean) return v
+        def s = v.toString().trim().toLowerCase()
+        if (s in ['true', 't', 'yes', 'y', '1']) return true
+        if (s in ['false', 'f', 'no', 'n', '0', '', 'null']) return false
+        throw new IllegalArgumentException("not a boolean value: '${v}'")
+    }
 }
