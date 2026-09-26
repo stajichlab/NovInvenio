@@ -65,6 +65,82 @@ from report_common import (
     SKIN_VARS_CSS,
     breadcrumb_nav_html,
 )
+from skins import SKINS
+
+# Small inline island logo (palm tree on a sandy island), sat next to the
+# existing NI logo in the title row. Self-contained SVG, no external files --
+# same file:// constraint as the rest of this page. Its colours are CSS
+# custom properties rather than hardcoded hex, same reasoning as the
+# CLASS_TOKENS mapping above: this module's docstring's report colour rule.
+# The dark-mode values apply both when the OS is dark and no --skin choice
+# has been stored yet (the app's own 3-state selection model, see
+# lib/skins.py) AND whenever an explicit skin with scheme "dark" is picked --
+# the selector list below is derived from SKINS itself so a future dark skin
+# picks this up automatically rather than needing its id hardcoded here too.
+_DARK_SKIN_SELECTOR = ", ".join(
+    f':root[data-skin="{skin_id}"]'
+    for skin_id, skin in SKINS.items()
+    if skin.get("scheme") == "dark"
+)
+
+ISLAND_LOGO_CSS = (
+    r"""
+  .isv-logo-svg { width: 40px; height: 40px; flex: 0 0 auto; }
+  :root {
+    --isv-logo-water: #5aa9e6;
+    --isv-logo-sand: #e3cd8a;
+    --isv-logo-trunk: #8a5a35;
+    --isv-logo-frond: #3f8f4f;
+    --isv-logo-sun: #f2c94c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-skin])) {
+      --isv-logo-water: #3f7fb0;
+      --isv-logo-sand: #b89a5a;
+      --isv-logo-trunk: #6b4423;
+      --isv-logo-frond: #35734a;
+      --isv-logo-sun: #d1a730;
+    }
+  }
+"""
+    + (
+        f"""
+  {_DARK_SKIN_SELECTOR} {{
+    --isv-logo-water: #3f7fb0;
+    --isv-logo-sand: #b89a5a;
+    --isv-logo-trunk: #6b4423;
+    --isv-logo-frond: #35734a;
+    --isv-logo-sun: #d1a730;
+  }}
+"""
+        if _DARK_SKIN_SELECTOR
+        else ""
+    )
+)
+
+# role="img" + <title> (not alt=, since this is inline SVG, not <img>) is the
+# accessible-name mechanism for inline SVG; aria-label duplicates it as a
+# belt-and-suspenders label some AT/tests read directly (test_island_synteny.py).
+ISLAND_LOGO_SVG_HTML = r"""<svg class="isv-logo-svg" viewBox="0 0 40 40" width="40" height="40"
+  role="img" aria-label="Island synteny">
+  <title>Island synteny</title>
+  <circle cx="32" cy="8" r="3" fill="var(--isv-logo-sun)"></circle>
+  <ellipse cx="20" cy="31" rx="18" ry="6" fill="var(--isv-logo-water)"></ellipse>
+  <ellipse cx="20" cy="29" rx="15" ry="4.5" fill="var(--isv-logo-water)" opacity="0.55"></ellipse>
+  <ellipse cx="20" cy="27" rx="10" ry="4.5" fill="var(--isv-logo-sand)"></ellipse>
+  <path d="M20 27 C 19 21, 22 16, 20.5 10" stroke="var(--isv-logo-trunk)" stroke-width="2"
+    fill="none" stroke-linecap="round"></path>
+  <path d="M20.5 10 C 15 7, 11 8, 8 12" stroke="var(--isv-logo-frond)" stroke-width="2"
+    fill="none" stroke-linecap="round"></path>
+  <path d="M20.5 10 C 16 6, 14 4, 12 3" stroke="var(--isv-logo-frond)" stroke-width="2"
+    fill="none" stroke-linecap="round"></path>
+  <path d="M20.5 10 C 21 5, 21 3, 21 1" stroke="var(--isv-logo-frond)" stroke-width="2"
+    fill="none" stroke-linecap="round"></path>
+  <path d="M20.5 10 C 25 6, 27 4, 29 3" stroke="var(--isv-logo-frond)" stroke-width="2"
+    fill="none" stroke-linecap="round"></path>
+  <path d="M20.5 10 C 26 8, 30 9, 33 13" stroke="var(--isv-logo-frond)" stroke-width="2"
+    fill="none" stroke-linecap="round"></path>
+</svg>"""
 
 ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 <html lang="en">
@@ -74,7 +150,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 <title>__PROJECT_TITLE__ — NovInvenio island synteny</title>
 """ + FAVICON_LINK_HTML + r"""
 <style>
-""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + FOOTER_CSS + r"""
+""" + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + ISLAND_LOGO_CSS + BREADCRUMB_NAV_CSS + FOOTER_CSS + r"""
   .isv-explorer { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
   @media (max-width: 1080px) { .isv-explorer { grid-template-columns: 1fr; } }
 
@@ -129,6 +205,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   """ + breadcrumb_nav_html() + r"""
   <header class="top">
     """ + LOGO_IMG_HTML + r"""
+    """ + ISLAND_LOGO_SVG_HTML + r"""
     <div class="titles">
       <h1 id="title"></h1>
       <p class="sub" id="subtitle"></p>
@@ -450,15 +527,52 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   // ---- canvas geometry ----------------------------------------------------
   var ROW_H = 20;
   var CELL_W = 22;
-  var GUTTER = 170;
+  // GUTTER used to be a fixed 170 px, which ellipsized most strain names
+  // down to a handful of characters. It is now computed PER ISLAND
+  // (computeGutter, below) from the actual row-label text drawGrid is about
+  // to draw, clamped to [GUTTER_MIN, GUTTER_MAX] -- GUTTER itself stays a
+  // plain mutable var (not a const) so colX()/drawGrid/the glyph header can
+  // all keep reading the same module-level value without threading it
+  // through every call.
+  var GUTTER_MIN = 170;
+  var GUTTER_MAX = 300;
+  var GUTTER = GUTTER_MIN;
   var GLYPH_H = 14;
   var LABEL_ANGLE = Math.PI / 3;
   // Label header height is computed per island from the longest label
   // (labelLayout), not fixed: a fixed 74 px header cut off any label longer
   // than ~70 px, and family IDs ("Short|protein-id") are usually longer.
   var LABEL_MAX_W = 230;
+  var ROW_LABEL_FONT = "10px system-ui, -apple-system, 'Segoe UI', sans-serif";
 
   function colX(i) { return GUTTER + i * CELL_W; }
+
+  // The row label drawGrid draws for `hap`: the species band label when
+  // sorted by species (and the payload has species data), else the first
+  // strain name plus a "+N" count badge. Factored out of drawGrid so
+  // computeGutter can measure the SAME text drawGrid is about to render,
+  // rather than a second, drifting definition of "the row label".
+  function rowLabelText(hap) {
+    return (state.rowSort === "species" && Object.keys(SPECIES).length)
+      ? speciesBandLabel(hap, SPECIES)
+      : (hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1));
+  }
+
+  // Per-island gutter width: wide enough for the longest row label (measured
+  // with the same font drawGrid uses to draw it) plus room for the "×N"
+  // count badge and a little padding, clamped to [GUTTER_MIN, GUTTER_MAX].
+  // A label longer than the cap is still ellipsized in drawGrid -- the row
+  // popup (strainPopupLines/appendRowStrains, above) always shows the full
+  // names regardless of what fits in the gutter.
+  function computeGutter(haps) {
+    gctx.font = ROW_LABEL_FONT;
+    var maxW = 0;
+    haps.forEach(function (hap) {
+      if (!hap.strains.length) return;
+      maxW = Math.max(maxW, gctx.measureText(rowLabelText(hap)).width);
+    });
+    return Math.min(GUTTER_MAX, Math.max(GUTTER_MIN, maxW + 60 + 12));
+  }
 
   var glyphCanvas = document.getElementById("glyphs");
   var gridCanvas = document.getElementById("grid");
@@ -562,7 +676,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       gctx.fillText("×" + hap.count, 8, y + ROW_H / 2);
 
       if (hap.strains.length) {
-        gctx.font = "10px system-ui, -apple-system, 'Segoe UI', sans-serif";
+        gctx.font = ROW_LABEL_FONT;
         gctx.fillStyle = P.secondary;
         // While sorted by species, the row label IS the species band --
         // speciesBandLabel() names every row spanning more than one
@@ -573,10 +687,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
         // per-column label, including untrusted strings (strain and family
         // IDs) -- canvas text has no HTML-injection surface, so this is
         // exactly as safe as the existing strain-name note it replaces.
-        var note = (state.rowSort === "species" && Object.keys(SPECIES).length)
-          ? speciesBandLabel(hap, SPECIES)
-          : (hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1));
-        gctx.fillText(ellipsize(gctx, note, GUTTER - 60), 50, y + ROW_H / 2);
+        gctx.fillText(ellipsize(gctx, rowLabelText(hap), GUTTER - 60), 50, y + ROW_H / 2);
       }
 
       // Deliberately ONE colour for every present cell, never the per-column
@@ -647,9 +758,24 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     tipEl.appendChild(el("div", null, "Protein: " + loc.protein +
       (loc.n_copies > 1 ? " (" + loc.n_copies + " copies in this strain)" : "")));
   }
+  // Present/total strains for one column, counted from isl.haplotypes --
+  // deliberately the island's OWN full haplotype list, not `currentHaps`
+  // (the sorted/filtered copy drawGrid just rendered), so this count never
+  // depends on which row sort is currently active.
+  function columnPresenceCount(isl, ci) {
+    var haps = isl.haplotypes;
+    var present = 0, total = 0;
+    for (var i = 0; i < haps.length; i++) {
+      total += haps[i].count;
+      if (haps[i].pattern.charAt(ci) === "1") present += haps[i].count;
+    }
+    return { present: present, total: total };
+  }
   function appendColumnInfo(isl, ci) {
     tipEl.appendChild(el("div", "tip-id", isl.families[ci]));
     tipEl.appendChild(el("div", null, "Column " + (ci + 1) + " of " + isl.families.length));
+    var pc = columnPresenceCount(isl, ci);
+    tipEl.appendChild(el("div", null, "Present in " + pc.present + " of " + pc.total + " strains"));
     appendLocation(isl, ci);
     tipEl.appendChild(el("div", null, classLabel(familyClassAt(isl, ci))));
     var doms = familyDomainsAt(isl, ci);
@@ -690,6 +816,34 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     var ri = Math.floor((clientY - rect.top) / ROW_H);
     return ri;
   }
+
+  // Row popup content: a header (singular/plural strain count) followed by
+  // every strain sharing this haplotype's presence pattern, sorted, at most
+  // STRAIN_POPUP_LIMIT names with an overflow line beyond that. A pure
+  // function (takes `hap` only, never closes over SPECIES/state) so it can
+  // be extracted and run under plain node -- see
+  // tests/test_island_synteny.py's row-popup tests.
+  function strainPopupLines(hap) {
+    var STRAIN_POPUP_LIMIT = 20;
+    var n = hap.strains.length;
+    var lines = [n + (n === 1 ? " strain shares" : " strains share") + " this presence pattern"];
+    var sorted = hap.strains.slice().sort();
+    lines = lines.concat(sorted.slice(0, STRAIN_POPUP_LIMIT));
+    if (sorted.length > STRAIN_POPUP_LIMIT) {
+      lines.push("+" + (sorted.length - STRAIN_POPUP_LIMIT) + " more");
+    }
+    return lines;
+  }
+  // Appends strainPopupLines(hap) to the tooltip via el()/textContent only --
+  // strain IDs come straight from the presence matrix / config CSV and are
+  // untrusted strings, never innerHTML.
+  function appendRowStrains(hap) {
+    var lines = strainPopupLines(hap);
+    tipEl.appendChild(el("div", "tip-id", lines[0]));
+    for (var i = 1; i < lines.length; i++) {
+      tipEl.appendChild(el("div", null, lines[i]));
+    }
+  }
   // Cell hover: the row (strains, and their species breakdown when the
   // payload has species data) plus the column's family, presence in this
   // row, and location in the example strain.
@@ -699,10 +853,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     if (!isl || !hap) { tipEl.style.display = "none"; return; }
     var ci = colAtGlyph(e.clientX, isl);
     tipEl.textContent = "";
-    var rowName = Object.keys(SPECIES).length ? speciesBandLabel(hap, SPECIES)
-      : (hap.count === 1 ? hap.strains[0] : hap.strains[0] + " +" + (hap.count - 1) + " more");
-    tipEl.appendChild(el("div", "tip-id", rowName + " (" + hap.count +
-      (hap.count === 1 ? " strain)" : " strains)")));
+    appendRowStrains(hap);
     if (Object.keys(SPECIES).length) {
       var counts = speciesCounts(hap, SPECIES);
       Object.keys(counts).sort().forEach(function (sp) {
@@ -779,6 +930,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
     var haps = sortedHaplotypes(isl);
     currentHaps = haps;
+    GUTTER = computeGutter(haps);
     var w = totalWidth(isl);
     drawGlyphStrip(isl, w);
     drawGrid(isl, haps, w);
