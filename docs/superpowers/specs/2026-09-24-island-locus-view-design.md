@@ -1,7 +1,9 @@
 # Island locus view: exemplar-anchored synteny and shared indel breakpoints
 
 Status: **reviewed 2026-09-24; approved as a starting design with the `F_min = 3`
-flank fallback (section 2).** Nothing here is implemented.
+flank fallback (section 2).** Section 8 (clinker synteny panel) added 2026-09-26
+and approved as a starting design ("let's see how it looks"). Nothing here is
+implemented.
 Replaces "View A" of `2026-09-19-pangenome-gainloss-visualization-design.md` as the
 target design; the current page (`island_synteny.html`) stays until this ships.
 
@@ -136,6 +138,88 @@ count, size (today's order), and a text search. `--top_loci` (default 50).
   accessory content is confounded with assembly quality on runs where
   `assembly_quality_confound` triggered, so "uninformative" rows are expected.
 
+### 8. Clinker synteny panel (added 2026-09-26)
+
+The grid shows presence and position states. It does not show the genes
+themselves. For each drawn locus, a clinker figure shows the real gene
+neighbourhoods of a few strains side by side, with links between similar genes.
+
+**Loci.** The loci the page draws (`--top_loci`, default 50).
+
+**Strains** (at most `--clinker_max_strains`, default 12), chosen in this order:
+1. The locus exemplar (section 2).
+2. For each row class (full locus, partial, empty site) and each species: the
+   flank-intact strain with the highest N50 (`assembly_quality_vs_content.tsv`),
+   ties by strain name.
+3. More full-locus or partial strains by N50, until the cap is reached.
+
+Uninformative strains (flanks not intact) are never chosen, because their
+region cannot be anchored.
+
+**Region per strain.** On the contig where the strain's flanks are intact
+(section 5): from the lowest to the highest rank among the strain's in-place
+column copies, then `F` genes further on each side (`F_min` for a short-flank
+locus), clipped at the contig end. For an empty-site strain the region is the
+left-flank block plus the right-flank block, so the gap between them shows the
+deletion. Regions differ in length between strains. The page states each
+strain's region (contig:start-end, gene count).
+
+**GenBank slices.** New process `ISLAND_GBK_SLICE`, one task for all drawn loci.
+Inputs: the study genome FASTA, GFF3 and protein FASTA (`--pangenome_data_dir`),
+`gene_positions.tsv.zst`, the tier-1 cluster TSV, and the per-strain regions
+computed by the locus-view step. Output: one `.gbk` per (locus, strain). Each CDS
+carries `/locus_tag` = the gene ID, `/translation` from the protein FASTA, and
+`/note="family=<tier-1 family>"`.
+
+**Clinker.** New process `ISLAND_CLINKER`, one task per locus:
+`clinker <locus>/*.gbk -gf <locus>.groups.csv -p <locus>.html` with
+gamcil/clinker **0.0.32 from PyPI** (added to the pixi environment as a PyPI
+dependency, and to the container). Bioconda's `clinker` 1.33 is a different,
+unrelated RNA-seq tool; do not use it. `-gf` takes a gene-to-group file, so the
+tier-1 family is the group and clinker colours match the grid columns (verified
+in the spike). After clinker runs, the embedded data are slimmed: the
+`sequence` and `translation` fields are removed from every gene object, in
+clusters and in links. clinker copies both genes' full sequences into every
+link, which is what makes the file large.
+
+**Page.** `island_synteny.html` gets a "Synteny (clinker)" panel below the
+grid. On locus selection it loads `clinker/<locus_id>.html` in an iframe, and it
+lists the strains shown, the reason each was chosen, and each region. A locus
+without a clinker file (for example, the step was skipped) shows "no synteny
+figure for this locus". The `clinker/` files are release assets (class 3), like
+`island_synteny.html`. `bin/sync_pangenome_report.py` (NII) copies `clinker/`
+with the page.
+
+**Switch.** `--pangenome_clinker true|false` (default true). With false, both
+processes are skipped and the panel says the step was not run.
+
+**Cost and limits.** clinker compares every pair of clusters, so cost grows with
+the square of the strain count; the cap keeps it at most 66 pairs per locus.
+Measured by the 2026-09-26 spike (below): about 30 s and 104 MB per locus, so
+50 loci are about 25 min of single-task CPU.
+
+**Clinker spike (measured 2026-09-26, throwaway, `$SCRATCH/clinker_spike/`).**
+Run `rescue_freqpol_immitis_in_posadasii_out`. Island
+`407-0_S_OLD_CPA0002:scaffold_30:125276-129229` (231 strains, 5 member families,
+Prenyltrans domain). 11 strains (10 occupied, 1 empty site; both species), 12-16
+genes and about 32-40 kb per region, 5 flank genes each side. GenBank slices
+built from the funannotate GFF3, genome FASTA and protein FASTA.
+- clinker 0.0.32, 6 cores: 31.4 s wall and 104 MB peak RSS with default
+  grouping; 25.1 s with `-gf` family grouping. `-gf` grouping works.
+- HTML: 4.13 MB, fully self-contained (no external script or style URLs), so it
+  works on the static site. Of that, 3.45 MB is 668 links that each embed both
+  genes' DNA and protein sequences. Removing `sequence` and `translation`
+  everywhere gives 0.81 MB. It is not yet checked that the slimmed page renders
+  and behaves the same; the plan must check this in a browser before relying on
+  it. 50 slimmed loci would be about 40 MB of release assets per run.
+- Only 3 of the island's 5 member families sit together in any strain (a 2-3
+  gene, 2-4 kb cassette); the other 2 are near-singleton families co-listed from
+  one genome. The locus grouping (section 1) and in-place test (section 4)
+  should drop such columns from a strain's region; the plan checks this on real
+  loci.
+- One empty-site candidate (B12471) had only 5 genes on its contig, too few for
+  5-gene flanks, and was skipped. This is the `F_min` / uninformative case.
+
 ## Data and wiring
 
 All inputs already exist per run: `islands_with_domains.tsv`,
@@ -186,6 +270,9 @@ selects mostly 2-strain loci, where most strains have no anchored flanks.
    region from two strains' DNA and align (minimap2 or blastn) to confirm the
    site is contiguous in the empty-site strain. This tests the neighbour rule
    against the sequence, which the rule itself cannot.
+4. Clinker panel: for 3 loci, check by eye that the exemplar's clinker track
+   shows the same genes, in the same order, as the grid's columns, and that an
+   empty-site strain shows its flanks joined with no island genes between them.
 
 ## Phase 2 (not in this design)
 
