@@ -49,6 +49,8 @@ from compressed_io import open_maybe_compressed_write  # noqa: E402
 
 _PROTEIN_ID_RE = re.compile(r"(?:^|;)protein_id=([^;\n]+)")
 _PARENT_RE = re.compile(r"(?:^|;)Parent=([^;\n]+)")
+_LOCUS_TAG_RE = re.compile(r"(?:^|;)locus_tag=([^;\n]+)")
+_GN_RE = re.compile(r"\sGN=(\S+)")
 
 # Below this fraction of a strain's proteins actually resolving to a FASTA-
 # matching position, treat it as a genuine dialect mismatch and abort rather
@@ -101,6 +103,51 @@ def parse_gff3_protein_positions(gff3_path: str | Path) -> dict[str, tuple[str, 
     return {pid: (contig, start, end) for pid, (contig, start, end) in positions.items()}
 
 
+def parse_gff3_locus_tag_positions(gff3_path: str | Path) -> dict[str, tuple[str, int, int]]:
+    """{locus_tag: (contig, start, end)} from a GFF3's CDS records (min start,
+    max end over all CDS rows of the locus). Third dialect (issue #187): an NCBI
+    GFF3 paired with a UniProt protein FASTA, joined via GN= <-> locus_tag=."""
+    positions: dict[str, list] = {}
+    with open(gff3_path) as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 9 or fields[2] != "CDS":
+                continue
+            m = _LOCUS_TAG_RE.search(fields[8])
+            if not m:
+                continue
+            contig, start, end = fields[0], int(fields[3]), int(fields[4])
+            entry = positions.get(m.group(1))
+            if entry is None:
+                positions[m.group(1)] = [contig, start, end]
+            else:
+                entry[1] = min(entry[1], start)
+                entry[2] = max(entry[2], end)
+    return {k: (c, a, b) for k, (c, a, b) in positions.items()}
+
+
+def load_protein_gene_names(protein_fasta_path: str | Path) -> dict[str, str]:
+    """{GN value: FASTA first token} from UniProt-style headers (`... GN=<name> ...`).
+    A GN value on more than one protein is dropped: only 1:1 names are safe to join."""
+    seen: dict[str, str] = {}
+    dup: set[str] = set()
+    with open(protein_fasta_path) as fh:
+        for line in fh:
+            if not line.startswith(">"):
+                continue
+            m = _GN_RE.search(line)
+            if not m:
+                continue
+            gn, pid = m.group(1), line[1:].split()[0]
+            if gn in seen:
+                dup.add(gn)
+            else:
+                seen[gn] = pid
+    return {gn: pid for gn, pid in seen.items() if gn not in dup}
+
+
 def load_protein_ids(protein_fasta_path: str | Path) -> set[str]:
     """{protein_id, ...} parsed from a protein FASTA's header first token
     (before any whitespace) -- this repo's standard FASTA-header-as-ID
@@ -119,6 +166,7 @@ def resolve_positions_for_strain(
     short: str,
     hard_error_below: float = HARD_ERROR_BELOW_MATCH_FRACTION,
     warn_above_unresolved: float = WARN_ABOVE_UNRESOLVED_FRACTION,
+    gene_names: dict[str, str] | None = None,
 ) -> dict[str, tuple[str, int, int]]:
     """Parse `gff3_path`, then filter to only the IDs that actually appear
     in `protein_ids` (that strain's real protein FASTA headers) -- this is
@@ -133,12 +181,26 @@ def resolve_positions_for_strain(
     total = len(protein_ids)
     matched_fraction = (len(matched) / total) if total else 0.0
 
+    if matched_fraction < hard_error_below and gene_names:
+        # Third dialect (issue #187): UniProt FASTA (GN=<locus tag>) + NCBI GFF3
+        # (protein_id= GenBank IDs, locus_tag= on each CDS). Tried only when the
+        # direct dialects failed, and only through 1:1 GN names.
+        by_tag = parse_gff3_locus_tag_positions(gff3_path)
+        via_tag = {gene_names[tag]: pos for tag, pos in by_tag.items()
+                   if tag in gene_names and gene_names[tag] in protein_ids}
+        if len(via_tag) > len(matched):
+            print(f"NOTE: {short}: protein_id=/Parent= matched {len(matched)}/{total}; "
+                  f"using the FASTA GN= <-> GFF3 locus_tag= join instead "
+                  f"({len(via_tag)}/{total}).", file=sys.stderr)
+            matched = via_tag
+            matched_fraction = len(matched) / total
+
     if matched_fraction < hard_error_below:
         print(
             f"ERROR: {short}: only {len(matched)}/{total} proteins "
             f"({matched_fraction:.1%}) resolved a GFF3 position matching this "
-            f"strain's protein FASTA -- checked protein_id= and Parent= "
-            f"fallback, neither corresponds to this strain's actual protein "
+            f"strain's protein FASTA -- checked protein_id=, Parent= and the "
+            f"GN=/locus_tag= join; none corresponds to this strain's actual protein "
             f"IDs. This looks like a genuine GFF3/FASTA dialect mismatch, not "
             f"a handful of odd genes -- aborting rather than emit mostly-empty "
             f"position data that would silently collapse downstream "
@@ -194,7 +256,9 @@ def main() -> None:
                       f"FASTA", file=sys.stderr)
                 sys.exit(1)
             protein_ids = load_protein_ids(protein_fasta_path)
-            positions = resolve_positions_for_strain(gff3_path, protein_ids, s.short)
+            positions = resolve_positions_for_strain(
+                gff3_path, protein_ids, s.short,
+                gene_names=load_protein_gene_names(protein_fasta_path))
             for protein_id, (contig, start, end) in positions.items():
                 out.write(f"{s.short}\t{protein_id}\t{contig}\t{start}\t{end}\n")
             n_strains_ok += 1
