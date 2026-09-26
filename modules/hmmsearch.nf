@@ -17,14 +17,14 @@ process HMMSEARCH {
     // MPI mode: mpirun -np N hmmsearch --mpi (N single-threaded MPI workers + 1 master)
     // Thread mode: hmmsearch --cpu N  (single process, N threads)
     def n_mpi    = params.hmm_mpi_tasks ?: params.max_cpus
-    def mpi_cmd  = params.hmm_mpi ? "mpirun -np ${n_mpi}" : ""
-    def cpu_flag = params.hmm_mpi ? "--mpi" : "--cpu ${task.cpus}"
+    def mpi_cmd  = Helpers.asBool(params.hmm_mpi) ? "mpirun -np ${n_mpi}" : ""
+    def cpu_flag = Helpers.asBool(params.hmm_mpi) ? "--mpi" : "--cpu ${task.cpus}"
     // SLURM_CPU_BIND=none: a multi-task MPI launch fails outright on this cluster without
     // it ("CPU binding outside of job step allocation") -- --cpu-bind itself is an srun-only
     // flag (sbatch rejects it), so it can't go in clusterOptions; exporting the env var
     // makes any srun mpirun invokes internally (PMI/PMIx under a SLURM allocation) pick it
     // up as its default. No-op in thread mode. See nextflow-hpcc skill.
-    def bind_env = params.hmm_mpi ? "export SLURM_CPU_BIND=none" : ""
+    def bind_env = Helpers.asBool(params.hmm_mpi) ? "export SLURM_CPU_BIND=none" : ""
     """
     ${bind_env}
     ${mpi_cmd} hmmsearch ${cpu_flag} \

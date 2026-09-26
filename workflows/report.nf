@@ -108,7 +108,7 @@ process MAKE_PDF_REPORT {
 
     // Gate: skip the PDF step when --pdf_report false (e.g. no matplotlib available).
     when:
-    params.pdf_report != false
+    params.pdf_report.toString().toBoolean()   // issue #191; Helpers is not visible in when:
 
     script:
     """

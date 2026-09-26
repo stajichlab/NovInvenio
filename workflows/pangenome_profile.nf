@@ -107,7 +107,7 @@ workflow PANGENOME_PROFILE {
     GENE_POSITIONS(samplesheet, gff3_dir_abs, protein_dir_abs)
 
     // --- 3. Rescue pass (optional; per-strain scatter, see modules/pangenome/rescue.nf) ---
-    if (params.pangenome_rescue_enable) {
+    if (Helpers.asBool(params.pangenome_rescue_enable)) {
         EXTRACT_ABSENT_QUERIES(PRESENCE_MATRIX.out.matrix, CLUSTER_TIER1.out.rep_fasta)
 
         // Join each strain's absent-family query FASTA back to that same
@@ -164,7 +164,7 @@ workflow PANGENOME_PROFILE {
     // MASH_SKETCH_ALL's only consumer is DEREPLICATE -- skip it entirely
     // when pangenome_dereplicate is disabled instead of sketching for
     // nothing (see review item 7).
-    if (params.pangenome_dereplicate) {
+    if (Helpers.asBool(params.pangenome_dereplicate)) {
         all_dna_ch = samples_ch.map { meta, prot, dna -> dna }.collect()
         MASH_SKETCH_ALL(all_dna_ch, 'all_strains')
         DEREPLICATE(samplesheet, data_dir_abs, MASH_SKETCH_ALL.out.dist_tsv)
@@ -175,7 +175,7 @@ workflow PANGENOME_PROFILE {
         strain_inventory = EMPTY_INVENTORY_STUB.out.evalues
     }
 
-    if (params.pangenome_assign_clades) {
+    if (Helpers.asBool(params.pangenome_assign_clades)) {
         ingroup_dna_files = ingroup_dna_ch.map { meta, dna -> dna }.collect()
         MASH_SKETCH_INGROUP(ingroup_dna_files, 'ingroup')
         ASSIGN_CLADES(samplesheet, data_dir_abs, MASH_SKETCH_INGROUP.out.dist_tsv)
