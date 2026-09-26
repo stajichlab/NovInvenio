@@ -1,5 +1,10 @@
+import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 
@@ -9,6 +14,7 @@ from island_synteny import (
     order_families_by_locus,
     build_payload,
 )
+from island_synteny_template import ISLAND_SYNTENY_TEMPLATE
 from pangenome_matrix import PresenceMatrix
 
 
@@ -454,3 +460,173 @@ def test_column_location_uses_rescue_hit_when_no_protein():
     rescue = {("S1", "famZ"): [("c9", 5), ("c1", 700), ("c1", 300)]}
     out = column_locations(["famZ"], "S1", "c1", 0, 1000, {}, rescue)
     assert out == [{"rescued": True, "contig": "c1", "start": 300}]
+
+
+# ---- island_synteny_template.py: row/column popups, gutter, island logo ---
+#
+# These functions are pure (take their data as arguments, never close over
+# module-level DATA/state) precisely so they can be extracted verbatim from
+# the template source (a brace-matching slice, same technique as
+# tests/test_island_synteny_species_sort.py) and run under plain `node`, with
+# no jsdom/DOM dependency.
+
+def _extract_function(src: str, name: str) -> str:
+    needle = "function " + name + "("
+    start = src.index(needle)
+    brace_start = src.index("{", start)
+    depth = 0
+    for i in range(brace_start, len(src)):
+        if src[i] == "{":
+            depth += 1
+        elif src[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return src[start:i + 1]
+    raise AssertionError(f"unterminated function {name}() in template")
+
+
+def _run_node_cases(function_names, cases_js: str) -> None:
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not available")
+    funcs = "\n\n".join(_extract_function(ISLAND_SYNTENY_TEMPLATE, name) for name in function_names)
+    script = funcs + "\n\n" + cases_js
+    proc = subprocess.run([node, "--input-type=commonjs", "-e", script],
+                          capture_output=True, text=True, check=False)
+    assert proc.returncode == 0, f"node script crashed:\n{proc.stdout}\n{proc.stderr}"
+    lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+    failed = [ln for ln in lines if ln.startswith("FAIL")]
+    assert not failed, "node behaviour checks failed:\n" + "\n".join(lines) + proc.stderr
+
+
+# ---- A: row popup lists the strains --------------------------------------
+
+def test_strain_popup_lines_function_is_present_and_extractable():
+    js = _extract_function(ISLAND_SYNTENY_TEMPLATE, "strainPopupLines")
+    assert "function strainPopupLines(" in js
+
+
+def test_row_popup_header_is_singular_for_one_strain():
+    hap = {"strains": ["S1"], "count": 1}
+    cases = f"""
+    var hap = {json.dumps(hap)};
+    var lines = strainPopupLines(hap);
+    console.log(lines[0] === "1 strain shares this presence pattern" ? "PASS header_singular" : "FAIL header_singular: " + JSON.stringify(lines));
+    console.log(lines[1] === "S1" ? "PASS one_name" : "FAIL one_name: " + JSON.stringify(lines));
+    console.log(lines.length === 2 ? "PASS one_line_count" : "FAIL one_line_count: " + JSON.stringify(lines));
+    """
+    _run_node_cases(["strainPopupLines"], cases)
+
+
+def test_row_popup_header_is_plural_and_names_are_sorted():
+    hap = {"strains": ["Zeta", "Alpha", "Mid"], "count": 3}
+    cases = f"""
+    var hap = {json.dumps(hap)};
+    var lines = strainPopupLines(hap);
+    console.log(lines[0] === "3 strains share this presence pattern" ? "PASS header_plural" : "FAIL header_plural: " + JSON.stringify(lines));
+    console.log(JSON.stringify(lines.slice(1)) === JSON.stringify(["Alpha", "Mid", "Zeta"]) ? "PASS sorted_names" : "FAIL sorted_names: " + JSON.stringify(lines));
+    """
+    _run_node_cases(["strainPopupLines"], cases)
+
+
+def test_row_popup_caps_names_at_20_and_adds_an_overflow_line():
+    strains = ["S%02d" % i for i in range(25)]
+    hap = {"strains": strains, "count": 25}
+    cases = f"""
+    var hap = {json.dumps(hap)};
+    var lines = strainPopupLines(hap);
+    console.log(lines.length === 22 ? "PASS line_count" : "FAIL line_count: " + JSON.stringify(lines.length));
+    console.log(lines[lines.length - 1] === "+5 more" ? "PASS overflow" : "FAIL overflow: " + JSON.stringify(lines[lines.length - 1]));
+    """
+    _run_node_cases(["strainPopupLines"], cases)
+
+
+def test_row_popup_has_no_overflow_line_at_exactly_20():
+    strains = ["S%02d" % i for i in range(20)]
+    hap = {"strains": strains, "count": 20}
+    cases = f"""
+    var hap = {json.dumps(hap)};
+    var lines = strainPopupLines(hap);
+    console.log(lines.length === 21 ? "PASS no_overflow" : "FAIL no_overflow: " + JSON.stringify(lines.length));
+    console.log(lines[lines.length - 1] === "S19" ? "PASS last_is_a_name" : "FAIL last_is_a_name: " + JSON.stringify(lines[lines.length - 1]));
+    """
+    _run_node_cases(["strainPopupLines"], cases)
+
+
+# ---- B: per-column strain counts -----------------------------------------
+
+def test_column_presence_count_function_is_present_and_extractable():
+    js = _extract_function(ISLAND_SYNTENY_TEMPLATE, "columnPresenceCount")
+    assert "function columnPresenceCount(" in js
+
+
+def test_column_presence_count_sums_haplotype_counts_by_pattern_bit():
+    isl = {"haplotypes": [
+        {"pattern": "10", "count": 3},
+        {"pattern": "11", "count": 2},
+        {"pattern": "01", "count": 5},
+    ]}
+    cases = f"""
+    var isl = {json.dumps(isl)};
+    var c0 = columnPresenceCount(isl, 0);
+    var c1 = columnPresenceCount(isl, 1);
+    console.log(c0.present === 5 && c0.total === 10 ? "PASS col0" : "FAIL col0: " + JSON.stringify(c0));
+    console.log(c1.present === 7 && c1.total === 10 ? "PASS col1" : "FAIL col1: " + JSON.stringify(c1));
+    """
+    _run_node_cases(["columnPresenceCount"], cases)
+
+
+def test_appendcolumninfo_reports_present_of_total_strains():
+    # appendColumnInfo itself touches the DOM (tipEl), so it can't be run
+    # under plain node -- assert its source calls columnPresenceCount and
+    # renders the required sentence shape instead.
+    fn_src = _extract_function(ISLAND_SYNTENY_TEMPLATE, "appendColumnInfo")
+    assert "columnPresenceCount(" in fn_src
+    assert '"Present in "' in fn_src
+    assert '" of "' in fn_src
+    assert '" strains"' in fn_src
+
+
+# ---- C: left gutter sized to labels ---------------------------------------
+
+def test_gutter_function_exists_and_170_is_a_bound_not_the_only_width():
+    src = ISLAND_SYNTENY_TEMPLATE
+    assert "function computeGutter(" in src
+    # GUTTER must be reassignable (a per-island computed width), not a fixed
+    # const -- a `var GUTTER = 170;`-only page can never widen for a long
+    # label. There must be an assignment to GUTTER elsewhere in the file.
+    assert src.count("GUTTER = ") >= 2
+    assert "GUTTER_MIN" in src and "GUTTER_MAX" in src
+
+
+def test_compute_gutter_function_is_present_and_extractable():
+    js = _extract_function(ISLAND_SYNTENY_TEMPLATE, "computeGutter")
+    assert "function computeGutter(" in js
+    # Clamped to [170, 300] per the brief.
+    assert "170" in ISLAND_SYNTENY_TEMPLATE
+    assert "300" in js or "GUTTER_MAX" in js
+
+
+# ---- D: island logo --------------------------------------------------------
+
+def test_page_contains_an_inline_island_logo_svg():
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert 'aria-label="Island synteny"' in page
+    assert 'role="img"' in page
+    assert "<svg" in page
+    # Sits in the title row, right after the existing NI logo.
+    head = page.split('<header class="top">', 1)[1].split("</header>", 1)[0]
+    assert "aria-label=\"Island synteny\"" in head
+    assert "<title>" in head
+
+
+def test_island_logo_colours_are_css_custom_properties_with_dark_values():
+    page = ISLAND_SYNTENY_TEMPLATE
+    style = page.split("<style>", 1)[1].split("</style>", 1)[0]
+    assert "--isv-logo-water" in style
+    assert "--isv-logo-sand" in style
+    assert "--isv-logo-trunk" in style
+    assert "--isv-logo-frond" in style
+    # A dark-mode value is given somewhere beyond the default :root block.
+    assert style.count("--isv-logo-water") >= 2
+    assert "prefers-color-scheme: dark" in style

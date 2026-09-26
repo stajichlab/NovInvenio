@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### island synteny view: strain lists in popups, per-column counts, sized gutter, logo
+
+- **`lib/island_synteny_template.py`** — the row-hover tooltip now lists every strain
+  sharing that haplotype's presence pattern (sorted, capped at 20 names with a
+  "+N more" line), not just the first strain's name; the header reads
+  "N strain(s) share this presence pattern". The column tooltip (glyph strip and grid
+  cell) now also reports "Present in X of Y strains", computed from the island's full
+  `haplotypes` list so it never depends on the currently active row sort.
+- The left row-label gutter is now sized per island from the longest row label actually
+  drawn (`computeGutter`), clamped to `[170, 300]` px, instead of a fixed 170 px that
+  ellipsized most strain names down to a handful of characters. Labels longer than the
+  cap are still ellipsized on the canvas; the row popup always shows full names.
+- Added a small inline island-logo SVG (palm tree on a sandy island) next to the
+  existing NI logo in the title row, coloured entirely through new
+  `--isv-logo-*` CSS custom properties with dark-mode values (both via
+  `prefers-color-scheme` and via each dark-scheme `--skin`), no external assets.
+
 ### New: island synteny view
 
 - **`lib/pfam_classes.py`**, **`lib/island_synteny.py`**, **`lib/island_synteny_template.py`**,
