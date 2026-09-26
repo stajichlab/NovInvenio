@@ -184,22 +184,26 @@ workflow {
     // mmseqs on the same data (ARI 0.94; mmseqs finds ~13% more, smaller
     // families at these settings, so the two are not interchangeable).
 
-    // Helpers.projectName(params) (lib/Helpers.groovy) falls back to the bare
-    // literal 'output' when neither params.project nor params.config is set.
-    // pangenome.nf never sets params.config, so every run would otherwise
-    // collide on the same outdir/storeDir regardless of species -- derive a
-    // default from the samplesheet basename (mirrors main.nf's --config
-    // convention) unless the caller already passed --pangenome_project or
-    // --project explicitly.
-    if (!params.project) {
-        if (params.pangenome_project) {
-            params.project = params.pangenome_project
-        } else {
-            params.project = new File(params.pangenome_samplesheet.toString()).name.replaceFirst(/\.[^.]+$/, '')
-            log.warn "No --pangenome_project (or --project) given -- defaulting params.project to " +
-                      "'${params.project}' (derived from --pangenome_samplesheet basename). Pass " +
-                      "--pangenome_project explicitly to control the outdir/storeDir namespace."
-        }
+    // Helpers.projectName(params) (lib/Helpers.groovy) already falls back,
+    // in order, through params.project, params.pangenome_project, the
+    // basename of params.config, and the basename of
+    // params.pangenome_samplesheet before landing on the bare literal
+    // 'output' -- so every publishDir/storeDir closure that calls it gets a
+    // per-samplesheet default without pangenome.nf needing to set anything.
+    // This used to be done here instead, by assigning `params.project = ...`
+    // directly -- removed because that assignment silently does not take on
+    // Nextflow 26.04.6 (see projectName()'s doc comment for the
+    // reproduction): `project` is declared with a default in nextflow.config's
+    // params{} block, and a later `params.x = y` in the script/workflow body
+    // does not persist for a param already declared that way, so every run
+    // without --pangenome_project/--project was actually still falling
+    // through to the 'output' literal regardless of what the (now-removed)
+    // warning printed. Warn here using projectName(params) itself, so the
+    // message always names the value actually used.
+    if (!params.project && !params.pangenome_project) {
+        log.warn "No --pangenome_project (or --project) given -- outdir/storeDir will be namespaced " +
+                  "as '${Helpers.projectName(params)}' (derived from --pangenome_samplesheet basename). " +
+                  "Pass --pangenome_project explicitly to control the outdir/storeDir namespace."
     }
 
     def data_dir_abs = file(params.pangenome_data_dir).toAbsolutePath().toString()
