@@ -79,6 +79,7 @@ process REPORT_RENDER {
     path(marker_summary)
     path(per_strain_summary)
     path(diagnostics_banner_md)
+    path(module_neighborhood)   // View B1 (issue #182)
 
     output:
     path("report/report.md"), emit: report
@@ -106,6 +107,7 @@ process REPORT_RENDER {
         --n_permutations ${params.pangenome_accumulation_permutations} \
         --seed ${params.pangenome_accumulation_seed} \
         ${diagnostics_arg} \
+        --module_neighborhood ${module_neighborhood} \
         --out_dir report
     """
 }
@@ -138,7 +140,7 @@ process DIAGNOSTICS {
     // convention as this pipeline's other optional-input stubs) when
     // params.pangenome_rescue_enable is false -- rescue_redundancy is then
     // reported not_computed rather than erroring.
-    def strict_arg = params.pangenome_strict ? '--pangenome_strict' : ''
+    def strict_arg = Helpers.asBool(params.pangenome_strict) ? '--pangenome_strict' : ''
     def funnel_arg = (rescue_funnel.size() > 0) ? "--rescue_funnel ${rescue_funnel}" : ''
     // assembly_correlations is ASSEMBLY_QUALITY_QC's correlations table
     // (issue #130). Its trip threshold reuses pangenome_qc_rho_warn_threshold

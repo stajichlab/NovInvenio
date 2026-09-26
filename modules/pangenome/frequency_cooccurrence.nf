@@ -15,7 +15,7 @@ process FREQUENCY_BINS {
     path("frequency_table.tsv"), emit: table
 
     script:
-    def inventory_arg = params.pangenome_dereplicate ? "--inventory ${inventory}" : ''
+    def inventory_arg = Helpers.asBool(params.pangenome_dereplicate) ? "--inventory ${inventory}" : ''
     """
     pangenome_frequency_bins.py \
         --matrix ${matrix} --config ${samplesheet} \
@@ -50,8 +50,8 @@ process COOCCURRENCE {
     path("cooccurring_pairs.tsv.zst"), emit: pairs
 
     script:
-    def inventory_arg = params.pangenome_dereplicate ? "--inventory ${inventory}" : ''
     def tree_arg = species_tree.size() > 0 ? "--species_tree ${species_tree}" : ''
+    def inventory_arg = Helpers.asBool(params.pangenome_dereplicate) ? "--inventory ${inventory}" : ''
     """
     pangenome_cooccurrence.py \
         --matrix ${matrix} --frequency_table ${frequency_table} --config ${samplesheet} \

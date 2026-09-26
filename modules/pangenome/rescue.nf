@@ -119,7 +119,7 @@ process RESCUE_PASS {
 
     script:
     def tblastn_args = tblastn_tsvs.collect { "--tblastn_tsv ${it}" }.join(' ')
-    def structural_args = params.pangenome_rescue_structural_filter
+    def structural_args = Helpers.asBool(params.pangenome_rescue_structural_filter)
         ? "--gene_positions ${gene_positions} --cluster_tsv ${cluster_tsv} --rep_fasta ${rep_fasta} " +
           "--rescue_min_rep_length ${params.pangenome_rescue_min_rep_length} " +
           "--rescue_hotspot_window ${params.pangenome_rescue_hotspot_window} " +

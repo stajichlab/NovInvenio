@@ -47,6 +47,10 @@ on top of whatever these two parameters decide a "family" is.
 
 ## 2. Genome-level TBLASTN rescue pass
 
+Fast route: `--pangenome_rescue_enable false` skips rescue entirely (on the command line
+this works only since issue #191; before that the CLI value was the truthy String "false").
+Without rescue, annotation dropouts count as absences, so accessory counts are upper bounds.
+
 `pangenome_rescue_enable` exists to recover genes present in the genome but missing
 from the annotation (a real `ABSENT → GENOME_ONLY` correction). The 2026-09-20
 characterisation established that, as configured before issue #133, it mostly did

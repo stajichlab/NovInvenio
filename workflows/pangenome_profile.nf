@@ -59,7 +59,7 @@ include { SELECT_BACKGROUND_REPS; HMMPRESS_PFAM; FAMILY_PFAM_SCAN;
 include { REPORT_TABLES; REPORT_RENDER; DIAGNOSTICS }                      from '../modules/pangenome/report'
 include { ASSEMBLY_QUALITY_QC }                                            from '../modules/pangenome/assembly_quality_qc'
 include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
-include { LEIDEN_MODULES; MODULE_DOMAINS }                                 from '../modules/pangenome/trans_modules'
+include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/empty_evalues_stub'
@@ -108,7 +108,7 @@ workflow PANGENOME_PROFILE {
     GENE_POSITIONS(samplesheet, gff3_dir_abs, protein_dir_abs)
 
     // --- 3. Rescue pass (optional; per-strain scatter, see modules/pangenome/rescue.nf) ---
-    if (params.pangenome_rescue_enable) {
+    if (Helpers.asBool(params.pangenome_rescue_enable)) {
         EXTRACT_ABSENT_QUERIES(PRESENCE_MATRIX.out.matrix, CLUSTER_TIER1.out.rep_fasta)
 
         // Join each strain's absent-family query FASTA back to that same
@@ -165,7 +165,7 @@ workflow PANGENOME_PROFILE {
     // MASH_SKETCH_ALL's only consumer is DEREPLICATE -- skip it entirely
     // when pangenome_dereplicate is disabled instead of sketching for
     // nothing (see review item 7).
-    if (params.pangenome_dereplicate) {
+    if (Helpers.asBool(params.pangenome_dereplicate)) {
         all_dna_ch = samples_ch.map { meta, prot, dna -> dna }.collect()
         MASH_SKETCH_ALL(all_dna_ch, 'all_strains')
         DEREPLICATE(samplesheet, data_dir_abs, MASH_SKETCH_ALL.out.dist_tsv)
@@ -176,7 +176,7 @@ workflow PANGENOME_PROFILE {
         strain_inventory = EMPTY_INVENTORY_STUB.out.evalues
     }
 
-    if (params.pangenome_assign_clades) {
+    if (Helpers.asBool(params.pangenome_assign_clades)) {
         ingroup_dna_files = ingroup_dna_ch.map { meta, dna -> dna }.collect()
         MASH_SKETCH_INGROUP(ingroup_dna_files, 'ingroup')
         ASSIGN_CLADES(samplesheet, data_dir_abs, MASH_SKETCH_INGROUP.out.dist_tsv)
@@ -244,6 +244,9 @@ workflow PANGENOME_PROFILE {
     // study with zero `trans` pairs, e.g. a single-species ingroup -- see
     // bin/pangenome_detect_trans_modules.py's module docstring).
     LEIDEN_MODULES(PAIR_CLASSIFICATION.out.classification)
+    // View B1 (issue #182): per-strain genomic clustering of each module.
+    MODULE_NEIGHBORHOOD(LEIDEN_MODULES.out.family_modules, GENE_POSITIONS.out.positions,
+                        CLUSTER_TIER1.out.cluster_tsv, FREQUENCY_BINS.out.table)
 
     // --- 9. Accessory islands + Pfam functional enrichment (optional) --------
     // Named marker searches (0+): ONE MARKER_HMMSEARCH invocation over a
@@ -390,6 +393,7 @@ workflow PANGENOME_PROFILE {
         REPORT_TABLES.out.marker_summary,
         REPORT_TABLES.out.per_strain_summary,
         DIAGNOSTICS.out.banner_md,
+        MODULE_NEIGHBORHOOD.out.table,
     )
 
     // --- 9c. Island synteny (still gated -- genuinely needs FAMILY_PFAM_SCAN,
@@ -421,6 +425,7 @@ workflow PANGENOME_PROFILE {
     pair_classification  = PAIR_CLASSIFICATION.out.classification
     family_modules       = LEIDEN_MODULES.out.family_modules
     module_summary       = LEIDEN_MODULES.out.module_summary
+    module_neighborhood  = MODULE_NEIGHBORHOOD.out.table
     assembly_quality_table         = ASSEMBLY_QUALITY_QC.out.table
     assembly_quality_correlations  = ASSEMBLY_QUALITY_QC.out.correlations
     assembly_quality_report        = ASSEMBLY_QUALITY_QC.out.report
