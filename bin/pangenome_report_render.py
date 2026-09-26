@@ -376,6 +376,44 @@ def _as_int(value, default: int = 0) -> int:
         return default
 
 
+def _fmt(value, spec: str) -> str:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    return "-" if v != v else format(v, spec)
+
+
+def _neighborhood_section(rows: list[dict]) -> list[str]:
+    """View B1 table (issue #182): per-module genomic clustering in each strain's
+    own assembly, against a within-strain permutation null. The scale and null
+    pool are printed with the table (spec: never left implicit)."""
+    lines = ["## Trans-module genomic clustering", ""]
+    if not rows:
+        return lines + ["No trans modules to score.", ""]
+    r0 = rows[0]
+    lines += [
+        f"Scale: same contig, at least {r0['min_gene_gap']} genes apart, gene starts within "
+        f"max {_fmt(r0['max_kb'], 'g')} kb. Null: {r0['null_pool']} genes of the same strain, "
+        f"{r0['n_perm']} permutations, seed {r0['seed']}. Pairs on different contigs are "
+        "excluded, not counted as distant. With millions of pairs a tiny effect still "
+        "reaches the smallest possible p, so read the effect ratio first.",
+        "",
+        "| Module | Families | Strains | Obs. frac (same contig) | Null | Effect | p "
+        "| Effect (all pairs) | p (all pairs) | Cross-contig excluded |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for r in rows:
+        xc = _fmt(float(r["cross_contig_frac"]) * 100, ".1f") if r.get("cross_contig_frac") not in (None, "", "nan") else "-"
+        lines.append(
+            f"| {r['module_id']} | {r['module_size']} | {r['strains_scored']} "
+            f"| {_fmt(r['obs_frac'], '.3f')} | {_fmt(r['null_mean_frac'], '.3f')} "
+            f"| {_fmt(r['effect_ratio'], '.2f')} | {_fmt(r['p_empirical'], '.3f')} "
+            f"| {_fmt(r['effect_ratio_total'], '.2f')} | {_fmt(r['p_empirical_total'], '.3f')} "
+            f"| {xc}% |")
+    return lines + [""]
+
+
 def render_report_markdown(
     counts: dict[str, int],
     size_dist: dict[int, int],
@@ -391,6 +429,7 @@ def render_report_markdown(
     top_islands_min_strains: int = 2,
     diagnostics_banner: str | None = None,
     islands_available: bool = True,
+    neighborhood_rows: list[dict] | None = None,
 ) -> str:
     total_families = sum(counts.values())
     lines: list[str] = []
@@ -483,6 +522,9 @@ def render_report_markdown(
     if classification_counts_dict:
         lines += ["", "![Classification breakdown](figures/pair_classification_summary.png)", ""]
 
+    if neighborhood_rows is not None:
+        lines += _neighborhood_section(neighborhood_rows)
+
     if islands_available:
         lines += ["## Pfam domain enrichment", ""]
         if not top_domains:
@@ -538,6 +580,8 @@ def main() -> int:
         help="Optional pangenome_diagnostics.py diagnostics_banner.md file "
         "(issue #134) -- prepended to report.md, before any results.",
     )
+    ap.add_argument("--module_neighborhood", default=None,
+                    help="module_neighborhood.tsv (View B1, issue #182); optional")
     ap.add_argument("--out_dir", required=True)
     args = ap.parse_args()
 
@@ -620,6 +664,10 @@ def main() -> int:
     diagnostics_banner = (
         Path(args.diagnostics_banner).read_text() if args.diagnostics_banner else None
     )
+    neighborhood_rows = None
+    if args.module_neighborhood:
+        with open(args.module_neighborhood, newline="") as fh:
+            neighborhood_rows = list(csv.DictReader(fh, delimiter="\t"))
     markdown = render_report_markdown(
         counts, size_dist, classification_counts_dict, top_domains, n_islands,
         heaps_fit, core_decay, strain_family_counts, marker_rows,
@@ -628,6 +676,7 @@ def main() -> int:
         top_islands_min_strains=args.top_islands_min_strains,
         diagnostics_banner=diagnostics_banner,
         islands_available=islands_available,
+        neighborhood_rows=neighborhood_rows,
     )
     (out_dir / "report.md").write_text(markdown)
 

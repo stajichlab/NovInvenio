@@ -653,3 +653,34 @@ def test_plot_domain_enrichment_zero_q_bar_does_not_dwarf_others(tmp_path):
     ]
     pangenome_report_render.plot_domain_enrichment(domains, tmp_path)
     assert (tmp_path / "figures" / "island_domain_enrichment.png").exists()
+
+
+def _md_with_neighborhood(rows):
+    return render_report_markdown(
+        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        size_dist={}, classification_counts_dict={"trans": 4}, top_domains=[],
+        n_islands=0, heaps_fit=None, core_decay=None, strain_family_counts=[1],
+        neighborhood_rows=rows,
+    )
+
+
+NB_ROW = {"module_id": "3", "module_size": "1095", "strains_scored": "528",
+          "obs_frac": "0.971454", "null_mean_frac": "0.429", "effect_ratio": "2.26",
+          "p_empirical": "0.00497512", "effect_ratio_total": "13.18",
+          "p_empirical_total": "0.00497512", "cross_contig_frac": "0.911514",
+          "null_pool": "accessory", "max_kb": "100", "min_gene_gap": "11",
+          "n_perm": "200", "seed": "0"}
+
+
+def test_report_includes_view_b1_neighbourhood_table_with_its_scale():
+    # Issue #182: the spec asks for one compact table in report.md, with the scale
+    # and null pool printed next to the statistic, never left implicit.
+    md = _md_with_neighborhood([NB_ROW])
+    assert "## Trans-module genomic clustering" in md
+    assert "max 100 kb" in md and "11 genes" in md and "accessory" in md
+    assert "| 3 | 1095 | 528 | 0.971 | 0.429 | 2.26 | 0.005 | 13.18 | 0.005 | 91.2% |" in md
+
+
+def test_report_omits_neighbourhood_section_without_rows():
+    assert "Trans-module genomic clustering" not in _md_with_neighborhood(None)
+    assert "No trans modules" in _md_with_neighborhood([])
