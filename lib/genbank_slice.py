@@ -131,11 +131,16 @@ def cds_exons(gff3_lines, contigs: set[str], ids: set[str]) -> dict[str, tuple[i
 
 def build_record(strain: str, contig: str, contig_seq: str, entries: list,
                  exons: dict, proteins: dict[str, str], family_of: dict[str, str],
-                 label_of, block_suffix: str | None = None) -> tuple[SeqRecord, dict]:
+                 label_of, block_label: str | None = None) -> tuple[SeqRecord, dict]:
     """One GenBank record for a region, or for one gene-free-gap block of it
-    (spec section 8 C1: `block_suffix`, e.g. "_b1", names the record
-    "<strain>_b<N>" and makes its sequence/features that block's span only
-    -- pass None for an unsplit, single-block region).
+    (spec section 8 C1). clinker names the CLUSTER after the .gbk FILE (the
+    full strain name) and the LOCUS after each RECORD, so a block's record
+    name is just its own short `block_label` (e.g. "b1"; unique within the
+    file), never "<strain>_bN" -- that silently truncated to the same 16
+    chars for every block of a strain name >= 16 chars (review fix round 1,
+    item 1; real evidence: "578-1_L_NEW_CPA0049", "574-0_S_OLD_CPA0039").
+    Pass None for an unsplit, single-block region (record named after the
+    strain, as before block-splitting existed).
 
     `entries` are rank_entries() rows inside the region (or block). Genes
     become a `gene` + `CDS` feature pair (the gene feature stops clinker's
@@ -147,10 +152,12 @@ def build_record(strain: str, contig: str, contig_seq: str, entries: list,
     ends = [e[4] for e in entries]
     bp_start, bp_end = min(starts), max(ends)
     sub = contig_seq[bp_start - 1:bp_end]
-    name = (safe_name(strain) + (block_suffix or ""))[:16]
-    desc = f"{strain} {contig}:{bp_start}-{bp_end}"
-    if block_suffix:
-        desc += f" (block{block_suffix})"
+    if block_label:
+        name = safe_name(block_label)[:16]
+        desc = f"{strain} {contig}:{bp_start}-{bp_end} (block {block_label})"
+    else:
+        name = safe_name(strain)[:16]
+        desc = f"{strain} {contig}:{bp_start}-{bp_end}"
     rec = SeqRecord(Seq(sub), id=name, name=name, description=desc)
     rec.annotations["molecule_type"] = "DNA"
     rec.annotations["topology"] = "linear"

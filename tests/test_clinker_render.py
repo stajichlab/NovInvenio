@@ -89,11 +89,14 @@ def test_slimmed_page_draws_the_same_figure(tmp_path):
 
 
 # ---- C1: a multi-record GenBank file is one cluster of several loci -----
-# split_blocks()/build_record(block_suffix=...) (lib/genbank_slice.py) write
+# split_blocks()/build_record(block_label=...) (lib/genbank_slice.py) write
 # every gene-free-gap block of one strain's region as its own record in the
-# same <strain>.gbk file, named "<strain>_b<N>". This checks clinker 0.0.32
-# actually reads that as intended -- one cluster (named after the strain)
-# with one locus per block -- rather than, say, three unrelated clusters.
+# same <strain>.gbk file, named "b1", "b2", ... (review fix round 1, item 1:
+# never "<strain>_bN" -- that truncates identically for a long strain name).
+# This checks clinker 0.0.32 actually reads that as intended -- one cluster,
+# named after the FILE (so still identifiable as the strain) -- with one
+# locus per block, each locus named after its record -- rather than, say,
+# three unrelated clusters.
 @pytest.mark.skipif(not shutil.which("clinker"), reason="needs clinker on PATH")
 def test_multi_record_gbk_is_one_cluster_with_several_loci(tmp_path):
     from genbank_slice import build_record, cds_exons, rank_entries  # local import: bin/lib on sys.path
@@ -108,7 +111,7 @@ def test_multi_record_gbk_is_one_cluster_with_several_loci(tmp_path):
     labels = {}
     for i, entry in enumerate(entries):
         rec, summ = build_record("S1", "c1", "A" * 100400, [entry], exons, {}, {"p1": "famA",
-                                 "p2": "famA"}, lambda pid: pid, block_suffix=f"_b{i}")
+                                 "p2": "famA"}, lambda pid: pid, block_label=f"b{i + 1}")
         recs.append(rec)
         labels.update(summ["labels"])
     SeqIO.write(recs, str(tmp_path / "S1.gbk"), "genbank")
@@ -123,7 +126,8 @@ def test_multi_record_gbk_is_one_cluster_with_several_loci(tmp_path):
     data = json.JSONDecoder().raw_decode(html, start)[0]
     assert len(data["clusters"]) == 1
     cluster = data["clusters"][0]
+    assert cluster["name"] == "S1"
     assert len(cluster["loci"]) == 2
-    assert sorted(locus["name"] for locus in cluster["loci"]) == ["S1_b0", "S1_b1"]
+    assert sorted(locus["name"] for locus in cluster["loci"]) == ["b1", "b2"]
     assert [len(locus["genes"]) for locus in
            sorted(cluster["loci"], key=lambda x: x["name"])] == [1, 1]

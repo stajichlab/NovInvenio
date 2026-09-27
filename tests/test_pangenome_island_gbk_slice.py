@@ -71,7 +71,10 @@ def test_max_gap_splits_the_genbank_record_into_blocks(tmp_path):
     args = fixture(tmp_path) + ["--max_gap", "10"]
     assert main(args) == 0
     recs = list(SeqIO.parse(str(tmp_path / "gbk" / "L001" / "S1.gbk"), "genbank"))
-    assert [r.id for r in recs] == ["S1_b0", "S1_b1", "S1_b2"]
+    # Review fix round 1, item 1: block records are named "b1", "b2", ...
+    # (unique within the file), never "<strain>_bN" -- that truncated to the
+    # same 16 chars for every block of a strain name >= 16 chars.
+    assert [r.id for r in recs] == ["b1", "b2", "b3"]
     assert [len([f for f in r.features if f.type == "CDS"]) for r in recs] == [1, 1, 1]
     (row,) = list(csv.DictReader(open(tmp_path / "gbk" / "island_slices.tsv"), delimiter="\t"))
     assert row["n_blocks"] == "3"
@@ -88,7 +91,52 @@ def test_max_gap_zero_never_splits(tmp_path):
     args = fixture(tmp_path) + ["--max_gap", "0"]
     assert main(args) == 0
     recs = list(SeqIO.parse(str(tmp_path / "gbk" / "L001" / "S1.gbk"), "genbank"))
-    assert len(recs) == 1 and recs[0].id == "S1"
+    # One rule applied consistently (review fix round 1, item 1): even a
+    # single, unsplit block is named "b1", not the strain name.
+    assert len(recs) == 1 and recs[0].id == "b1"
+
+
+def test_long_strain_names_produce_unique_block_record_names(tmp_path):
+    # Review fix round 1, item 1, real evidence: strain names like
+    # "578-1_L_NEW_CPA0049" (20 chars) used to truncate every block's
+    # record name to the same 16 characters, since the old rule appended
+    # "_bN" to the (possibly long) strain name and then truncated the
+    # whole thing. Two such strains, each split into 3 blocks by a tight
+    # --max_gap, must each get 3 distinct record names.
+    d = tmp_path
+    for sub in ("dna", "pep", "gff3"):
+        (d / "data" / sub).mkdir(parents=True, exist_ok=True)
+    long_names = ["578-1_L_NEW_CPA0049", "574-0_S_OLD_CPA0039"]
+    cfg_lines = ["GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup\n"]
+    gene_lines = ["Short\tprotein_id\tcontig\tstart\tend\n"]
+    cluster_lines = []
+    region_lines = [REGION_HEADER]
+    for strain in long_names:
+        assert len(strain) >= 16
+        (d / "data" / "dna" / f"{strain}.dna.fa").write_text(f">c1\n{'ACGT' * 100}\n")
+        (d / "data" / "pep" / f"{strain}.pep.fa").write_text(">p1\nMKV*\n>p2\nMRR\n>p3\nMQQ\n")
+        (d / "data" / "gff3" / f"{strain}.gff3").write_text(
+            "##gff-version 3\nc1\tsrc\tCDS\t10\t40\t.\t+\t0\tParent=p1\n"
+            "c1\tsrc\tCDS\t400\t440\t.\t-\t0\tParent=p2\nc1\tsrc\tCDS\t900\t950\t.\t+\t0\tParent=p3\n")
+        cfg_lines.append(f"IN,Sp,{strain},{strain}.pep.fa,{strain}.dna.fa,{strain}.gff3,{strain},t\n")
+        gene_lines.append(f"{strain}\tp1\tc1\t10\t40\n{strain}\tp2\tc1\t400\t440\n"
+                          f"{strain}\tp3\tc1\t900\t950\n")
+        cluster_lines.append(f"famA\t{strain}|p1\nfamB\t{strain}|p2\nfamC\t{strain}|p3\n")
+        region_lines.append(f"L001\t{strain}\texemplar\tfull\tSp\tc1\t0\t2\t0:famA\n")
+    (d / "config.csv").write_text("".join(cfg_lines))
+    (d / "gene_positions.tsv").write_text("".join(gene_lines))
+    (d / "cluster.tsv").write_text("".join(cluster_lines))
+    (d / "regions.tsv").write_text("".join(region_lines))
+    args = ["--regions", str(d / "regions.tsv"), "--config", str(d / "config.csv"),
+           "--data_dir", str(d / "data"), "--gff3_dir", str(d / "data" / "gff3"),
+           "--gene_positions", str(d / "gene_positions.tsv"),
+           "--cluster_tsv", str(d / "cluster.tsv"), "--out_dir", str(d / "gbk"),
+           "--max_gap", "100"]
+    assert main(args) == 0
+    for strain in long_names:
+        recs = list(SeqIO.parse(str(d / "gbk" / "L001" / f"{strain}.gbk"), "genbank"))
+        assert [r.id for r in recs] == ["b1", "b2", "b3"]
+        assert len({r.id for r in recs}) == 3
 
 
 def test_anchor_mismatch_fails(tmp_path):

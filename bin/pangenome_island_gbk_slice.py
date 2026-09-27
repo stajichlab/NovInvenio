@@ -187,9 +187,13 @@ def main(argv=None) -> int:
             labels: dict[str, str] = {}
             recs = []
             for bi, block in enumerate(blocks):
-                suffix = f"_b{bi}" if len(blocks) > 1 else None
+                # Review fix round 1, item 1: always label every block
+                # "b<N>" (1-indexed, unique within this file), even when
+                # there is only one -- one consistent rule, and clinker
+                # already names the cluster after the file (the strain).
+                label = f"b{bi + 1}"
                 rec, summ = build_record(strain, r["contig"], seqs[r["contig"]], block, exons,
-                                         prots, family_of, label_of, block_suffix=suffix)
+                                         prots, family_of, label_of, block_label=label)
                 recs.append(rec)
                 n_genes += summ["n_genes"]
                 n_rescue += summ["n_rescue"]

@@ -146,11 +146,30 @@ def test_split_blocks_empty_entries():
                                             "drawn_bp": 0})
 
 
-def test_build_record_with_block_suffix_names_the_record():
+def test_build_record_with_block_label_names_the_record():
+    # Review fix round 1, item 1: clinker names the CLUSTER after the file
+    # (the full strain name) and the LOCUS after the record, so a block's
+    # record name is just its own short label ("b1"), never
+    # "<strain>_bN" -- that used to get silently truncated to the same 16
+    # chars for every block of a strain name >= 16 chars (real evidence:
+    # "578-1_L_NEW_CPA0049", "574-0_S_OLD_CPA0039").
     seq = "A" * 300
     entries = rank_entries(iter(GENES), iter(RESCUES), {("S1", "c1")})[("S1", "c1")][:1]
     exons = cds_exons(io.StringIO(GFF), {"c1"}, {"p1"})
     rec, _summ = build_record("S1", "c1", seq, entries, exons, {"p1": "MK*"},
-                              {"p1": "famA"}, lambda pid: pid, block_suffix="_b1")
-    assert rec.id == rec.name == "S1_b1"
+                              {"p1": "famA"}, lambda pid: pid, block_label="b1")
+    assert rec.id == rec.name == "b1"
     assert "block" in rec.description
+    assert "S1" in rec.description
+
+
+def test_long_strain_names_get_unique_block_record_names():
+    long_names = ("578-1_L_NEW_CPA0049", "574-0_S_OLD_CPA0039")
+    for strain in long_names:
+        assert len(strain) >= 16
+        entries = [(0, "p1", None, 1, 10), (1, "p2", None, 100, 110)]
+        recs = [build_record(strain, "c1", "A" * 200, [e], {}, {}, {}, lambda pid: pid,
+                             block_label=f"b{i + 1}")[0]
+               for i, e in enumerate(entries)]
+        assert [r.id for r in recs] == ["b1", "b2"]
+        assert len({r.id for r in recs}) == 2
