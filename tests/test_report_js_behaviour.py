@@ -216,6 +216,18 @@ ISV_LOCI = {
 }
 
 
+# smallfix-brief.md S1: the payload's rank_by ("name" here) puts L002
+# ("A:c1:1-9") first even though it is LOCI[1], not LOCI[0]. The page must
+# select that top-of-sort locus initially, not always index 0.
+ISV_LOCI_NAME_SORT = {
+    "project": "demo",
+    "locus_params": {"flank": 5, "flank_min": 3, "k": 10, "empty_frac": 0.8,
+                     "rank_by": "name", "n_species": 1},
+    "n_loci_total": 2,
+    "loci": [_locus("L001", "B:c1:1-9", 7, "S1"), _locus("L002", "A:c1:1-9", 1, "S2")],
+}
+
+
 # F1/F4 fix-wave regression: with the DNA check on, counts.empty still
 # includes strains the check never got a call for (Ruling R22 only credits
 # DNA-confirmed empty sites); the page must show locus.dna.empty_confirmed
@@ -343,6 +355,14 @@ def fixture_dir(tmp_path_factory):
         '--family_positions', str(d / 'isv_positions.tsv'),
         '--loci_json', str(d / 'isv_loci.json'),
         '--project', 'demo', '--output', str(d / 'island_synteny_loci.html'))
+
+    (d / 'isv_loci_name_sort.json').write_text(json.dumps(ISV_LOCI_NAME_SORT))
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_matrix.tsv'),
+        '--family_positions', str(d / 'isv_positions.tsv'),
+        '--loci_json', str(d / 'isv_loci_name_sort.json'),
+        '--project', 'demo', '--output', str(d / 'island_synteny_loci_name_sort.html'))
 
     (d / 'isv_loci_dna.json').write_text(json.dumps(ISV_LOCI_DNA))
     run('pangenome_island_synteny.py',

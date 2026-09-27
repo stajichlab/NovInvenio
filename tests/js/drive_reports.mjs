@@ -514,6 +514,27 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         d.getElementById('lv-btn-islands').getAttribute('aria-pressed') === 'true');
 }
 
+// ------------------ island synteny: locus view initial selection follows sort
+// smallfix-brief.md S1: rank_by "name" puts L002 ("A:c1:1-9") first even
+// though it is LOCI[1]; the initial selection (and title) must follow it.
+{
+  const dom = boot(path.join(FX, 'island_synteny_loci_name_sort.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('locus view: initial selection follows the active sort (loads without error)',
+        errors.length === 0, errors.join('; '));
+  const items = () => [...d.querySelectorAll('#lv-list .isv-item')];
+  check('locus view: initial selection follows the active sort (sidebar order is A:... first)',
+        items()[0].textContent.includes('A:c1:1-9'), items()[0].textContent);
+  check('locus view: initial selection follows the active sort (selected item is A:...)',
+        items()[0].classList.contains('sel'), items()[0].className);
+  check('locus view: initial selection follows the active sort (title is the sorted-first locus)',
+        d.getElementById('lv-title').textContent === 'S2:c1:10-90',
+        d.getElementById('lv-title').textContent);
+}
+
 // -------------------------- island synteny: locus view, DNA check ran (F1/F4)
 {
   const dom = boot(path.join(FX, 'island_synteny_loci_dna.html'));

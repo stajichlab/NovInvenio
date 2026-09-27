@@ -596,7 +596,15 @@ LOCUS_VIEW_JS = r"""
   document.getElementById("lv-sort").addEventListener("change", function (e) {
     lstate.sort = e.target.value;
     applyLocusFilter();
-    renderLocusSidebar();
+    // smallfix-brief.md S1: keep the current selection if the new sort/filter
+    // still includes it; otherwise fall back to the new top-of-sort locus.
+    if (lSidebar.indexOf(lstate.selected) === -1) {
+      lstate.selected = lSidebar.length ? lSidebar[0] : -1;
+      renderLocusSidebar();
+      renderLocusMain();
+    } else {
+      renderLocusSidebar();
+    }
   });
   var islandSkinChange = window.onSkinChange;
   window.onSkinChange = function () {
@@ -620,6 +628,9 @@ LOCUS_VIEW_JS = r"""
     }
     document.getElementById("lv-sort").value = lstate.sort;
     applyLocusFilter();
+    // smallfix-brief.md S1: the initial selection must follow the active
+    // sort (lstate.sort, from LPARAMS.rank_by), not always LOCI[0].
+    lstate.selected = lSidebar.length ? lSidebar[0] : -1;
     renderLocusSidebar();
     setView("loci");
   }
