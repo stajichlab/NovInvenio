@@ -36,10 +36,14 @@ def inject_ui_fixes(html: str) -> str:
     unmodified toggleActive() still opens it: it reads the inline
     `display:none` this sets, so the first click reopens it correctly) and
     scrolling/a left margin restored. A no-op for any marker not found, so
-    a clinker version whose markup differs never crashes the run."""
+    a clinker version whose markup differs never crashes the run.
+    Idempotent: calling it again on its own output is a no-op."""
     out = html.replace(_SIDEBAR_ACTIVE, _SIDEBAR_COLLAPSED, 1)
     out = out.replace(_SUMMARY_OPEN, _SUMMARY_COLLAPSED, 1)
-    if _HEAD_CLOSE in out:
+    # Fix round 1, item 2: idempotent -- a second call (e.g. a retried
+    # pipeline step given an already-fixed page) must not add a second
+    # <style> tag.
+    if _HEAD_CLOSE in out and _UI_STYLE not in out:
         out = out.replace(_HEAD_CLOSE, _UI_STYLE + _HEAD_CLOSE, 1)
     return out
 

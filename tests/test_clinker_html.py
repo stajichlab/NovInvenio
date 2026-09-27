@@ -108,6 +108,15 @@ def test_inject_ui_fixes_is_idempotent_on_a_page_missing_the_markers():
         "<html><head><style>body{overflow:auto;margin-left:16px}</style></head><body>x</body></html>")
 
 
+def test_inject_ui_fixes_is_idempotent_when_called_twice():
+    # Review fix round 1, item 2: calling it twice (e.g. a retried pipeline
+    # step) must not stack up a second copy of the <style> tag.
+    once = inject_ui_fixes(REAL_CLINKER_PAGE)
+    twice = inject_ui_fixes(once)
+    assert twice == once
+    assert once.count("<style>body{overflow:auto;margin-left:16px}</style>") == 1
+
+
 def test_slim_clinker_html_also_applies_the_ui_fixes():
     out = slim_clinker_html(REAL_CLINKER_PAGE)
     assert 'class="collapsible active"' not in out
