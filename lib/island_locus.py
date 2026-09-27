@@ -541,3 +541,87 @@ def rank_key(result: dict, rank_by: str) -> tuple:
     if rank_by == "strains":
         return (-result["n_carriers"], -result["size"], result["locus_id"])
     return (-result["informative_score"], -result["n_carriers"], -result["size"], result["locus_id"])
+
+
+# ---- 6. one locus, all strains -------------------------------------------------
+def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Columns,
+                  strains: list[str], positions: Positions, spans: ContigSpans,
+                  matrix, species_of: dict[str, str], k: int = DEFAULT_K,
+                  empty_frac: float = DEFAULT_EMPTY_FRAC) -> dict:
+    """Every strain's cells, row class and flank pair for one locus, plus the
+    collapsed rows, counts and breakpoint track. `matrix` has
+    .call(family, strain) -> "present" | "genome_only" | "absent" (a
+    lib.pangenome_matrix.PresenceMatrix). Keys starting with "_" are for
+    the caller (Part B regions) and never go into the page payload."""
+    fams = columns.families
+    n_left, n_locus = len(columns.left), len(columns.locus)
+    per_strain: dict[str, tuple[str, str]] = {}
+    details: dict[str, list] = {}
+    cells: dict[str, StrainCells] = {}
+    pairs: dict[str, tuple[str, int, int]] = {}
+    counts = {c: 0 for c in ROW_CLASSES}
+    by_species: dict[str, dict[str, int]] = {}
+    track_rows = []
+    n_carriers = 0
+    for s in strains:
+        calls = {f: matrix.call(f, s) for f in set(fams)}
+        genome_only = frozenset(f for f, c in calls.items() if c == "genome_only")
+        unplaced = frozenset(f for f, c in calls.items()
+                             if c != "absent" and not positions.get((s, f)))
+        sc = strain_cells(s, fams, positions, spans, k, genome_only, unplaced)
+        in_place = {(c, r) for _, c, r in sc.in_place_copies}
+        pair = flank_pair(positions, s, list(columns.left), list(columns.right), n_locus, k,
+                          in_place=in_place)
+        cls = row_class(sc.base, n_left, n_locus, pair is not None, empty_frac)
+        codes = "".join(sc.codes)
+        per_strain[s] = (cls, codes)
+        details[s] = sc.detail
+        cells[s] = sc
+        if pair is not None:
+            pairs[s] = pair
+        counts[cls] += 1
+        sp = species_of.get(s, "")
+        by_species.setdefault(sp, {c: 0 for c in ROW_CLASSES})[cls] += 1
+        track_rows.append((sp, cls, codes))
+        if any(b == IN_PLACE for b in sc.base[n_left:n_left + n_locus]):
+            n_carriers += 1
+    return {
+        "locus_id": locus.locus_id,
+        "size": locus.size,
+        "n_variants": len(locus.variants),
+        "variant_strains": locus.carrier_proxy(len(strains)),
+        "exemplar": placement.strain,
+        "exemplar_contig": placement.contig,
+        "tier": tier,
+        "families": fams,
+        "n_left": n_left,
+        "n_locus": n_locus,
+        "n_right": len(columns.right),
+        "counts": counts,
+        "counts_by_species": dict(sorted(by_species.items())),
+        "n_carriers": n_carriers,
+        "informative_score": informative_score(counts),
+        "rows": collapse_rows(per_strain, details),
+        "breakpoints": breakpoint_track(track_rows, len(fams)),
+        "_cells": cells,
+        "_pairs": pairs,
+        "_row_class": {s: v[0] for s, v in per_strain.items()},
+    }
+
+
+def locus_payload(result: dict, key: str, bins: dict[str, str],
+                  family_classes: list[str], family_domains: list[str],
+                  dominant: str, family_locations: list | None = None,
+                  exemplar_span: tuple[int, int] | None = None) -> dict:
+    """The JSON-safe page entry for one computed locus (drops "_" keys)."""
+    out = {k: v for k, v in result.items() if not k.startswith("_")}
+    out["key"] = key
+    out["family_bins"] = [bins.get(f, "") for f in result["families"]]
+    out["family_classes"] = family_classes
+    out["family_domains"] = family_domains
+    out["dominant_class"] = dominant
+    out["exemplar_span"] = ({"start": exemplar_span[0], "end": exemplar_span[1]}
+                            if exemplar_span else None)
+    if family_locations is not None:
+        out["family_locations"] = family_locations
+    return out

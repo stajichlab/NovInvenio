@@ -300,3 +300,53 @@ def test_rank_key_orders():
     assert sorted([b, a], key=lambda r: rank_key(r, "informative"))[0] is a
     assert sorted([a, b], key=lambda r: rank_key(r, "strains"))[0] is b
     assert sorted([a, b], key=lambda r: rank_key(r, "size"))[0] is b
+
+
+from island_locus import Columns, compute_locus  # noqa: E402
+
+
+# ---- compute_locus end to end --------------------------------------------------------
+
+class FakeMatrix:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def call(self, fam, strain):
+        return self.calls.get((fam, strain), "absent")
+
+
+def test_compute_locus_classifies_four_synthetic_strains():
+    cols = Columns(left=("L1",), locus=("A", "B"), right=("R1",), left_avail=5, right_avail=5)
+    pos = {}
+    calls = {}
+
+    def put(strain, contig, ranks):
+        for fam, r in zip(["L1", "A", "B", "R1"], ranks):
+            if r is not None:
+                pos[(strain, fam)] = [(contig, r)]
+                calls[(fam, strain)] = "present"
+
+    put("FULL", "c1", [10, 11, 12, 13])
+    put("EMPTY", "c1", [10, None, None, 11])
+    put("PART", "c1", [10, 11, None, 13])
+    put("FRAG", "c2", [0, 1, None, None])
+    spans = {("FULL", "c1"): (0, 50), ("EMPTY", "c1"): (0, 50), ("PART", "c1"): (0, 50),
+             ("FRAG", "c2"): (0, 2)}
+    loc = Locus(root={"members": ["A", "B"], "locus_id": "FULL:c1:1-9"},
+                variants=[{"n_strains": "2"}])
+    res = compute_locus(loc, Placement("FULL", "c1", 11, 12, 11, 38, 51), "full", cols,
+                        ["EMPTY", "FRAG", "FULL", "PART"], pos, spans, FakeMatrix(calls),
+                        {"FULL": "sp1", "EMPTY": "sp2", "PART": "sp1"})
+    assert res["counts"] == {"full": 1, "partial": 1, "empty": 1, "uninformative": 1}
+    assert res["_row_class"] == {"EMPTY": "empty", "FRAG": "uninformative", "FULL": "full",
+                                 "PART": "partial"}
+    frag = [r for r in res["rows"] if r["strains"] == ["FRAG"]][0]
+    assert frag["codes"] == "1155"
+    assert res["n_carriers"] == 3
+    assert res["counts_by_species"]["sp2"]["empty"] == 1
+    assert res["breakpoints"] == [
+        {"b": 1, "indel": {"sp2": 1}, "contig_break": 0},
+        {"b": 2, "indel": {"sp1": 1}, "contig_break": 1},
+        {"b": 3, "indel": {"sp1": 1, "sp2": 1}, "contig_break": 0},
+    ]
+    assert res["informative_score"] == -1
