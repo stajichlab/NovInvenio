@@ -66,6 +66,38 @@ def rank_entries(gene_rows, rescue_rows, wanted: set[tuple[str, str]]) -> dict:
     return out
 
 
+def split_blocks(entries: list, max_gap: int) -> tuple[list[list], dict]:
+    """Split a region's `entries` (rank_entries() rows, any order) into
+    blocks at gene-free gaps -- start(next) - end(previous) > `max_gap` --
+    so clinker draws each block to scale instead of one unreadable track
+    spanning a huge, mostly empty region (spec section 8 C1; real Cocci
+    evidence: strain B3245's 338,667 bp slice has a 164 kb gene-free gap).
+
+    `max_gap` <= 0 disables splitting (always one block). Returns
+    (blocks, stats): `blocks` is `entries` ordered by start and grouped;
+    `stats` has n_blocks, gap_bp (sum of the skipped gaps that triggered a
+    split), max_gap_bp (the largest one) and drawn_bp (sum of each block's
+    bp span, inclusive of both ends)."""
+    ordered = sorted(entries, key=lambda e: e[3])
+    if not ordered:
+        return [], {"n_blocks": 0, "gap_bp": 0, "max_gap_bp": 0, "drawn_bp": 0}
+    blocks = [[ordered[0]]]
+    gaps = []
+    block_end = ordered[0][4]
+    for e in ordered[1:]:
+        gap = e[3] - block_end
+        if max_gap > 0 and gap > max_gap:
+            gaps.append(gap)
+            blocks.append([])
+            block_end = e[4]
+        else:
+            block_end = max(block_end, e[4])
+        blocks[-1].append(e)
+    drawn_bp = sum(b[-1][4] - b[0][3] + 1 for b in blocks)
+    return blocks, {"n_blocks": len(blocks), "gap_bp": sum(gaps),
+                    "max_gap_bp": max(gaps) if gaps else 0, "drawn_bp": drawn_bp}
+
+
 def cds_ids(attrs: str) -> list[str]:
     """IDs a GFF3 CDS row belongs to: protein_id= if present, else the
     comma-split Parent= (same rule as
@@ -99,11 +131,14 @@ def cds_exons(gff3_lines, contigs: set[str], ids: set[str]) -> dict[str, tuple[i
 
 def build_record(strain: str, contig: str, contig_seq: str, entries: list,
                  exons: dict, proteins: dict[str, str], family_of: dict[str, str],
-                 label_of) -> tuple[SeqRecord, dict]:
-    """One GenBank record for a region.
+                 label_of, block_suffix: str | None = None) -> tuple[SeqRecord, dict]:
+    """One GenBank record for a region, or for one gene-free-gap block of it
+    (spec section 8 C1: `block_suffix`, e.g. "_b1", names the record
+    "<strain>_b<N>" and makes its sequence/features that block's span only
+    -- pass None for an unsplit, single-block region).
 
-    `entries` are rank_entries() rows inside the region. Genes become a
-    `gene` + `CDS` feature pair (the gene feature stops clinker's
+    `entries` are rank_entries() rows inside the region (or block). Genes
+    become a `gene` + `CDS` feature pair (the gene feature stops clinker's
     "Could not find parent gene" warning, spike problem 5); rescue hits have
     no gene model and are not drawn. `label_of(protein_id)` gives the
     /locus_tag. Returns (record, summary) with summary keys bp_start,
@@ -112,8 +147,11 @@ def build_record(strain: str, contig: str, contig_seq: str, entries: list,
     ends = [e[4] for e in entries]
     bp_start, bp_end = min(starts), max(ends)
     sub = contig_seq[bp_start - 1:bp_end]
-    rec = SeqRecord(Seq(sub), id=safe_name(strain)[:16], name=safe_name(strain)[:16],
-                    description=f"{strain} {contig}:{bp_start}-{bp_end}")
+    name = (safe_name(strain) + (block_suffix or ""))[:16]
+    desc = f"{strain} {contig}:{bp_start}-{bp_end}"
+    if block_suffix:
+        desc += f" (block{block_suffix})"
+    rec = SeqRecord(Seq(sub), id=name, name=name, description=desc)
     rec.annotations["molecule_type"] = "DNA"
     rec.annotations["topology"] = "linear"
     labels: dict[str, str] = {}

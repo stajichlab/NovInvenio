@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from Bio import SeqIO  # noqa: E402
 from compressed_io import open_maybe_compressed  # noqa: E402
 from config_parser import parse_config  # noqa: E402
-from genbank_slice import build_record, cds_exons, rank_entries, safe_name  # noqa: E402
+from genbank_slice import build_record, cds_exons, rank_entries, safe_name, split_blocks  # noqa: E402
 
 DNA_SUBDIRS = ["dna", "genome", "scaffolds"]
 PEP_SUBDIRS = ["pep", "proteins"]
@@ -97,6 +97,10 @@ def main(argv=None) -> int:
     ap.add_argument("--cluster_tsv", required=True)
     ap.add_argument("--id_sep", default="|")
     ap.add_argument("--out_dir", required=True)
+    ap.add_argument("--max_gap", type=int, default=20000,
+                    help="Gene-free gap (bp) that splits a region's GenBank record into "
+                    "several blocks, one per clinker locus of the same cluster (0 = no "
+                    "splitting; spec section 8 C1).")
     args = ap.parse_args(argv)
 
     out_dir = Path(args.out_dir)
@@ -104,7 +108,7 @@ def main(argv=None) -> int:
     regions = read_regions(args.regions)
     slices_path = out_dir / "island_slices.tsv"
     header = ["locus_key", "strain", "contig", "bp_start", "bp_end", "n_genes", "n_rescue",
-              "n_missing"]
+              "n_missing", "n_blocks", "gap_bp", "max_gap_bp", "drawn_bp"]
     if not regions:
         slices_path.write_text("\t".join(header) + "\n")
         print("pangenome_island_gbk_slice: no regions", file=sys.stderr)
@@ -176,15 +180,30 @@ def main(argv=None) -> int:
             clash = any(len(owners) > 1 for owners in pid_owner.get(r["locus_key"], {}).values())
             family_of = {e[1]: fam_of_member.get(f"{strain}{args.id_sep}{e[1]}", "")
                          for e in ents if e[1]}
-            rec, summ = build_record(
-                strain, r["contig"], seqs[r["contig"]], ents, exons, prots, family_of,
-                (lambda pid, st=strain: f"{st}{args.id_sep}{pid}") if clash else (lambda pid: pid))
+            label_of = ((lambda pid, st=strain: f"{st}{args.id_sep}{pid}") if clash
+                       else (lambda pid: pid))
+            blocks, split_stats = split_blocks(ents, args.max_gap)
+            n_genes = n_rescue = n_missing = 0
+            labels: dict[str, str] = {}
+            recs = []
+            for bi, block in enumerate(blocks):
+                suffix = f"_b{bi}" if len(blocks) > 1 else None
+                rec, summ = build_record(strain, r["contig"], seqs[r["contig"]], block, exons,
+                                         prots, family_of, label_of, block_suffix=suffix)
+                recs.append(rec)
+                n_genes += summ["n_genes"]
+                n_rescue += summ["n_rescue"]
+                n_missing += summ["n_missing"]
+                labels.update(summ["labels"])
+            bp_start = min(e[3] for e in ents)
+            bp_end = max(e[4] for e in ents)
             locus_dir = out_dir / r["locus_key"]
             locus_dir.mkdir(exist_ok=True)
-            SeqIO.write(rec, str(locus_dir / f"{safe_name(strain)}.gbk"), "genbank")
-            group_rows.setdefault(r["locus_key"], {}).update(summ["labels"])
-            rows_out.append([r["locus_key"], strain, r["contig"], summ["bp_start"],
-                             summ["bp_end"], summ["n_genes"], summ["n_rescue"], summ["n_missing"]])
+            SeqIO.write(recs, str(locus_dir / f"{safe_name(strain)}.gbk"), "genbank")
+            group_rows.setdefault(r["locus_key"], {}).update(labels)
+            rows_out.append([r["locus_key"], strain, r["contig"], bp_start, bp_end, n_genes,
+                             n_rescue, n_missing, split_stats["n_blocks"], split_stats["gap_bp"],
+                             split_stats["max_gap_bp"], split_stats["drawn_bp"]])
     for key, labels in group_rows.items():
         with open(out_dir / key / "groups.csv", "w", newline="") as fh:
             w = csv.writer(fh, lineterminator="\n")

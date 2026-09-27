@@ -58,6 +58,37 @@ def test_slices_table_reports_bp_and_counts(tmp_path):
     main(fixture(tmp_path))
     (row,) = list(csv.DictReader(open(tmp_path / "gbk" / "island_slices.tsv"), delimiter="\t"))
     assert (row["bp_start"], row["bp_end"], row["n_genes"], row["n_rescue"]) == ("10", "150", "3", "1")
+    # C1: below the (default 20000) max_gap, one block, no gap skipped.
+    assert (row["n_blocks"], row["gap_bp"], row["max_gap_bp"]) == ("1", "0", "0")
+    assert row["drawn_bp"] == str(150 - 10 + 1)
+
+
+def test_max_gap_splits_the_genbank_record_into_blocks(tmp_path):
+    # Entries in this fixture (rank_lo=0, rank_hi=3) are p1(10-40), p2(60-99),
+    # the rescue hit famR(c1:110, no gene model) and p3(120-150). --max_gap
+    # 10 splits at the p1->p2 gap (20 bp) and the p2->famR gap (11 bp), but
+    # not famR->p3 (10 bp, not > 10): three blocks, one .gbk record each.
+    args = fixture(tmp_path) + ["--max_gap", "10"]
+    assert main(args) == 0
+    recs = list(SeqIO.parse(str(tmp_path / "gbk" / "L001" / "S1.gbk"), "genbank"))
+    assert [r.id for r in recs] == ["S1_b0", "S1_b1", "S1_b2"]
+    assert [len([f for f in r.features if f.type == "CDS"]) for r in recs] == [1, 1, 1]
+    (row,) = list(csv.DictReader(open(tmp_path / "gbk" / "island_slices.tsv"), delimiter="\t"))
+    assert row["n_blocks"] == "3"
+    assert row["gap_bp"] == str((60 - 40) + (110 - 99))
+    assert row["max_gap_bp"] == str(60 - 40)
+    drawn = (40 - 10 + 1) + (99 - 60 + 1) + (150 - 110 + 1)
+    assert row["drawn_bp"] == str(drawn)
+    # groups.csv still maps every locus_tag across all blocks to its family.
+    rows = list(csv.reader(open(tmp_path / "gbk" / "L001" / "groups.csv")))
+    assert rows == [["p1", "famA"], ["p2", "famB"], ["p3", "famC"]]
+
+
+def test_max_gap_zero_never_splits(tmp_path):
+    args = fixture(tmp_path) + ["--max_gap", "0"]
+    assert main(args) == 0
+    recs = list(SeqIO.parse(str(tmp_path / "gbk" / "L001" / "S1.gbk"), "genbank"))
+    assert len(recs) == 1 and recs[0].id == "S1"
 
 
 def test_anchor_mismatch_fails(tmp_path):

@@ -7,7 +7,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 
 from Bio import SeqIO  # noqa: E402
-from genbank_slice import build_record, cds_exons, cds_ids, rank_entries, safe_name  # noqa: E402
+from genbank_slice import (  # noqa: E402
+    build_record, cds_exons, cds_ids, rank_entries, safe_name, split_blocks,
+)
 from pangenome_build_family_positions import build_family_positions  # noqa: E402
 from pangenome_build_gene_positions import _resolve_ids  # noqa: E402
 
@@ -91,3 +93,64 @@ def test_gene_without_a_cds_row_is_counted_missing():
 def test_safe_name():
     assert safe_name("B0858-Guatemala") == "B0858-Guatemala"
     assert safe_name("a/b c") == "a_b_c"
+
+
+# ---- split_blocks (C1: split GenBank regions at long gene-free gaps) ----
+# Real Cocci evidence (clinker-fix-brief.md): B3245's slice at locus L005
+# has genes at 1..26528, 58376..60729, 105854..107065, 271300..338667 -- a
+# 164 kb gap between 107 kb and 271 kb makes the whole 338,667 bp track
+# unreadable at clinker's one-bp scale.
+B3245_ENTRIES = [
+    (0, "g1", None, 1, 26528),
+    (1, "g2", None, 58376, 60729),
+    (2, "g3", None, 105854, 107065),
+    (3, "g4", None, 271300, 338667),
+]
+
+
+def test_split_blocks_matches_the_real_b3245_gaps():
+    blocks, stats = split_blocks(B3245_ENTRIES, 20000)
+    assert [len(b) for b in blocks] == [1, 1, 1, 1]
+    gaps = [58376 - 26528, 105854 - 60729, 271300 - 107065]
+    assert stats["n_blocks"] == 4
+    assert stats["gap_bp"] == sum(gaps)
+    assert stats["max_gap_bp"] == max(gaps) == 164235
+    drawn = (26528 - 1 + 1) + (60729 - 58376 + 1) + (107065 - 105854 + 1) + (338667 - 271300 + 1)
+    assert stats["drawn_bp"] == drawn
+
+
+def test_split_blocks_zero_max_gap_means_no_splitting():
+    blocks, stats = split_blocks(B3245_ENTRIES, 0)
+    assert stats == {"n_blocks": 1, "gap_bp": 0, "max_gap_bp": 0,
+                     "drawn_bp": 338667 - 1 + 1}
+    assert len(blocks) == 1 and len(blocks[0]) == 4
+
+
+def test_split_blocks_keeps_close_genes_in_one_block():
+    entries = [(0, "p1", None, 10, 40), (1, "p2", None, 60, 99), (2, "p3", None, 120, 150)]
+    blocks, stats = split_blocks(entries, 20000)
+    assert stats == {"n_blocks": 1, "gap_bp": 0, "max_gap_bp": 0, "drawn_bp": 150 - 10 + 1}
+    assert blocks == [entries]
+
+
+def test_split_blocks_small_max_gap_splits_every_gap():
+    entries = [(0, "p1", None, 10, 40), (1, "p2", None, 60, 99), (2, "p3", None, 120, 150)]
+    blocks, stats = split_blocks(entries, 10)
+    assert [len(b) for b in blocks] == [1, 1, 1]
+    assert stats["n_blocks"] == 3
+    assert stats["gap_bp"] == (60 - 40) + (120 - 99)
+
+
+def test_split_blocks_empty_entries():
+    assert split_blocks([], 20000) == ([], {"n_blocks": 0, "gap_bp": 0, "max_gap_bp": 0,
+                                            "drawn_bp": 0})
+
+
+def test_build_record_with_block_suffix_names_the_record():
+    seq = "A" * 300
+    entries = rank_entries(iter(GENES), iter(RESCUES), {("S1", "c1")})[("S1", "c1")][:1]
+    exons = cds_exons(io.StringIO(GFF), {"c1"}, {"p1"})
+    rec, _summ = build_record("S1", "c1", seq, entries, exons, {"p1": "MK*"},
+                              {"p1": "famA"}, lambda pid: pid, block_suffix="_b1")
+    assert rec.id == rec.name == "S1_b1"
+    assert "block" in rec.description

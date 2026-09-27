@@ -10,6 +10,8 @@ Skips unless `clinker` is on PATH and a headless Chromium is found:
 NOVINVENIO_HEADLESS_CHROME, else the newest
 ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell.
 """
+import io
+import json
 import os
 import random
 import shutil
@@ -84,3 +86,44 @@ def test_slimmed_page_draws_the_same_figure(tmp_path):
     before, after = dom_counts(full), dom_counts(slim)
     assert before['class="gene"'] == 9 and before['class="cluster"'] == 3
     assert after == before
+
+
+# ---- C1: a multi-record GenBank file is one cluster of several loci -----
+# split_blocks()/build_record(block_suffix=...) (lib/genbank_slice.py) write
+# every gene-free-gap block of one strain's region as its own record in the
+# same <strain>.gbk file, named "<strain>_b<N>". This checks clinker 0.0.32
+# actually reads that as intended -- one cluster (named after the strain)
+# with one locus per block -- rather than, say, three unrelated clusters.
+@pytest.mark.skipif(not shutil.which("clinker"), reason="needs clinker on PATH")
+def test_multi_record_gbk_is_one_cluster_with_several_loci(tmp_path):
+    from genbank_slice import build_record, cds_exons, rank_entries  # local import: bin/lib on sys.path
+
+    gff = ("##gff-version 3\n"
+          "c1\tsrc\tCDS\t1\t300\t.\t+\t0\tID=cds1;Parent=p1\n"
+          "c1\tsrc\tCDS\t100000\t100300\t.\t+\t0\tID=cds2;Parent=p2\n")
+    gene_rows = [("S1", "p1", "c1", 1, 300), ("S1", "p2", "c1", 100000, 100300)]
+    entries = rank_entries(iter(gene_rows), iter(()), {("S1", "c1")})[("S1", "c1")]
+    exons = cds_exons(io.StringIO(gff), {"c1"}, {"p1", "p2"})
+    recs = []
+    labels = {}
+    for i, entry in enumerate(entries):
+        rec, summ = build_record("S1", "c1", "A" * 100400, [entry], exons, {}, {"p1": "famA",
+                                 "p2": "famA"}, lambda pid: pid, block_suffix=f"_b{i}")
+        recs.append(rec)
+        labels.update(summ["labels"])
+    SeqIO.write(recs, str(tmp_path / "S1.gbk"), "genbank")
+    with open(tmp_path / "groups.csv", "w") as fh:
+        for label, fam in sorted(labels.items()):
+            fh.write(f"{label},{fam}\n")
+    out = tmp_path / "out.html"
+    subprocess.run(["clinker", str(tmp_path / "S1.gbk"), "-gf", str(tmp_path / "groups.csv"),
+                    "-j", "1", "-p", str(out)], check=True, capture_output=True)
+    html = out.read_text()
+    start = html.index("const data=") + len("const data=")
+    data = json.JSONDecoder().raw_decode(html, start)[0]
+    assert len(data["clusters"]) == 1
+    cluster = data["clusters"][0]
+    assert len(cluster["loci"]) == 2
+    assert sorted(locus["name"] for locus in cluster["loci"]) == ["S1_b0", "S1_b1"]
+    assert [len(locus["genes"]) for locus in
+           sorted(cluster["loci"], key=lambda x: x["name"])] == [1, 1]

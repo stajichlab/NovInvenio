@@ -194,6 +194,9 @@ def print_help() {
       --pangenome_clinker_slim         Remove embedded sequences from clinker pages
                                        (default: true).
       --pangenome_clinker_batch        Loci per ISLAND_CLINKER task (default: 50).
+      --pangenome_clinker_max_gap      Gene-free gap (bp) that splits a region into
+                                       several clinker loci of one cluster (default:
+                                       20000; 0 = no splitting).
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two
@@ -243,6 +246,9 @@ workflow {
         error "ERROR: --pangenome_locus_dna_min_id and --pangenome_locus_dna_min_cov are percents, 0-100 (got: ${params.pangenome_locus_dna_min_id}, ${params.pangenome_locus_dna_min_cov})"
     if (params.pangenome_cluster_backend !in ['mmseqs', 'diamond'])
         error "ERROR: --pangenome_cluster_backend must be mmseqs or diamond (got: ${params.pangenome_cluster_backend})"
+    def max_gap_str = params.pangenome_clinker_max_gap.toString()
+    if (!(max_gap_str ==~ /^[0-9]+$/))
+        error "ERROR: --pangenome_clinker_max_gap must be an integer >= 0 (got: ${params.pangenome_clinker_max_gap})"
     // Previously hard-blocked here: diamond's tier-1 branch had no equivalent
     // of mmseqs' restore_mmseqs_cluster_ids.py safety net, and family IDs are
     // load-bearing for every downstream table (bin/pangenome_build_presence_matrix.py's

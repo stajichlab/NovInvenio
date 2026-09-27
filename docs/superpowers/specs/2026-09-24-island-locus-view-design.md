@@ -290,6 +290,30 @@ computed by the locus-view step. Output: one `.gbk` per (locus, strain). Each CD
 carries `/locus_tag` = the gene ID, `/translation` from the protein FASTA, and
 `/note="family=<tier-1 family>"`.
 
+**Gap-split blocks (changed 2026-09-27, real Cocci evidence, user-approved).**
+clinker draws every gene at its true bp position, on one scale for the whole
+region. A strain whose region has a long gene-free gap -- real example, locus
+L005, strain B3245: genes at 1..26528, 58376..60729, 105854..107065,
+271300..338667, a 164 kb gap between 107 kb and 271 kb in a 338,667 bp region
+-- becomes an unreadable track: almost the whole width is empty and the few
+genes are squeezed into slivers. `ISLAND_GBK_SLICE` now splits each
+(locus, strain) region's genes, ordered by start, into blocks: a new block
+starts whenever `start(next gene) - end(previous gene) > --pangenome_clinker_max_gap`
+(default 20000 bp; 0 disables splitting). Every block is written as its own
+GenBank record in the same `<strain>.gbk` file, named `<strain>_b<N>`, its
+sequence and features covering only that block's span (features shifted to
+the block start). clinker 0.0.32 reads a multi-record file as one cluster
+(named after the file) with one locus per record -- checked directly against
+clinker (`tests/test_clinker_render.py`) -- so this draws each gene-dense
+block to its own, readable scale instead of one gap-dominated track.
+Rescue entries are still not drawn. `island_slices.tsv` gains `n_blocks`,
+`gap_bp` (sum of the skipped gaps that triggered a split), `max_gap_bp` (the
+largest one) and `drawn_bp` (sum of the blocks' spans); `bp_start`/`bp_end`
+stay the full region. The page's per-strain line and hover popup say
+"N blocks, X kb without genes not drawn" when a strain's region was split.
+Each locus also carries `clinker_max_gap_bp` (the max over its strains), for
+possible later use in island pruning.
+
 **Clinker.** New process `ISLAND_CLINKER`, one task per locus:
 `clinker <locus>/*.gbk -gf <locus>.groups.csv -p <locus>.html` with
 gamcil/clinker **0.0.32 from PyPI** (added to the pixi environment as a PyPI

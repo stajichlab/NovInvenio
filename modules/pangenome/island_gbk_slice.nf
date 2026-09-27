@@ -36,6 +36,7 @@ process ISLAND_GBK_SLICE {
         --rescue_positions ${rescue_positions} \
         --cluster_tsv ${cluster_tsv} \
         --id_sep '${params.pangenome_id_sep}' \
+        --max_gap ${params.pangenome_clinker_max_gap} \
         --out_dir gbk
     """
 }

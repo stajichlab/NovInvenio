@@ -141,7 +141,10 @@ def add_locus_view(payload: dict, loci_json: str | None, diagnostics_tsv: str | 
 
 def add_clinker(payload: dict, slices_tsv: str | None, keys: str, enabled: bool) -> None:
     """locus_meta.clinker = {enabled, keys}; each locus's clinker_strains gain
-    bp_start, bp_end and n_genes from island_slices.tsv."""
+    bp_start, bp_end, n_genes and the gap-split fields (n_blocks, gap_bp,
+    max_gap_bp, drawn_bp) from island_slices.tsv (spec section 8 C1); each
+    locus also gains clinker_max_gap_bp, the max max_gap_bp over its
+    strains, for later island pruning."""
     if "loci" not in payload:
         return
     payload.setdefault("locus_meta", {})["clinker"] = {
@@ -151,12 +154,19 @@ def add_clinker(payload: dict, slices_tsv: str | None, keys: str, enabled: bool)
     with open_maybe_compressed(slices_tsv) as fh:
         by_key = {(r["locus_key"], r["strain"]): r for r in csv.DictReader(fh, delimiter="\t")}
     for locus in payload["loci"]:
+        max_gap_bp = 0
         for pick in locus.get("clinker_strains", []):
             row = by_key.get((locus["key"], pick["strain"]))
             if row:
                 pick["bp_start"] = int(row["bp_start"])
                 pick["bp_end"] = int(row["bp_end"])
                 pick["n_genes"] = int(row["n_genes"])
+                pick["n_blocks"] = int(row["n_blocks"])
+                pick["gap_bp"] = int(row["gap_bp"])
+                pick["max_gap_bp"] = int(row["max_gap_bp"])
+                pick["drawn_bp"] = int(row["drawn_bp"])
+                max_gap_bp = max(max_gap_bp, pick["max_gap_bp"])
+        locus["clinker_max_gap_bp"] = max_gap_bp
 
 
 def main() -> int:
