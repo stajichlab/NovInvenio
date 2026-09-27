@@ -114,7 +114,12 @@ partial).
 
 **Sequences.**
 - Query: the exemplar's locus DNA, from the start of its first locus gene to the
-  end of its last locus gene, with each exemplar locus gene's coordinates.
+  end of its last locus gene, with each exemplar locus gene's coordinates. A
+  locus column whose exemplar copy is a TBLASTN rescue hit (no gene model) uses
+  that hit's genomic coordinates from `rescue_positions.tsv` as its span, so it
+  gets a DNA call like any other column. (Added 2026-09-26: without this, 196
+  empty-site strains at one planning locus stayed "partial" only because one
+  rescue-only column was unchecked.)
 - Target: the strain's DNA on its flank contig, from the start of its innermost
   in-place left-flank gene to the end of its innermost in-place right-flank gene.
   The two flank genes are included because a gene model can extend over the
