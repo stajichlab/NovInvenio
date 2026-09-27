@@ -261,6 +261,9 @@ LOCUS_VIEW_JS = r"""
 
   function hatch(ctx, x, y, w, h, color) {
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
     ctx.beginPath();

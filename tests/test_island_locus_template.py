@@ -228,3 +228,26 @@ def test_legend_label_distinguishes_not_checked_from_dna_absent():
       console.log(JSON.stringify([legendLabel("0", false), legendLabel("0", true),
         legendLabel("7", true)]));""")
     assert out == ["absent", "absent (not checked)", "absent, DNA absent"]
+
+
+# V1: hatch() drew diagonals from x-h to x+w+h with no clip, so white lines
+# spilled onto neighbouring cells (a solid-blue cell shows a white diagonal
+# belonging to the cell next to it).
+def test_hatch_clips_to_its_own_cell():
+    out = run_node(["hatch"], """
+      var calls = [];
+      var ctx = {
+        save: function () { calls.push("save"); },
+        restore: function () { calls.push("restore"); },
+        beginPath: function () { calls.push("beginPath"); },
+        rect: function (x, y, w, h) { calls.push("rect:" + [x, y, w, h].join(",")); },
+        clip: function () { calls.push("clip"); },
+        moveTo: function () { calls.push("moveTo"); },
+        lineTo: function () { calls.push("lineTo"); },
+        stroke: function () { calls.push("stroke"); },
+      };
+      hatch(ctx, 10, 20, 30, 8, "red");
+      console.log(JSON.stringify(calls));""")
+    assert out[:4] == ["save", "beginPath", "rect:10,20,30,8", "clip"]
+    assert out.index("clip") < out.index("moveTo") < out.index("stroke")
+    assert out[-1] == "restore"
