@@ -82,18 +82,21 @@ def split_blocks(entries: list, max_gap: int) -> tuple[list[list], dict]:
     if not ordered:
         return [], {"n_blocks": 0, "gap_bp": 0, "max_gap_bp": 0, "drawn_bp": 0}
     blocks = [[ordered[0]]]
+    # Fix round 1, item 3: track each block's running MAX end (not just the
+    # last-appended entry's), so a gene fully nested inside an earlier one
+    # in the same block can't shrink the reported span.
+    block_ends = [ordered[0][4]]
     gaps = []
-    block_end = ordered[0][4]
     for e in ordered[1:]:
-        gap = e[3] - block_end
+        gap = e[3] - block_ends[-1]
         if max_gap > 0 and gap > max_gap:
             gaps.append(gap)
             blocks.append([])
-            block_end = e[4]
+            block_ends.append(e[4])
         else:
-            block_end = max(block_end, e[4])
+            block_ends[-1] = max(block_ends[-1], e[4])
         blocks[-1].append(e)
-    drawn_bp = sum(b[-1][4] - b[0][3] + 1 for b in blocks)
+    drawn_bp = sum(end - b[0][3] + 1 for b, end in zip(blocks, block_ends))
     return blocks, {"n_blocks": len(blocks), "gap_bp": sum(gaps),
                     "max_gap_bp": max(gaps) if gaps else 0, "drawn_bp": drawn_bp}
 

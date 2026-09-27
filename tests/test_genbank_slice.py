@@ -173,3 +173,15 @@ def test_long_strain_names_get_unique_block_record_names():
                for i, e in enumerate(entries)]
         assert [r.id for r in recs] == ["b1", "b2"]
         assert len({r.id for r in recs}) == 2
+
+
+# ---- split_blocks drawn_bp with a nested gene (review fix round 1, item 3) ----
+
+def test_split_blocks_drawn_bp_uses_the_blocks_running_max_end_not_the_last_entrys():
+    # A gene fully nested inside an earlier one, appended after it: the
+    # block's true span must still reach the earlier gene's larger end,
+    # not just the last-appended (nested, shorter) entry's end.
+    entries = [(0, "p1", None, 10, 500), (1, "p2", None, 100, 200)]
+    blocks, stats = split_blocks(entries, 20000)
+    assert stats["n_blocks"] == 1
+    assert stats["drawn_bp"] == 500 - 10 + 1
