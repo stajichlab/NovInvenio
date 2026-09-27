@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### New: clinker synteny panel
+
+- **`lib/genbank_slice.py`**, **`bin/pangenome_island_gbk_slice.py`** (`ISLAND_GBK_SLICE`),
+  **`lib/clinker_html.py`**, **`bin/pangenome_island_clinker.py`** (`ISLAND_CLINKER`) -- for each drawn
+  locus, up to 12 strains' regions are written as GenBank files and drawn with gamcil/clinker 0.0.32
+  (PyPI; bioconda's `clinker` is an unrelated tool), grouped by tier-1 family. Embedded sequences are
+  removed (5.35 -> 1.01 MB per page). `island_synteny.html` shows the figure in a "Synteny (clinker)"
+  panel. Pages publish to `pangenome/clinker/<key>.html`.
+- New params: `--pangenome_clinker` (true), `--pangenome_clinker_max_strains` (12),
+  `--pangenome_clinker_slim` (true), `--pangenome_clinker_batch` (50).
+- The published container `0.5.0` has no clinker: rebuild and push the image before container runs.
+
 ### Island locus view: five rankings replace the single informative ranking (2026-09-27, ranks-brief.md, user-approved)
 
 - **`lib/island_locus.py`**, **`bin/pangenome_island_loci.py`**, **`lib/island_locus_template.py`**,

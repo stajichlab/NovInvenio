@@ -37,6 +37,9 @@ process ISLAND_SYNTENY {
     path(rescue_positions)
     path(loci_json)
     path(diagnostics_tsv)
+    path(slices_tsv)
+    val(clinker_keys)
+    val(clinker_enabled)
 
     output:
     path("island_synteny.html"), emit: page
@@ -60,6 +63,9 @@ process ISLAND_SYNTENY {
         --id_sep '${params.pangenome_id_sep}' \
         --loci_json ${loci_json} \
         --diagnostics_tsv ${diagnostics_tsv} \
+        --slices_tsv ${slices_tsv} \
+        --clinker_keys '${clinker_keys}' \
+        --clinker_enabled ${clinker_enabled} \
         --output island_synteny.html
     """
 }

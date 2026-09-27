@@ -60,6 +60,8 @@ include { REPORT_TABLES; REPORT_RENDER; DIAGNOSTICS }                      from 
 include { ASSEMBLY_QUALITY_QC }                                            from '../modules/pangenome/assembly_quality_qc'
 include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
 include { ISLAND_LOCI }                                                    from '../modules/pangenome/island_loci'
+include { ISLAND_GBK_SLICE }                                               from '../modules/pangenome/island_gbk_slice'
+include { ISLAND_CLINKER }                                                 from '../modules/pangenome/island_clinker'
 include { ISLAND_DNA_TARGETS; ISLAND_DNA_CHECK }                           from '../modules/pangenome/island_dna_check'
 include { EMPTY_EVALUES_STUB as EMPTY_DNA_CALLS_STUB }                     from '../modules/empty_evalues_stub'
 include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
@@ -78,6 +80,7 @@ include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_FUNNEL_STUB }    from '../modules/e
 include { EMPTY_EVALUES_STUB as EMPTY_SIGNIFICANT_ISLANDS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_ISLAND_ENRICHMENT_STUB }   from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_DOMTBLOUT_STUB }           from '../modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_ISLAND_SLICES_STUB }       from '../modules/empty_evalues_stub'
 
 workflow PANGENOME_PROFILE {
     take:
@@ -444,6 +447,31 @@ workflow PANGENOME_PROFILE {
             dna_calls,
             dna_check,
         )
+        // Clinker synteny panel (spec section 8). ISLAND_CLINKER tasks take
+        // --pangenome_clinker_batch loci each (plan Ruling R10).
+        if (Helpers.asBool(params.pangenome_clinker)) {
+            ISLAND_GBK_SLICE(
+                ISLAND_LOCI.out.regions, samplesheet, data_dir_abs, gff3_dir_abs,
+                GENE_POSITIONS.out.positions, rescue_positions, CLUSTER_TIER1.out.cluster_tsv,
+            )
+            ISLAND_CLINKER(
+                ISLAND_GBK_SLICE.out.locus_dirs.flatten()
+                    .buffer(size: params.pangenome_clinker_batch as int, remainder: true)
+            )
+            clinker_keys = ISLAND_CLINKER.out.html.flatten()
+                .map { html -> html.baseName }
+                .collect()
+                .map { keys -> keys.sort().join(',') }
+                .ifEmpty('')
+            island_slices = ISLAND_GBK_SLICE.out.slices
+            clinker_enabled = 'true'
+        }
+        else {
+            EMPTY_ISLAND_SLICES_STUB()
+            island_slices = EMPTY_ISLAND_SLICES_STUB.out.evalues
+            clinker_keys = channel.value('')
+            clinker_enabled = 'false'
+        }
         ISLAND_SYNTENY(
             REPORT_TABLES.out.islands_with_domains,
             rescued_matrix,
@@ -456,6 +484,9 @@ workflow PANGENOME_PROFILE {
             rescue_positions,
             ISLAND_LOCI.out.loci,
             DIAGNOSTICS.out.tsv,
+            island_slices,
+            clinker_keys,
+            clinker_enabled,
         )
     }
 

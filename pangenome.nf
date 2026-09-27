@@ -189,6 +189,11 @@ def print_help() {
                                        gene (default: 80).
       --pangenome_locus_dna_batch      Loci per ISLAND_DNA_CHECK task (default: 50).
       --pangenome_locus_candidates     Loci scored before ranking (default: 200).
+      --pangenome_clinker              Build the clinker synteny panel (default: true).
+      --pangenome_clinker_max_strains  Strains per clinker figure (default: 12).
+      --pangenome_clinker_slim         Remove embedded sequences from clinker pages
+                                       (default: true).
+      --pangenome_clinker_batch        Loci per ISLAND_CLINKER task (default: 50).
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two
