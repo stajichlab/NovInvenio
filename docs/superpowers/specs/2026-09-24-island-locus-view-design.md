@@ -115,10 +115,15 @@ partial).
 **Sequences.**
 - Query: the exemplar's locus DNA, from the start of its first locus gene to the
   end of its last locus gene, with each exemplar locus gene's coordinates.
-- Target: the strain's DNA on its flank contig, between the inner edges of its
-  innermost in-place left-flank gene and innermost in-place right-flank gene.
-  When the target is shorter than 50 bp, every missing column is DNA absent
-  without an alignment.
+- Target: the strain's DNA on its flank contig, from the start of its innermost
+  in-place left-flank gene to the end of its innermost in-place right-flank gene.
+  The two flank genes are included because a gene model can extend over the
+  locus DNA: in the 2026-09-26 planning run, 2 of 6 checked cases (Guerrero_1,
+  Tucson_2, scaffold_390) had the locus DNA inside the flank gene model and were
+  missed by an inner-edge target. The query holds only the exemplar's locus
+  genes, so a hit inside a flank gene means that model spans the locus DNA (a
+  model difference). (Changed 2026-09-26; the first version used the flank
+  genes' inner edges.)
 
 **Alignment.** `blastn -task megablast`, query against target (subject mode), one
 call per (locus, strain). A locus column is **DNA present** in the strain when
