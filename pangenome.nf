@@ -153,10 +153,26 @@ def print_help() {
                                        (default: 50), selected by size after
                                        the min-strains filter above.
       --pangenome_top_loci             Loci drawn in island_synteny.html's locus
-                                       view (default: 50).
-      --pangenome_locus_rank           Locus ranking: informative (default; >= 10
-                                       empty-site and >= 2 full-locus strains,
-                                       by the smaller count), strains, or size.
+                                       view: the union of --pangenome_locus_per_rank
+                                       winners under whole_dna/whole_annot/species/
+                                       within plus a presence-order fill (default: 100).
+      --pangenome_locus_rank           Page's default sort + legacy pre-DNA-check
+                                       tie-break: presence (default; carriers vs.
+                                       losses, >= 10 losses and >= 2 carriers, by
+                                       the smaller count), within, species, whole_dna,
+                                       whole_annot, informative (alias of presence),
+                                       strains, or size.
+      --pangenome_locus_per_rank       Loci drawn per non-presence rank before the
+                                       presence-order fill (default: 20).
+      --pangenome_locus_poly_min_strains
+                                       Rank "within": minimum strains of a species
+                                       to be considered (default: 20).
+      --pangenome_locus_poly_min_frac  Rank "within": minimum loss fraction within
+                                       a species (default: 0.05).
+      --pangenome_locus_poly_max_frac  Rank "within": maximum loss fraction within
+                                       a species (default: 0.95).
+      --pangenome_locus_fixed_diff     Rank "species": minimum loss-fraction
+                                       difference between species (default: 0.95).
       --pangenome_locus_flank          Flank genes per side (default: 5); falls back
                                        to --pangenome_locus_flank_min (default: 3).
       --pangenome_locus_k              Gene window of the "in place" test (default: 10).
@@ -190,13 +206,30 @@ workflow {
     if (!params.pangenome_data_dir)    error "ERROR: --pangenome_data_dir <data_dir> is required"
     if (!file(params.pangenome_samplesheet).exists())    error "ERROR: --pangenome_samplesheet file not found: ${params.pangenome_samplesheet}"
     if (!file(params.pangenome_data_dir).isDirectory())  error "ERROR: --pangenome_data_dir is not a directory: ${params.pangenome_data_dir}"
-    if (params.pangenome_locus_rank !in ['informative', 'strains', 'size'])
-        error "ERROR: --pangenome_locus_rank must be informative, strains or size (got: ${params.pangenome_locus_rank})"
+    def valid_locus_ranks = ['presence', 'within', 'species', 'whole_dna', 'whole_annot',
+                            'informative', 'strains', 'size']
+    if (params.pangenome_locus_rank !in valid_locus_ranks)
+        error "ERROR: --pangenome_locus_rank must be one of ${valid_locus_ranks.join(', ')} (got: ${params.pangenome_locus_rank})"
     def top_loci_str = params.pangenome_top_loci.toString()
     if (!(top_loci_str ==~ /^[0-9]+$/) || (top_loci_str as int) < 1)
         error "ERROR: --pangenome_top_loci must be an integer >= 1 (got: ${params.pangenome_top_loci})"
     if ((params.pangenome_locus_candidates as int) < (top_loci_str as int))
         error "ERROR: --pangenome_locus_candidates (${params.pangenome_locus_candidates}) must be >= --pangenome_top_loci (${params.pangenome_top_loci})"
+    def per_rank_str = params.pangenome_locus_per_rank.toString()
+    if (!(per_rank_str ==~ /^[0-9]+$/) || (per_rank_str as int) < 1)
+        error "ERROR: --pangenome_locus_per_rank must be an integer >= 1 (got: ${params.pangenome_locus_per_rank})"
+    if ((per_rank_str as int) > (top_loci_str as int))
+        error "ERROR: --pangenome_locus_per_rank (${params.pangenome_locus_per_rank}) must not exceed --pangenome_top_loci (${params.pangenome_top_loci})"
+    def poly_min_strains_str = params.pangenome_locus_poly_min_strains.toString()
+    if (!(poly_min_strains_str ==~ /^[0-9]+$/) || (poly_min_strains_str as int) < 1)
+        error "ERROR: --pangenome_locus_poly_min_strains must be an integer >= 1 (got: ${params.pangenome_locus_poly_min_strains})"
+    def poly_min_frac = params.pangenome_locus_poly_min_frac as double
+    def poly_max_frac = params.pangenome_locus_poly_max_frac as double
+    def fixed_diff = params.pangenome_locus_fixed_diff as double
+    if (poly_min_frac < 0 || poly_min_frac > 1 || poly_max_frac < 0 || poly_max_frac > 1 || fixed_diff < 0 || fixed_diff > 1)
+        error "ERROR: --pangenome_locus_poly_min_frac, --pangenome_locus_poly_max_frac and --pangenome_locus_fixed_diff are fractions, 0-1 (got: ${params.pangenome_locus_poly_min_frac}, ${params.pangenome_locus_poly_max_frac}, ${params.pangenome_locus_fixed_diff})"
+    if (poly_min_frac >= poly_max_frac)
+        error "ERROR: --pangenome_locus_poly_min_frac (${params.pangenome_locus_poly_min_frac}) must be less than --pangenome_locus_poly_max_frac (${params.pangenome_locus_poly_max_frac})"
     if (params.pangenome_locus_flank_min > params.pangenome_locus_flank)
         error "ERROR: --pangenome_locus_flank_min (${params.pangenome_locus_flank_min}) must not exceed --pangenome_locus_flank (${params.pangenome_locus_flank})"
     def dna_id = params.pangenome_locus_dna_min_id as double

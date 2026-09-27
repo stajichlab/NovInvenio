@@ -60,6 +60,11 @@ process ISLAND_LOCI {
         --containment ${params.pangenome_locus_containment} \
         --rank_by ${params.pangenome_locus_rank} \
         --top_loci ${params.pangenome_top_loci} \
+        --per_rank ${params.pangenome_locus_per_rank} \
+        --poly_min_strains ${params.pangenome_locus_poly_min_strains} \
+        --poly_min_frac ${params.pangenome_locus_poly_min_frac} \
+        --poly_max_frac ${params.pangenome_locus_poly_max_frac} \
+        --fixed_diff ${params.pangenome_locus_fixed_diff} \
         --candidates ${params.pangenome_locus_candidates} \
         --dna_check ${dna_check} \
         --dna_calls ${dna_calls} \
