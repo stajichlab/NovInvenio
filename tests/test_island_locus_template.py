@@ -346,3 +346,36 @@ def test_row_at_slot_maps_through_header_offsets_to_the_right_data_row():
       console.log(JSON.stringify(slots.map(function (_, i) {{
         var r = locusRowAtSlot(slots, i); return r ? r.strains : null; }})));""")
     assert out == [None, ["S1", "S2"], None, ["S3"]]
+
+
+# ---- clinker panel (Part B) ----
+
+def test_clinker_panel_states():
+    out = run_node(["clinkerPanelState"], """
+      var on = {enabled: true, keys: ["L001"]};
+      console.log(JSON.stringify([
+        clinkerPanelState({key: "L001"}, on), clinkerPanelState({key: "L002"}, on),
+        clinkerPanelState({key: "L001"}, {enabled: false, keys: ["L001"]}),
+        clinkerPanelState({key: "../x"}, {enabled: true, keys: ["../x"]})]));""")
+    assert out == [{"mode": "ok", "src": "clinker/L001.html"}, {"mode": "missing", "src": ""},
+                   {"mode": "off", "src": ""}, {"mode": "missing", "src": ""}]
+
+
+def test_clinker_reason_and_region_text():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText"], """
+      var a = {reason: "exemplar", row_class: "full", species: "", contig: "c1", rank_lo: 3, rank_hi: 9};
+      var b = {reason: "best_empty", row_class: "empty", species: "Sp two", contig: "c1",
+               bp_start: 100, bp_end: 900, n_genes: 12};
+      var c = {reason: "fill", row_class: "partial", species: "Sp one", contig: "c2", rank_lo: 1, rank_hi: 2};
+      console.log(JSON.stringify([clinkerReason(a), clinkerReason(b), clinkerReason(c),
+                                  clinkerRegionText(a), clinkerRegionText(b)]));""")
+    assert out == ["locus exemplar", "best-assembled empty site strain of Sp two",
+                   "more partial strains, best assembly first", "c1 gene ranks 3-9",
+                   "c1:100-900, 12 genes"]
+
+
+def test_clinker_panel_markup_is_below_the_grid():
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert page.index('id="lv-grid"') < page.index('id="lv-clinker"')
+    assert "Synteny (clinker)" in page
+    assert "No synteny figure for this locus." in page

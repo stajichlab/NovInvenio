@@ -25,6 +25,10 @@ LOCUS_VIEW_CSS = r"""
   .lv-track-wrap { border-bottom: 1px solid var(--border); }
   canvas.lv-track, canvas.lv-head { display: block; }
   .lv-confound { margin: 0 0 12px; font-size: 12px; color: var(--text-secondary); }
+  .lv-clinker { margin-top: 16px; }
+  .lv-clinker h3 { margin: 0 0 6px; font-size: 14px; }
+  .lv-clinker-list { margin: 0 0 10px; padding-left: 18px; font-size: 12px; color: var(--text-secondary); }
+  .lv-clinker-iframe { width: 100%; height: 640px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
 """
 
 LOCUS_VIEW_HTML = r"""
@@ -64,6 +68,12 @@ LOCUS_VIEW_HTML = r"""
           <canvas class="lv-head" id="lv-head"></canvas>
           <div class="isv-vscroll"><canvas class="isv-grid" id="lv-grid"></canvas></div>
         </div>
+        <section class="lv-clinker" id="lv-clinker" aria-labelledby="lv-clinker-title">
+          <h3 id="lv-clinker-title">Synteny (clinker)</h3>
+          <p class="isv-main-note" id="lv-clinker-note"></p>
+          <ul class="lv-clinker-list" id="lv-clinker-list"></ul>
+          <div id="lv-clinker-frame"></div>
+        </section>
       </section>
     </div>
   </div>
@@ -246,6 +256,54 @@ LOCUS_VIEW_JS = r"""
     if (tier === "short_flanks") return "short flanks (" + params.flank_min + " genes per side)";
     if (tier === "contig_end") return "exemplar at contig end";
     return "";
+  }
+
+  // ---- clinker panel (spec section 8) ----
+  var CLINKER = LMETA.clinker || { enabled: false, keys: [] };
+  function clinkerPanelState(locus, clinker) {
+    if (!clinker || !clinker.enabled) return { mode: "off", src: "" };
+    if (!/^L[0-9]+$/.test(locus.key) || (clinker.keys || []).indexOf(locus.key) === -1) {
+      return { mode: "missing", src: "" };
+    }
+    return { mode: "ok", src: "clinker/" + locus.key + ".html" };
+  }
+  function clinkerReason(pick) {
+    if (pick.reason === "exemplar") return "locus exemplar";
+    var cls = locusClassLabel(pick.row_class);
+    if (pick.reason === "fill") return "more " + cls + " strains, best assembly first";
+    return "best-assembled " + cls + " strain" + (pick.species ? " of " + pick.species : "");
+  }
+  function clinkerRegionText(pick) {
+    var where = pick.bp_start
+      ? pick.contig + ":" + pick.bp_start + "-" + pick.bp_end
+      : pick.contig + " gene ranks " + pick.rank_lo + "-" + pick.rank_hi;
+    return where + (pick.n_genes !== undefined ? ", " + pick.n_genes + " genes" : "");
+  }
+  function renderClinkerPanel(locus) {
+    var st = clinkerPanelState(locus, CLINKER);
+    var note = document.getElementById("lv-clinker-note");
+    var list = document.getElementById("lv-clinker-list");
+    var frame = document.getElementById("lv-clinker-frame");
+    list.textContent = "";
+    frame.textContent = "";
+    if (st.mode === "off") {
+      note.textContent = "The clinker step was not run for this page (--pangenome_clinker false).";
+      return;
+    }
+    if (st.mode === "missing") {
+      note.textContent = "No synteny figure for this locus.";
+      return;
+    }
+    note.textContent = "clinker 0.0.32: each strain's region, genes linked by similarity and " +
+      "grouped by tier-1 family (the column IDs above). Strains shown:";
+    (locus.clinker_strains || []).forEach(function (pick) {
+      list.appendChild(el("li", null, pick.strain + ": " + clinkerReason(pick) + "; " + clinkerRegionText(pick)));
+    });
+    var f = document.createElement("iframe");
+    f.className = "lv-clinker-iframe";
+    f.title = "clinker synteny figure for " + locus.locus_id;
+    f.src = st.src;
+    frame.appendChild(f);
   }
 
   function lcolX(i) { return L_GUTTER + i * L_CELL_W; }

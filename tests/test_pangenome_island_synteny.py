@@ -604,3 +604,27 @@ def test_cli_reads_the_assembly_confound_diagnostic(tmp_path):
     diag.write_text("diagnostic_id\tstatus\twould_fail_strict\tdetail\tprune_options\n"
                     "assembly_quality_confound\tok\tFalse\tmax rho\t\n")
     assert payload_of(run_cli(tmp_path, "--diagnostics_tsv", str(diag)))["assembly_confound"] is False
+
+
+def test_cli_clinker_flags_fill_meta_and_region_bp(tmp_path):
+    data = json.loads(json.dumps(LOCI_JSON))
+    data["loci"][0]["clinker_strains"] = [
+        {"strain": "S1", "reason": "exemplar", "row_class": "full", "species": "",
+         "contig": "c1", "rank_lo": 0, "rank_hi": 9}]
+    lj = tmp_path / "island_loci.json"
+    lj.write_text(json.dumps(data))
+    slices = tmp_path / "island_slices.tsv"
+    slices.write_text("locus_key\tstrain\tcontig\tbp_start\tbp_end\tn_genes\tn_rescue\tn_missing\n"
+                      "L001\tS1\tc1\t100\t9000\t10\t0\t0\n")
+    payload = payload_of(run_cli(tmp_path, "--loci_json", str(lj), "--slices_tsv", str(slices),
+                                 "--clinker_keys", "L001", "--clinker_enabled", "true"))
+    assert payload["locus_meta"]["clinker"] == {"enabled": True, "keys": ["L001"]}
+    pick = payload["loci"][0]["clinker_strains"][0]
+    assert (pick["bp_start"], pick["bp_end"], pick["n_genes"]) == (100, 9000, 10)
+
+
+def test_cli_clinker_disabled_by_default(tmp_path):
+    lj = tmp_path / "island_loci.json"
+    lj.write_text(json.dumps(LOCI_JSON))
+    payload = payload_of(run_cli(tmp_path, "--loci_json", str(lj)))
+    assert payload["locus_meta"]["clinker"] == {"enabled": False, "keys": []}

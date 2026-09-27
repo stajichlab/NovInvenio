@@ -572,6 +572,35 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         legendItems.includes('absent, DNA absent'), legendItems);
 }
 
+// ------------------------------------- island synteny: clinker panel
+{
+  const off = boot(path.join(FX, 'island_synteny_loci.html')).window.document;
+  await sleep(60);
+  check('clinker panel: says the step was not run when disabled',
+        /not run/.test(off.getElementById('lv-clinker-note').textContent),
+        off.getElementById('lv-clinker-note').textContent);
+  check('clinker panel: no iframe when disabled', !off.querySelector('#lv-clinker-frame iframe'));
+
+  const dom = boot(path.join(FX, 'island_synteny_clinker.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('clinker panel: loads without error', errors.length === 0, errors.join('; '));
+  const frame = () => d.querySelector('#lv-clinker-frame iframe');
+  check('clinker panel: L001 loads clinker/L001.html',
+        frame() && frame().getAttribute('src') === 'clinker/L001.html',
+        frame() && frame().getAttribute('src'));
+  check('clinker panel: lists the strains shown with a reason',
+        /S1: locus exemplar/.test(d.getElementById('lv-clinker-list').textContent),
+        d.getElementById('lv-clinker-list').textContent);
+  [...d.querySelectorAll('#lv-list .isv-item')][1].dispatchEvent(ev(w, 'click'));
+  check('clinker panel: a locus without a file says so',
+        d.getElementById('lv-clinker-note').textContent === 'No synteny figure for this locus.',
+        d.getElementById('lv-clinker-note').textContent);
+  check('clinker panel: and shows no iframe', !frame());
+}
+
 // ------------------------------- island synteny: no loci keeps the old page
 {
   const dom = boot(path.join(FX, 'island_synteny.html'));

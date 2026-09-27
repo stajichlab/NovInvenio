@@ -356,6 +356,13 @@ def fixture_dir(tmp_path_factory):
         '--family_positions', str(d / 'isv_positions.tsv'),
         '--loci_json', str(d / 'isv_loci.json'),
         '--project', 'demo', '--output', str(d / 'island_synteny_loci.html'))
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_matrix.tsv'),
+        '--family_positions', str(d / 'isv_positions.tsv'),
+        '--loci_json', str(d / 'isv_loci.json'),
+        '--clinker_enabled', 'true', '--clinker_keys', 'L001',
+        '--project', 'demo', '--output', str(d / 'island_synteny_clinker.html'))
 
     (d / 'isv_loci_name_sort.json').write_text(json.dumps(ISV_LOCI_NAME_SORT))
     run('pangenome_island_synteny.py',

@@ -139,6 +139,26 @@ def add_locus_view(payload: dict, loci_json: str | None, diagnostics_tsv: str | 
     payload["locus_meta"] = data
 
 
+def add_clinker(payload: dict, slices_tsv: str | None, keys: str, enabled: bool) -> None:
+    """locus_meta.clinker = {enabled, keys}; each locus's clinker_strains gain
+    bp_start, bp_end and n_genes from island_slices.tsv."""
+    if "loci" not in payload:
+        return
+    payload.setdefault("locus_meta", {})["clinker"] = {
+        "enabled": enabled, "keys": sorted(k for k in keys.split(",") if k)}
+    if not slices_tsv or not Path(slices_tsv).is_file() or Path(slices_tsv).stat().st_size == 0:
+        return
+    with open_maybe_compressed(slices_tsv) as fh:
+        by_key = {(r["locus_key"], r["strain"]): r for r in csv.DictReader(fh, delimiter="\t")}
+    for locus in payload["loci"]:
+        for pick in locus.get("clinker_strains", []):
+            row = by_key.get((locus["key"], pick["strain"]))
+            if row:
+                pick["bp_start"] = int(row["bp_start"])
+                pick["bp_end"] = int(row["bp_end"])
+                pick["n_genes"] = int(row["n_genes"])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--islands_with_domains", required=True)
@@ -182,6 +202,13 @@ def main() -> int:
     ap.add_argument("--diagnostics_tsv", default=None,
                     help="diagnostics.tsv from bin/pangenome_diagnostics.py; when "
                     "assembly_quality_confound is 'triggered' the page says so.")
+    ap.add_argument("--slices_tsv", default=None,
+                    help="island_slices.tsv from bin/pangenome_island_gbk_slice.py: bp "
+                    "range and gene count of each clinker strain's region.")
+    ap.add_argument("--clinker_keys", default="",
+                    help="comma list of locus keys (L001,...) that have clinker/<key>.html")
+    ap.add_argument("--clinker_enabled", default="false", choices=["true", "false"],
+                    help="whether the clinker step ran (--pangenome_clinker)")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -232,6 +259,7 @@ def main() -> int:
     )
 
     add_locus_view(payload, args.loci_json, args.diagnostics_tsv)
+    add_clinker(payload, args.slices_tsv, args.clinker_keys, args.clinker_enabled == "true")
 
     # Escape `</` so a Pfam description or family ID cannot close the
     # <script> block early -- these strings come from HMM output and FASTA
