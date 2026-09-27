@@ -136,8 +136,16 @@ def test_dna_states_are_hatched_grey_and_plain_absent():
       console.log(JSON.stringify([locusStateStyle("6"), locusStateStyle("7"),
         locusStateLabel("6"), locusStateLabel("7")]));""")
     assert out[0] == {"token": "--text-secondary", "alpha": 0.45, "hatch": True}
-    assert out[1] == {"token": "--grid", "alpha": 1, "hatch": False}
+    # V3: code 7 (absent, DNA absent -- a confirmed deletion) must not share
+    # code 0's swatch (absent / not checked); it gets its own dark solid fill.
+    assert out[1] == {"token": "--text-primary", "alpha": 0.7, "hatch": False}
     assert out[2].startswith("absent, DNA present") and out[3] == "absent, DNA absent"
+
+
+def test_code_7_is_visually_distinct_from_code_0():
+    out = run_node(["locusStateStyle"], """
+      console.log(JSON.stringify([locusStateStyle("0"), locusStateStyle("7")]));""")
+    assert out[0] != out[1]
 
 
 def test_model_difference_rows_sort_after_empty_sites():
@@ -168,6 +176,10 @@ def test_note_says_whether_empty_site_is_dna_confirmed():
         locusDnaNote({dna_check: false}), locusDnaNote({})]));""")
     assert "DNA-confirmed" in out[0] and ">= 90% identity" in out[0]
     assert "not DNA-confirmed" in out[1] and "not DNA-confirmed" in out[2]
+    # V3: the note explains the hatched-grey swatch (code 6) but, before this
+    # fix, said nothing about the dark solid swatch (code 7, confirmed
+    # deletion) it sits right next to in the legend.
+    assert "dark = DNA absent (confirmed)" in out[0]
 
 
 def test_cell_reason_explains_the_dna_state():

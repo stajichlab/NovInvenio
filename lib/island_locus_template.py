@@ -90,6 +90,7 @@ LOCUS_VIEW_JS = r"""
     if (code === "4") return { token: "--series-2", alpha: 0.35, hatch: true };
     if (code === "5") return { token: "--warn", alpha: 0.55, hatch: true };
     if (code === "6") return { token: "--text-secondary", alpha: 0.45, hatch: true };
+    if (code === "7") return { token: "--text-primary", alpha: 0.7, hatch: false };
     return { token: "--grid", alpha: 1, hatch: false };
   }
   function locusStateLabel(code) {
@@ -141,7 +142,8 @@ LOCUS_VIEW_JS = r"""
       return opening + " blastn (megablast) of the exemplar's locus DNA " +
         "against the strain's DNA from its left to its right flank gene; a gene is DNA present at >= " +
         params.dna_min_id + "% identity over >= " + params.dna_min_cov + "% of its length. " +
-        "Hatched grey = absent, DNA present (model difference, not a deletion).";
+        "Hatched grey = absent, DNA present (model difference, not a deletion); " +
+        "dark = DNA absent (confirmed).";
     }
     return "Empty site is not DNA-confirmed (the DNA presence check did not run), so it can " +
       "be a gene-model or annotation difference.";
