@@ -116,6 +116,29 @@ def load_rescue_locations(path: str, families: set[str],
     return out
 
 
+def assembly_confound_triggered(path: str | None) -> bool:
+    """True when diagnostics.tsv has assembly_quality_confound = triggered."""
+    if not path or not Path(path).is_file() or Path(path).stat().st_size == 0:
+        return False
+    with open_maybe_compressed(path) as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            if row.get("diagnostic_id") == "assembly_quality_confound":
+                return row.get("status") == "triggered"
+    return False
+
+
+def add_locus_view(payload: dict, loci_json: str | None, diagnostics_tsv: str | None) -> None:
+    """Add `loci`, `locus_meta` and `assembly_confound` to the page payload.
+    Without --loci_json (or with an empty file) the payload has no `loci`
+    and the page shows the island view only, as before."""
+    payload["assembly_confound"] = assembly_confound_triggered(diagnostics_tsv)
+    if not loci_json or not Path(loci_json).is_file() or Path(loci_json).stat().st_size == 0:
+        return
+    data = json.loads(Path(loci_json).read_text())
+    payload["loci"] = data.pop("loci", [])
+    payload["locus_meta"] = data
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--islands_with_domains", required=True)
@@ -153,6 +176,12 @@ def main() -> int:
                     "annotated protein. An empty file is treated as absent.")
     ap.add_argument("--id_sep", default="|",
                     help="Short-prefix separator in cluster member IDs (default '|').")
+    ap.add_argument("--loci_json", default=None,
+                    help="island_loci.json from bin/pangenome_island_loci.py; adds the "
+                    "locus view (default view of the page). An empty file is ignored.")
+    ap.add_argument("--diagnostics_tsv", default=None,
+                    help="diagnostics.tsv from bin/pangenome_diagnostics.py; when "
+                    "assembly_quality_confound is 'triggered' the page says so.")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -201,6 +230,8 @@ def main() -> int:
         family_domains=family_domains, species_of=species_of,
         gene_locations=gene_locations, rescue_locations=rescue_locations,
     )
+
+    add_locus_view(payload, args.loci_json, args.diagnostics_tsv)
 
     # Escape `</` so a Pfam description or family ID cannot close the
     # <script> block early -- these strings come from HMM output and FASTA

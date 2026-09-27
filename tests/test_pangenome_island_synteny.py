@@ -562,3 +562,45 @@ def test_cli_empty_rescue_positions_is_ignored(tmp_path):
     payload = payload_of(run_cli(tmp_path, "--gene_positions", str(genes), "--cluster_tsv",
                                  str(cluster), "--rescue_positions", str(rescue)))
     assert all(x and "protein" in x for x in payload["islands"][0]["family_locations"])
+
+
+# ---- locus view (docs/superpowers/plans/2026-09-26-island-locus-view-clinker.md) ----
+
+LOCI_JSON = {
+    "project": "demo",
+    "locus_params": {"flank": 5, "flank_min": 3, "k": 10},
+    "n_loci_total": 1,
+    "loci": [{"key": "L001", "locus_id": "S1:c1:100-400", "families": ["famA", "famB"],
+              "rows": [], "counts": {"full": 1, "partial": 0, "empty": 0, "uninformative": 1}}],
+}
+
+
+def test_cli_without_loci_json_has_no_loci_key(tmp_path):
+    payload = payload_of(run_cli(tmp_path))
+    assert "loci" not in payload
+    assert payload["assembly_confound"] is False
+
+
+def test_cli_with_loci_json_embeds_loci_and_meta(tmp_path):
+    lj = tmp_path / "island_loci.json"
+    lj.write_text(json.dumps(LOCI_JSON))
+    payload = payload_of(run_cli(tmp_path, "--loci_json", str(lj)))
+    assert payload["loci"][0]["key"] == "L001"
+    assert payload["locus_meta"]["locus_params"]["k"] == 10
+    assert "loci" not in payload["locus_meta"]
+
+
+def test_cli_empty_loci_json_is_ignored(tmp_path):
+    lj = tmp_path / "island_loci.json"
+    lj.write_text("")
+    assert "loci" not in payload_of(run_cli(tmp_path, "--loci_json", str(lj)))
+
+
+def test_cli_reads_the_assembly_confound_diagnostic(tmp_path):
+    diag = tmp_path / "diagnostics.tsv"
+    diag.write_text("diagnostic_id\tstatus\twould_fail_strict\tdetail\tprune_options\n"
+                    "assembly_quality_confound\ttriggered\tTrue\tmax rho\t\n")
+    assert payload_of(run_cli(tmp_path, "--diagnostics_tsv", str(diag)))["assembly_confound"] is True
+    diag.write_text("diagnostic_id\tstatus\twould_fail_strict\tdetail\tprune_options\n"
+                    "assembly_quality_confound\tok\tFalse\tmax rho\t\n")
+    assert payload_of(run_cli(tmp_path, "--diagnostics_tsv", str(diag)))["assembly_confound"] is False
