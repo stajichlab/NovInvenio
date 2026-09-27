@@ -127,3 +127,54 @@ def test_tier_text():
       var p = {flank_min: 3};
       console.log(JSON.stringify([locusTierText("full", p), locusTierText("short_flanks", p), locusTierText("contig_end", p)]));""")
     assert out == ["", "short flanks (3 genes per side)", "exemplar at contig end"]
+
+
+# ---- DNA presence check (spec section 4b) ----
+
+def test_dna_states_are_hatched_grey_and_plain_absent():
+    out = run_node(["locusStateStyle", "locusStateLabel"], """
+      console.log(JSON.stringify([locusStateStyle("6"), locusStateStyle("7"),
+        locusStateLabel("6"), locusStateLabel("7")]));""")
+    assert out[0] == {"token": "--text-secondary", "alpha": 0.45, "hatch": True}
+    assert out[1] == {"token": "--grid", "alpha": 1, "hatch": False}
+    assert out[2].startswith("absent, DNA present") and out[3] == "absent, DNA absent"
+
+
+def test_model_difference_rows_sort_after_empty_sites():
+    rows = [{"row_class": "uninformative", "codes": "0", "count": 1, "strains": ["u"]},
+            {"row_class": "model_difference", "codes": "6", "count": 1, "strains": ["m"]},
+            {"row_class": "empty", "codes": "7", "count": 1, "strains": ["e"]}]
+    out = run_node(["speciesCounts", "haplotypeSpecies", "locusSortedRows", "locusClassLabel"], f"""
+      var r = locusSortedRows({json.dumps(rows)}, {{}});
+      console.log(JSON.stringify([r.map(function (x) {{ return x.strains[0]; }}),
+        locusClassLabel("model_difference")]));""")
+    assert out == [["e", "m", "u"], "model difference"]
+
+
+def test_sidebar_shows_the_model_difference_count_only_with_the_check():
+    base = {"size": 2, "n_variants": 1,
+            "counts": {"full": 3, "partial": 1, "empty": 0, "uninformative": 2}}
+    dna = dict(base, counts=dict(base["counts"], model_difference=9))
+    out = run_node(["locusSidebarStats"], f"""
+      console.log(JSON.stringify([locusSidebarStats({json.dumps(base)}),
+        locusSidebarStats({json.dumps(dna)})]));""")
+    assert "model difference" not in out[0]
+    assert "model difference 9" in out[1]
+
+
+def test_note_says_whether_empty_site_is_dna_confirmed():
+    out = run_node(["locusDnaNote"], """
+      console.log(JSON.stringify([locusDnaNote({dna_check: true, dna_min_id: 90, dna_min_cov: 80}),
+        locusDnaNote({dna_check: false}), locusDnaNote({})]));""")
+    assert "DNA-confirmed" in out[0] and ">= 90% identity" in out[0]
+    assert "not DNA-confirmed" in out[1] and "not DNA-confirmed" in out[2]
+
+
+def test_cell_reason_explains_the_dna_state():
+    out = run_node(["locusStateLabel", "cellReasonLines"], """
+      var locus = {families: ["F1", "A"]};
+      var row = {codes: "16", count: 1, strains: ["S1"], rep: {c: [], d: [null, null]}};
+      var row7 = {codes: "17", count: 1, strains: ["S1"], rep: {c: [], d: [null, null]}};
+      console.log(JSON.stringify([cellReasonLines(locus, row, 1, 10), cellReasonLines(locus, row7, 1, 10)]));""")
+    assert "not a deletion" in out[0][-1]
+    assert out[1][-1] == "The site lacks the exemplar gene's DNA in S1 (blastn)"

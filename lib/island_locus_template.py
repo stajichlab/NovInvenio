@@ -88,20 +88,24 @@ LOCUS_VIEW_JS = r"""
     if (code === "3") return { token: "--series-2", alpha: 1, hatch: true };
     if (code === "4") return { token: "--series-2", alpha: 0.35, hatch: true };
     if (code === "5") return { token: "--warn", alpha: 0.55, hatch: true };
+    if (code === "6") return { token: "--text-secondary", alpha: 0.45, hatch: true };
     return { token: "--grid", alpha: 1, hatch: false };
   }
   function locusStateLabel(code) {
     var labels = { "0": "absent", "1": "in place", "2": "elsewhere",
       "3": "rescue, in place (TBLASTN hit, no annotated gene)",
-      "4": "rescue, elsewhere (TBLASTN hit, no annotated gene)", "5": "contig break" };
+      "4": "rescue, elsewhere (TBLASTN hit, no annotated gene)", "5": "contig break",
+      "6": "absent, DNA present (gene-model or annotation difference)",
+      "7": "absent, DNA absent" };
     return labels[code] || "unknown";
   }
   function locusClassLabel(cls) {
-    var labels = { full: "full locus", partial: "partial", empty: "empty site", uninformative: "uninformative" };
+    var labels = { full: "full locus", partial: "partial", empty: "empty site",
+      model_difference: "model difference", uninformative: "uninformative" };
     return labels[cls] || cls;
   }
   function locusSortedRows(rows, speciesMap) {
-    var order = ["full", "partial", "empty", "uninformative"];
+    var order = ["full", "partial", "empty", "model_difference", "uninformative"];
     return rows.slice().sort(function (a, b) {
       var ca = order.indexOf(a.row_class), cb = order.indexOf(b.row_class);
       if (ca !== cb) return ca - cb;
@@ -111,6 +115,23 @@ LOCUS_VIEW_JS = r"""
       if (b.count !== a.count) return b.count - a.count;
       return a.codes < b.codes ? -1 : a.codes > b.codes ? 1 : 0;
     });
+  }
+  function locusSidebarStats(locus) {
+    var c = locus.counts;
+    var text = locus.size + " families · " + locus.n_variants + " variants · " +
+      "empty " + c.empty + " · full " + c.full + " · partial " + c.partial;
+    if (c.model_difference !== undefined) text += " · model difference " + c.model_difference;
+    return text + " · uninformative " + c.uninformative;
+  }
+  function locusDnaNote(params) {
+    if (params.dna_check === true) {
+      return "Empty site is DNA-confirmed: blastn (megablast) of the exemplar's locus DNA " +
+        "against the strain's DNA from its left to its right flank gene; a gene is DNA present at >= " +
+        params.dna_min_id + "% identity over >= " + params.dna_min_cov + "% of its length. " +
+        "Hatched grey = absent, DNA present (model difference, not a deletion).";
+    }
+    return "Empty site is not DNA-confirmed (the DNA presence check did not run), so it can " +
+      "be a gene-model or annotation difference.";
   }
   function locusSidebarOrder(loci, idxs, key) {
     var cmp;
@@ -136,10 +157,14 @@ LOCUS_VIEW_JS = r"""
     var who = row.strains[0] + (row.count > 1 ? " (first of " + row.count + " strains)" : "");
     if (!row.rep) { lines.push("Position detail not stored for this row"); return lines; }
     var d = row.rep.d[ci];
+    var dnaLine = code === "6"
+      ? "The exemplar gene's DNA is at this site in " + row.strains[0] + " (blastn): a gene-model or annotation difference, not a deletion"
+      : (code === "7" ? "The site lacks the exemplar gene's DNA in " + row.strains[0] + " (blastn)" : "");
     if (!d) {
       lines.push(code === "5"
         ? "No copy at the locus in " + who + "; the nearest placed column is within " + k + " genes of a contig end, so this absence is not evidence"
         : (code === "2" ? "Present in " + who + " but no position recorded" : "No copy in " + who));
+      if (dnaLine) lines.push(dnaLine);
       return lines;
     }
     lines.push("In " + who + ": " + row.rep.c[d[0]] + ", gene rank " + d[1]);
@@ -149,6 +174,7 @@ LOCUS_VIEW_JS = r"""
     } else {
       lines.push("No other column within " + k + " genes on this contig");
     }
+    if (dnaLine) lines.push(dnaLine);
     return lines;
   }
   function locusTitle(locus) {
@@ -192,11 +218,7 @@ LOCUS_VIEW_JS = r"""
       btn.setAttribute("aria-selected", idx === lstate.selected ? "true" : "false");
       if (idx === lstate.selected) btn.classList.add("sel");
       btn.appendChild(el("div", "isv-item-id", locus.locus_id));
-      var c = locus.counts;
-      btn.appendChild(el("div", "isv-item-stats",
-        locus.size + " families · " + locus.n_variants + " variants · " +
-        "empty " + c.empty + " · full " + c.full + " · partial " + c.partial +
-        " · uninformative " + c.uninformative));
+      btn.appendChild(el("div", "isv-item-stats", locusSidebarStats(locus)));
       var chip = el("span", "isv-chip", classLabel(locus.dominant_class));
       chip.style.borderColor = classColor(locus.dominant_class);
       chip.style.color = classColor(locus.dominant_class);
@@ -349,7 +371,8 @@ LOCUS_VIEW_JS = r"""
   function renderLocusLegend() {
     var legend = document.getElementById("lv-legend");
     legend.textContent = "";
-    ["1", "2", "3", "0", "5"].forEach(function (code) {
+    var codes = LPARAMS.dna_check === true ? ["1", "2", "3", "0", "5", "6", "7"] : ["1", "2", "3", "0", "5"];
+    codes.forEach(function (code) {
       var st = locusStateStyle(code);
       var item = el("span", "isv-legend-item");
       var sw = el("span", "isv-swatch");
@@ -361,7 +384,9 @@ LOCUS_VIEW_JS = r"""
       legend.appendChild(item);
     });
     var bp = el("span", "isv-legend-item",
-      "Bars above the columns: flank-intact strains changing between in place and absent, one bar per species (left to right as named); the last bar counts contig breaks");
+      "Bars above the columns: flank-intact strains changing between in place and " +
+      (LPARAMS.dna_check === true ? "DNA absent" : "absent") +
+      ", one bar per species (left to right as named); the last bar counts contig breaks");
     legend.appendChild(bp);
   }
 
@@ -382,7 +407,8 @@ LOCUS_VIEW_JS = r"""
       "the strain has another column's gene within k = " + LPARAMS.k + " genes on the same contig. " +
       "Rows: strains with identical states, grouped by row class, then species. " +
       "Full " + c.full + ", partial " + c.partial + ", empty site " + c.empty +
-      ", uninformative " + c.uninformative + " strains.";
+      (c.model_difference !== undefined ? ", model difference " + c.model_difference : "") +
+      ", uninformative " + c.uninformative + " strains. " + locusDnaNote(LPARAMS);
     renderLocusLegend();
     lRows = locusSortedRows(locus.rows, SPECIES);
     L_GUTTER = locusGutter(lRows);
