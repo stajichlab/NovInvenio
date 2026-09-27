@@ -625,3 +625,220 @@ def locus_payload(result: dict, key: str, bins: dict[str, str],
     if family_locations is not None:
         out["family_locations"] = family_locations
     return out
+
+
+# ---- 6b. DNA presence check (spec section 4b) ---------------------------------
+# Two more cell codes. The 3-bit payload codes (spec "Data and wiring") now
+# use all eight values 0-7.
+DNA_PRESENT = "6"  # absent or elsewhere, but the exemplar gene's DNA is at the site
+DNA_ABSENT = "7"  # absent, and the site lacks the exemplar gene's DNA
+DNA_STATE_LABELS = {DNA_PRESENT: "absent, DNA present", DNA_ABSENT: "absent, DNA absent"}
+# Cells the check can change (spec 4b: an "absent" or "elsewhere" locus cell).
+DNA_CHECKED_CODES = frozenset({ABSENT, ELSEWHERE, RESCUE_ELSEWHERE})
+DEFAULT_DNA_MIN_ID = 90.0
+DEFAULT_DNA_MIN_COV = 80.0
+DNA_MIN_TARGET_BP = 50  # guard only: a target holds two flank genes, so it is never this short
+# Breakpoint track with the check on: only in place <-> DNA absent counts
+# (spec 4b), so DNA absent is fed to breakpoint_track() as ABSENT and every
+# other not-in-place code as ELSEWHERE, which the track never counts.
+_DNA_TRACK = str.maketrans({ABSENT: ELSEWHERE, DNA_PRESENT: ELSEWHERE, DNA_ABSENT: ABSENT})
+
+
+def dna_checked_strains(result: dict) -> list[str]:
+    """Strains the DNA check covers for one computed locus (spec 4b): flank
+    intact, with at least one locus column not in place. Sorted."""
+    nl, nb = result["n_left"], result["n_locus"]
+    return sorted(s for s in result["_pairs"]
+                  if any(c not in IN_PLACE_CODES for c in result["_cells"][s].codes[nl:nl + nb]))
+
+
+def copy_bp(positions: Positions, gene_locs: dict, strain: str, family: str,
+            contig: str, rank: int, rescue_spans: dict | None = None) -> tuple[int, int] | None:
+    """(start, end) in bp of the copy of `family` at (contig, rank).
+
+    A family's copies on one contig in rank order are its gene_positions
+    copies, plus its TBLASTN rescue hits in `rescue_spans` ({(strain,
+    family): [(contig, start, end)]}, Ruling R26), in start order, because
+    ranks enumerate genes and rescue hits sorted by (contig, start) (Ruling
+    R19). None when the copy has no span (a rescue hit not in
+    `rescue_spans`) or the copy counts differ."""
+    ranks = sorted(r for c, r in positions.get((strain, family), ()) if c == contig)
+    spans = [(s, e) for _pid, c, s, e in gene_locs.get((strain, family), ()) if c == contig]
+    spans += [(s, e) for c, s, e in (rescue_spans or {}).get((strain, family), ()) if c == contig]
+    spans.sort()
+    if rank not in ranks or len(ranks) != len(spans):
+        return None
+    return spans[ranks.index(rank)]
+
+
+def rescue_hit_spans(rescue_rows, tblastn_lines) -> dict[tuple[str, str], list[tuple]]:
+    """{(strain, family): [(contig, start, end)]} for TBLASTN rescue hits
+    (Ruling R26). `rescue_rows` are rescue_positions.tsv rows (strain,
+    family, contig, start), where start is min(sstart, send) of the chosen
+    HSP; `tblastn_lines` are the strains' own tblastn lines (outfmt `6 std
+    qcovs`; subject = `strain|contig`). The end is max(sstart, send) of the
+    HSP of that family on that contig that starts at the recorded start (the
+    highest bitscore if several). A row with no such HSP has no span."""
+    want = {(s, f, c, int(st)) for s, f, c, st in rescue_rows}
+    fams = {f for _s, f, _c, _st in want}
+    best: dict[tuple, tuple[float, int]] = {}
+    for line in tblastn_lines:
+        p = line.rstrip("\n").split("\t")
+        if len(p) < 12 or p[0] not in fams:
+            continue
+        strain, _, contig = p[1].partition("|")
+        try:
+            s0, s1, bits = int(p[8]), int(p[9]), float(p[11])
+        except ValueError:
+            continue
+        key = (strain, p[0], contig, min(s0, s1))
+        if key in want and (key not in best or bits > best[key][0]):
+            best[key] = (bits, max(s0, s1))
+    out: dict[tuple[str, str], list[tuple]] = {}
+    for (s, f, c, st), (_bits, end) in sorted(best.items()):
+        out.setdefault((s, f), []).append((c, st, end))
+    return out
+
+
+def dna_query(result: dict, exemplar_ranks: list[int], positions: Positions,
+              gene_locs: dict, rescue_spans: dict | None = None) -> tuple[str, int, int, list] | None:
+    """The exemplar's locus DNA (spec 4b): (contig, start, end, genes) with
+    genes = [(column, gene start, gene end)], from the first locus gene's
+    start to the last one's end. `exemplar_ranks` are the ranks of the locus
+    columns in the exemplar, in column order. A column whose exemplar copy
+    is a TBLASTN rescue hit uses the hit's span from `rescue_spans` (spec
+    4b, Ruling R26). A column with no span at all is left out and stays
+    unchecked (Ruling R21). None if no column has a span."""
+    nl = result["n_left"]
+    fams = result["families"]
+    genes = []
+    for i, rank in enumerate(exemplar_ranks):
+        bp = copy_bp(positions, gene_locs, result["exemplar"], fams[nl + i],
+                     result["exemplar_contig"], rank, rescue_spans)
+        if bp is not None:
+            genes.append((nl + i, bp[0], bp[1]))
+    if not genes:
+        return None
+    return (result["exemplar_contig"], min(g[1] for g in genes), max(g[2] for g in genes), genes)
+
+
+def dna_target(result: dict, strain: str, positions: Positions, gene_locs: dict,
+               k: int = DEFAULT_K) -> tuple[str, int, int] | None:
+    """The strain's target DNA (spec 4b): (contig, start, end), 1-based,
+    from the start of its innermost in-place left-flank gene to the end of
+    its innermost in-place right-flank gene, on its flank-pair contig. The
+    two flank genes are included, because a gene model can extend over the
+    locus DNA. Only copies within n_locus + 2k ranks of the pair count (as
+    in Ruling R11), and only annotated copies (a bp position is needed).
+    Innermost = the flank column nearest the locus; ties between copies of
+    that column go to the copy nearest the pair. None when either side has
+    no annotated in-place copy (Ruling R20)."""
+    nl, nb = result["n_left"], result["n_locus"]
+    fams = result["families"]
+    contig, p_lo, p_hi = result["_pairs"][strain]
+    w = nb + 2 * k
+    mid = (p_lo + p_hi) / 2
+    left, right = [], []
+    for ci, c, r in result["_cells"][strain].in_place_copies:
+        if c != contig or not p_lo - w <= r <= p_hi + w or nl <= ci < nl + nb:
+            continue
+        bp = copy_bp(positions, gene_locs, strain, fams[ci], c, r)
+        if bp is not None:
+            (left if ci < nl else right).append((ci, abs(r - mid), bp))
+    if not left or not right:
+        return None
+    a = min(left, key=lambda x: (-x[0], x[1]))[2]
+    b = min(right, key=lambda x: (x[0], x[1]))[2]
+    return contig, min(a[0], b[0]), max(a[1], b[1])
+
+
+def merge_intervals(intervals) -> list[tuple[int, int]]:
+    """Union of closed integer intervals, sorted."""
+    out: list[list[int]] = []
+    for lo, hi in sorted((min(a, b), max(a, b)) for a, b in intervals):
+        if out and lo <= out[-1][1] + 1:
+            out[-1][1] = max(out[-1][1], hi)
+        else:
+            out.append([lo, hi])
+    return [(lo, hi) for lo, hi in out]
+
+
+def gene_coverage(hsps, gene: tuple[int, int], min_id: float = DEFAULT_DNA_MIN_ID) -> float:
+    """Fraction of `gene` (query coordinates, closed) covered by the union of
+    HSPs [(qstart, qend, pident)] with pident >= min_id (spec 4b: HSPs are
+    merged where they overlap, so two HSPs over one gene add up)."""
+    g0, g1 = gene
+    kept = merge_intervals((q0, q1) for q0, q1, pid in hsps if pid >= min_id)
+    covered = sum(max(0, min(hi, g1) - max(lo, g0) + 1) for lo, hi in kept)
+    return covered / (g1 - g0 + 1)
+
+
+def row_class_dna(codes, n_left: int, n_locus: int, intact: bool,
+                  empty_frac: float = DEFAULT_EMPTY_FRAC) -> str:
+    """Row class of a DNA-checked strain (spec 4b): empty site = >= empty_frac
+    of the locus columns DNA absent; full = all in place; model difference =
+    every column in place or DNA present, at least one DNA present; anything
+    else is partial (Ruling R21)."""
+    if not intact:
+        return "uninformative"
+    block = codes[n_left:n_left + n_locus]
+    if block and sum(c == DNA_ABSENT for c in block) / len(block) >= empty_frac:
+        return "empty"
+    if all(c in IN_PLACE_CODES for c in block):
+        return "full"
+    if all(c in IN_PLACE_CODES or c == DNA_PRESENT for c in block):
+        return "model_difference"
+    return "partial"
+
+
+def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: dict[str, str],
+                    empty_frac: float = DEFAULT_EMPTY_FRAC) -> None:
+    """Apply one locus's DNA calls in place (spec 4b).
+
+    `calls` = {strain: {column: "present" | "absent" | "unchecked"}}. In a
+    strain with at least one present/absent call, each ABSENT / ELSEWHERE /
+    RESCUE_ELSEWHERE locus cell with a call becomes DNA_PRESENT or
+    DNA_ABSENT, and the row class comes from row_class_dna(). Other strains
+    keep their section 4-5 states. Recomputes counts (with a
+    "model_difference" count), counts_by_species, rows, the breakpoint track
+    (in place <-> DNA absent only) and the informative score, which counts
+    only DNA-confirmed empty-site strains (Ruling R22). Adds `dna` =
+    {checked, unchecked, empty_confirmed, empty_to_model_difference}."""
+    nl, nb = result["n_left"], result["n_locus"]
+    need = set(dna_checked_strains(result))
+    per_strain: dict[str, tuple[str, str]] = {}
+    details: dict[str, list] = {}
+    counts = {c: 0 for c in ROW_ORDER}
+    by_species: dict[str, dict[str, int]] = {}
+    track = []
+    summary = {"checked": 0, "unchecked": 0, "empty_confirmed": 0, "empty_to_model_difference": 0}
+    for s, sc in result["_cells"].items():
+        cls = result["_row_class"][s]
+        codes = list(sc.codes)
+        col_calls = calls.get(s, {}) if s in need else {}
+        if any(v in ("present", "absent") for v in col_calls.values()):
+            for ci, v in col_calls.items():
+                if nl <= ci < nl + nb and codes[ci] in DNA_CHECKED_CODES and v in ("present", "absent"):
+                    codes[ci] = DNA_PRESENT if v == "present" else DNA_ABSENT
+            new_cls = row_class_dna(codes, nl, nb, True, empty_frac)
+            summary["checked"] += 1
+            summary["empty_confirmed"] += new_cls == "empty"
+            summary["empty_to_model_difference"] += cls == "empty" and new_cls == "model_difference"
+            cls = new_cls
+        elif s in need:
+            summary["unchecked"] += 1
+        code_str = "".join(codes)
+        per_strain[s] = (cls, code_str)
+        details[s] = sc.detail
+        counts[cls] += 1
+        sp = species_of.get(s, "")
+        by_species.setdefault(sp, {c: 0 for c in ROW_ORDER})[cls] += 1
+        track.append((sp, cls, code_str.translate(_DNA_TRACK)))
+    result["counts"] = counts
+    result["counts_by_species"] = dict(sorted(by_species.items()))
+    result["rows"] = collapse_rows(per_strain, details)
+    result["breakpoints"] = breakpoint_track(track, len(result["families"]))
+    result["informative_score"] = informative_score(
+        {"empty": summary["empty_confirmed"], "full": counts["full"]})
+    result["dna"] = summary
+    result["_row_class"] = {s: v[0] for s, v in per_strain.items()}
