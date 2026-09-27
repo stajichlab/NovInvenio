@@ -43,7 +43,15 @@ def test_everything_else_is_kept():
     assert slim.startswith(
         "<html><head><style>body{overflow:auto;margin-left:16px}</style></head>"
         "<body><div id=\"plot\"></div><script>const data=")
-    assert slim.endswith(";function serialise(svg) { return 1; }\nplot(data)</script></body></html>")
+    # L: the label-fit script is inserted right before </body> on every page.
+    assert slim.endswith(
+        ";function serialise(svg) { return 1; }\nplot(data)</script>" +
+        '<script>(function(){function fit(){var svg=document.querySelector("svg.clusterMap"),'
+        'g=svg&&svg.querySelector("g.clusterMapG");if(!g||!window.d3)return;var t=d3.zoomTransform(svg),'
+        'b=g.getBBox(),left=t.x+b.x*t.k,pad=8;if(left>=pad)return;var nt=d3.zoomIdentity.translate('
+        't.x+pad-left,t.y).scale(t.k);svg.__zoom=nt;g.setAttribute("transform",nt.toString());}'
+        'window.addEventListener("load",function(){setTimeout(fit,600);});})();</script>'
+        "</body></html>")
     data = embedded(slim)
     assert data["groups"] == DATA["groups"]
     assert data["links"][0]["identity"] == 0.9
@@ -103,9 +111,18 @@ def test_body_overflow_is_no_longer_hidden_and_page_still_has_a_left_margin():
 
 
 def test_inject_ui_fixes_is_idempotent_on_a_page_missing_the_markers():
-    # A no-op (not a crash) if a future clinker version's markup differs.
+    # A no-op (not a crash) if a future clinker version's markup differs --
+    # except the <style> tag and the label-fit script, which are always
+    # inserted (they only need <head>/<body> close tags, not clinker-
+    # specific markers).
     assert inject_ui_fixes("<html><head></head><body>x</body></html>") == (
-        "<html><head><style>body{overflow:auto;margin-left:16px}</style></head><body>x</body></html>")
+        "<html><head><style>body{overflow:auto;margin-left:16px}</style></head><body>x" +
+        '<script>(function(){function fit(){var svg=document.querySelector("svg.clusterMap"),'
+        'g=svg&&svg.querySelector("g.clusterMapG");if(!g||!window.d3)return;var t=d3.zoomTransform(svg),'
+        'b=g.getBBox(),left=t.x+b.x*t.k,pad=8;if(left>=pad)return;var nt=d3.zoomIdentity.translate('
+        't.x+pad-left,t.y).scale(t.k);svg.__zoom=nt;g.setAttribute("transform",nt.toString());}'
+        'window.addEventListener("load",function(){setTimeout(fit,600);});})();</script>'
+        "</body></html>")
 
 
 def test_inject_ui_fixes_is_idempotent_when_called_twice():
@@ -124,3 +141,52 @@ def test_slim_clinker_html_also_applies_the_ui_fixes():
     assert "<style>body{overflow:auto;margin-left:16px}</style>" in out
     # and the data blob was still slimmed.
     assert "sequence" not in embedded(out)["clusters"][0]["loci"][0]["genes"][0]
+
+
+# ---- L (final review, verified fix): a long cluster/locus label can be
+# clipped off the left edge of the figure. clinker's own plot() config
+# markup and "Hide locus coordinates" checkbox, verified 2026-09-27 against
+# a real generated clinker 0.0.32 page (spike run under $SCRATCH/clinker
+# -venv). ----
+REAL_PLOT_CONFIG = (
+    'const div = d3.select("#plot")\n  const chart = ClusterMap.ClusterMap()\n    .config({\n'
+    '      scaleFactor: 30, \n      cluster: {\n        spacing: 50,\n'
+    '        alignLabels: true,\n      },\n      gene: {\n        label: {\n'
+    '          show: false,\n        }\n      },\n    })\n\n  let plot = d3.select("#plot")'
+)
+REAL_HIDE_COORDS_CHECKBOX = (
+    '<div class="setting">\n          <label for="input-cluster-hide-coords">'
+    'Hide locus coordinates:</label>\n          '
+    '<input id="input-cluster-hide-coords" type="checkbox">\n        </div>'
+)
+REAL_PAGE_WITH_LABEL_MARKUP = (
+    REAL_CLINKER_PAGE.replace("</main></body></html>",
+                              REAL_PLOT_CONFIG + REAL_HIDE_COORDS_CHECKBOX +
+                              "</main></body></html>"))
+
+
+def test_hide_locus_coordinates_is_turned_on_in_the_plot_config():
+    out = inject_ui_fixes(REAL_PAGE_WITH_LABEL_MARKUP)
+    assert "alignLabels: true,\n        hideLocusCoordinates: true,\n" in out
+    assert out.count("hideLocusCoordinates: true,") == 1
+
+
+def test_hide_locus_coordinates_checkbox_is_checked_by_default():
+    out = inject_ui_fixes(REAL_PAGE_WITH_LABEL_MARKUP)
+    assert '<input id="input-cluster-hide-coords" type="checkbox" checked>' in out
+    assert 'type="checkbox">\n        </div>' not in out
+
+
+def test_label_fit_script_is_inserted_once_before_body_close():
+    out = inject_ui_fixes(REAL_PAGE_WITH_LABEL_MARKUP)
+    assert out.count('window.addEventListener("load"') == 1
+    assert out.index('window.addEventListener("load"') < out.index("</body>")
+
+
+def test_label_fixes_are_idempotent_when_called_twice():
+    once = inject_ui_fixes(REAL_PAGE_WITH_LABEL_MARKUP)
+    twice = inject_ui_fixes(once)
+    assert twice == once
+    assert once.count("hideLocusCoordinates: true,") == 1
+    assert once.count('window.addEventListener("load"') == 1
+    assert once.count('id="input-cluster-hide-coords" type="checkbox" checked') == 1
