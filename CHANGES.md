@@ -15,8 +15,16 @@
 - New params: `--pangenome_top_loci` (50), `--pangenome_locus_rank` (`informative`), `--pangenome_locus_flank` (5),
   `--pangenome_locus_flank_min` (3), `--pangenome_locus_k` (10), `--pangenome_locus_empty_frac` (0.8),
   `--pangenome_locus_containment` (0.5), `--pangenome_locus_candidates` (200).
-- Caution: on the Coccidioides run the top loci's "empty site" calls were gene-model splits, not
-  deletions, in all 6 sequence-checked cases (plan Task 19).
+- **DNA presence check** (spec section 4b; `bin/pangenome_island_dna_check.py`,
+  `modules/pangenome/island_dna_check.nf`: `ISLAND_DNA_TARGETS`, `ISLAND_DNA_CHECK`) -- each
+  flank-intact strain that lacks a locus gene is checked with `blastn -task megablast`: the exemplar's
+  locus DNA against the strain's DNA from its left to its right flank gene. A gene is "DNA present" at >= 90%
+  identity over >= 80% of its length. "Absent, DNA present" cells are drawn hatched grey and make a new
+  row class, **model difference**; "empty site" and the informative ranking now use DNA-confirmed
+  absences only. With `--pangenome_locus_dna_check false` the page says that "empty site" is not
+  DNA-confirmed.
+- New params: `--pangenome_locus_dna_check` (true), `--pangenome_locus_dna_min_id` (90),
+  `--pangenome_locus_dna_min_cov` (80), `--pangenome_locus_dna_batch` (50).
 
 ### pangenome.nf project-name fallback fix (#194); BUILD_PRESENCE_MATRIX memory scaling (#189)
 

@@ -9,6 +9,11 @@
 // (2026-09-26, 200 candidate loci, 50 drawn): 1 min 41 s wall, 1.36 GB peak
 // RSS, 1.94 MB island_loci.json -- inside low_cpu's 4 GB.
 //
+// With --pangenome_locus_dna_check (default true) this is pass 2 of the
+// DNA presence check (spec section 4b, modules/pangenome/island_dna_check.nf):
+// dna_calls are ISLAND_DNA_CHECK's dna_calls_*.tsv plus an empty stub file,
+// and dna_check is 'true'. With false, dna_calls is the stub alone.
+//
 // --assembly_quality is ASSEMBLY_QUALITY_QC's table; it covers the ingroup
 // only, so outgroup strains fall back to locus-contig gene count for ties
 // (lib/island_locus.py::quality_key, plan Ruling R4).
@@ -28,6 +33,8 @@ process ISLAND_LOCI {
     path(domtblout)
     path(gene_positions)
     path(cluster_tsv)
+    path(dna_calls)
+    val(dna_check)
 
     output:
     path("island_loci.json"), emit: loci
@@ -54,6 +61,10 @@ process ISLAND_LOCI {
         --rank_by ${params.pangenome_locus_rank} \
         --top_loci ${params.pangenome_top_loci} \
         --candidates ${params.pangenome_locus_candidates} \
+        --dna_check ${dna_check} \
+        --dna_calls ${dna_calls} \
+        --dna_min_id ${params.pangenome_locus_dna_min_id} \
+        --dna_min_cov ${params.pangenome_locus_dna_min_cov} \
         --min_strains ${params.pangenome_top_islands_min_strains} \
         --project '${Helpers.projectName(params)}' \
         --output island_loci.json

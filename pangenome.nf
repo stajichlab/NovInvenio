@@ -164,6 +164,14 @@ def print_help() {
                                        absent (default: 0.8).
       --pangenome_locus_containment    An island joins a larger island's locus when
                                        this fraction of its families is in it (default: 0.5).
+      --pangenome_locus_dna_check      blastn each "empty site" for the locus DNA
+                                       (default: true); false keeps annotation-only
+                                       states and the page says so.
+      --pangenome_locus_dna_min_id     DNA present: HSP identity >= this percent
+                                       (default: 90) ...
+      --pangenome_locus_dna_min_cov    ... over >= this percent of the exemplar
+                                       gene (default: 80).
+      --pangenome_locus_dna_batch      Loci per ISLAND_DNA_CHECK task (default: 50).
       --pangenome_locus_candidates     Loci scored before ranking (default: 200).
       --help                           Show this message and exit.
 
@@ -186,6 +194,10 @@ workflow {
         error "ERROR: --pangenome_locus_rank must be informative, strains or size (got: ${params.pangenome_locus_rank})"
     if (params.pangenome_locus_flank_min > params.pangenome_locus_flank)
         error "ERROR: --pangenome_locus_flank_min (${params.pangenome_locus_flank_min}) must not exceed --pangenome_locus_flank (${params.pangenome_locus_flank})"
+    def dna_id = params.pangenome_locus_dna_min_id as double
+    def dna_cov = params.pangenome_locus_dna_min_cov as double
+    if (dna_id < 0 || dna_id > 100 || dna_cov < 0 || dna_cov > 100)
+        error "ERROR: --pangenome_locus_dna_min_id and --pangenome_locus_dna_min_cov are percents, 0-100 (got: ${params.pangenome_locus_dna_min_id}, ${params.pangenome_locus_dna_min_cov})"
     if (params.pangenome_cluster_backend !in ['mmseqs', 'diamond'])
         error "ERROR: --pangenome_cluster_backend must be mmseqs or diamond (got: ${params.pangenome_cluster_backend})"
     // Previously hard-blocked here: diamond's tier-1 branch had no equivalent

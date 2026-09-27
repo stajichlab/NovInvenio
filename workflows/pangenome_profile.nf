@@ -60,6 +60,8 @@ include { REPORT_TABLES; REPORT_RENDER; DIAGNOSTICS }                      from 
 include { ASSEMBLY_QUALITY_QC }                                            from '../modules/pangenome/assembly_quality_qc'
 include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
 include { ISLAND_LOCI }                                                    from '../modules/pangenome/island_loci'
+include { ISLAND_DNA_TARGETS; ISLAND_DNA_CHECK }                           from '../modules/pangenome/island_dna_check'
+include { EMPTY_EVALUES_STUB as EMPTY_DNA_CALLS_STUB }                     from '../modules/empty_evalues_stub'
 include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
@@ -401,6 +403,34 @@ workflow PANGENOME_PROFILE {
     // only computed inside the islands+Pfam branch) ------------------------
     if (params.pangenome_island_pfam_hmm) {
         // Island locus view (docs/superpowers/specs/2026-09-24-island-locus-view-design.md).
+        // DNA presence check (spec section 4b): ISLAND_DNA_TARGETS writes the
+        // work lists (pass 1 of pangenome_island_loci.py), ISLAND_DNA_CHECK
+        // runs blastn on each, ISLAND_LOCI applies the calls (pass 2). The
+        // empty stub is always in dna_calls, so ISLAND_LOCI runs even when
+        // no locus needs a check.
+        EMPTY_DNA_CALLS_STUB()
+        if (Helpers.asBool(params.pangenome_locus_dna_check)) {
+            ISLAND_DNA_TARGETS(
+                REPORT_TABLES.out.islands_with_domains,
+                rescued_matrix,
+                FAMILY_POSITIONS.out.positions,
+                FREQUENCY_BINS.out.table,
+                ASSEMBLY_QUALITY_QC.out.table,
+                samplesheet,
+                FAMILY_PFAM_SCAN.out.domtblout,
+                GENE_POSITIONS.out.positions,
+                CLUSTER_TIER1.out.cluster_tsv,
+                rescue_positions,
+                tblastn_tsv_files,
+            )
+            ISLAND_DNA_CHECK(ISLAND_DNA_TARGETS.out.batches.flatten(), samplesheet, data_dir_abs)
+            dna_calls = ISLAND_DNA_CHECK.out.calls.mix(EMPTY_DNA_CALLS_STUB.out.evalues).collect()
+            dna_check = 'true'
+        }
+        else {
+            dna_calls = EMPTY_DNA_CALLS_STUB.out.evalues
+            dna_check = 'false'
+        }
         ISLAND_LOCI(
             REPORT_TABLES.out.islands_with_domains,
             rescued_matrix,
@@ -411,6 +441,8 @@ workflow PANGENOME_PROFILE {
             FAMILY_PFAM_SCAN.out.domtblout,
             GENE_POSITIONS.out.positions,
             CLUSTER_TIER1.out.cluster_tsv,
+            dna_calls,
+            dna_check,
         )
         ISLAND_SYNTENY(
             REPORT_TABLES.out.islands_with_domains,
