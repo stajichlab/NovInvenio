@@ -117,3 +117,38 @@ def test_strains_without_n50_rank_after_known_n50_then_by_contig_genes():
 
 def test_no_carrier_gives_no_exemplar():
     assert choose_exemplar([], {}) is None
+
+
+from island_locus import locus_columns  # noqa: E402
+
+
+# ---- columns ------------------------------------------------------------------
+
+ORDER = [(r, f"g{r}") for r in range(20)]
+
+
+def test_columns_take_the_block_and_flank_genes_each_side():
+    cols = locus_columns(ORDER, ["g9", "g10"], 5, block=(9, 10))
+    assert cols.left == ("g4", "g5", "g6", "g7", "g8")
+    assert cols.locus == ("g9", "g10")
+    assert cols.right == ("g11", "g12", "g13", "g14", "g15")
+    assert (cols.left_avail, cols.right_avail) == (9, 9)
+
+
+def test_columns_clip_at_the_contig_end():
+    cols = locus_columns(ORDER, ["g1"], 5, block=(1, 1))
+    assert cols.left == ("g0",) and len(cols.right) == 5
+
+
+def test_block_holds_every_gene_between_its_ends_even_non_members():
+    cols = locus_columns(ORDER, ["g9", "g11"], 1, block=(9, 11))
+    assert cols.locus == ("g9", "g10", "g11")
+
+
+def test_without_block_every_member_copy_on_the_contig_sets_the_block():
+    cols = locus_columns(ORDER, ["g3", "g15"], 1)
+    assert cols.locus[0] == "g3" and cols.locus[-1] == "g15"
+
+
+def test_no_member_on_the_contig_gives_none():
+    assert locus_columns(ORDER, ["zz"], 5) is None

@@ -246,3 +246,45 @@ def choose_exemplar(placements: list[Placement], n50: dict[str, int],
         return best(tier), "short_flanks"
     top = max(p.left_avail + p.right_avail for p in placements)
     return best([p for p in placements if p.left_avail + p.right_avail == top]), "contig_end"
+
+
+# ---- 3. columns ------------------------------------------------------------
+@dataclass(frozen=True)
+class Columns:
+    left: tuple
+    locus: tuple
+    right: tuple
+    left_avail: int
+    right_avail: int
+
+    @property
+    def families(self) -> list[str]:
+        return list(self.left) + list(self.locus) + list(self.right)
+
+
+def locus_columns(order: list[tuple[int, str]], members, flank: int,
+                  block: tuple[int, int] | None = None) -> Columns | None:
+    """Columns from the exemplar's contig order [(rank, family), ...].
+
+    `block` (lo, hi ranks) is the exemplar's Placement. Without it the block
+    is every copy of a member family on the contig, which is the feasibility
+    script's rule (used by the regression check). The locus block is every
+    gene between the block ends, in rank order; the flanks are up to `flank`
+    genes on each side. None when no member sits on the contig.
+    """
+    seq = sorted(order)
+    mem = set(members)
+    if block is None:
+        idx = [i for i, (_, f) in enumerate(seq) if f in mem]
+    else:
+        idx = [i for i, (r, _) in enumerate(seq) if block[0] <= r <= block[1]]
+    if not idx:
+        return None
+    lo, hi = min(idx), max(idx)
+    return Columns(
+        left=tuple(f for _, f in seq[max(0, lo - flank):lo]),
+        locus=tuple(f for _, f in seq[lo:hi + 1]),
+        right=tuple(f for _, f in seq[hi + 1:hi + 1 + flank]),
+        left_avail=lo,
+        right_avail=len(seq) - 1 - hi,
+    )
