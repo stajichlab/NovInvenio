@@ -65,6 +65,7 @@ from report_common import (
     SKIN_VARS_CSS,
     breadcrumb_nav_html,
 )
+from island_locus_template import LOCUS_VIEW_CSS, LOCUS_VIEW_HTML, LOCUS_VIEW_JS
 from skins import SKINS
 
 # Small inline island logo (palm tree on a sandy island), sat next to the
@@ -192,6 +193,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     border: 1px dashed var(--border); border-radius: 10px;
   }
   .isv-empty-state h3 { margin: 0 0 8px; color: var(--text-primary); font-size: 15px; }
+""" + LOCUS_VIEW_CSS + r"""
 
   @media print {
     .filters, header.top select, header.top button, .isv-sidebar-controls { display: none !important; }
@@ -212,7 +214,8 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     </div>
 """ + SKIN_PICKER_HTML + r"""
   </header>
-
+""" + LOCUS_VIEW_HTML + r"""
+  <div id="island-view">
   <section class="card">
     <h2 class="card-title">Accessory island synteny</h2>
     <p class="card-note" id="summary-note"></p>
@@ -292,6 +295,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       <h3>No accessory islands to show</h3>
       <p id="isv-empty-text"></p>
     </div>
+  </div>
   </div>
 """ + FOOTER_HTML + r"""
 </div>
@@ -1004,6 +1008,8 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     state.rowSort = e.target.value;
     renderMain();
   });
+
+""" + LOCUS_VIEW_JS + r"""
 
 """ + SKIN_PICKER_JS + r"""
 
