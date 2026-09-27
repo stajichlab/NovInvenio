@@ -73,6 +73,7 @@ LOCUS_VIEW_JS = r"""
   var lstate = { search: "", sort: "informative", selected: LOCI.length ? 0 : -1 };
   var lSidebar = [];
   var lRows = [];
+  var lSlots = [];
   var L_ROW_H = 20, L_CELL_W = 22, L_TRACK_H = 64, L_GUTTER = 190;
   var lTrack = document.getElementById("lv-track");
   var lHead = document.getElementById("lv-head");
@@ -252,6 +253,25 @@ LOCUS_VIEW_JS = r"""
   function lRowLabel(row) {
     return (row.count === 1 ? row.strains[0] : row.strains[0] + " +" + (row.count - 1));
   }
+  function locusGridSlots(rows) {
+    var slots = [];
+    var prevClass = null;
+    rows.forEach(function (row) {
+      if (row.row_class !== prevClass) {
+        var count = rows.reduce(function (sum, r) {
+          return r.row_class === row.row_class ? sum + r.count : sum;
+        }, 0);
+        slots.push({ header: true, cls: row.row_class, count: count });
+        prevClass = row.row_class;
+      }
+      slots.push({ header: false, row: row });
+    });
+    return slots;
+  }
+  function locusRowAtSlot(slots, index) {
+    var slot = slots[index];
+    return slot && !slot.header ? slot.row : null;
+  }
   function locusGutter(rows) {
     lgctx.font = ROW_LABEL_FONT;
     var maxW = 0;
@@ -344,22 +364,27 @@ LOCUS_VIEW_JS = r"""
     lhctx.fillText("flank = anchor (bar under column)", 8, H - 16);
   }
 
-  function drawLocusGrid(locus, rows, totalW) {
+  function drawLocusGrid(locus, slots, totalW) {
     var P = palette();
-    var h = Math.max(L_ROW_H, rows.length * L_ROW_H);
+    var h = Math.max(L_ROW_H, slots.length * L_ROW_H);
     sizeCanvas(lGrid, lgctx, totalW, h);
     lgctx.clearRect(0, 0, totalW, h);
     lgctx.fillStyle = P.surface;
     lgctx.fillRect(0, 0, totalW, h);
-    var prevClass = null;
-    rows.forEach(function (row, ri) {
-      var y = ri * L_ROW_H;
-      if (row.row_class !== prevClass) {
-        if (prevClass !== null) { lgctx.fillStyle = P.axis; lgctx.fillRect(0, y, totalW, 1); }
-        prevClass = row.row_class;
-      }
+    slots.forEach(function (slot, si) {
+      var y = si * L_ROW_H;
       lgctx.textBaseline = "middle";
       lgctx.textAlign = "left";
+      if (slot.header) {
+        lgctx.fillStyle = P.axis;
+        lgctx.fillRect(0, y, totalW, 1);
+        lgctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
+        lgctx.fillStyle = css("--text-primary");
+        lgctx.fillText(locusClassLabel(slot.cls) + " · " + slot.count.toLocaleString() +
+          " strain" + (slot.count === 1 ? "" : "s"), 8, y + L_ROW_H / 2);
+        return;
+      }
+      var row = slot.row;
       lgctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
       lgctx.fillStyle = P.primary;
       lgctx.fillText("×" + row.count, 8, y + L_ROW_H / 2);
@@ -441,11 +466,12 @@ LOCUS_VIEW_JS = r"""
       " strains. " + locusDnaNote(LPARAMS, locus.dna);
     renderLocusLegend();
     lRows = locusSortedRows(locus.rows, SPECIES);
+    lSlots = locusGridSlots(lRows);
     L_GUTTER = locusGutter(lRows);
     var w = lTotalWidth(locus);
     drawLocusTrack(locus, w);
     drawLocusHead(locus, w);
-    drawLocusGrid(locus, lRows, w);
+    drawLocusGrid(locus, lSlots, w);
     if (typeof renderClinkerPanel === "function") renderClinkerPanel(locus);
   }
 
@@ -479,7 +505,7 @@ LOCUS_VIEW_JS = r"""
   lHead.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
   lGrid.addEventListener("mousemove", function (e) {
     var locus = LOCI[lstate.selected];
-    var row = lRows[Math.floor((e.clientY - lGrid.getBoundingClientRect().top) / L_ROW_H)];
+    var row = locusRowAtSlot(lSlots, Math.floor((e.clientY - lGrid.getBoundingClientRect().top) / L_ROW_H));
     if (!locus || !row) { tipEl.style.display = "none"; return; }
     tipEl.textContent = "";
     tipEl.appendChild(el("div", "tip-id", row.count + (row.count === 1 ? " strain" : " strains") +

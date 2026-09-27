@@ -489,6 +489,8 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         d.querySelectorAll('#lv-legend .isv-swatch').length);
   const drawn = w.__fillTextCalls.join('|');
   check('locus view: grid rows were drawn', drawn.includes('S1 +1') && drawn.includes('S3'), drawn.slice(0, 200));
+  check('locus view: row-class band headers are labelled',
+        drawn.includes('full locus') && drawn.includes('empty site'), drawn.slice(0, 200));
   d.getElementById('lv-btn-islands').dispatchEvent(ev(w, 'click'));
   check('locus view: islands button shows the island view',
         d.getElementById('locus-view').classList.contains('hidden') &&

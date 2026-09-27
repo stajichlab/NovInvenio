@@ -251,3 +251,35 @@ def test_hatch_clips_to_its_own_cell():
     assert out[:4] == ["save", "beginPath", "rect:10,20,30,8", "clip"]
     assert out.index("clip") < out.index("moveTo") < out.index("stroke")
     assert out[-1] == "restore"
+
+
+# V2: rows are grouped by row_class with only a thin separator line, giving
+# no visible label for what a band of rows is. locusGridSlots() inserts a
+# header slot before each band's first row, carrying the class label and the
+# band's total strain count (sum of row.count), so the grid-drawing and
+# hover-mapping code can walk one array of fixed-height slots.
+def test_grid_slots_insert_one_header_per_band_with_its_strain_count():
+    rows = [
+        {"row_class": "empty", "codes": "0", "count": 3, "strains": ["e1"]},
+        {"row_class": "empty", "codes": "0", "count": 57, "strains": ["e2"]},
+        {"row_class": "model_difference", "codes": "6", "count": 2, "strains": ["m1"]},
+    ]
+    out = run_node(["locusGridSlots"], f"""
+      console.log(JSON.stringify(locusGridSlots({json.dumps(rows)})));""")
+    assert [s["header"] for s in out] == [True, False, False, True, False]
+    assert out[0]["cls"] == "empty" and out[0]["count"] == 60
+    assert out[3]["cls"] == "model_difference" and out[3]["count"] == 2
+    assert out[1]["row"]["strains"] == ["e1"]
+    assert out[4]["row"]["strains"] == ["m1"]
+
+
+def test_row_at_slot_maps_through_header_offsets_to_the_right_data_row():
+    rows = [
+        {"row_class": "full", "codes": "1", "count": 2, "strains": ["S1", "S2"]},
+        {"row_class": "empty", "codes": "0", "count": 1, "strains": ["S3"]},
+    ]
+    out = run_node(["locusGridSlots", "locusRowAtSlot"], f"""
+      var slots = locusGridSlots({json.dumps(rows)});
+      console.log(JSON.stringify(slots.map(function (_, i) {{
+        var r = locusRowAtSlot(slots, i); return r ? r.strains : null; }})));""")
+    assert out == [None, ["S1", "S2"], None, ["S3"]]
