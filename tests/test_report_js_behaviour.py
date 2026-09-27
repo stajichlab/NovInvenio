@@ -212,6 +212,7 @@ ISV_LOCI = {
     "locus_params": {"flank": 5, "flank_min": 3, "k": 10, "empty_frac": 0.8,
                      "rank_by": "presence", "n_species": 1},
     "n_loci_total": 2,
+    "n_loci_candidates": 3,
     "loci": [_locus("L001", "B:c1:1-9", 7, "S1"), _locus("L002", "A:c1:1-9", 1, "S2")],
 }
 

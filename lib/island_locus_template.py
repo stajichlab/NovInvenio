@@ -577,12 +577,27 @@ LOCUS_VIEW_JS = r"""
   });
   lGrid.addEventListener("mouseleave", function () { tipEl.style.display = "none"; });
 
+  // smallfix-brief.md S2: the subtitle must name whichever view is shown --
+  // the locus view (drawn/candidates/total loci) or the island view (the
+  // pre-existing island sentence, now factored out so setView() can call it).
+  function locusSubtitleText() {
+    var s = LOCI.length.toLocaleString() + " loci drawn";
+    if (typeof LMETA.n_loci_candidates === "number") {
+      s += " from " + LMETA.n_loci_candidates.toLocaleString() + " candidates";
+    }
+    if (typeof LMETA.n_loci_total === "number") {
+      s += " (" + LMETA.n_loci_total.toLocaleString() + " loci in total)";
+    }
+    return s + ".";
+  }
   function setView(view) {
     var loci = view === "loci";
     document.getElementById("locus-view").classList.toggle("hidden", !loci);
     document.getElementById("island-view").classList.toggle("hidden", loci);
     document.getElementById("lv-btn-loci").setAttribute("aria-pressed", loci ? "true" : "false");
     document.getElementById("lv-btn-islands").setAttribute("aria-pressed", loci ? "false" : "true");
+    document.getElementById("subtitle").textContent =
+      loci ? locusSubtitleText() : islandSubtitleText();
     if (loci) renderLocusMain();
     else if (state.selected >= 0) renderMain();
   }

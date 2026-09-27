@@ -466,6 +466,10 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !d.getElementById('lv-switch').classList.contains('hidden'));
   const items = () => [...d.querySelectorAll('#lv-list .isv-item')];
   check('locus view: sidebar lists both loci', items().length === 2, items().length);
+  check('locus view: subtitle names the locus view',
+        d.getElementById('subtitle').textContent ===
+          '2 loci drawn from 3 candidates (2 loci in total).',
+        d.getElementById('subtitle').textContent);
   check('locus view: default order is the presence rank (L001 first)',
         items()[0].textContent.includes('B:c1:1-9'), items()[0].textContent);
   check('locus view: species sort option is hidden with one species',
@@ -512,6 +516,10 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !d.getElementById('island-view').classList.contains('hidden'));
   check('locus view: islands button is pressed',
         d.getElementById('lv-btn-islands').getAttribute('aria-pressed') === 'true');
+  check('locus view: subtitle names the island view after switching',
+        d.getElementById('subtitle').textContent ===
+          '2 of 2 located accessory islands shown, in locus order.',
+        d.getElementById('subtitle').textContent);
 }
 
 // ------------------ island synteny: locus view initial selection follows sort
@@ -573,6 +581,10 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         d.getElementById('lv-switch').classList.contains('hidden'));
   check('locus view: absent without loci (island view shown)',
         !d.getElementById('island-view').classList.contains('hidden'));
+  check('locus view: absent without loci (subtitle is the island sentence)',
+        d.getElementById('subtitle').textContent ===
+          '2 of 2 located accessory islands shown, in locus order.',
+        d.getElementById('subtitle').textContent);
 }
 
 console.log(failures === 0 ? 'ALL PASSED' : failures + ' FAILED');

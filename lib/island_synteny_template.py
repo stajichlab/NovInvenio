@@ -1025,8 +1025,17 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
   // ---- init ---------------------------------------------------------------
   document.getElementById("title").textContent = DATA.project + " — island synteny";
-  document.getElementById("subtitle").textContent =
-    ISLANDS.length + " of " + DATA.n_islands_total + " located accessory islands shown, in locus order.";
+  // smallfix-brief.md S2: when loci exist, LOCUS_VIEW_JS's init block (which
+  // runs before this point -- see the LOCUS_VIEW_JS < "// ---- init" ordering
+  // pinned by test_page_embeds_the_three_fragments) already called
+  // setView("loci"), which set the locus-view subtitle via
+  // locusSubtitleText(); do not stomp on it here.
+  function islandSubtitleText() {
+    return ISLANDS.length + " of " + DATA.n_islands_total + " located accessory islands shown, in locus order.";
+  }
+  if (!LOCI.length) {
+    document.getElementById("subtitle").textContent = islandSubtitleText();
+  }
   document.title = DATA.project + " — NovInvenio island synteny";
 
   (function () {
