@@ -116,16 +116,28 @@ LOCUS_VIEW_JS = r"""
       return a.codes < b.codes ? -1 : a.codes > b.codes ? 1 : 0;
     });
   }
-  function locusSidebarStats(locus) {
+  function locusSidebarStats(locus, params) {
     var c = locus.counts;
+    var dnaOn = params && params.dna_check === true && locus.dna;
+    var emptyCount = dnaOn ? locus.dna.empty_confirmed : c.empty;
     var text = locus.size + " families · " + locus.n_variants + " variants · " +
-      "empty " + c.empty + " · full " + c.full + " · partial " + c.partial;
+      "empty " + emptyCount + " · full " + c.full + " · partial " + c.partial;
     if (c.model_difference !== undefined) text += " · model difference " + c.model_difference;
-    return text + " · uninformative " + c.uninformative;
+    text += " · uninformative " + c.uninformative;
+    if (dnaOn && locus.dna.unchecked > 0) text += " · empty site, not checked " + locus.dna.unchecked;
+    return text;
   }
-  function locusDnaNote(params) {
+  function locusDnaNote(params, dna) {
     if (params.dna_check === true) {
-      return "Empty site is DNA-confirmed: blastn (megablast) of the exemplar's locus DNA " +
+      // Ruling R22: only DNA-confirmed empty sites count as "empty site";
+      // unchecked strains (no DNA call at all) must not read as confirmed.
+      var opening = "Empty site is DNA-confirmed:";
+      if (dna && dna.unchecked > 0) {
+        var m = dna.empty_confirmed, n = dna.unchecked;
+        opening = "Empty site is DNA-confirmed for " + m + " of " + (m + n) +
+          " checked strains; " + n + " had no DNA call.";
+      }
+      return opening + " blastn (megablast) of the exemplar's locus DNA " +
         "against the strain's DNA from its left to its right flank gene; a gene is DNA present at >= " +
         params.dna_min_id + "% identity over >= " + params.dna_min_cov + "% of its length. " +
         "Hatched grey = absent, DNA present (model difference, not a deletion).";
@@ -218,7 +230,7 @@ LOCUS_VIEW_JS = r"""
       btn.setAttribute("aria-selected", idx === lstate.selected ? "true" : "false");
       if (idx === lstate.selected) btn.classList.add("sel");
       btn.appendChild(el("div", "isv-item-id", locus.locus_id));
-      btn.appendChild(el("div", "isv-item-stats", locusSidebarStats(locus)));
+      btn.appendChild(el("div", "isv-item-stats", locusSidebarStats(locus, LPARAMS)));
       var chip = el("span", "isv-chip", classLabel(locus.dominant_class));
       chip.style.borderColor = classColor(locus.dominant_class);
       chip.style.color = classColor(locus.dominant_class);
@@ -368,10 +380,21 @@ LOCUS_VIEW_JS = r"""
     lgctx.fillRect(lcolX(locus.n_left + locus.n_locus), 0, 1, h);
   }
 
+  function legendCodes(dnaCheck) {
+    return dnaCheck === true ? ["1", "2", "3", "4", "0", "5", "6", "7"] : ["1", "2", "3", "4", "0", "5"];
+  }
+  function legendLabel(code, dnaCheck) {
+    // With the DNA check on, code 0 (no call at all) and code 7 (checked,
+    // DNA absent) share the same swatch (--grid, no hatch); only the label
+    // tells them apart, so 0 must not read as if it were itself confirmed.
+    if (code === "0" && dnaCheck === true) return "absent (not checked)";
+    return locusStateLabel(code).split(" (")[0];
+  }
   function renderLocusLegend() {
     var legend = document.getElementById("lv-legend");
     legend.textContent = "";
-    var codes = LPARAMS.dna_check === true ? ["1", "2", "3", "0", "5", "6", "7"] : ["1", "2", "3", "0", "5"];
+    var dnaCheck = LPARAMS.dna_check === true;
+    var codes = legendCodes(dnaCheck);
     codes.forEach(function (code) {
       var st = locusStateStyle(code);
       var item = el("span", "isv-legend-item");
@@ -380,7 +403,7 @@ LOCUS_VIEW_JS = r"""
       sw.style.opacity = String(st.alpha);
       if (st.hatch) sw.style.backgroundImage = "repeating-linear-gradient(45deg, transparent 0 3px, " + css("--surface-1") + " 3px 4px)";
       item.appendChild(sw);
-      item.appendChild(el("span", null, locusStateLabel(code).split(" (")[0]));
+      item.appendChild(el("span", null, legendLabel(code, dnaCheck)));
       legend.appendChild(item);
     });
     var bp = el("span", "isv-legend-item",
@@ -399,6 +422,8 @@ LOCUS_VIEW_JS = r"""
     tierEl.textContent = tierText;
     tierEl.classList.toggle("hidden", !tierText);
     var c = locus.counts;
+    var dnaOn = LPARAMS.dna_check === true && locus.dna;
+    var emptyCount = dnaOn ? locus.dna.empty_confirmed : c.empty;
     document.getElementById("lv-note").textContent =
       "Exemplar " + locus.exemplar + ": carries the locus's largest variant with at least " +
       LPARAMS.flank + " genes on both sides (else " + LPARAMS.flank_min + "), ties by N50 then name. " +
@@ -406,9 +431,11 @@ LOCUS_VIEW_JS = r"""
       " columns (flank + locus + flank) in the exemplar's gene order. A cell is in place when " +
       "the strain has another column's gene within k = " + LPARAMS.k + " genes on the same contig. " +
       "Rows: strains with identical states, grouped by row class, then species. " +
-      "Full " + c.full + ", partial " + c.partial + ", empty site " + c.empty +
+      "Full " + c.full + ", partial " + c.partial + ", empty site " + emptyCount +
       (c.model_difference !== undefined ? ", model difference " + c.model_difference : "") +
-      ", uninformative " + c.uninformative + " strains. " + locusDnaNote(LPARAMS);
+      ", uninformative " + c.uninformative +
+      (dnaOn && locus.dna.unchecked > 0 ? ", empty site, not checked " + locus.dna.unchecked : "") +
+      " strains. " + locusDnaNote(LPARAMS, locus.dna);
     renderLocusLegend();
     lRows = locusSortedRows(locus.rows, SPECIES);
     L_GUTTER = locusGutter(lRows);

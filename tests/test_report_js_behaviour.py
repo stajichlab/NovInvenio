@@ -211,6 +211,27 @@ ISV_LOCI = {
 }
 
 
+# F1/F4 fix-wave regression: with the DNA check on, counts.empty still
+# includes strains the check never got a call for (Ruling R22 only credits
+# DNA-confirmed empty sites); the page must show locus.dna.empty_confirmed
+# and a separate "not checked" count instead.
+def _locus_dna(key, locus_id, score, exemplar):
+    locus = _locus(key, locus_id, score, exemplar)
+    locus["counts"] = dict(locus["counts"], model_difference=9)
+    locus["dna"] = {"checked": 8, "unchecked": 6, "empty_confirmed": 2,
+                    "empty_to_model_difference": 9}
+    return locus
+
+
+ISV_LOCI_DNA = {
+    "project": "demo",
+    "locus_params": {"flank": 5, "flank_min": 3, "k": 10, "empty_frac": 0.8,
+                     "dna_check": True, "dna_min_id": 90, "dna_min_cov": 80},
+    "n_loci_total": 1,
+    "loci": [_locus_dna("L001", "B:c1:1-9", 7, "S1")],
+}
+
+
 def _fasta() -> str:
     long_seq = 'MKV' + 'ACDEFGHIKLMNPQRSTVWY' * 90      # 1803 aa -> POST branch
     short_seq = 'MKVLLA' * 20                           # 120 aa  -> GET branch
@@ -317,6 +338,14 @@ def fixture_dir(tmp_path_factory):
         '--family_positions', str(d / 'isv_positions.tsv'),
         '--loci_json', str(d / 'isv_loci.json'),
         '--project', 'demo', '--output', str(d / 'island_synteny_loci.html'))
+
+    (d / 'isv_loci_dna.json').write_text(json.dumps(ISV_LOCI_DNA))
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_matrix.tsv'),
+        '--family_positions', str(d / 'isv_positions.tsv'),
+        '--loci_json', str(d / 'isv_loci_dna.json'),
+        '--project', 'demo', '--output', str(d / 'island_synteny_loci_dna.html'))
 
     (d / 'isv_empty_islands.tsv').write_text(ISV_EMPTY_ISLANDS)
     (d / 'isv_empty_matrix.tsv').write_text(ISV_EMPTY_MATRIX)

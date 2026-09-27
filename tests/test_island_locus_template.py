@@ -178,3 +178,53 @@ def test_cell_reason_explains_the_dna_state():
       console.log(JSON.stringify([cellReasonLines(locus, row, 1, 10), cellReasonLines(locus, row7, 1, 10)]));""")
     assert "not a deletion" in out[0][-1]
     assert out[1][-1] == "The site lacks the exemplar gene's DNA in S1 (blastn)"
+
+
+# F1: counts.empty includes unchecked strains once the DNA check has run
+# (Ruling R22 only credits DNA-confirmed empty sites), so the sidebar and the
+# main note must switch to locus.dna.empty_confirmed and surface
+# locus.dna.unchecked separately instead of quietly folding it into "empty".
+def test_sidebar_uses_dna_confirmed_empty_count_and_flags_unchecked():
+    locus = {"size": 2, "n_variants": 1,
+             "counts": {"full": 3, "partial": 1, "empty": 5, "model_difference": 9,
+                        "uninformative": 2},
+             "dna": {"checked": 8, "unchecked": 6, "empty_confirmed": 2,
+                     "empty_to_model_difference": 9}}
+    out = run_node(["locusSidebarStats"], f"""
+      var locus = {json.dumps(locus)};
+      console.log(JSON.stringify([locusSidebarStats(locus, {{dna_check: true}}),
+        locusSidebarStats(locus, {{dna_check: false}}), locusSidebarStats(locus)]));""")
+    assert "empty 2" in out[0] and "not checked 6" in out[0]
+    assert "empty 5" in out[1] and "not checked" not in out[1]
+    assert "empty 5" in out[2] and "not checked" not in out[2]
+
+
+def test_note_reports_unchecked_strains_separately_when_dna_check_ran():
+    out = run_node(["locusDnaNote"], """
+      console.log(JSON.stringify([
+        locusDnaNote({dna_check: true, dna_min_id: 90, dna_min_cov: 80},
+                     {empty_confirmed: 7, unchecked: 3}),
+        locusDnaNote({dna_check: true, dna_min_id: 90, dna_min_cov: 80},
+                     {empty_confirmed: 7, unchecked: 0}),
+        locusDnaNote({dna_check: true, dna_min_id: 90, dna_min_cov: 80})]));""")
+    assert "DNA-confirmed for 7 of 10 checked strains" in out[0] and "3 had no DNA call" in out[0]
+    assert "DNA-confirmed for" not in out[1] and "DNA-confirmed:" in out[1]
+    assert "DNA-confirmed for" not in out[2] and "DNA-confirmed:" in out[2]
+
+
+# F4: the legend was missing code 4 (rescue, elsewhere) and, with the DNA
+# check on, code 0's default swatch (--grid, no hatch) is visually identical
+# to code 7's -- only the label told them apart, and "absent" alone reads as
+# if it were itself a DNA-confirmed call.
+def test_legend_adds_rescue_elsewhere_code():
+    out = run_node(["legendCodes"], """
+      console.log(JSON.stringify([legendCodes(false), legendCodes(true)]));""")
+    assert out[0] == ["1", "2", "3", "4", "0", "5"]
+    assert out[1] == ["1", "2", "3", "4", "0", "5", "6", "7"]
+
+
+def test_legend_label_distinguishes_not_checked_from_dna_absent():
+    out = run_node(["locusStateLabel", "legendLabel"], """
+      console.log(JSON.stringify([legendLabel("0", false), legendLabel("0", true),
+        legendLabel("7", true)]));""")
+    assert out == ["absent", "absent (not checked)", "absent, DNA absent"]

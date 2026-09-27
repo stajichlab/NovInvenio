@@ -484,8 +484,8 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   search.value = 'B:c1';
   search.dispatchEvent(ev(w, 'input'));
   check('locus view: search filters the list', items().length === 1, items().length);
-  check('locus view: legend has the five cell states',
-        d.querySelectorAll('#lv-legend .isv-swatch').length === 5,
+  check('locus view: legend has the six cell states (rescue elsewhere included)',
+        d.querySelectorAll('#lv-legend .isv-swatch').length === 6,
         d.querySelectorAll('#lv-legend .isv-swatch').length);
   const drawn = w.__fillTextCalls.join('|');
   check('locus view: grid rows were drawn', drawn.includes('S1 +1') && drawn.includes('S3'), drawn.slice(0, 200));
@@ -495,6 +495,35 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !d.getElementById('island-view').classList.contains('hidden'));
   check('locus view: islands button is pressed',
         d.getElementById('lv-btn-islands').getAttribute('aria-pressed') === 'true');
+}
+
+// -------------------------- island synteny: locus view, DNA check ran (F1/F4)
+{
+  const dom = boot(path.join(FX, 'island_synteny_loci_dna.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('locus view (dna check): loads without error', errors.length === 0, errors.join('; '));
+  const sidebarStats = d.querySelector('#lv-list .isv-item-stats').textContent;
+  check('locus view (dna check): sidebar uses the DNA-confirmed empty count',
+        sidebarStats.includes('empty 2') && !sidebarStats.includes('empty 5'), sidebarStats);
+  check('locus view (dna check): sidebar flags unchecked strains separately',
+        sidebarStats.includes('empty site, not checked 6'), sidebarStats);
+  const note = d.getElementById('lv-note').textContent;
+  check('locus view (dna check): note does not claim unchecked strains are DNA-confirmed',
+        note.includes('DNA-confirmed for 2 of 8 checked strains') && note.includes('6 had no DNA call'),
+        note);
+  check('locus view (dna check): note empty-site count matches the confirmed count, not counts.empty',
+        note.includes('empty site 2') && !note.includes('empty site 5'), note);
+  const legendItems = [...d.querySelectorAll('#lv-legend .isv-legend-item')].map((x) => x.textContent);
+  check('locus view (dna check): legend has eight cell states',
+        d.querySelectorAll('#lv-legend .isv-swatch').length === 8,
+        d.querySelectorAll('#lv-legend .isv-swatch').length);
+  check('locus view (dna check): legend labels code 0 as not checked',
+        legendItems.includes('absent (not checked)'), legendItems);
+  check('locus view (dna check): legend still labels code 7 as DNA absent',
+        legendItems.includes('absent, DNA absent'), legendItems);
 }
 
 // ------------------------------- island synteny: no loci keeps the old page
