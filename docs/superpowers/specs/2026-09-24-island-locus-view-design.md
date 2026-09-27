@@ -336,6 +336,23 @@ with the page.
 **Switch.** `--pangenome_clinker true|false` (default true). With false, both
 processes are skipped and the panel says the step was not run.
 
+**Panel UI fixes (changed 2026-09-27, real Cocci evidence, user-approved).**
+Inspecting a real clinker 0.0.32 page in the panel's iframe found three
+problems: (1) clinker's `#div-floater` options/instructions sidebar starts
+open and, in a panel-sized iframe, covers most of the figure; (2) the page's
+`overflow: hidden` body clips a figure taller than the iframe instead of
+letting it scroll; (3) the browser's default body margin can clip the
+left-most locus labels in a narrow iframe. `lib/clinker_html.py`'s
+`inject_ui_fixes()` fixes all three (collapses the sidebar behind its own,
+still-working toggle button; sets `overflow: auto` and a left margin) and is
+applied both when the page is slimmed and when `--pangenome_clinker_slim
+false` (`--keep_sequences`) skips slimming. The panel's iframe is `width:
+100%`, `height: 640px` (`min-height: 480px`), scrolling enabled. Each strain
+line in the panel's list also gets a hover/keyboard-focus popup (the page's
+existing tooltip): full strain name, species (from the page's `SPECIES` map,
+not the possibly-stale per-pick `species` field), the reason it was chosen,
+its region, block count, the gap-split note when split, and drawn bp.
+
 **Cost and limits.** clinker compares every pair of clusters, so cost grows with
 the square of the strain count; the cap keeps it at most 66 pairs per locus.
 Measured by the 2026-09-26 spike (below): about 30 s and 104 MB per locus, so

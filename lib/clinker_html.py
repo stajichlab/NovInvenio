@@ -15,6 +15,34 @@ import json
 MARKER = "const data="
 STRIP = ("sequence", "translation")
 
+# C2/C3 (spec section 8): verified 2026-09-27 against a real clinker 0.0.32
+# page (spike run under $SCRATCH/clinker-venv) -- see
+# tests/test_clinker_html.py's REAL_CLINKER_PAGE for the exact markup this
+# matches. clinker's #div-floater options sidebar starts open and, in a
+# panel-sized iframe, covers most of the figure (C2); its body sets
+# `overflow: hidden`, which clips a figure taller than the iframe instead
+# of scrolling (C3), and the browser's default body margin can clip the
+# left-most locus labels in a narrow iframe.
+_SIDEBAR_ACTIVE = 'class="collapsible active"'
+_SIDEBAR_COLLAPSED = 'class="collapsible"'
+_SUMMARY_OPEN = '<div id="div-summary">'
+_SUMMARY_COLLAPSED = '<div id="div-summary" style="display:none">'
+_HEAD_CLOSE = "</head>"
+_UI_STYLE = "<style>body{overflow:auto;margin-left:16px}</style>"
+
+
+def inject_ui_fixes(html: str) -> str:
+    """clinker's page with the options sidebar starting collapsed (its own
+    unmodified toggleActive() still opens it: it reads the inline
+    `display:none` this sets, so the first click reopens it correctly) and
+    scrolling/a left margin restored. A no-op for any marker not found, so
+    a clinker version whose markup differs never crashes the run."""
+    out = html.replace(_SIDEBAR_ACTIVE, _SIDEBAR_COLLAPSED, 1)
+    out = out.replace(_SUMMARY_OPEN, _SUMMARY_COLLAPSED, 1)
+    if _HEAD_CLOSE in out:
+        out = out.replace(_HEAD_CLOSE, _UI_STYLE + _HEAD_CLOSE, 1)
+    return out
+
 
 def _strip_gene(gene: dict) -> None:
     for key in STRIP:
@@ -23,9 +51,10 @@ def _strip_gene(gene: dict) -> None:
 
 def slim_clinker_html(html: str) -> str:
     """The page with sequence/translation removed from every gene in
-    data.clusters[].loci[].genes[] and data.links[].query/target. `</` in
-    the re-serialised data is escaped so a label cannot close the script.
-    Raises ValueError when the page has no `const data=` object."""
+    data.clusters[].loci[].genes[] and data.links[].query/target, and the
+    UI fixes above applied. `</` in the re-serialised data is escaped so a
+    label cannot close the script. Raises ValueError when the page has no
+    `const data=` object."""
     start = html.find(MARKER)
     if start < 0:
         raise ValueError("no 'const data=' block: not a clinker HTML page")
@@ -40,4 +69,4 @@ def slim_clinker_html(html: str) -> str:
             if isinstance(link.get(side), dict):
                 _strip_gene(link[side])
     blob = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
-    return html[:begin] + blob + html[end:]
+    return inject_ui_fixes(html[:begin] + blob + html[end:])

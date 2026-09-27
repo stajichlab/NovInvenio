@@ -203,7 +203,9 @@ def _locus(key, locus_id, score, exemplar):
         "breakpoints": [{"b": 1, "indel": {"": 1}, "contig_break": 0},
                         {"b": 3, "indel": {"": 1}, "contig_break": 0}],
         "clinker_strains": [{"strain": exemplar, "reason": "exemplar", "row_class": "full",
-                             "species": "", "contig": "c1", "rank_lo": 0, "rank_hi": 5}],
+                             "species": "", "contig": "c1", "rank_lo": 0, "rank_hi": 5,
+                             "bp_start": 1, "bp_end": 338667, "n_genes": 5, "n_blocks": 4,
+                             "gap_bp": 241208, "max_gap_bp": 164235, "drawn_bp": 97462}],
     }
 
 

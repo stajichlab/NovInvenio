@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
-from clinker_html import slim_clinker_html  # noqa: E402
+from clinker_html import inject_ui_fixes, slim_clinker_html  # noqa: E402
 
 
 def run_locus(locus_dir: Path, out_dir: Path, clinker: str, cpus: int, keep: bool) -> bool:
@@ -42,7 +42,8 @@ def run_locus(locus_dir: Path, out_dir: Path, clinker: str, cpus: int, keep: boo
         raw.unlink(missing_ok=True)
         return False
     html = raw.read_text()
-    (out_dir / f"{key}.html").write_text(html if keep else slim_clinker_html(html))
+    (out_dir / f"{key}.html").write_text(
+        inject_ui_fixes(html) if keep else slim_clinker_html(html))
     raw.unlink()
     return True
 

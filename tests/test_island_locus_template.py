@@ -379,3 +379,43 @@ def test_clinker_panel_markup_is_below_the_grid():
     assert page.index('id="lv-grid"') < page.index('id="lv-clinker"')
     assert "Synteny (clinker)" in page
     assert "No synteny figure for this locus." in page
+
+
+# ---- clinker panel gap note + strain popup (Part B, C1/C3) ----
+
+def test_clinker_list_line_text_appends_the_gap_note_when_split():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText", "clinkerGapNote",
+                    "clinkerListLineText"], """
+      var whole = {strain: "S1", reason: "exemplar", row_class: "full", species: "",
+                   contig: "c1", bp_start: 1, bp_end: 9000, n_genes: 5, n_blocks: 1, gap_bp: 0};
+      var split = {strain: "S2", reason: "fill", row_class: "full", species: "",
+                   contig: "c1", bp_start: 1, bp_end: 338667, n_genes: 5, n_blocks: 4,
+                   gap_bp: 241208};
+      console.log(JSON.stringify([clinkerListLineText(whole), clinkerListLineText(split)]));""")
+    assert out[0] == "S1: locus exemplar; c1:1-9000, 5 genes"
+    assert out[1] == ("S2: more full locus strains, best assembly first; c1:1-338667, 5 genes; "
+                      "4 blocks, 241.2 kb without genes not drawn")
+
+
+def test_clinker_popup_lines_use_species_over_pick_species():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText", "clinkerGapNote",
+                    "clinkerPopupLines"], """
+      var pick = {strain: "S1", reason: "exemplar", row_class: "full", species: "stale",
+                  contig: "c1", bp_start: 100, bp_end: 900, n_genes: 12, n_blocks: 3,
+                  gap_bp: 5000, drawn_bp: 700};
+      console.log(JSON.stringify([clinkerPopupLines(pick, "Coccidioides immitis"),
+                                  clinkerPopupLines(pick, "")]));""")
+    with_species, without_species = out
+    assert with_species == ["S1", "Coccidioides immitis", "locus exemplar", "c1:100-900, 12 genes",
+                            "3 blocks", "3 blocks, 5.0 kb without genes not drawn",
+                            "drawn: 700 bp"]
+    assert without_species[:2] == ["S1", "stale"]
+
+
+def test_clinker_popup_lines_unknown_species_and_unsplit_region():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText", "clinkerGapNote",
+                    "clinkerPopupLines"], """
+      var pick = {strain: "S1", reason: "exemplar", row_class: "full", species: "",
+                  contig: "c1", rank_lo: 0, rank_hi: 9, n_blocks: 1};
+      console.log(JSON.stringify(clinkerPopupLines(pick, "")));""")
+    assert out == ["S1", "Unknown species", "locus exemplar", "c1 gene ranks 0-9", "1 block"]

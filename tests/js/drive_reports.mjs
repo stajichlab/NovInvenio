@@ -594,6 +594,27 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   check('clinker panel: lists the strains shown with a reason',
         /S1: locus exemplar/.test(d.getElementById('lv-clinker-list').textContent),
         d.getElementById('lv-clinker-list').textContent);
+  check('clinker panel (C1): strain line shows the gap-split note when n_blocks > 1',
+        /4 blocks, 241.2 kb without genes not drawn/.test(d.getElementById('lv-clinker-list').textContent),
+        d.getElementById('lv-clinker-list').textContent);
+  const iframe = frame();
+  check('clinker panel (C3): iframe allows scrolling',
+        iframe && iframe.getAttribute('scrolling') === 'yes', iframe && iframe.outerHTML);
+
+  const strainLi = d.querySelector('#lv-clinker-list li');
+  check('clinker panel (C3): strain line is focusable', strainLi && strainLi.tabIndex === 0);
+  const tip = d.getElementById('tip');
+  strainLi.dispatchEvent(new w.MouseEvent('mouseenter', { bubbles: true, clientX: 5, clientY: 5 }));
+  check('clinker panel (C3): hover popup shows strain, reason and drawn bp',
+        tip.textContent.includes('S1') && tip.textContent.includes('locus exemplar') &&
+        tip.textContent.includes('drawn: 97462 bp'), tip.textContent);
+  strainLi.dispatchEvent(ev(w, 'mouseleave'));
+  check('clinker panel (C3): popup hides on mouseleave', tip.style.display === 'none');
+  strainLi.focus();
+  check('clinker panel (C3): popup shows on keyboard focus too', tip.textContent.includes('S1'));
+  strainLi.dispatchEvent(ev(w, 'blur'));
+  check('clinker panel (C3): popup hides on blur', tip.style.display === 'none');
+
   [...d.querySelectorAll('#lv-list .isv-item')][1].dispatchEvent(ev(w, 'click'));
   check('clinker panel: a locus without a file says so',
         d.getElementById('lv-clinker-note').textContent === 'No synteny figure for this locus.',

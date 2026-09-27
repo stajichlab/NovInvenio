@@ -28,7 +28,7 @@ LOCUS_VIEW_CSS = r"""
   .lv-clinker { margin-top: 16px; }
   .lv-clinker h3 { margin: 0 0 6px; font-size: 14px; }
   .lv-clinker-list { margin: 0 0 10px; padding-left: 18px; font-size: 12px; color: var(--text-secondary); }
-  .lv-clinker-iframe { width: 100%; height: 640px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+  .lv-clinker-iframe { width: 100%; height: 640px; min-height: 480px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); overflow: auto; }
 """
 
 LOCUS_VIEW_HTML = r"""
@@ -279,6 +279,40 @@ LOCUS_VIEW_JS = r"""
       : pick.contig + " gene ranks " + pick.rank_lo + "-" + pick.rank_hi;
     return where + (pick.n_genes !== undefined ? ", " + pick.n_genes + " genes" : "");
   }
+  // C1: when a strain's region was split at gene-free gaps, the list line
+  // and the popup both say how much sequence between genes was left out.
+  function clinkerGapNote(pick) {
+    return (pick.n_blocks > 1)
+      ? pick.n_blocks + " blocks, " + (pick.gap_bp / 1000).toFixed(1) + " kb without genes not drawn"
+      : "";
+  }
+  function clinkerListLineText(pick) {
+    var text = pick.strain + ": " + clinkerReason(pick) + "; " + clinkerRegionText(pick);
+    var gap = clinkerGapNote(pick);
+    return gap ? text + "; " + gap : text;
+  }
+  // C3: hover/focus popup for a strain line -- full name, species (from the
+  // page's SPECIES map, which is more current than the pick's own `species`
+  // field: island_loci.json can be built before --config is known),
+  // reason, region, gene/block counts and drawn bp. Pure aside from the
+  // `species` lookup passed in, so it can run under plain node (see
+  // tests/test_island_locus_template.py).
+  function clinkerPopupLines(pick, species) {
+    var sp = species || pick.species || "";
+    var lines = [pick.strain, sp || "Unknown species", clinkerReason(pick), clinkerRegionText(pick)];
+    if (pick.n_blocks !== undefined) {
+      lines.push(pick.n_blocks + (pick.n_blocks === 1 ? " block" : " blocks"));
+    }
+    var gap = clinkerGapNote(pick);
+    if (gap) lines.push(gap);
+    if (pick.drawn_bp !== undefined) lines.push("drawn: " + pick.drawn_bp + " bp");
+    return lines;
+  }
+  function clinkerTipEvent(target, e) {
+    if (e && typeof e.clientX === "number") return e;
+    var r = target.getBoundingClientRect();
+    return { clientX: r.left + r.width / 2, clientY: r.bottom };
+  }
   function renderClinkerPanel(locus) {
     var st = clinkerPanelState(locus, CLINKER);
     var note = document.getElementById("lv-clinker-note");
@@ -297,11 +331,26 @@ LOCUS_VIEW_JS = r"""
     note.textContent = "clinker 0.0.32: each strain's region, genes linked by similarity and " +
       "grouped by tier-1 family (the column IDs above). Strains shown:";
     (locus.clinker_strains || []).forEach(function (pick) {
-      list.appendChild(el("li", null, pick.strain + ": " + clinkerReason(pick) + "; " + clinkerRegionText(pick)));
+      var li = el("li", null, clinkerListLineText(pick));
+      li.tabIndex = 0;
+      function showPopup(e) {
+        tipEl.textContent = "";
+        var lines = clinkerPopupLines(pick, SPECIES[pick.strain]);
+        tipEl.appendChild(el("div", "tip-id", lines[0]));
+        for (var i = 1; i < lines.length; i++) tipEl.appendChild(el("div", null, lines[i]));
+        positionTip(clinkerTipEvent(li, e));
+      }
+      function hidePopup() { tipEl.style.display = "none"; }
+      li.addEventListener("mouseenter", showPopup);
+      li.addEventListener("mouseleave", hidePopup);
+      li.addEventListener("focus", showPopup);
+      li.addEventListener("blur", hidePopup);
+      list.appendChild(li);
     });
     var f = document.createElement("iframe");
     f.className = "lv-clinker-iframe";
     f.title = "clinker synteny figure for " + locus.locus_id;
+    f.scrolling = "yes";
     f.src = st.src;
     frame.appendChild(f);
   }

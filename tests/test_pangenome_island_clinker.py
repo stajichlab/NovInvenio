@@ -16,7 +16,11 @@ if "L002" in args[0]:
     sys.exit(3)
 gene = {"uid": "g", "label": "g", "sequence": "ATG" * 30, "translation": "M" * 30}
 data = {"clusters": [{"loci": [{"genes": [gene]}]}], "links": [], "groups": []}
-open(out, "w").write("<script>const data=" + json.dumps(data) + ";plot(data)</script>")
+page = ("<html><head></head><body><div id=\\"div-floater\\">"
+       "<button class=\\"collapsible active\\" onclick=\\"toggleActive()\\">clinker</button>"
+       "<div id=\\"div-summary\\"></div></div>"
+       "<script>const data=" + json.dumps(data) + ";plot(data)</script></body></html>")
+open(out, "w").write(page)
 """
 
 
@@ -50,6 +54,20 @@ def test_keep_sequences_writes_the_page_unchanged(tmp_path):
     out = tmp_path / "out"
     main(["--locus_dirs", dirs[0], "--out_dir", str(out), "--clinker", str(fake), "--keep_sequences"])
     assert "ATGATG" in (out / "L001.html").read_text()
+
+
+def test_keep_sequences_still_applies_the_ui_fixes(tmp_path):
+    # C2/C3: --keep_sequences skips slim_clinker_html() (and its sequences
+    # stay in), but the sidebar-collapse/scrolling/left-margin fixes must
+    # still apply -- they come from lib/clinker_html.inject_ui_fixes(),
+    # called directly since slimming is skipped.
+    fake, dirs = setup(tmp_path)
+    out = tmp_path / "out"
+    main(["--locus_dirs", dirs[0], "--out_dir", str(out), "--clinker", str(fake), "--keep_sequences"])
+    page = (out / "L001.html").read_text()
+    assert 'class="collapsible active"' not in page
+    assert '<div id="div-summary" style="display:none">' in page
+    assert "<style>body{overflow:auto;margin-left:16px}</style>" in page
 
 
 def test_missing_clinker_executable_skips_every_locus(tmp_path, capsys):
