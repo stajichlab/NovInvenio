@@ -26,6 +26,7 @@ from island_locus import (  # noqa: E402
     DEFAULT_FLANK_MIN, DEFAULT_K, DEFAULT_POLY_MAX_FRAC, DEFAULT_POLY_MIN_FRAC,
     DEFAULT_POLY_MIN_STRAINS, candidate_loci, carrier_placements, choose_exemplar, compute_locus,
     group_loci, locus_columns, locus_payload, locus_ranks, rank_key, rank_sort_key,
+    select_clinker_strains,
 )
 from island_locus import (  # noqa: E402
     DEFAULT_DNA_MIN_COV, DEFAULT_DNA_MIN_ID, apply_dna_calls, dna_checked_strains, dna_query,
@@ -212,7 +213,16 @@ def build(args) -> dict:
                                         {f for r in drawn for f in r["families"]},
                                         {r["exemplar"] for r in drawn}, args.id_sep)
     out_loci = []
+    regions = []
     for i, r in enumerate(drawn):
+        key = "L%03d" % (i + 1)
+        picks = []
+        if args.clinker_max_strains > 0:
+            flank = args.flank_min if r["tier"] == "short_flanks" else args.flank
+            picks = select_clinker_strains(r, n50, species_of, scan1.spans, flank, args.k,
+                                           args.clinker_max_strains)
+        for p in picks:
+            regions.append({"locus_key": key, **p})
         dom_sets = [sorted(fam_domains.get(f, set())) for f in r["families"]]
         locs = span = None
         if gene_locs is not None:
@@ -222,11 +232,14 @@ def build(args) -> dict:
                      if x and not x.get("rescued")]
             if block:
                 span = (min(x["start"] for x in block), max(x["end"] for x in block))
-        out_loci.append(locus_payload(
-            r, "L%03d" % (i + 1), bins,
+        entry = locus_payload(
+            r, key, bins,
             [dominant_class(d) for d in dom_sets], [",".join(d) for d in dom_sets],
             dominant_class(sorted({d for ds in dom_sets for d in ds})), locs, span,
-            ranks_by_id[r["locus_id"]]))
+            ranks_by_id[r["locus_id"]])
+        entry["clinker_strains"] = [{k: v for k, v in p.items() if k != "anchors"}
+                                    for p in picks]
+        out_loci.append(entry)
     return {
         "project": args.project,
         "locus_params": {"flank": args.flank, "flank_min": args.flank_min, "k": args.k,
@@ -246,7 +259,26 @@ def build(args) -> dict:
         "n_strains": len(strains),
         "loci": out_loci,
         "_results": drawn,
+        "_regions": regions,
     }
+
+
+REGION_COLUMNS = ["locus_key", "strain", "reason", "row_class", "species", "contig",
+                  "rank_lo", "rank_hi", "anchors"]
+
+
+def write_regions(path: str, regions: list[dict]) -> None:
+    """island_regions.tsv: one row per (locus, clinker strain). `anchors` is
+    'rank:family;...' for the strain's in-place column copies in the region,
+    which bin/pangenome_island_gbk_slice.py checks against its own rank
+    rebuild."""
+    with open(path, "w", newline="") as fh:
+        w = csv.writer(fh, delimiter="\t", lineterminator="\n")
+        w.writerow(REGION_COLUMNS)
+        for r in regions:
+            w.writerow([r["locus_key"], r["strain"], r["reason"], r["row_class"], r["species"],
+                        r["contig"], r["rank_lo"], r["rank_hi"],
+                        ";".join(f"{rank}:{fam}" for rank, fam in r["anchors"])])
 
 
 def choose_drawn(results: list[dict], ranks_by_id: dict[str, dict], top_loci: int,
@@ -436,6 +468,10 @@ def parse_args(argv=None):
                     help="pass 1: per-strain <Short>.tblastn.tsv[.zst] files, for the end of "
                     "a rescue-only exemplar column's hit (Ruling R26)")
     ap.add_argument("--min_strains", type=int, default=2)
+    ap.add_argument("--clinker_max_strains", type=int, default=12,
+                    help="strains per locus for the clinker panel; 0 selects none")
+    ap.add_argument("--regions_out", default=None,
+                    help="write island_regions.tsv (clinker strains and rank ranges)")
     ap.add_argument("--output", required=True)
     return ap.parse_args(argv)
 
@@ -444,6 +480,9 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     payload = build(args)
     payload.pop("_results")
+    regions = payload.pop("_regions")
+    if args.regions_out:
+        write_regions(args.regions_out, regions)
     Path(args.output).write_text(json.dumps(payload, separators=(",", ":")))
     print(f"pangenome_island_loci: {payload['n_loci_total']} loci, "
           f"{payload['n_loci_candidates']} candidates, {payload['n_loci_unplaced']} without "
