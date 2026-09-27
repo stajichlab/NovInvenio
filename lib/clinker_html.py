@@ -55,6 +55,40 @@ _LABEL_FIT_SCRIPT = (
     'window.addEventListener("load",function(){setTimeout(fit,600);});})();</script>'
 )
 
+# N1 (2026-09-27): clinker's own default `plot()` config draws the gene-group
+# legend (family IDs with coloured dots) at a fixed position; after the L fix
+# above and on a long multi-block track the legend lies over the figure (real
+# page /scratch/jstajich/29117781/lv_b/site/clinker/L005.html). clinker 0.0.32's
+# plot() config accepts `legend: {show: false}` and its minified clustermap
+# bundle does merge it in (`s.legend...show`) -- but empirically (real page,
+# headless Chromium `--dump-dom`, both at initial render and via an explicit
+# `update({legend:{show:false}})` call after load) the `<g class="legend">`
+# element is drawn regardless: `show` is accepted but never actually
+# consulted before rendering it (a no-op/dead config key in this clinker
+# version, unlike `link.show`/`gene.label.show` which do work). So this
+# hides it directly instead: a small window-load script (matching the L fix's
+# own convention above) sets `display:none` on every `g.legend` after the
+# chart has drawn, and clinker's shipped sidebar has no "Show legend" toggle
+# at all (only font-size/height/margin-left inputs under its "Legend"
+# heading, checked 2026-09-27 against the same real page) so one is added,
+# in the same markup shape clinker uses for its own checkboxes, wired by
+# this same script rather than clinker's `update()` (proven not to affect
+# legend visibility).
+_LEGEND_SETTINGS_ANCHOR = "<p>Legend</p>"
+_LEGEND_SETTINGS_CHECKBOX = (
+    '<p>Legend</p>\n        <div class="setting">\n'
+    '          <label for="input-legend-show">Show legend:</label>\n'
+    '          <input type="checkbox" id="input-legend-show">\n        </div>'
+)
+_LEGEND_SCRIPT = (
+    '<script>(function(){function legends(){return document.querySelectorAll("g.legend");}'
+    'function hide(){legends().forEach(function(g){g.style.display="none";});}'
+    'window.addEventListener("load",function(){setTimeout(hide,600);'
+    'var cb=document.getElementById("input-legend-show");if(cb){cb.addEventListener("change",'
+    'function(){legends().forEach(function(g){g.style.display=cb.checked?"":"none";});});}});'
+    '})();</script>'
+)
+
 
 def inject_ui_fixes(html: str) -> str:
     """clinker's page with the options sidebar starting collapsed (its own
@@ -62,7 +96,9 @@ def inject_ui_fixes(html: str) -> str:
     `display:none` this sets, so the first click reopens it correctly),
     scrolling/a left margin restored, locus coordinates hidden by default
     (L), and a window-load script that pans the drawing right if a label
-    is still clipped off the left edge (L). A no-op for any marker not
+    is still clipped off the left edge (L), and the legend hidden by
+    default with a "Show legend" checkbox added to the sidebar (N1) since
+    clinker's own settings panel has none. A no-op for any marker not
     found, so a clinker version whose markup differs never crashes the
     run. Idempotent: calling it again on its own output is a no-op."""
     out = html.replace(_SIDEBAR_ACTIVE, _SIDEBAR_COLLAPSED, 1)
@@ -78,6 +114,10 @@ def inject_ui_fixes(html: str) -> str:
         out = out.replace(_HIDE_COORDS_CHECKBOX, _HIDE_COORDS_CHECKBOX_CHECKED, 1)
     if _LABEL_FIT_SCRIPT not in out and _BODY_CLOSE in out:
         out = out.replace(_BODY_CLOSE, _LABEL_FIT_SCRIPT + _BODY_CLOSE, 1)
+    if 'id="input-legend-show"' not in out and _LEGEND_SETTINGS_ANCHOR in out:
+        out = out.replace(_LEGEND_SETTINGS_ANCHOR, _LEGEND_SETTINGS_CHECKBOX, 1)
+    if _LEGEND_SCRIPT not in out and _BODY_CLOSE in out:
+        out = out.replace(_BODY_CLOSE, _LEGEND_SCRIPT + _BODY_CLOSE, 1)
     return out
 
 

@@ -44,6 +44,7 @@ def test_everything_else_is_kept():
         "<html><head><style>body{overflow:auto;margin-left:16px}</style></head>"
         "<body><div id=\"plot\"></div><script>const data=")
     # L: the label-fit script is inserted right before </body> on every page.
+    # N1: the legend-hide script follows it, also on every page.
     assert slim.endswith(
         ";function serialise(svg) { return 1; }\nplot(data)</script>" +
         '<script>(function(){function fit(){var svg=document.querySelector("svg.clusterMap"),'
@@ -51,6 +52,12 @@ def test_everything_else_is_kept():
         'b=g.getBBox(),left=t.x+b.x*t.k,pad=8;if(left>=pad)return;var nt=d3.zoomIdentity.translate('
         't.x+pad-left,t.y).scale(t.k);svg.__zoom=nt;g.setAttribute("transform",nt.toString());}'
         'window.addEventListener("load",function(){setTimeout(fit,600);});})();</script>'
+        '<script>(function(){function legends(){return document.querySelectorAll("g.legend");}'
+        'function hide(){legends().forEach(function(g){g.style.display="none";});}'
+        'window.addEventListener("load",function(){setTimeout(hide,600);'
+        'var cb=document.getElementById("input-legend-show");if(cb){cb.addEventListener("change",'
+        'function(){legends().forEach(function(g){g.style.display=cb.checked?"":"none";});});}});'
+        '})();</script>'
         "</body></html>")
     data = embedded(slim)
     assert data["groups"] == DATA["groups"]
@@ -112,9 +119,9 @@ def test_body_overflow_is_no_longer_hidden_and_page_still_has_a_left_margin():
 
 def test_inject_ui_fixes_is_idempotent_on_a_page_missing_the_markers():
     # A no-op (not a crash) if a future clinker version's markup differs --
-    # except the <style> tag and the label-fit script, which are always
-    # inserted (they only need <head>/<body> close tags, not clinker-
-    # specific markers).
+    # except the <style> tag, the label-fit script, and the legend-hide
+    # script, which are always inserted (they only need <head>/<body> close
+    # tags, not clinker-specific markers).
     assert inject_ui_fixes("<html><head></head><body>x</body></html>") == (
         "<html><head><style>body{overflow:auto;margin-left:16px}</style></head><body>x" +
         '<script>(function(){function fit(){var svg=document.querySelector("svg.clusterMap"),'
@@ -122,6 +129,12 @@ def test_inject_ui_fixes_is_idempotent_on_a_page_missing_the_markers():
         'b=g.getBBox(),left=t.x+b.x*t.k,pad=8;if(left>=pad)return;var nt=d3.zoomIdentity.translate('
         't.x+pad-left,t.y).scale(t.k);svg.__zoom=nt;g.setAttribute("transform",nt.toString());}'
         'window.addEventListener("load",function(){setTimeout(fit,600);});})();</script>'
+        '<script>(function(){function legends(){return document.querySelectorAll("g.legend");}'
+        'function hide(){legends().forEach(function(g){g.style.display="none";});}'
+        'window.addEventListener("load",function(){setTimeout(hide,600);'
+        'var cb=document.getElementById("input-legend-show");if(cb){cb.addEventListener("change",'
+        'function(){legends().forEach(function(g){g.style.display=cb.checked?"":"none";});});}});'
+        '})();</script>'
         "</body></html>")
 
 
@@ -179,7 +192,9 @@ def test_hide_locus_coordinates_checkbox_is_checked_by_default():
 
 def test_label_fit_script_is_inserted_once_before_body_close():
     out = inject_ui_fixes(REAL_PAGE_WITH_LABEL_MARKUP)
-    assert out.count('window.addEventListener("load"') == 1
+    # N1 also inserts a second window-load script (the legend-hide one), so
+    # two 'window.addEventListener("load"' occurrences are now expected.
+    assert out.count('window.addEventListener("load"') == 2
     assert out.index('window.addEventListener("load"') < out.index("</body>")
 
 
@@ -188,5 +203,84 @@ def test_label_fixes_are_idempotent_when_called_twice():
     twice = inject_ui_fixes(once)
     assert twice == once
     assert once.count("hideLocusCoordinates: true,") == 1
-    assert once.count('window.addEventListener("load"') == 1
+    assert once.count('window.addEventListener("load"') == 2
     assert once.count('id="input-cluster-hide-coords" type="checkbox" checked') == 1
+
+
+# ---- N1 (Part B final items): clinker's default legend position overlaps
+# a long multi-block track (real page
+# /scratch/jstajich/29117781/lv_b/site/clinker/L005.html). Verified 2026-09-27
+# against that real page under headless Chromium (`--dump-dom`) that
+# clinker 0.0.32's plot() config accepts `legend: {show: false}` -- and its
+# minified bundle does read `s.legend...show` -- but the `<g class="legend">`
+# element is still drawn regardless, both at initial load and via an
+# explicit `update({legend:{show:false}})` call after load: the config key
+# is a no-op in this clinker version (unlike `link.show`/`gene.label.show`,
+# which do work). This is a real conflict with the brief's assumption that
+# a working config toggle exists -- see n-report.md. The fix below hides the
+# legend directly via a window-load script instead (same convention as the L
+# fix's own pan script), and adds the missing "Show legend" checkbox (the
+# shipped sidebar has none -- only font-size/height/margin-left inputs under
+# its "Legend" heading, checked 2026-09-27 against the real page) wired to
+# that same script rather than clinker's non-functional `update()` path.
+REAL_LEGEND_SETTINGS = (
+    '<p>Legend</p>\n        <div class="setting">\n'
+    '          <label for="input-legend-fontsize">Font size:</label>\n'
+    '          <input type="number" id="input-legend-fontsize" min="1" max="20" value="14"'
+    ' default="14">\n        </div>'
+)
+REAL_PAGE_WITH_LEGEND_MARKUP = (
+    REAL_PAGE_WITH_LABEL_MARKUP.replace(
+        "</main></body></html>", REAL_LEGEND_SETTINGS + "</main></body></html>"))
+
+LEGEND_SCRIPT = (
+    '<script>(function(){function legends(){return document.querySelectorAll("g.legend");}'
+    'function hide(){legends().forEach(function(g){g.style.display="none";});}'
+    'window.addEventListener("load",function(){setTimeout(hide,600);'
+    'var cb=document.getElementById("input-legend-show");if(cb){cb.addEventListener("change",'
+    'function(){legends().forEach(function(g){g.style.display=cb.checked?"":"none";});});}});'
+    '})();</script>'
+)
+
+
+def test_a_show_legend_checkbox_is_added_unchecked_next_to_the_other_legend_settings():
+    out = inject_ui_fixes(REAL_PAGE_WITH_LEGEND_MARKUP)
+    assert ('<p>Legend</p>\n        <div class="setting">\n'
+            '          <label for="input-legend-show">Show legend:</label>\n'
+            '          <input type="checkbox" id="input-legend-show">\n        </div>') in out
+    assert out.index('id="input-legend-show"') < out.index('id="input-legend-fontsize"')
+    assert out.count('id="input-legend-show"') == 1
+
+
+def test_the_legend_hide_script_is_inserted_once_before_body_close():
+    out = inject_ui_fixes(REAL_PAGE_WITH_LEGEND_MARKUP)
+    assert out.count(LEGEND_SCRIPT) == 1
+    assert out.index(LEGEND_SCRIPT) < out.index("</body>")
+    # it also comes after the label-fit script, so both load scripts run.
+    assert out.index('window.addEventListener("load",function(){setTimeout(fit,600);' +
+                      '});})();</script>') < out.index(LEGEND_SCRIPT)
+
+
+def test_the_show_legend_checkbox_is_wired_by_the_legend_script_not_clinkers_update():
+    out = inject_ui_fixes(REAL_PAGE_WITH_LEGEND_MARKUP)
+    assert 'var cb=document.getElementById("input-legend-show")' in out
+    assert 'g.style.display=cb.checked?"":"none"' in out
+    assert "update({legend:" not in out
+
+
+def test_legend_fixes_are_idempotent_when_called_twice():
+    once = inject_ui_fixes(REAL_PAGE_WITH_LEGEND_MARKUP)
+    twice = inject_ui_fixes(once)
+    assert twice == once
+    assert once.count('id="input-legend-show"') == 1
+    assert once.count(LEGEND_SCRIPT) == 1
+
+
+def test_legend_hide_script_is_inserted_even_when_the_settings_markup_is_absent():
+    # The legend-hide script only needs a <body> close tag, like the label
+    # -fit script; the sidebar checkbox is optional (the script no-ops if
+    # #input-legend-show isn't found).
+    out = inject_ui_fixes(REAL_PAGE_WITH_LABEL_MARKUP)
+    assert out.count(LEGEND_SCRIPT) == 1
+    assert '<p>Legend</p>' not in out
+    assert 'id="input-legend-show"' not in out
