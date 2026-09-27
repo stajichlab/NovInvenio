@@ -2,11 +2,17 @@
 // docs/superpowers/specs/2026-09-24-island-locus-view-design.md, section 4b).
 //
 // ISLAND_DNA_TARGETS is pass 1 of bin/pangenome_island_loci.py: the same
-// inputs and parameters as ISLAND_LOCI, so the same drawn loci, plus
-// --dna_targets_dir. It writes one work list per --pangenome_locus_dna_batch
-// loci: the exemplar's locus DNA and, per checked strain (flank intact, a
-// locus column not in place), its DNA from the innermost left-flank gene's
-// start to the innermost right-flank gene's end (flank genes included).
+// inputs and parameters as ISLAND_LOCI, plus --dna_targets_dir. It covers
+// every candidate locus (--pangenome_candidates, default 200), not just the
+// drawn --pangenome_top_loci: the drawn set is chosen AFTER the DNA check,
+// from the DNA-informed ranking, so pass 1 and pass 2 must see identical
+// candidate sets (changed 2026-09-27; previously only the pre-check
+// --top_loci winners were checked, so a locus could never be promoted into
+// view by a confirmed deletion). It writes one work list per
+// --pangenome_locus_dna_batch loci: the exemplar's locus DNA and, per
+// checked strain (flank intact, a locus column not in place), its DNA from
+// the innermost left-flank gene's start to the innermost right-flank gene's
+// end (flank genes included).
 // An exemplar locus column that is a TBLASTN rescue hit takes its span from
 // rescue_positions.tsv (start) and the exemplar's own per-strain tblastn
 // output (end of the HSP at that start; plan Ruling R26). The tblastn files
@@ -22,6 +28,9 @@
 // checks: 10 min 09 s wall at 16 cpus, 338 MB peak RSS -- well under the
 // 1-1.5 h HPCC job-sizing target, so the default batch stays 50 (one task)
 // and no explicit `time` is set. ISLAND_LOCI then applies the calls (pass 2).
+// These numbers predate the 2026-09-27 fix above and cover only 50 loci;
+// a real run now covers all --candidates (~4x more), so batch sizing is to
+// be re-measured, not guessed.
 process ISLAND_DNA_TARGETS {
     label 'low_cpu'
     tag "island_dna_targets"

@@ -151,11 +151,17 @@ def build(args) -> dict:
                              matrix, species_of, args.k, args.empty_frac)
                for loc, place, tier, cols in with_cols]
     results.sort(key=lambda r: rank_key(r, args.rank_by))
-    drawn = results[:args.top_loci]
 
     # DNA presence check (spec section 4b, plan Ruling R17): pass 1 writes
-    # the work list for ISLAND_DNA_CHECK; pass 2 (the same inputs, so the
-    # same drawn loci) applies its calls and re-orders the drawn loci.
+    # the work list for ISLAND_DNA_CHECK; pass 2 (the same inputs) applies
+    # its calls. Both passes cover ALL candidate loci (`results`, up to
+    # --candidates), not just the drawn --top_loci: the check can turn a
+    # top-ranked locus's empty sites into model differences (lowering its
+    # informative score) and a lower-ranked locus's into confirmed
+    # deletions (raising its score), so the --top_loci actually drawn must
+    # be chosen AFTER the check, not before it (changed 2026-09-27 -- see
+    # spec section 4b "Ranking"). Without the check, behaviour is
+    # unchanged: drawn is the annotation-only ranking's --top_loci.
     if args.dna_targets_dir:
         if not (args.gene_positions and args.cluster_tsv):
             raise SystemExit("--dna_targets_dir needs --gene_positions and --cluster_tsv")
@@ -164,26 +170,27 @@ def build(args) -> dict:
                            if place.lo <= r <= place.hi]
             for loc, place, _, _ in with_cols}
         dna_locs = load_gene_locations(
-            args.cluster_tsv, args.gene_positions, {f for r in drawn for f in r["families"]},
-            {s for r in drawn for s in dna_checked_strains(r)} | {r["exemplar"] for r in drawn},
+            args.cluster_tsv, args.gene_positions, {f for r in results for f in r["families"]},
+            {s for r in results for s in dna_checked_strains(r)} | {r["exemplar"] for r in results},
             args.id_sep)
         # Spec 4b, Ruling R26: an exemplar locus column that is a TBLASTN
         # rescue hit takes the hit's span (rescue_positions start + the end
         # of that HSP in the exemplar's own tblastn output).
         rescue_spans = load_rescue_spans(
             args.rescue_positions, args.rescue_tblastn,
-            {(r["exemplar"], f) for r in drawn
+            {(r["exemplar"], f) for r in results
              for f in r["families"][r["n_left"]:r["n_left"] + r["n_locus"]]})
         write_dna_targets(args.dna_targets_dir,
-                          dna_target_rows(drawn, exemplar_ranks, scan3.positions, dna_locs, args.k,
+                          dna_target_rows(results, exemplar_ranks, scan3.positions, dna_locs, args.k,
                                           rescue_spans),
                           args.dna_batch)
     dna_on = args.dna_check == "true"
     if dna_on:
         calls = read_dna_calls(args.dna_calls)
-        for r in drawn:
+        for r in results:
             apply_dna_calls(r, calls.get(r["locus_id"], {}), species_of, args.empty_frac)
-        drawn.sort(key=lambda r: rank_key(r, args.rank_by))
+        results.sort(key=lambda r: rank_key(r, args.rank_by))
+    drawn = results[:args.top_loci]
 
     bins = read_bins(args.frequency_table)
     fam_domains = (parse_domtblout([args.domtblout], max_ievalue=args.domain_evalue)

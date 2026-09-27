@@ -139,7 +139,9 @@ are chosen, not validated.
 **Cell states (adds to section 4).** An "absent" or "elsewhere" locus cell in a
 checked strain becomes one of:
 - **absent, DNA present**: gene-model or annotation difference. Drawn hatched grey.
-- **absent, DNA absent**: the site lacks the gene's DNA. Drawn as absent.
+- **absent, DNA absent**: a confirmed deletion. Drawn dark solid (changed
+  2026-09-27; previously drawn identically to "absent, not checked", which read
+  as if the deletion were itself unconfirmed).
 "In place" and "contig break" cells are unchanged. Strains that are not checked
 keep the section 4 states.
 
@@ -154,7 +156,14 @@ The breakpoint track counts only changes between "in place" and "DNA absent".
 **Ranking (changes section 6).** "Informative polymorphism" uses DNA-confirmed
 empty-site strains: at least 10 empty-site strains (DNA absent) and at least 2
 full-locus strains, ranked by the smaller count. The sidebar also shows each
-locus's model-difference count.
+locus's model-difference count. The check itself covers every candidate locus
+(`--candidates`, default 200), not only the `--top_loci` drawn on the page: the
+`--top_loci` loci are chosen from this DNA-informed ranking, i.e. the check
+runs first and the drawn set is picked after it (changed 2026-09-27; previously
+the drawn set was chosen from the annotation-only ranking before the check ran,
+so a locus whose empty sites turned out to be gene-model differences kept its
+top rank, and a locus whose empty sites were confirmed deletions could never be
+promoted into view).
 
 **Pipeline.** New process `ISLAND_DNA_CHECK` between the locus computation and
 the page. Inputs: the per-strain regions from the locus step and the genome
@@ -190,8 +199,10 @@ event.
 Default ranking: loci with the most **informative polymorphism**: at least 10
 flank-intact strains in the empty-site class **and** at least 2 in the full-locus
 class, ranked by the smaller of those two counts. With the DNA check on
-(section 4b), only DNA-confirmed empty-site strains count. Alternative sorts: strain
-count, size (today's order), and a text search. `--top_loci` (default 50).
+(section 4b), only DNA-confirmed empty-site strains count, and the check covers
+all `--candidates` (default 200) before `--top_loci` (default 50) is chosen from
+the result (section 4b "Ranking"; changed 2026-09-27). Alternative sorts: strain
+count, size (today's order), and a text search.
 
 ### 7. Page layout
 
