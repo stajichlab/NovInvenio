@@ -6419,7 +6419,7 @@ Spike follow-up: for the spike island `407-0_S_OLD_CPA0002:scaffold_30:125276-12
 
 **Review Focus.** The five items above each have a test in their owning task. Checked and left to existing tests: empty regions and `--top_loci 0` (Tasks 7, 18), missing N50 file (Task 7), unsafe strain names in file names (Task 17).
 
-**Replay.** The code in this plan was generated from files that passed the full suite in a scratch copy (1062 passed, 8 skipped; ruff clean; `nextflow lint` clean; jsdom driver and clinker render check passed). A task-by-task replay onto a clean `origin/main` copy confirmed the red/green steps of Tasks 1-10 (test counts above are the replayed counts). The replay of Tasks 11-23 was still running when the plan was committed, so their stated pass counts come from the scratch run, not the replay; the executor should treat any count mismatch there as a plan error to report, not a code error.
+**Replay.** The code in this plan was generated from files that passed the full suite in a scratch copy (1062 passed, 8 skipped; ruff clean; `nextflow lint` clean). A task-by-task replay of all ops onto a clean `origin/main` copy (NovInvenio) and a clean NII copy then ran every Run step of Tasks 1-12 and 15-23: each failing-test step failed, each passing step passed (counts in this plan are the replayed counts), both `nextflow lint` runs were clean, and the bad-param run printed the `--pangenome_locus_rank` error. Only `pixi install` (Task 19) was skipped; it was checked separately in a minimal pixi workspace.
 
 ## Execution
 
