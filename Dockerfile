@@ -37,6 +37,10 @@ RUN conda config --add channels conda-forge && \
         mash \
         zstd
 
+# gamcil/clinker 0.0.32 for ISLAND_CLINKER is on PyPI only (bioconda's
+# "clinker" is an unrelated RNA-seq tool).
+RUN pip install --no-cache-dir clinker==0.0.32
+
 # OpenMPI needs a writable /tmp.
 ENV TMPDIR=/tmp
 ENV OMPI_MCA_tmpdir_base=/tmp

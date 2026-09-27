@@ -20,6 +20,7 @@ from: continuumio/miniconda3:24.9.2-0
         scipy \
         mash \
         zstd
+    pip install --no-cache-dir clinker==0.0.32
 
 %environment
     export TMPDIR=/tmp

@@ -29,6 +29,12 @@ zstd = ">=1.5,<2"
 python-igraph = ">=0.11,<1"
 leidenalg = ">=0.10,<1"
 
+# gamcil/clinker (gene-cluster synteny figures, ISLAND_CLINKER) is on PyPI only.
+# Bioconda's "clinker" is an unrelated RNA-seq tool: never add it under
+# [dependencies].
+[pypi-dependencies]
+clinker = "==0.0.32"
+
 [feature.docs.dependencies]
 sphinx = ">=7.0,<8"
 myst-parser = ">=2.0,<3"
