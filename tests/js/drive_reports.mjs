@@ -466,8 +466,10 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !d.getElementById('lv-switch').classList.contains('hidden'));
   const items = () => [...d.querySelectorAll('#lv-list .isv-item')];
   check('locus view: sidebar lists both loci', items().length === 2, items().length);
-  check('locus view: default order is informative polymorphism (L001 first)',
+  check('locus view: default order is the presence rank (L001 first)',
         items()[0].textContent.includes('B:c1:1-9'), items()[0].textContent);
+  check('locus view: species sort option is hidden with one species',
+        d.getElementById('lv-sort-species').hidden === true);
   check('locus view: title is the exemplar locus',
         d.getElementById('lv-title').textContent === 'S1:c1:10-90',
         d.getElementById('lv-title').textContent);
@@ -480,6 +482,19 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
   sort.dispatchEvent(ev(w, 'change'));
   check('locus view: sort by locus ID puts A:... first',
         items()[0].textContent.includes('A:c1:1-9'), items()[0].textContent);
+  sort.value = 'whole_annot';
+  sort.dispatchEvent(ev(w, 'change'));
+  check('locus view: switching the sort reorders the sidebar (whole_annot puts B:... first)',
+        items()[0].textContent.includes('B:c1:1-9'), items()[0].textContent);
+  check('locus view: sidebar shows the active rank\'s score',
+        items()[0].textContent.includes('whole-island deletion, annotated carriers: 7'),
+        items()[0].textContent);
+  sort.value = 'species';
+  sort.dispatchEvent(ev(w, 'change'));
+  check('locus view: sidebar says a locus is not informative for the species sort',
+        items()[0].textContent.includes('not informative for this sort'), items()[0].textContent);
+  sort.value = 'presence';
+  sort.dispatchEvent(ev(w, 'change'));
   const search = d.getElementById('lv-search');
   search.value = 'B:c1';
   search.dispatchEvent(ev(w, 'input'));

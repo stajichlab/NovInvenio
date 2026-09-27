@@ -39,7 +39,11 @@ LOCUS_VIEW_HTML = r"""
         <div class="isv-sidebar-controls">
           <input type="search" id="lv-search" placeholder="Search locus, strain or family ID…" aria-label="Search loci">
           <select id="lv-sort" aria-label="Sort loci by">
-            <option value="informative">Sort: informative polymorphism</option>
+            <option value="presence" title="min(strains that lack island DNA, strains that carry it)">Presence/absence (DNA)</option>
+            <option value="within" title="loss frequency 5-95% within one species">Within-species polymorphic</option>
+            <option value="species" id="lv-sort-species" title="loss frequency differs between species by &gt;= 0.95">Species-specific</option>
+            <option value="whole_dna" title="confirmed empty site vs full + model difference">Whole-island deletion</option>
+            <option value="whole_annot" title="confirmed empty site vs full locus only">Whole-island deletion, annotated carriers</option>
             <option value="strains">Sort: strains with the locus</option>
             <option value="size">Sort: size (families)</option>
             <option value="name">Sort: locus ID</option>
@@ -70,7 +74,12 @@ LOCUS_VIEW_JS = r"""
   var LOCI = DATA.loci || [];
   var LMETA = DATA.locus_meta || {};
   var LPARAMS = LMETA.locus_params || {};
-  var lstate = { search: "", sort: "informative", selected: LOCI.length ? 0 : -1 };
+  // ranks-brief.md: five rankings (presence [default], within, species,
+  // whole_dna, whole_annot) plus the pre-existing strains/size/name sorts.
+  var initialSort = (LPARAMS.rank_by && (locusIsRankKey(LPARAMS.rank_by) ||
+    LPARAMS.rank_by === "strains" || LPARAMS.rank_by === "size" || LPARAMS.rank_by === "name"))
+    ? LPARAMS.rank_by : "presence";
+  var lstate = { search: "", sort: initialSort, selected: LOCI.length ? 0 : -1 };
   var lSidebar = [];
   var lRows = [];
   var lSlots = [];
@@ -148,13 +157,49 @@ LOCUS_VIEW_JS = r"""
     return "Empty site is not DNA-confirmed (the DNA presence check did not run), so it can " +
       "be a gene-model or annotation difference.";
   }
+  // ranks-brief.md: the five rank keys the page can sort by (locus.ranks[key]);
+  // every other sort key (strains/size/name) is unrelated to locus.ranks.
+  function locusIsRankKey(key) {
+    return key === "presence" || key === "within" || key === "species" ||
+      key === "whole_dna" || key === "whole_annot";
+  }
+  function locusRankLabel(key) {
+    var labels = { presence: "presence/absence", within: "within-species",
+      species: "species-specific", whole_dna: "whole-island deletion",
+      whole_annot: "whole-island deletion, annotated carriers" };
+    return labels[key] || key;
+  }
+  function locusRankValue(locus, key) {
+    return (locus.ranks && locus.ranks[key] !== undefined) ? locus.ranks[key] : -1;
+  }
   function locusSidebarOrder(loci, idxs, key) {
     var cmp;
     if (key === "strains") cmp = function (a, b) { return loci[b].n_carriers - loci[a].n_carriers || a - b; };
     else if (key === "size") cmp = function (a, b) { return loci[b].size - loci[a].size || a - b; };
     else if (key === "name") cmp = function (a, b) { return loci[a].locus_id < loci[b].locus_id ? -1 : loci[a].locus_id > loci[b].locus_id ? 1 : 0; };
+    else if (locusIsRankKey(key)) cmp = function (a, b) {
+      // Sorting uses locus.ranks[key] descending; loci with -1 go last
+      // (ranks-brief.md "Page"). Ties keep the payload's presence order.
+      var av = locusRankValue(loci[a], key), bv = locusRankValue(loci[b], key);
+      if (av === -1 && bv === -1) return a - b;
+      if (av === -1) return 1;
+      if (bv === -1) return -1;
+      return bv - av || a - b;
+    };
     else cmp = function (a, b) { return loci[b].informative_score - loci[a].informative_score || loci[b].n_carriers - loci[a].n_carriers || a - b; };
     return idxs.slice().sort(cmp);
+  }
+  function locusRankNote(locus, key) {
+    // Sidebar entry shows the active sort's score (ranks-brief.md "Page"):
+    // -1 reads as "not informative for this sort"; species shows the
+    // fraction difference; within shows the score and its species.
+    if (!locusIsRankKey(key)) return "";
+    var score = locusRankValue(locus, key);
+    if (score === -1) return "not informative for this sort";
+    if (key === "species") return "species-specific: difference " + score.toFixed(3);
+    if (key === "within") return "within-species: " + score +
+      (locus.within_species ? " (" + locus.within_species + ")" : "");
+    return locusRankLabel(key) + ": " + score;
   }
   function locusSpeciesList(locus) {
     return Object.keys(locus.counts_by_species || {}).sort();
@@ -234,6 +279,8 @@ LOCUS_VIEW_JS = r"""
       if (idx === lstate.selected) btn.classList.add("sel");
       btn.appendChild(el("div", "isv-item-id", locus.locus_id));
       btn.appendChild(el("div", "isv-item-stats", locusSidebarStats(locus, LPARAMS)));
+      var rankNote = locusRankNote(locus, lstate.sort);
+      if (rankNote) btn.appendChild(el("div", "isv-item-stats", rankNote));
       var chip = el("span", "isv-chip", classLabel(locus.dominant_class));
       chip.style.borderColor = classColor(locus.dominant_class);
       chip.style.color = classColor(locus.dominant_class);
@@ -564,6 +611,14 @@ LOCUS_VIEW_JS = r"""
   }
   if (LOCI.length) {
     document.getElementById("lv-switch").classList.remove("hidden");
+    // Rank D (species) is hidden when the samplesheet has fewer than 2
+    // species (ranks-brief.md "Page"): the score is -1 for every locus.
+    if (!(LPARAMS.n_species >= 2)) {
+      var speciesOpt = document.getElementById("lv-sort-species");
+      speciesOpt.hidden = true;
+      speciesOpt.disabled = true;
+    }
+    document.getElementById("lv-sort").value = lstate.sort;
     applyLocusFilter();
     renderLocusSidebar();
     setView("loci");

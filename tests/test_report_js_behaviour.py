@@ -177,9 +177,10 @@ ISV_TRUNC_ONLY_MATRIX = "family\tS1\nfamA\tpresent\nfamB\tpresent\n"
 ISV_TRUNC_ONLY_POSITIONS = "Short\tfamily\tcontig\trank\n"
 
 
-# Locus view (docs/superpowers/plans/2026-09-26-island-locus-view-clinker.md):
-# a hand-written island_loci.json with two loci. L001 ranks first by
-# informative polymorphism, L002 first by locus ID ("A:..." < "B:...").
+# Locus view (docs/superpowers/plans/2026-09-26-island-locus-view-clinker.md;
+# ranks-brief.md, changed 2026-09-27): a hand-written island_loci.json with
+# two loci. L001 ranks first by the presence rank (the page default),
+# L002 first by locus ID ("A:..." < "B:...").
 def _locus(key, locus_id, score, exemplar):
     return {
         "key": key, "locus_id": locus_id, "exemplar": exemplar, "exemplar_contig": "c1",
@@ -191,6 +192,9 @@ def _locus(key, locus_id, score, exemplar):
         "counts": {"full": 2, "partial": 0, "empty": 1, "uninformative": 0},
         "counts_by_species": {"": {"full": 2, "partial": 0, "empty": 1, "uninformative": 0}},
         "n_carriers": 2, "informative_score": score,
+        "ranks": {"whole_annot": score, "whole_dna": score, "presence": score,
+                 "species": -1, "within": -1},
+        "within_species": None,
         "rows": [
             {"row_class": "full", "codes": "1111", "count": 2, "strains": ["S1", "S2"],
              "rep": {"c": ["c1"], "d": [[0, 1, 1, 1], [0, 2, 0, -1], [0, 3, 1, -1], [0, 4, 2, -1]]}},
@@ -205,7 +209,8 @@ def _locus(key, locus_id, score, exemplar):
 
 ISV_LOCI = {
     "project": "demo",
-    "locus_params": {"flank": 5, "flank_min": 3, "k": 10, "empty_frac": 0.8},
+    "locus_params": {"flank": 5, "flank_min": 3, "k": 10, "empty_frac": 0.8,
+                     "rank_by": "presence", "n_species": 1},
     "n_loci_total": 2,
     "loci": [_locus("L001", "B:c1:1-9", 7, "S1"), _locus("L002", "A:c1:1-9", 1, "S2")],
 }

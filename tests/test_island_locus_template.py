@@ -85,11 +85,62 @@ def test_sidebar_orders():
     loci = [{"informative_score": 5, "n_carriers": 9, "size": 2, "locus_id": "b"},
             {"informative_score": 40, "n_carriers": 3, "size": 7, "locus_id": "a"},
             {"informative_score": -1, "n_carriers": 99, "size": 1, "locus_id": "c"}]
-    out = run_node(["locusSidebarOrder"], f"""
+    out = run_node(["locusIsRankKey", "locusSidebarOrder"], f"""
       var L = {json.dumps(loci)};
       console.log(JSON.stringify(["informative","strains","size","name"].map(function (k) {{
         return locusSidebarOrder(L, [0, 1, 2], k); }})));""")
     assert out == [[1, 0, 2], [2, 0, 1], [1, 0, 2], [1, 0, 2]]
+
+
+# ---- Multi-rank sort (ranks-brief.md, changed 2026-09-27) --------------------
+
+def test_sort_select_has_the_five_ranks_in_order_plus_strains_size_name():
+    m = re.findall(r'<option value="([\w-]+)"', LOCUS_VIEW_HTML)
+    assert m == ["presence", "within", "species", "whole_dna", "whole_annot",
+                "strains", "size", "name"]
+    assert 'id="lv-sort-species"' in LOCUS_VIEW_HTML
+
+
+RANK_FUNCS = ["locusIsRankKey", "locusRankLabel", "locusRankValue"]
+
+
+def test_rank_sort_orders_by_locus_ranks_key_with_minus_one_last():
+    loci = [{"ranks": {"whole_annot": 5}}, {"ranks": {"whole_annot": 40}},
+            {"ranks": {"whole_annot": -1}}]
+    out = run_node(RANK_FUNCS + ["locusSidebarOrder"], f"""
+      var L = {json.dumps(loci)};
+      console.log(JSON.stringify(locusSidebarOrder(L, [0, 1, 2], "whole_annot")));""")
+    assert out == [1, 0, 2]
+
+
+def test_rank_sort_ties_keep_the_payload_order():
+    loci = [{"ranks": {"presence": 5}}, {"ranks": {"presence": 5}}, {"ranks": {"presence": -1}}]
+    out = run_node(RANK_FUNCS + ["locusSidebarOrder"], f"""
+      var L = {json.dumps(loci)};
+      console.log(JSON.stringify(locusSidebarOrder(L, [0, 1, 2], "presence")));""")
+    assert out == [0, 1, 2]
+
+
+def test_rank_note_says_not_informative_for_minus_one():
+    out = run_node(RANK_FUNCS + ["locusRankNote"], """
+      console.log(JSON.stringify(locusRankNote({ranks: {whole_dna: -1}}, "whole_dna")));""")
+    assert out == "not informative for this sort"
+
+
+def test_rank_note_shows_species_difference_and_within_species_name():
+    out = run_node(RANK_FUNCS + ["locusRankNote"], """
+      var species = locusRankNote({ranks: {species: 0.973}}, "species");
+      var within = locusRankNote({ranks: {within: 12}, within_species: "Sp one"}, "within");
+      console.log(JSON.stringify([species, within]));""")
+    assert out[0] == "species-specific: difference 0.973"
+    assert out[1] == "within-species: 12 (Sp one)"
+
+
+def test_rank_note_is_blank_for_the_legacy_sort_keys():
+    out = run_node(RANK_FUNCS + ["locusRankNote"], """
+      console.log(JSON.stringify([locusRankNote({}, "strains"), locusRankNote({}, "size"),
+        locusRankNote({}, "name")]));""")
+    assert out == ["", "", ""]
 
 
 def test_breakpoint_bars_are_one_per_species_then_contig_break():
