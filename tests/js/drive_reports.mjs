@@ -451,5 +451,62 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !/excluded/.test(summaryText), summaryText);
 }
 
+// ------------------------------------------------ island synteny: locus view
+{
+  const dom = boot(path.join(FX, 'island_synteny_loci.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('locus view: loads without error', errors.length === 0, errors.join('; '));
+  check('locus view: is the default view',
+        !d.getElementById('locus-view').classList.contains('hidden') &&
+        d.getElementById('island-view').classList.contains('hidden'));
+  check('locus view: view switch is shown',
+        !d.getElementById('lv-switch').classList.contains('hidden'));
+  const items = () => [...d.querySelectorAll('#lv-list .isv-item')];
+  check('locus view: sidebar lists both loci', items().length === 2, items().length);
+  check('locus view: default order is informative polymorphism (L001 first)',
+        items()[0].textContent.includes('B:c1:1-9'), items()[0].textContent);
+  check('locus view: title is the exemplar locus',
+        d.getElementById('lv-title').textContent === 'S1:c1:10-90',
+        d.getElementById('lv-title').textContent);
+  items()[1].dispatchEvent(ev(w, 'click'));
+  check('locus view: selecting the second locus updates the title',
+        d.getElementById('lv-title').textContent === 'S2:c1:10-90',
+        d.getElementById('lv-title').textContent);
+  const sort = d.getElementById('lv-sort');
+  sort.value = 'name';
+  sort.dispatchEvent(ev(w, 'change'));
+  check('locus view: sort by locus ID puts A:... first',
+        items()[0].textContent.includes('A:c1:1-9'), items()[0].textContent);
+  const search = d.getElementById('lv-search');
+  search.value = 'B:c1';
+  search.dispatchEvent(ev(w, 'input'));
+  check('locus view: search filters the list', items().length === 1, items().length);
+  check('locus view: legend has the five cell states',
+        d.querySelectorAll('#lv-legend .isv-swatch').length === 5,
+        d.querySelectorAll('#lv-legend .isv-swatch').length);
+  const drawn = w.__fillTextCalls.join('|');
+  check('locus view: grid rows were drawn', drawn.includes('S1 +1') && drawn.includes('S3'), drawn.slice(0, 200));
+  d.getElementById('lv-btn-islands').dispatchEvent(ev(w, 'click'));
+  check('locus view: islands button shows the island view',
+        d.getElementById('locus-view').classList.contains('hidden') &&
+        !d.getElementById('island-view').classList.contains('hidden'));
+  check('locus view: islands button is pressed',
+        d.getElementById('lv-btn-islands').getAttribute('aria-pressed') === 'true');
+}
+
+// ------------------------------- island synteny: no loci keeps the old page
+{
+  const dom = boot(path.join(FX, 'island_synteny.html'));
+  const d = dom.window.document;
+  await sleep(60);
+  check('locus view: absent without loci (switch hidden)',
+        d.getElementById('lv-switch').classList.contains('hidden'));
+  check('locus view: absent without loci (island view shown)',
+        !d.getElementById('island-view').classList.contains('hidden'));
+}
+
 console.log(failures === 0 ? 'ALL PASSED' : failures + ' FAILED');
 process.exit(failures === 0 ? 0 : 1);

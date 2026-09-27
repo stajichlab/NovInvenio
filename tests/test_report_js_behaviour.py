@@ -177,6 +177,40 @@ ISV_TRUNC_ONLY_MATRIX = "family\tS1\nfamA\tpresent\nfamB\tpresent\n"
 ISV_TRUNC_ONLY_POSITIONS = "Short\tfamily\tcontig\trank\n"
 
 
+# Locus view (docs/superpowers/plans/2026-09-26-island-locus-view-clinker.md):
+# a hand-written island_loci.json with two loci. L001 ranks first by
+# informative polymorphism, L002 first by locus ID ("A:..." < "B:...").
+def _locus(key, locus_id, score, exemplar):
+    return {
+        "key": key, "locus_id": locus_id, "exemplar": exemplar, "exemplar_contig": "c1",
+        "exemplar_span": {"start": 10, "end": 90}, "tier": "full", "size": 2,
+        "n_variants": 1, "variant_strains": 3, "families": ["F1", "famA", "famB", "G1"],
+        "family_bins": ["core", "shell", "shell", "core"],
+        "family_classes": ["unannotated"] * 4, "family_domains": [""] * 4,
+        "dominant_class": "unannotated", "n_left": 1, "n_locus": 2, "n_right": 1,
+        "counts": {"full": 2, "partial": 0, "empty": 1, "uninformative": 0},
+        "counts_by_species": {"": {"full": 2, "partial": 0, "empty": 1, "uninformative": 0}},
+        "n_carriers": 2, "informative_score": score,
+        "rows": [
+            {"row_class": "full", "codes": "1111", "count": 2, "strains": ["S1", "S2"],
+             "rep": {"c": ["c1"], "d": [[0, 1, 1, 1], [0, 2, 0, -1], [0, 3, 1, -1], [0, 4, 2, -1]]}},
+            {"row_class": "empty", "codes": "1001", "count": 1, "strains": ["S3"], "rep": None},
+        ],
+        "breakpoints": [{"b": 1, "indel": {"": 1}, "contig_break": 0},
+                        {"b": 3, "indel": {"": 1}, "contig_break": 0}],
+        "clinker_strains": [{"strain": exemplar, "reason": "exemplar", "row_class": "full",
+                             "species": "", "contig": "c1", "rank_lo": 0, "rank_hi": 5}],
+    }
+
+
+ISV_LOCI = {
+    "project": "demo",
+    "locus_params": {"flank": 5, "flank_min": 3, "k": 10, "empty_frac": 0.8},
+    "n_loci_total": 2,
+    "loci": [_locus("L001", "B:c1:1-9", 7, "S1"), _locus("L002", "A:c1:1-9", 1, "S2")],
+}
+
+
 def _fasta() -> str:
     long_seq = 'MKV' + 'ACDEFGHIKLMNPQRSTVWY' * 90      # 1803 aa -> POST branch
     short_seq = 'MKVLLA' * 20                           # 120 aa  -> GET branch
@@ -275,6 +309,14 @@ def fixture_dir(tmp_path_factory):
         '--presence_matrix', str(d / 'isv_matrix.tsv'),
         '--family_positions', str(d / 'isv_positions.tsv'),
         '--project', 'demo', '--output', str(d / 'island_synteny.html'))
+
+    (d / 'isv_loci.json').write_text(json.dumps(ISV_LOCI))
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_matrix.tsv'),
+        '--family_positions', str(d / 'isv_positions.tsv'),
+        '--loci_json', str(d / 'isv_loci.json'),
+        '--project', 'demo', '--output', str(d / 'island_synteny_loci.html'))
 
     (d / 'isv_empty_islands.tsv').write_text(ISV_EMPTY_ISLANDS)
     (d / 'isv_empty_matrix.tsv').write_text(ISV_EMPTY_MATRIX)
