@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the island presence grid as the default view of `island_synteny.html` with an exemplar-anchored locus view (flank anchors, five per-strain cell states, row classes, a shared-breakpoint track), and add a clinker synteny figure per drawn locus.
+**Goal:** Replace the island presence grid as the default view of `island_synteny.html` with an exemplar-anchored locus view (flank anchors, five per-strain cell states, row classes, a shared-breakpoint track), check each "empty" site for the locus DNA so that a deletion is told apart from a gene-model difference, and add a clinker synteny figure per drawn locus.
 
-**Architecture:** Part A adds a pure library `lib/island_locus.py` (loci, exemplar, columns, cell states, row classes, breakpoints), a CLI `bin/pangenome_island_loci.py` that streams `family_positions` three times and writes `island_loci.json`, a new process `ISLAND_LOCI`, and a locus-view fragment `lib/island_locus_template.py` that `island_synteny.html` shows by default. Part B adds per-strain regions and clinker strain choice to the same library, GenBank slicing (`lib/genbank_slice.py`, `ISLAND_GBK_SLICE`), a batched clinker runner with sequence slimming (`ISLAND_CLINKER`), a "Synteny (clinker)" panel in the page, and the NovInvenio_Investigations publish change.
+**Architecture:** Part A adds a pure library `lib/island_locus.py` (loci, exemplar, columns, cell states, row classes, breakpoints), a CLI `bin/pangenome_island_loci.py` that streams `family_positions` three times and writes `island_loci.json`, a new process `ISLAND_LOCI`, and a locus-view fragment `lib/island_locus_template.py` that `island_synteny.html` shows by default. Part A then adds the DNA presence check (spec section 4b): `pangenome_island_loci.py` runs twice, pass 1 (`ISLAND_DNA_TARGETS`) writes per-locus work lists, `bin/pangenome_island_dna_check.py` (`ISLAND_DNA_CHECK`, batched) runs `blastn -task megablast` per (locus, strain), and pass 2 (`ISLAND_LOCI`) turns the calls into two new cell states and the model-difference row class before ranking. Part B adds per-strain regions and clinker strain choice to the same library, GenBank slicing (`lib/genbank_slice.py`, `ISLAND_GBK_SLICE`), a batched clinker runner with sequence slimming (`ISLAND_CLINKER`), a "Synteny (clinker)" panel in the page, and the NovInvenio_Investigations publish change.
 
-**Tech Stack:** Python 3.12 (pixi), pytest, Biopython, Nextflow 26 DSL2 (strict parser), vanilla JS + `<canvas>` (the page must open from `file://`), node for JS unit checks, jsdom and headless Chromium for behaviour checks, gamcil/clinker 0.0.32 from PyPI, blastn (spot checks only).
+**Tech Stack:** Python 3.12 (pixi), pytest, Biopython, Nextflow 26 DSL2 (strict parser), vanilla JS + `<canvas>` (the page must open from `file://`), node for JS unit checks, jsdom and headless Chromium for behaviour checks, gamcil/clinker 0.0.32 from PyPI, blastn (the DNA presence check; already in the pixi env).
 
-**Spec:** `docs/superpowers/specs/2026-09-24-island-locus-view-design.md` (on `main` at `cc06785`, sections 1-8). The spec is the authority; this plan adds Rulings only where the spec is silent or open.
+**Spec:** `docs/superpowers/specs/2026-09-24-island-locus-view-design.md` (on `main` at `f193490`, sections 1-8 and section 4b, added 2026-09-26 by PR #198). The spec is the authority; this plan adds Rulings only where the spec is silent or open.
 
 ## Global Constraints
 
@@ -27,7 +27,13 @@ Values copied from the spec:
 - Payload: state vectors as 3-bit codes per column, stored once per collapsed pattern.
 - Page: sidebar (size, variant count, empty-site / full / partial / uninformative counts, Pfam class chip); main (title = exemplar locus strain:contig:start-end; note with the exemplar rule and `F`/`k`; breakpoint track; column header with labels, class strip and anchor marks; grid; legend for the five states); popups (column: family, bin, domains, exemplar location; cell: strain(s), state, the strain's own contig:rank, and why the state was assigned); diagnostics banner kept; one line under it when `assembly_quality_confound` triggered.
 - Clinker: gamcil/clinker **0.0.32 from PyPI**, added to the pixi environment as a PyPI dependency and to the container. Bioconda's `clinker` 1.33 is a different, unrelated RNA-seq tool; do not use it. `clinker <locus>/*.gbk -gf <locus>.groups.csv -p <locus>.html`; the tier-1 family is the group.
-- Clinker strains: at most `--clinker_max_strains` (default 12; at most 66 pairs per locus): the exemplar; per row class (full, partial, empty) and species the flank-intact strain with the highest N50, ties by name; then more full or partial strains by N50 until the cap. Uninformative strains are never chosen.
+- DNA presence check (spec section 4b). Strains checked: for each drawn locus, every flank-intact strain with at least one locus column not "in place". Query: the exemplar's locus DNA, from the start of its first locus gene to the end of its last locus gene, with each exemplar locus gene's coordinates. Target: the strain's DNA on its flank contig, between the inner edges of its innermost in-place left-flank gene and innermost in-place right-flank gene; when the target is shorter than 50 bp, every missing column is DNA absent without an alignment.
+- DNA alignment: `blastn -task megablast`, query against target (subject mode), one call per (locus, strain). A locus column is DNA present when HSPs with identity >= `--locus_dna_min_id` (default 90%) cover >= `--locus_dna_min_cov` (default 80%) of that exemplar gene's span. Both defaults are chosen, not validated.
+- DNA cell states: an "absent" or "elsewhere" locus cell in a checked strain becomes "absent, DNA present" (gene-model or annotation difference; drawn hatched grey) or "absent, DNA absent" (drawn as absent). "In place" and "contig break" cells are unchanged. Strains that are not checked keep the section 4 states.
+- DNA row classes: empty site = flanks intact, >= 80% of locus columns DNA absent; partial = flanks intact, some columns in place and some DNA absent; model difference = flanks intact, every locus column in place or "absent, DNA present", at least one of the latter (not a deletion); full locus and uninformative as before. The breakpoint track counts only changes between "in place" and "DNA absent".
+- DNA ranking: "informative polymorphism" uses DNA-confirmed empty-site strains: at least 10 empty-site strains (DNA absent) and at least 2 full-locus strains, ranked by the smaller count. The sidebar also shows each locus's model-difference count.
+- DNA pipeline: new process `ISLAND_DNA_CHECK` between the locus computation and the page; inputs: the per-strain regions from the locus step and the genome FASTA files from `--pangenome_data_dir` (`dna/`). Loci are batched per task, about 1-1.5 h of work per task; the batch size is set from a measured run, not guessed. Switch `--pangenome_locus_dna_check` (default true); with false, the section 4-5 states are used and the page says that "empty site" is not DNA-confirmed.
+- Clinker strains: at most `--clinker_max_strains` (default 12; at most 66 pairs per locus): the exemplar; per row class (full locus, partial, empty site, model difference) and species the flank-intact strain with the highest N50, ties by name; then more full or partial strains by N50 until the cap. Uninformative strains are never chosen.
 - Clinker region per strain: on the contig where the flanks are intact, from the lowest to the highest rank among the strain's in-place column copies, then `F` genes further on each side (`F_min` for a short-flank locus), clipped at the contig end. For an empty-site strain this is the left-flank block plus the right-flank block.
 - GenBank: one `.gbk` per (locus, strain); each CDS carries `/locus_tag` = the gene ID, `/translation` from the protein FASTA, and `/note="family=<tier-1 family>"`. `ISLAND_GBK_SLICE` is one task for all drawn loci.
 - After clinker runs, remove `sequence` and `translation` from every gene object, in clusters and in links.
@@ -49,9 +55,9 @@ Repository rules that apply to every task (from `CLAUDE.md` and the user's globa
 Inputs the spec implies but does not name, most likely first. Each has a test in the task that owns the code.
 
 1. **A family fills two columns** (a tandem paralog in the exemplar's block). A strain with one lone copy of that family must not count as "in place" because the same copy sits in both columns. Test: `test_a_tandem_paralog_is_not_its_own_neighbour` (Task 4).
-2. **Two strains of one locus share a protein ID** (for example NCBI-style `g1.t1` models). clinker's `-gf` file is keyed by label, so shared labels would mis-group genes. Expected: that locus's labels become `Short|protein_id`. Test: `test_protein_id_clash_across_strains_prefixes_labels` (Task 18).
-3. **clinker is missing or fails for one locus** (the published container `0.5.0` has no clinker). Expected: the other loci still get pages, the failed one gets none, and the page says "No synteny figure for this locus." Tests: `tests/test_pangenome_island_clinker.py` (Task 19) and the jsdom `clinker panel:` checks (Task 21).
-4. **Compressed study inputs**: `.fa.gz` genome and protein FASTAs, `.zst` position tables. Expected: read directly, no manual decompression. Tests: `test_gzipped_genome_and_proteins_are_read` (Task 18), `test_reads_zst_family_positions` (Task 7).
+2. **Two strains of one locus share a protein ID** (for example NCBI-style `g1.t1` models). clinker's `-gf` file is keyed by label, so shared labels would mis-group genes. Expected: that locus's labels become `Short|protein_id`. Test: `test_protein_id_clash_across_strains_prefixes_labels` (Task 23).
+3. **clinker is missing or fails for one locus** (the published container `0.5.0` has no clinker). Expected: the other loci still get pages, the failed one gets none, and the page says "No synteny figure for this locus." Tests: `tests/test_pangenome_island_clinker.py` (Task 24) and the jsdom `clinker panel:` checks (Task 26).
+4. **Compressed study inputs**: `.fa.gz` genome and protein FASTAs, `.zst` position tables. Expected: read directly, no manual decompression. Tests: `test_gzipped_genome_and_proteins_are_read` (Task 23), `test_reads_zst_family_positions` (Task 7), `test_gzipped_genomes_are_read` (Task 15, the DNA check).
 5. **No species data** (no `--config`). Expected: every strain in one "unknown species" group, one indel bar per boundary, no crash. Test: `test_without_config_all_strains_are_one_unknown_species_group` (Task 7).
 
 ## Rulings
@@ -74,6 +80,15 @@ Decisions on points the spec leaves open or silent. "Ruling Rn" in code comments
 - **R14 GenBank.** Each gene is written as a `gene` plus `CDS` feature (silences clinker's "Could not find parent gene" warning: 145 warnings in the spike, 0 with the gene feature). TBLASTN rescue hits have no gene model and are not drawn. A strain whose DNA, protein or GFF3 file is missing is skipped with a warning. Rank rebuild uses the exact rule of `bin/pangenome_build_family_positions.py`; a mismatch with the region's anchor families stops the task.
 - **R15 clinker failure.** A failed clinker run skips that locus with a warning; the page reports no figure for it.
 - **R16 Slimming.** On by default; `--pangenome_clinker_slim false` keeps clinker's page unchanged.
+- **R17 Two locus passes.** The DNA check sits between two runs of `pangenome_island_loci.py` with the same inputs: pass 1 (`--dna_targets_dir`, process `ISLAND_DNA_TARGETS`) writes the work lists; pass 2 (`--dna_check true --dna_calls ...`, process `ISLAND_LOCI`) recomputes the same states, applies the calls, re-orders the drawn loci by the DNA-confirmed score and only then gives keys (`L001`, ...) and clinker strains. The drawn set is the top `--pangenome_top_loci` by the annotation-only ranking; the check can re-order it but not replace a locus (the spec checks drawn loci only). Reason: the clinker choice (Part B) needs the per-strain cell data, which `island_loci.json` does not hold; the extra pass costs about 2 min (measured 1 min 55 s).
+- **R18 DNA batch size before measurement.** `--pangenome_locus_dna_batch` default 50, which is every drawn locus in one `ISLAND_DNA_CHECK` task. Measured on 3 loci (828 strain checks): 2 min 18 s at 6 cpus, of which 73 s was reading 463 genome FASTAs; each task reads every genome it needs once, so smaller batches repeat that cost. The top 50 loci need about 20,159 strain checks (planning `island_loci.json`, empty + partial); from the 3-locus rate that is about 10-15 min at 8 cpus. This is an extrapolation, not a measurement: Task 19 measures it, and the executor sets the default from that number (spec: "set from a measured run").
+- **R19 Base-pair position of a copy.** A family's copies on one contig in rank order are its annotated copies (`gene_positions`) in start order, because ranks enumerate genes sorted by (contig, start). A copy with no gene model (a TBLASTN rescue hit, which has only a start) has no base-pair span.
+- **R20 No target interval.** A checked strain without an annotated in-place flank gene on either side, or whose genome FASTA is missing, is written with contig `-` (start = end = 0) and all its columns come back `unchecked`. It keeps its section 4-5 states, is counted in `dna.unchecked`, and is never a DNA-confirmed empty site. An exemplar locus column without a gene model (a rescue hit) is left out of the query and stays unchecked in every strain.
+- **R21 DNA row classes, edge cases.** Checked cells are codes `0`, `2` and `4` (absent, elsewhere, rescue elsewhere); they become `6` (absent, DNA present) or `7` (absent, DNA absent), so the 3-bit codes use all of 0-7. A checked strain that fits none of full / empty site / model difference is partial; this covers a mix of DNA present and DNA absent with no in-place column, and an unchecked absent column next to DNA-present ones.
+- **R22 DNA-confirmed counts.** With the check on, the informative score counts only DNA-confirmed empty sites (`dna.empty_confirmed`); unchecked strains keep their drawn class but are not counted. The breakpoint track then counts only in place <-> DNA absent, so an unchecked strain's absences are not counted. Each page entry gets `dna = {checked, unchecked, empty_confirmed, empty_to_model_difference}`.
+- **R23 blastn settings.** `blastn -task megablast -query Q -subject T -outfmt "6 qstart qend pident"` with blastn's other defaults (e-value 10, DUST on). The identity filter and the merged coverage over each gene are computed in Python (`gene_coverage`). Calls run in parallel threads (`--cpus`, `task.cpus` of `med_cpu`).
+- **R24 Parameter names.** The spec's `--locus_dna_min_id` / `--locus_dna_min_cov` are `--pangenome_locus_dna_min_id` / `--pangenome_locus_dna_min_cov` in `pangenome.nf` (every pangenome parameter has the `pangenome_` prefix, as the spec's own `--pangenome_locus_dna_check` does) and `--min_id` / `--min_cov` in `bin/pangenome_island_dna_check.py`. Values are percents, 0-100, checked at start-up.
+- **R25 Page without the check.** The "not DNA-confirmed" note shows whenever `locus_params.dna_check` is not `true`, which includes pages built before this change. The legend lists the two DNA states only when the check ran.
 
 ## Facts measured while writing this plan (2026-09-26)
 
@@ -85,14 +100,17 @@ All on NII `studies/fungi/coccidioides_pangenome/results/rescue_freqpol_immitis_
 - `bin/pangenome_island_loci.py` on this run: 1 min 41 s wall (1 min 52 s on a second run), 1.36 GB peak RSS, `island_loci.json` 1.94 MB, 50 of 50 drawn loci have informative score >= 0; tiers 48 full, 1 short flanks, 1 contig end.
 - Clinker chain on 3 loci x 12 strains: GenBank step 35 s, 60 MB; clinker 56 s and 128 MB for one locus at 4 cores; the page 5.35 MB, slimmed 1.01 MB; headless Chromium draws the same 237 genes, 12 clusters and 1178 link paths for both.
 - `pixi` 0.71.3 installs clinker 0.0.32 from `[pypi-dependencies]`.
-- Sequence spot check (Task 14's tool): **0 of 6 empty-site calls on L001-L003 confirmed**; the "empty" strains carry the locus DNA at 97.0-99.9% identity. At L001 the difference is one merged gene model versus two split models (see Task 14).
+- Sequence spot check (before spec section 4b, a throwaway tool): **0 of 6 empty-site calls on L001-L003 confirmed**; the "empty" strains carry the locus DNA at 97.0-99.9% identity. At L001 the difference is one merged gene model versus two split models.
+- DNA presence check (this plan's code, `--top_loci 3`; Task 19): pass 1 2 min 37 s and 1.35 GB; `ISLAND_DNA_CHECK` 2 min 18 s at 6 cpus and 134 MB for 828 strain checks (73 s reading 463 genome FASTAs); pass 2 1 min 55 s and 1.35 GB. 617 of 813 empty-site calls moved to model difference; 4 of the 6 planning cases are model difference; the other 2 (`1M0:scaffold_390:15977-16664`) come out partial, because the strain's flank gene model covers the locus DNA and the spec's target stops at that gene's inner edge (Task 19).
 
 ## File structure
 
 | File | Part | Responsibility |
 |---|---|---|
-| `lib/island_locus.py` | A, B | Pure locus-view logic: loci, carriers, exemplar, columns, cell states, row classes, breakpoints, collapsed rows, ranking; Part B adds clinker strains and regions |
-| `bin/pangenome_island_loci.py` | A, B | Streams inputs, runs the library, writes `island_loci.json` (and `island_regions.tsv`) |
+| `lib/island_locus.py` | A, B | Pure locus-view logic: loci, carriers, exemplar, columns, cell states, row classes, breakpoints, collapsed rows, ranking; DNA targets, coverage and DNA states (section 6b); Part B adds clinker strains and regions |
+| `bin/pangenome_island_loci.py` | A, B | Streams inputs, runs the library, writes `island_loci.json` (and `island_regions.tsv`); pass 1 writes the DNA work lists, pass 2 applies the calls |
+| `bin/pangenome_island_dna_check.py` | A | `ISLAND_DNA_CHECK` script: genome slices, blastn megablast, coverage calls |
+| `modules/pangenome/island_dna_check.nf` | A | `ISLAND_DNA_TARGETS`, `ISLAND_DNA_CHECK` |
 | `lib/island_locus_template.py` | A, B | Locus view CSS/HTML/JS fragments; Part B adds the clinker panel |
 | `lib/island_synteny_template.py` | A | Inserts the fragments; wraps the island view in `#island-view` |
 | `bin/pangenome_island_synteny.py` | A, B | Embeds loci, confound flag, clinker metadata into the page payload |
@@ -104,7 +122,7 @@ All on NII `studies/fungi/coccidioides_pangenome/results/rescue_freqpol_immitis_
 | `modules/pangenome/island_gbk_slice.nf`, `modules/pangenome/island_clinker.nf` | B | The two new processes |
 | `workflows/pangenome_profile.nf`, `modules/pangenome/island_synteny.nf`, `nextflow.config`, `pangenome.nf` | A, B | Wiring, params, help, validation |
 | `pixi.toml`, `pixi.lock`, `Dockerfile`, `novinvenio.def` | B | clinker 0.0.32 from PyPI |
-| `tests/test_island_locus*.py`, `tests/test_pangenome_island_loci.py`, `tests/test_genbank_slice.py`, `tests/test_pangenome_island_gbk_slice.py`, `tests/test_clinker_html.py`, `tests/test_pangenome_island_clinker.py`, `tests/test_clinker_render.py` | A, B | New tests |
+| `tests/test_island_locus*.py`, `tests/test_pangenome_island_loci.py`, `tests/test_pangenome_island_loci_dna.py`, `tests/test_pangenome_island_dna_check.py`, `tests/test_genbank_slice.py`, `tests/test_pangenome_island_gbk_slice.py`, `tests/test_clinker_html.py`, `tests/test_pangenome_island_clinker.py`, `tests/test_clinker_render.py` | A, B | New tests |
 | `tests/test_pangenome_island_synteny.py`, `tests/test_report_js_behaviour.py`, `tests/js/drive_reports.mjs` | A, B | Extended tests |
 | NII: `bin/sync_pangenome_report.py`, `lib/pangenome_site.py`, `.gitignore`, `bin/publish_report_release.sh`, `.github/workflows/static.yml`, `tests/test_sync_pangenome_report.py` | B | Publish `clinker/` (other repo) |
 
@@ -978,7 +996,7 @@ git commit -m "island locus view: in place / elsewhere / rescue / absent / conti
 
 **Interfaces:**
 - Consumes: `StrainCells.base` / `.codes` from Task 4.
-- Produces: `flank_pair(positions, strain, left, right, n_locus, k=10, in_place=None) -> (contig, lo, hi) | None`; `row_class(base, n_left, n_locus, intact, empty_frac=0.8) -> str`; `breakpoint_track(strain_rows: list[(species, row_class, codes)], n_cols) -> list[{'b', 'indel': {species: n}, 'contig_break': n}]`; `collapse_rows(per_strain: {strain: (row_class, codes)}, details=None, max_detail_rows=300) -> list[{'row_class', 'codes', 'count', 'strains', 'rep'}]`; `encode_detail(detail) -> {'c': [contig], 'd': [cell]}`; `informative_score(counts) -> int`; `rank_key(result, rank_by) -> tuple`.
+- Produces: `flank_pair(positions, strain, left, right, n_locus, k=10, in_place=None) -> (contig, lo, hi) | None`; `row_class(base, n_left, n_locus, intact, empty_frac=0.8) -> str`; `breakpoint_track(strain_rows: list[(species, row_class, codes)], n_cols) -> list[{'b', 'indel': {species: n}, 'contig_break': n}]`; `collapse_rows(per_strain: {strain: (row_class, codes)}, details=None, max_detail_rows=300) -> list[{'row_class', 'codes', 'count', 'strains', 'rep'}]`; `encode_detail(detail) -> {'c': [contig], 'd': [cell]}`; `informative_score(counts) -> int`; `rank_key(result, rank_by) -> tuple`; `ROW_ORDER = ('full', 'partial', 'empty', 'model_difference', 'uninformative')`, the row order `collapse_rows` sorts by (`model_difference` appears only with the DNA check, Task 14).
 
 
 - [ ] **Step 1: Write the failing test**
@@ -1153,11 +1171,16 @@ def breakpoint_track(strain_rows: list[tuple[str, str, str]], n_cols: int) -> li
     return out
 
 
+# Display order of row classes. "model_difference" occurs only with the DNA
+# presence check (section 6b, spec section 4b).
+ROW_ORDER = ("full", "partial", "empty", "model_difference", "uninformative")
+
+
 def collapse_rows(per_strain: dict[str, tuple[str, str]],
                   details: dict[str, list] | None = None,
                   max_detail_rows: int = MAX_DETAIL_ROWS) -> list[dict]:
     """Collapse strains with the same (row class, codes) into one row.
-    Sorted by ROW_CLASSES order, then codes. `rep` is the per-column detail
+    Sorted by ROW_ORDER, then codes. `rep` is the per-column detail
     of the row's first strain, kept for the `max_detail_rows` rows with the
     most strains (None beyond that, to bound the payload); see
     encode_detail() for its shape."""
@@ -1169,7 +1192,7 @@ def collapse_rows(per_strain: dict[str, tuple[str, str]],
         strains.sort()
         rows.append({"row_class": cls, "codes": codes, "count": len(strains), "strains": strains,
                      "rep": None})
-    rows.sort(key=lambda r: (ROW_CLASSES.index(r["row_class"]), r["codes"]))
+    rows.sort(key=lambda r: (ROW_ORDER.index(r["row_class"]), r["codes"]))
     if details is not None:
         by_count = sorted(range(len(rows)), key=lambda i: (-rows[i]["count"], i))
         for i in by_count[:max_detail_rows]:
@@ -2064,7 +2087,7 @@ git commit -m "island locus view: regression test against the feasibility protot
 
 **Interfaces:**
 - Consumes: the payload keys `loci`, `locus_meta.locus_params`, `assembly_confound` (Task 10 adds them); the island IIFE's `el css palette classColor classLabel sizeCanvas ellipsize positionTip tipEl appendLocation strainPopupLines speciesCounts haplotypeSpecies SPECIES ROW_LABEL_FONT GUTTER_MIN GUTTER_MAX LABEL_FONT LABEL_MAX_W LABEL_ANGLE GLYPH_H state renderMain`.
-- Produces: `LOCUS_VIEW_CSS`, `LOCUS_VIEW_HTML`, `LOCUS_VIEW_JS` (strings); DOM ids `lv-switch lv-btn-loci lv-btn-islands locus-view island-view lv-list lv-search lv-sort lv-count lv-title lv-tier lv-note lv-legend lv-track lv-head lv-grid lv-confound`; pure JS helpers `locusStateStyle locusStateLabel locusClassLabel locusSortedRows locusSidebarOrder locusSpeciesList breakpointBars cellReasonLines locusTitle locusTierText`. `renderLocusMain()` calls `renderClinkerPanel(locus)` only when that function exists (Task 21 defines it).
+- Produces: `LOCUS_VIEW_CSS`, `LOCUS_VIEW_HTML`, `LOCUS_VIEW_JS` (strings); DOM ids `lv-switch lv-btn-loci lv-btn-islands locus-view island-view lv-list lv-search lv-sort lv-count lv-title lv-tier lv-note lv-legend lv-track lv-head lv-grid lv-confound`; pure JS helpers `locusStateStyle locusStateLabel locusClassLabel locusSortedRows locusSidebarOrder locusSpeciesList breakpointBars cellReasonLines locusTitle locusTierText`. `renderLocusMain()` calls `renderClinkerPanel(locus)` only when that function exists (Task 26 defines it).
 
 
 - [ ] **Step 1: Write the failing test**
@@ -3450,7 +3473,7 @@ with:
 | `pangenome_locus_k` | `10` | `unvalidated-assumption` | Same window as `pangenome_pair_class_k`; not swept (spec open question 1). | same | Gene-dense islands where unrelated genes sit within 10 genes | Recompute states at k = 5 and 20 and compare row-class counts |
 | `pangenome_locus_empty_frac` | `0.8` | `unvalidated-assumption` | Feasibility: with the top 50 by size, 17/50 loci qualify at 80% and 0/50 at 100%; top 50 by strain count 39/50 at both. | same | — | Compare qualifying loci at 0.8 and 1.0 |
 | `pangenome_locus_containment` | `0.5` | `unvalidated-assumption` | The M4 criterion: 10,579 of 11,880 located islands join a larger island at 50%. Not swept. | same | — | Count loci at 0.3/0.5/0.7 |
-| `pangenome_locus_rank` / `pangenome_top_loci` | `informative` / `50` | `theory+practical` | Spec section 6. Caution: on the Coccidioides run 0 of 6 sequence-checked empty-site calls on the top 3 loci were real deletions (gene-model splits; plan Task 14). | same | Gene-model differences dominate the informative ranking | Spot check (plan Task 14) on the new study |
+| `pangenome_locus_rank` / `pangenome_top_loci` | `informative` / `50` | `theory+practical` | Spec section 6. Caution: on the Coccidioides run 0 of 6 sequence-checked empty-site calls on the top 3 loci were real deletions (gene-model splits; plan Task 19). | same | Gene-model differences dominate the informative ranking | Spot check (plan Task 19) on the new study |
 | `pangenome_locus_candidates` | `200` | `theory+practical` | Compute bound: states for 200 candidates took 1 min 41 s and 1.36 GB (2026-09-26); 1301 loci on that run. | same | Informative loci outside the top 200 by carrier proxy | Rerun with 400 and compare the drawn set |
 ```
 
@@ -3480,7 +3503,7 @@ with:
   `--pangenome_locus_flank_min` (3), `--pangenome_locus_k` (10), `--pangenome_locus_empty_frac` (0.8),
   `--pangenome_locus_containment` (0.5), `--pangenome_locus_candidates` (200).
 - Caution: on the Coccidioides run the top loci's "empty site" calls were gene-model splits, not
-  deletions, in all 6 sequence-checked cases (plan Task 14).
+  deletions, in all 6 sequence-checked cases (plan Task 19).
 
 ```
 
@@ -3574,136 +3597,736 @@ H=$(ls ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-li
 Expected: `50 of 50 shown`, the L001 exemplar title (`UTAH_20380X16:scaffold_5:1081614-1083929` in planning) and `island-view` with class `hidden`. Open `page.png`: the breakpoint bars, the rotated column labels with anchor bars under the flank columns, and the grid with five state colours must be visible. Then open the page in a desktop browser from `file://` and hover a column and a cell; the popups must show the family, bin, domains, exemplar location, and the cell's state, contig, rank and neighbour.
 
 
-### Task 14: Sequence spot checks of empty-site and partial calls (spec validation item 3, controller task)
+### Task 14: DNA presence check in the library: targets, coverage, DNA states, model difference (spec section 4b)
 
 **Files:**
-- Create (outside the repo): `$SCRATCH/lv_real/spotcheck_locus_calls.py` (throwaway; never commit)
+- Modify: `lib/island_locus.py` (append section 6b)
+- Create: `tests/test_island_locus_dna.py`
 
 **Interfaces:**
-- Consumes: `$SCRATCH/lv_real/island_loci.json` from Task 13; the study `data_dir`, `gene_positions.tsv.zst`, tier-1 cluster TSV.
-- Produces: a per-column agree/disagree table for 5 empty-site and 5 partial strains.
+- Consumes: `compute_locus` result keys `_cells` (`StrainCells.codes`, `.in_place_copies`, `.detail`), `_pairs`, `_row_class`, `n_left`, `n_locus`, `families`, `exemplar`, `exemplar_contig` (Task 6); `collapse_rows`, `ROW_ORDER`, `breakpoint_track`, `informative_score` (Task 5); `gene_locs` = `load_gene_locations()` shape `{(strain, family): [(protein_id, contig, start, end)]}`.
+- Produces: codes `DNA_PRESENT='6'`, `DNA_ABSENT='7'`, `DNA_STATE_LABELS`, `DNA_CHECKED_CODES`, `DEFAULT_DNA_MIN_ID=90.0`, `DEFAULT_DNA_MIN_COV=80.0`, `DNA_MIN_TARGET_BP=50`; `dna_checked_strains(result) -> list[str]`; `copy_bp(positions, gene_locs, strain, family, contig, rank) -> (start, end) | None`; `dna_query(result, exemplar_ranks, positions, gene_locs) -> (contig, start, end, [(col, start, end)]) | None`; `dna_target(result, strain, positions, gene_locs, k=10) -> (contig, start, end) | None`; `merge_intervals(intervals) -> list[(lo, hi)]`; `gene_coverage(hsps, gene, min_id=90) -> float`; `row_class_dna(codes, n_left, n_locus, intact, empty_frac=0.8) -> str`; `apply_dna_calls(result, calls: {strain: {col: 'present'|'absent'|'unchecked'}}, species_of, empty_frac=0.8) -> None`, which rewrites `counts` (adds `model_difference`), `counts_by_species`, `rows`, `breakpoints`, `informative_score`, `_row_class` and adds `dna = {checked, unchecked, empty_confirmed, empty_to_model_difference}`.
 
 
-- [ ] **Step 1: Read this first**
+- [ ] **Step 1: Write the failing test**
 
-This test checks the neighbour rule against the DNA, which the rule itself cannot do. **Planning result (2026-09-26): 0 of 6 empty-site calls on L001-L003 were confirmed.** In every case the empty-site strain's region DNA aligned across the reference strain's locus genes at 97.0-99.9% identity (blastn). At L001 the reference `UTAH_20380X16` has two locus genes (277 aa and 446 aa, families `CA25|C4385CC_002993-T1` and `UCSF_5AZ|C4980C8_004519-T1`); the empty-site strain `UTAH_20380X10` has one 705 aa gene model over the same DNA, in a third family. So on these loci an "empty site" is a gene-model split or merge, not a deletion. Repeat the check on the loci the final code draws and report the result to the user at the Checkpoint.
+Create `tests/test_island_locus_dna.py`:
+
+```python
+"""DNA presence check in lib/island_locus.py (spec section 4b), on the
+four synthetic strains of tests/test_island_locus.py's compute_locus test.
+A strain's gene at rank r sits at bp r*1000+1 .. r*1000+800."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+
+from island_locus import (  # noqa: E402
+    Columns, Locus, Placement, apply_dna_calls, compute_locus, copy_bp, dna_checked_strains,
+    dna_query, dna_target, gene_coverage, merge_intervals, row_class_dna,
+)
+
+FAMS = ["L1", "A", "B", "R1"]
+SPECIES = {"FULL": "sp1", "EMPTY": "sp2", "PART": "sp1"}
 
 
-- [ ] **Step 2: Make the change**
+class FakeMatrix:
+    def __init__(self, calls):
+        self.calls = calls
 
-Create `$SCRATCH/lv_real/spotcheck_locus_calls.py`:
+    def call(self, fam, strain):
+        return self.calls.get((fam, strain), "absent")
+
+
+def fixture():
+    pos, calls, locs = {}, {}, {}
+
+    def put(strain, contig, ranks):
+        for fam, r in zip(FAMS, ranks):
+            if r is not None:
+                pos[(strain, fam)] = [(contig, r)]
+                calls[(fam, strain)] = "present"
+                locs[(strain, fam)] = [(f"{strain}_{fam}", contig, r * 1000 + 1, r * 1000 + 800)]
+
+    put("FULL", "c1", [10, 11, 12, 13])
+    put("EMPTY", "c1", [10, None, None, 11])
+    put("PART", "c1", [10, 11, None, 13])
+    put("FRAG", "c2", [0, 1, None, None])
+    spans = {("FULL", "c1"): (0, 50), ("EMPTY", "c1"): (0, 50), ("PART", "c1"): (0, 50),
+             ("FRAG", "c2"): (0, 2)}
+    cols = Columns(left=("L1",), locus=("A", "B"), right=("R1",), left_avail=5, right_avail=5)
+    loc = Locus(root={"members": ["A", "B"], "locus_id": "FULL:c1:1-9"},
+                variants=[{"n_strains": "2"}])
+    res = compute_locus(loc, Placement("FULL", "c1", 11, 12, 11, 38, 51), "full", cols,
+                        ["EMPTY", "FRAG", "FULL", "PART"], pos, spans, FakeMatrix(calls), SPECIES)
+    return res, pos, locs
+
+
+def test_checked_strains_are_flank_intact_and_not_full():
+    res, _, _ = fixture()
+    assert dna_checked_strains(res) == ["EMPTY", "PART"]
+
+
+def test_copy_bp_matches_copies_in_rank_and_start_order():
+    pos = {("S", "F"): [("c1", 7), ("c1", 3), ("c2", 1)]}
+    locs = {("S", "F"): [("p2", "c1", 900, 990), ("p1", "c1", 100, 190), ("p3", "c2", 5, 50)]}
+    assert copy_bp(pos, locs, "S", "F", "c1", 3) == (100, 190)
+    assert copy_bp(pos, locs, "S", "F", "c1", 7) == (900, 990)
+
+
+def test_copy_bp_is_none_for_a_rescue_copy_or_a_count_mismatch():
+    pos = {("S", "F"): [("c1", 3)], ("S", "G"): [("c1", 4), ("c1", 5)]}
+    locs = {("S", "G"): [("p1", "c1", 10, 20)]}
+    assert copy_bp(pos, locs, "S", "F", "c1", 3) is None
+    assert copy_bp(pos, locs, "S", "G", "c1", 4) is None
+
+
+def test_query_spans_the_exemplar_locus_genes():
+    res, pos, locs = fixture()
+    assert dna_query(res, [11, 12], pos, locs) == (
+        "c1", 11001, 12800, [(1, 11001, 11800), (2, 12001, 12800)])
+
+
+def test_query_leaves_out_a_column_without_a_gene_model():
+    res, pos, locs = fixture()
+    del locs[("FULL", "B")]
+    assert dna_query(res, [11, 12], pos, locs)[3] == [(1, 11001, 11800)]
+
+
+def test_target_lies_between_the_inner_edges_of_the_innermost_flank_genes():
+    res, pos, locs = fixture()
+    assert dna_target(res, "EMPTY", pos, locs) == ("c1", 10801, 11000)
+    assert dna_target(res, "PART", pos, locs) == ("c1", 10801, 13000)
+
+
+def test_no_target_without_an_annotated_in_place_flank_gene():
+    res, pos, locs = fixture()
+    del locs[("EMPTY", "R1")]
+    assert dna_target(res, "EMPTY", pos, locs) is None
+
+
+def test_merge_intervals_joins_overlaps_and_neighbours():
+    assert merge_intervals([(5, 9), (1, 3), (4, 4), (20, 12)]) == [(1, 9), (12, 20)]
+
+
+def test_coverage_merges_hsps_and_ignores_low_identity():
+    hsps = [(1, 60, 99.0), (50, 100, 95.0), (101, 200, 80.0)]
+    assert gene_coverage(hsps, (1, 100), 90) == 1.0
+    assert gene_coverage(hsps, (1, 200), 90) == 0.5
+    assert gene_coverage([], (1, 10), 90) == 0.0
+
+
+def test_row_class_dna():
+    assert row_class_dna("1661", 1, 2, True) == "model_difference"
+    assert row_class_dna("1771", 1, 2, True) == "empty"
+    assert row_class_dna("1171", 1, 2, True) == "partial"
+    assert row_class_dna("1671", 1, 2, True) == "partial"
+    assert row_class_dna("1601", 1, 2, True) == "partial"
+    assert row_class_dna("1111", 1, 2, True) == "full"
+    assert row_class_dna("1661", 1, 2, False) == "uninformative"
+
+
+def test_dna_present_turns_an_empty_site_into_a_model_difference():
+    res, _, _ = fixture()
+    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}, "PART": {2: "absent"}}, SPECIES)
+    assert res["counts"] == {"full": 1, "partial": 1, "empty": 0, "model_difference": 1,
+                             "uninformative": 1}
+    assert res["_row_class"]["EMPTY"] == "model_difference"
+    assert [(r["row_class"], r["codes"]) for r in res["rows"]] == [
+        ("full", "1111"), ("partial", "1171"), ("model_difference", "1661"),
+        ("uninformative", "1155")]
+    assert res["dna"] == {"checked": 2, "unchecked": 0, "empty_confirmed": 0,
+                          "empty_to_model_difference": 1}
+    assert res["counts_by_species"]["sp2"]["model_difference"] == 1
+
+
+def test_breakpoints_count_only_in_place_to_dna_absent():
+    res, _, _ = fixture()
+    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}, "PART": {2: "absent"}}, SPECIES)
+    assert res["breakpoints"] == [
+        {"b": 2, "indel": {"sp1": 1}, "contig_break": 1},
+        {"b": 3, "indel": {"sp1": 1}, "contig_break": 0},
+    ]
+
+
+def test_dna_absent_confirms_the_empty_site():
+    res, _, _ = fixture()
+    apply_dna_calls(res, {"EMPTY": {1: "absent", 2: "absent"}}, SPECIES)
+    assert res["_row_class"]["EMPTY"] == "empty"
+    assert [r["codes"] for r in res["rows"] if r["row_class"] == "empty"] == ["1771"]
+    assert res["dna"]["empty_confirmed"] == 1 and res["dna"]["unchecked"] == 1
+
+
+def test_unchecked_strains_keep_their_states_and_do_not_count_as_confirmed():
+    res, _, _ = fixture()
+    apply_dna_calls(res, {"EMPTY": {1: "unchecked", 2: "unchecked"}}, SPECIES)
+    assert res["counts"]["empty"] == 1 and res["counts"]["model_difference"] == 0
+    assert res["dna"] == {"checked": 0, "unchecked": 2, "empty_confirmed": 0,
+                          "empty_to_model_difference": 0}
+
+
+def test_informative_score_uses_dna_confirmed_empty_sites_only():
+    res, _, _ = fixture()
+    for i in range(12):
+        res["_cells"][f"E{i}"] = res["_cells"]["EMPTY"]
+        res["_pairs"][f"E{i}"] = res["_pairs"]["EMPTY"]
+        res["_row_class"][f"E{i}"] = "empty"
+    for i in range(3):
+        res["_cells"][f"F{i}"] = res["_cells"]["FULL"]
+        res["_row_class"][f"F{i}"] = "full"
+    absent = {f"E{i}": {1: "absent", 2: "absent"} for i in range(12)}
+    apply_dna_calls(res, absent, SPECIES)
+    assert res["informative_score"] == 4
+    apply_dna_calls(res, {}, SPECIES)
+    assert res["informative_score"] == -1
+```
+
+
+- [ ] **Step 2: Run**
+
+```bash
+pixi run python -m pytest -q tests/test_island_locus_dna.py
+```
+
+Expected: FAIL: `ImportError: cannot import name 'apply_dna_calls'`
+
+
+- [ ] **Step 3: Make the change**
+
+Append to the end of `lib/island_locus.py`:
+
+```python
+
+
+# ---- 6b. DNA presence check (spec section 4b) ---------------------------------
+# Two more cell codes. The 3-bit payload codes (spec "Data and wiring") now
+# use all eight values 0-7.
+DNA_PRESENT = "6"  # absent or elsewhere, but the exemplar gene's DNA is at the site
+DNA_ABSENT = "7"  # absent, and the site lacks the exemplar gene's DNA
+DNA_STATE_LABELS = {DNA_PRESENT: "absent, DNA present", DNA_ABSENT: "absent, DNA absent"}
+# Cells the check can change (spec 4b: an "absent" or "elsewhere" locus cell).
+DNA_CHECKED_CODES = frozenset({ABSENT, ELSEWHERE, RESCUE_ELSEWHERE})
+DEFAULT_DNA_MIN_ID = 90.0
+DEFAULT_DNA_MIN_COV = 80.0
+DNA_MIN_TARGET_BP = 50
+# Breakpoint track with the check on: only in place <-> DNA absent counts
+# (spec 4b), so DNA absent is fed to breakpoint_track() as ABSENT and every
+# other not-in-place code as ELSEWHERE, which the track never counts.
+_DNA_TRACK = str.maketrans({ABSENT: ELSEWHERE, DNA_PRESENT: ELSEWHERE, DNA_ABSENT: ABSENT})
+
+
+def dna_checked_strains(result: dict) -> list[str]:
+    """Strains the DNA check covers for one computed locus (spec 4b): flank
+    intact, with at least one locus column not in place. Sorted."""
+    nl, nb = result["n_left"], result["n_locus"]
+    return sorted(s for s in result["_pairs"]
+                  if any(c not in IN_PLACE_CODES for c in result["_cells"][s].codes[nl:nl + nb]))
+
+
+def copy_bp(positions: Positions, gene_locs: dict, strain: str, family: str,
+            contig: str, rank: int) -> tuple[int, int] | None:
+    """(start, end) in bp of the annotated copy of `family` at (contig, rank).
+
+    A family's copies on one contig in rank order are its gene_positions
+    copies in start order, because ranks enumerate genes sorted by (contig,
+    start) (Ruling R19). None when the copy is a TBLASTN rescue hit (no gene
+    model) or the two copy counts differ."""
+    ranks = sorted(r for c, r in positions.get((strain, family), ()) if c == contig)
+    genes = sorted((s, e) for _pid, c, s, e in gene_locs.get((strain, family), ()) if c == contig)
+    if rank not in ranks or len(ranks) != len(genes):
+        return None
+    return genes[ranks.index(rank)]
+
+
+def dna_query(result: dict, exemplar_ranks: list[int], positions: Positions,
+              gene_locs: dict) -> tuple[str, int, int, list] | None:
+    """The exemplar's locus DNA (spec 4b): (contig, start, end, genes) with
+    genes = [(column, gene start, gene end)], from the first locus gene's
+    start to the last one's end. `exemplar_ranks` are the ranks of the locus
+    columns in the exemplar, in column order. Columns without a gene model
+    (rescue hits) are left out and stay unchecked. None if no column has one."""
+    nl = result["n_left"]
+    fams = result["families"]
+    genes = []
+    for i, rank in enumerate(exemplar_ranks):
+        bp = copy_bp(positions, gene_locs, result["exemplar"], fams[nl + i],
+                     result["exemplar_contig"], rank)
+        if bp is not None:
+            genes.append((nl + i, bp[0], bp[1]))
+    if not genes:
+        return None
+    return (result["exemplar_contig"], min(g[1] for g in genes), max(g[2] for g in genes), genes)
+
+
+def dna_target(result: dict, strain: str, positions: Positions, gene_locs: dict,
+               k: int = DEFAULT_K) -> tuple[str, int, int] | None:
+    """The strain's target DNA (spec 4b): (contig, start, end), 1-based,
+    between the inner edges of its innermost in-place left-flank gene and
+    innermost in-place right-flank gene, on its flank-pair contig. Only
+    copies within n_locus + 2k ranks of the pair count (as in Ruling R11),
+    and only annotated copies (a bp position is needed). Innermost = the
+    flank column nearest the locus; ties between copies of that column go
+    to the copy nearest the pair. end < start when the two genes touch or
+    overlap: the target is then empty. None when either side has no
+    annotated in-place copy (Ruling R20)."""
+    nl, nb = result["n_left"], result["n_locus"]
+    fams = result["families"]
+    contig, p_lo, p_hi = result["_pairs"][strain]
+    w = nb + 2 * k
+    mid = (p_lo + p_hi) / 2
+    left, right = [], []
+    for ci, c, r in result["_cells"][strain].in_place_copies:
+        if c != contig or not p_lo - w <= r <= p_hi + w or nl <= ci < nl + nb:
+            continue
+        bp = copy_bp(positions, gene_locs, strain, fams[ci], c, r)
+        if bp is not None:
+            (left if ci < nl else right).append((ci, abs(r - mid), bp))
+    if not left or not right:
+        return None
+    a = min(left, key=lambda x: (-x[0], x[1]))[2]
+    b = min(right, key=lambda x: (x[0], x[1]))[2]
+    lower, upper = sorted([a, b])
+    return contig, lower[1] + 1, upper[0] - 1
+
+
+def merge_intervals(intervals) -> list[tuple[int, int]]:
+    """Union of closed integer intervals, sorted."""
+    out: list[list[int]] = []
+    for lo, hi in sorted((min(a, b), max(a, b)) for a, b in intervals):
+        if out and lo <= out[-1][1] + 1:
+            out[-1][1] = max(out[-1][1], hi)
+        else:
+            out.append([lo, hi])
+    return [(lo, hi) for lo, hi in out]
+
+
+def gene_coverage(hsps, gene: tuple[int, int], min_id: float = DEFAULT_DNA_MIN_ID) -> float:
+    """Fraction of `gene` (query coordinates, closed) covered by the union of
+    HSPs [(qstart, qend, pident)] with pident >= min_id (spec 4b: HSPs are
+    merged where they overlap, so two HSPs over one gene add up)."""
+    g0, g1 = gene
+    kept = merge_intervals((q0, q1) for q0, q1, pid in hsps if pid >= min_id)
+    covered = sum(max(0, min(hi, g1) - max(lo, g0) + 1) for lo, hi in kept)
+    return covered / (g1 - g0 + 1)
+
+
+def row_class_dna(codes, n_left: int, n_locus: int, intact: bool,
+                  empty_frac: float = DEFAULT_EMPTY_FRAC) -> str:
+    """Row class of a DNA-checked strain (spec 4b): empty site = >= empty_frac
+    of the locus columns DNA absent; full = all in place; model difference =
+    every column in place or DNA present, at least one DNA present; anything
+    else is partial (Ruling R21)."""
+    if not intact:
+        return "uninformative"
+    block = codes[n_left:n_left + n_locus]
+    if block and sum(c == DNA_ABSENT for c in block) / len(block) >= empty_frac:
+        return "empty"
+    if all(c in IN_PLACE_CODES for c in block):
+        return "full"
+    if all(c in IN_PLACE_CODES or c == DNA_PRESENT for c in block):
+        return "model_difference"
+    return "partial"
+
+
+def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: dict[str, str],
+                    empty_frac: float = DEFAULT_EMPTY_FRAC) -> None:
+    """Apply one locus's DNA calls in place (spec 4b).
+
+    `calls` = {strain: {column: "present" | "absent" | "unchecked"}}. In a
+    strain with at least one present/absent call, each ABSENT / ELSEWHERE /
+    RESCUE_ELSEWHERE locus cell with a call becomes DNA_PRESENT or
+    DNA_ABSENT, and the row class comes from row_class_dna(). Other strains
+    keep their section 4-5 states. Recomputes counts (with a
+    "model_difference" count), counts_by_species, rows, the breakpoint track
+    (in place <-> DNA absent only) and the informative score, which counts
+    only DNA-confirmed empty-site strains (Ruling R22). Adds `dna` =
+    {checked, unchecked, empty_confirmed, empty_to_model_difference}."""
+    nl, nb = result["n_left"], result["n_locus"]
+    need = set(dna_checked_strains(result))
+    per_strain: dict[str, tuple[str, str]] = {}
+    details: dict[str, list] = {}
+    counts = {c: 0 for c in ROW_ORDER}
+    by_species: dict[str, dict[str, int]] = {}
+    track = []
+    summary = {"checked": 0, "unchecked": 0, "empty_confirmed": 0, "empty_to_model_difference": 0}
+    for s, sc in result["_cells"].items():
+        cls = result["_row_class"][s]
+        codes = list(sc.codes)
+        col_calls = calls.get(s, {}) if s in need else {}
+        if any(v in ("present", "absent") for v in col_calls.values()):
+            for ci, v in col_calls.items():
+                if nl <= ci < nl + nb and codes[ci] in DNA_CHECKED_CODES and v in ("present", "absent"):
+                    codes[ci] = DNA_PRESENT if v == "present" else DNA_ABSENT
+            new_cls = row_class_dna(codes, nl, nb, True, empty_frac)
+            summary["checked"] += 1
+            summary["empty_confirmed"] += new_cls == "empty"
+            summary["empty_to_model_difference"] += cls == "empty" and new_cls == "model_difference"
+            cls = new_cls
+        elif s in need:
+            summary["unchecked"] += 1
+        code_str = "".join(codes)
+        per_strain[s] = (cls, code_str)
+        details[s] = sc.detail
+        counts[cls] += 1
+        sp = species_of.get(s, "")
+        by_species.setdefault(sp, {c: 0 for c in ROW_ORDER})[cls] += 1
+        track.append((sp, cls, code_str.translate(_DNA_TRACK)))
+    result["counts"] = counts
+    result["counts_by_species"] = dict(sorted(by_species.items()))
+    result["rows"] = collapse_rows(per_strain, details)
+    result["breakpoints"] = breakpoint_track(track, len(result["families"]))
+    result["informative_score"] = informative_score(
+        {"empty": summary["empty_confirmed"], "full": counts["full"]})
+    result["dna"] = summary
+    result["_row_class"] = {s: v[0] for s, v in per_strain.items()}
+```
+
+
+- [ ] **Step 4: Run**
+
+```bash
+pixi run python -m pytest -q tests/test_island_locus_dna.py tests/test_island_locus.py
+```
+
+Expected: 56 passed
+
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/island_locus.py tests/test_island_locus_dna.py
+git commit -m "island locus view: DNA presence states and the model-difference class (spec section 4b) (#${ISSUE_A})" \
+  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+
+### Task 15: `bin/pangenome_island_dna_check.py`: blastn megablast per (locus, strain)
+
+**Files:**
+- Create: `bin/pangenome_island_dna_check.py`
+- Create: `tests/test_pangenome_island_dna_check.py`
+
+**Interfaces:**
+- Consumes: a `batch_NNN.tsv` work list (columns `locus_id role strain contig start end genes`; Task 16 writes it); `gene_coverage`, `DNA_MIN_TARGET_BP`, `DEFAULT_DNA_MIN_ID`, `DEFAULT_DNA_MIN_COV` (Task 14); the samplesheet (`Short`, `DNA`) and `data_dir/dna/`.
+- Produces: `read_targets(path) -> {locus_id: {'query': row, 'targets': [row]}}`; `read_fasta_slices(path, wanted: {contig: {(start, end)}}) -> {(contig, start, end): seq}`; `blastn_hsps(query_fa, subject_fa, blastn) -> [(qstart, qend, pident)]`; `check_batch(loci, genome_of, blastn='blastn', min_id=90, min_cov=80, cpus=1) -> list[row]`; `genome_paths(config, data_dir) -> {Short: path}`; `main(argv=None) -> int`. Output TSV `locus_id strain col status coverage` with `status` in `present | absent | unchecked`.
+
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tests/test_pangenome_island_dna_check.py`:
+
+```python
+"""bin/pangenome_island_dna_check.py (spec section 4b) on synthetic genomes.
+The exemplar EX carries flank + gene A + gene B + flank; KEEP has the same
+DNA (a gene-model difference), GONE lacks both genes (a deletion), HALF
+lacks gene B. Needs blastn (the NovInvenio pixi env has it)."""
+import csv
+import gzip
+import random
+import shutil
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
+from pangenome_island_dna_check import main, read_fasta_slices  # noqa: E402
+
+rng = random.Random(7)
+
+
+def dna(n: int) -> str:
+    return "".join(rng.choice("ACGT") for _ in range(n))
+
+
+LEFT, GENE_A, GENE_B, RIGHT = dna(1000), dna(600), dna(700), dna(1000)
+SPACER = dna(100)
+
+
+def write_case(d: Path, gz: bool = False) -> Path:
+    genomes = {
+        "EX": LEFT + GENE_A + SPACER + GENE_B + RIGHT,
+        "KEEP": LEFT + GENE_A + SPACER + GENE_B + RIGHT,
+        "GONE": LEFT + SPACER + RIGHT,
+        "HALF": LEFT + GENE_A + SPACER + RIGHT,
+    }
+    (d / "dna").mkdir()
+    lines = ["GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup"]
+    for s, seq in genomes.items():
+        name = f"{s}.dna.fa" + (".gz" if gz else "")
+        text = f">other desc\nACGT\n>ctg{s} x\n" + "\n".join(seq[i:i + 60] for i in range(0, len(seq), 60)) + "\n"
+        if gz:
+            with gzip.open(d / "dna" / name, "wt") as fh:
+                fh.write(text)
+        else:
+            (d / "dna" / name).write_text(text)
+        lines.append(f"IN,Sp,{s},{s}.pep.fa,{name},{s}.gff3,{s},t")
+    lines.append("IN,Sp,NOFILE,x.pep.fa,missing.fa,x.gff3,NOFILE,t")
+    (d / "config.csv").write_text("\n".join(lines) + "\n")
+    a0, a1 = 1001, 1600
+    b0, b1 = 1701, 2400
+    rows = ["locus_id\trole\tstrain\tcontig\tstart\tend\tgenes",
+            f"L\tquery\tEX\tctgEX\t{a0}\t{b1}\t5:{a0}-{a1};6:{b0}-{b1}",
+            f"L\ttarget\tKEEP\tctgKEEP\t1001\t{b1}\t",
+            "L\ttarget\tGONE\tctgGONE\t1001\t1100\t",
+            "L\ttarget\tHALF\tctgHALF\t1001\t1700\t",
+            "L\ttarget\tSHORT\tctgGONE\t1001\t1040\t",
+            "L\ttarget\tNOPAIR\t-\t0\t0\t",
+            "L\ttarget\tNOFILE\tctgX\t1\t500\t"]
+    (d / "targets.tsv").write_text("\n".join(rows) + "\n")
+    return d / "calls.tsv"
+
+
+def calls(path: Path) -> dict:
+    with open(path) as fh:
+        return {(r["strain"], r["col"]): r["status"] for r in csv.DictReader(fh, delimiter="\t")}
+
+
+def run(d: Path, blastn: str = "blastn") -> dict:
+    out = d / "calls.tsv"
+    assert main(["--targets", str(d / "targets.tsv"), "--config", str(d / "config.csv"),
+                 "--data_dir", str(d), "--blastn", blastn, "--cpus", "2",
+                 "--output", str(out)]) == 0
+    return calls(out)
+
+
+needs_blastn = pytest.mark.skipif(not shutil.which("blastn"), reason="blastn not on PATH")
+
+
+@needs_blastn
+def test_same_dna_is_present_and_a_deletion_is_absent(tmp_path):
+    write_case(tmp_path)
+    got = run(tmp_path)
+    assert got[("KEEP", "5")] == "present" and got[("KEEP", "6")] == "present"
+    assert got[("GONE", "5")] == "absent" and got[("GONE", "6")] == "absent"
+    assert got[("HALF", "5")] == "present" and got[("HALF", "6")] == "absent"
+
+
+@needs_blastn
+def test_gzipped_genomes_are_read(tmp_path):
+    write_case(tmp_path, gz=True)
+    assert run(tmp_path)[("KEEP", "6")] == "present"
+
+
+def test_short_target_is_absent_and_missing_ones_are_unchecked_without_blastn(tmp_path):
+    write_case(tmp_path)
+    # Leave only targets that need no alignment; a blastn call would fail.
+    rows = (tmp_path / "targets.tsv").read_text().splitlines()
+    keep = [r for r in rows if "\tKEEP\t" not in r and "\tGONE\t" not in r and "\tHALF\t" not in r]
+    (tmp_path / "targets.tsv").write_text("\n".join(keep) + "\n")
+    got = run(tmp_path, blastn=str(tmp_path / "no-such-blastn"))
+    assert got[("SHORT", "5")] == "absent" and got[("SHORT", "6")] == "absent"
+    assert got[("NOPAIR", "5")] == "unchecked"
+    assert got[("NOFILE", "6")] == "unchecked"
+
+
+def test_read_fasta_slices_uses_the_first_header_word(tmp_path):
+    p = tmp_path / "g.fa"
+    p.write_text(">c1 desc\nACGT\nTTGG\n>c2\nAAAA\n")
+    assert read_fasta_slices(str(p), {"c1": {(3, 6)}, "c9": {(1, 2)}}) == {("c1", 3, 6): "GTTT"}
+```
+
+
+- [ ] **Step 2: Run**
+
+```bash
+pixi run python -m pytest -q tests/test_pangenome_island_dna_check.py
+```
+
+Expected: FAIL: `ModuleNotFoundError: No module named 'pangenome_island_dna_check'`
+
+
+- [ ] **Step 3: Make the change**
+
+Create `bin/pangenome_island_dna_check.py`:
 
 ```python
 #!/usr/bin/env python3
-"""Sequence spot check of locus-view calls (spec validation plan item 3).
+"""DNA presence check for the island locus view (spec
+docs/superpowers/specs/2026-09-24-island-locus-view-design.md, section 4b).
 
-Throwaway controller tool: keep it in $SCRATCH, never commit it.
+Input: one batch_NNN.tsv work list from bin/pangenome_island_loci.py
+--dna_targets_dir (columns locus_id, role, strain, contig, start, end,
+genes). Per locus, the query row is the exemplar's locus DNA and each target
+row is one checked strain's DNA between its flank genes.
 
-For one locus of island_loci.json, a reference strain (a full-locus strain)
-and a query strain: take each strain's region on the contig holding most of
-its flank-family genes (bp span of those genes, from gene_positions + the
-tier-1 cluster TSV), extract the DNA from the study data_dir, align query to
-reference with blastn, and for every locus column report whether the
-reference gene is covered (>= 80% of its length) by a query HSP. A column
-agrees when "covered" matches the query's call (in place/rescue in place =
-covered; absent/contig break = not covered).
+For every (locus, strain) this runs `blastn -task megablast` with the query
+against the target (subject mode). A locus column is DNA present when HSPs
+with identity >= --min_id cover >= --min_cov % of that exemplar gene's span
+(overlapping HSPs are merged). A target shorter than 50 bp is DNA absent in
+every column without an alignment. A strain without a target interval, or
+whose genome FASTA is missing, is "unchecked".
 
-Usage (NovInvenio pixi env: biopython + blastn):
-  python spotcheck_locus_calls.py --loci_json island_loci.json --locus L001 \
-      --ref UTAH_20380X16 --query UTAH_20380X10 --config config.csv \
-      --data_dir data_dir --gene_positions gene_positions.tsv.zst \
-      --cluster_tsv cluster/tier1_cluster.tsv
+Each strain's genome FASTA (data_dir/dna/<DNA column of the samplesheet>,
+plain, .gz or .zst) is read once per batch.
+
+Output: TSV locus_id, strain, col, status (present | absent | unchecked),
+coverage (fraction of the gene span, 3 decimals).
 """
+from __future__ import annotations
+
 import argparse
 import collections
-import json
+import csv
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-NOVINVENIO = Path("/bigdata/stajichlab/jstajich/projects/NovInvenio-worktrees/locus-view-a")
-sys.path.insert(0, str(NOVINVENIO / "lib"))
-sys.path.insert(0, str(NOVINVENIO / "bin"))
-from Bio import SeqIO  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from compressed_io import open_maybe_compressed  # noqa: E402
 from config_parser import parse_config  # noqa: E402
-from pangenome_island_synteny import load_gene_locations  # noqa: E402
+from island_locus import (  # noqa: E402
+    DEFAULT_DNA_MIN_COV, DEFAULT_DNA_MIN_ID, DNA_MIN_TARGET_BP, gene_coverage,
+)
+
+CALL_COLUMNS = ["locus_id", "strain", "col", "status", "coverage"]
 
 
-def region(locs, strain, flank_fams, pad=0):
-    by_contig = collections.defaultdict(list)
-    for f in flank_fams:
-        for _pid, contig, start, end in locs.get((strain, f), []):
-            by_contig[contig].append((start, end))
-    if not by_contig:
-        return None
-    contig = max(by_contig, key=lambda c: len(by_contig[c]))
-    spans = by_contig[contig]
-    return contig, max(1, min(s for s, _ in spans) - pad), max(e for _, e in spans) + pad
+def read_targets(path: str) -> dict[str, dict]:
+    """{locus_id: {"query": row, "targets": [row, ...]}} in file order.
+    Rows are dicts with int start/end; the query row gains "genes" =
+    [(col, start, end)]."""
+    loci: dict[str, dict] = {}
+    with open_maybe_compressed(path) as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            row["start"], row["end"] = int(row["start"]), int(row["end"])
+            entry = loci.setdefault(row["locus_id"], {"query": None, "targets": []})
+            if row["role"] == "query":
+                genes = []
+                for part in filter(None, row["genes"].split(";")):
+                    col, span = part.split(":")
+                    a, b = span.split("-")
+                    genes.append((int(col), int(a), int(b)))
+                row["genes"] = genes
+                entry["query"] = row
+            else:
+                entry["targets"].append(row)
+    return loci
 
 
-def fetch(fasta, contig, start, end):
-    with open_maybe_compressed(str(fasta)) as fh:
-        for rec in SeqIO.parse(fh, "fasta"):
-            if rec.id == contig:
-                return str(rec.seq[start - 1:end])
-    raise SystemExit(f"{contig} not in {fasta}")
-
-
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    for a in ("--loci_json", "--locus", "--ref", "--query", "--config", "--data_dir",
-              "--gene_positions", "--cluster_tsv"):
-        ap.add_argument(a, required=True)
-    ap.add_argument("--id_sep", default="|")
-    a = ap.parse_args()
-    loc = next(x for x in json.loads(Path(a.loci_json).read_text())["loci"] if x["key"] == a.locus)
-    fams = loc["families"]
-    nl, nb = loc["n_left"], loc["n_locus"]
-    flank = fams[:nl] + fams[nl + nb:]
-    locus_fams = fams[nl:nl + nb]
-    codes = next(r["codes"] for r in loc["rows"] if a.query in r["strains"])
-    locs = load_gene_locations(a.cluster_tsv, a.gene_positions, set(fams), {a.ref, a.query}, a.id_sep)
-    samples = {s.short: s for s in parse_config(a.config)}
-    seqs = {}
-    regs = {}
-    for s in (a.ref, a.query):
-        reg = region(locs, s, flank)
-        if reg is None:
-            raise SystemExit(f"{s}: no flank genes placed")
-        regs[s] = reg
-        dna = Path(a.data_dir) / "dna" / samples[s].dna
-        seqs[s] = fetch(dna, *reg)
-    r_contig, r_start, _ = regs[a.ref]
-    with tempfile.TemporaryDirectory() as t:
-        for s in (a.ref, a.query):
-            Path(t, f"{s}.fa").write_text(f">{s}\n{seqs[s]}\n")
-        out = subprocess.run(["blastn", "-query", f"{t}/{a.query}.fa", "-subject", f"{t}/{a.ref}.fa",
-                              "-outfmt", "6 sstart send pident length", "-evalue", "1e-20"],
-                             capture_output=True, text=True, check=True).stdout
-    hsps = [tuple(float(v) for v in line.split("\t")) for line in out.splitlines() if line]
-    print(f"{a.locus} ref {a.ref} {regs[a.ref]}  query {a.query} {regs[a.query]}  codes {codes}")
-    agree = 0
-    for i, f in enumerate(locus_fams):
-        copies = [c for c in locs.get((a.ref, f), []) if c[1] == r_contig]
-        if not copies:
-            print(f"  {f}: reference has no copy on {r_contig}")
+def read_fasta_slices(path: str, wanted: dict[str, set[tuple[int, int]]]) -> dict:
+    """{(contig, start, end): sequence} for 1-based closed intervals on the
+    contigs named in `wanted`; the contig name is the header's first word.
+    The file is read once, whole (a fungal genome is tens of MB)."""
+    out = {}
+    with open_maybe_compressed(path) as fh:
+        text = fh.read()
+    for record in text.split("\n>"):
+        record = record.lstrip(">")
+        head, _, body = record.partition("\n")
+        name = head.split(None, 1)[0] if head.strip() else ""
+        if name not in wanted:
             continue
-        _pid, _c, gs, ge = min(copies, key=lambda c: c[2])
-        gs, ge = gs - r_start + 1, ge - r_start + 1
-        cov = 0
-        for s0, s1, _pid2, _len in hsps:
-            lo, hi = min(s0, s1), max(s0, s1)
-            cov = max(cov, max(0, min(hi, ge) - max(lo, gs) + 1))
-        covered = cov >= 0.8 * (ge - gs + 1)
-        call = codes[nl + i]
-        expect_cov = call in "13"
-        ok = covered == expect_cov
-        agree += ok
-        print(f"  {f}: call {call}, ref gene {gs:.0f}-{ge:.0f}, covered {covered} -> "
-              f"{'agrees' if ok else 'DISAGREES'}")
-    print(f"{agree}/{len(locus_fams)} locus columns agree")
+        seq = body.replace("\n", "").replace("\r", "")
+        for start, end in wanted[name]:
+            out[(name, start, end)] = seq[start - 1:end]
+    return out
+
+
+def blastn_hsps(query_fa: Path, subject_fa: Path, blastn: str) -> list[tuple[int, int, float]]:
+    """[(qstart, qend, pident)] of blastn -task megablast, query vs subject."""
+    proc = subprocess.run([blastn, "-task", "megablast", "-query", str(query_fa),
+                           "-subject", str(subject_fa), "-outfmt", "6 qstart qend pident"],
+                          capture_output=True, text=True, check=True)
+    hsps = []
+    for line in proc.stdout.splitlines():
+        q0, q1, pid = line.split("\t")
+        hsps.append((int(q0), int(q1), float(pid)))
+    return hsps
+
+
+def check_batch(loci: dict[str, dict], genome_of: dict[str, str], blastn: str = "blastn",
+                min_id: float = DEFAULT_DNA_MIN_ID, min_cov: float = DEFAULT_DNA_MIN_COV,
+                cpus: int = 1) -> list[list]:
+    """Call rows (CALL_COLUMNS order) for every (locus, target strain, query
+    gene column). `genome_of` maps strain -> genome FASTA path."""
+    wanted: dict[str, dict[str, set]] = collections.defaultdict(lambda: collections.defaultdict(set))
+    for entry in loci.values():
+        q = entry["query"]
+        wanted[q["strain"]][q["contig"]].add((q["start"], q["end"]))
+        for t in entry["targets"]:
+            if t["contig"] != "-" and t["end"] - t["start"] + 1 >= DNA_MIN_TARGET_BP:
+                wanted[t["strain"]][t["contig"]].add((t["start"], t["end"]))
+    seqs: dict[tuple[str, str, int, int], str] = {}
+    for strain, contigs in sorted(wanted.items()):
+        path = genome_of.get(strain)
+        if not path or not Path(path).is_file():
+            print(f"WARNING: no genome FASTA for {strain}; its targets are unchecked",
+                  file=sys.stderr)
+            continue
+        for (contig, start, end), seq in read_fasta_slices(path, contigs).items():
+            seqs[(strain, contig, start, end)] = seq
+
+    rows = []
+    with tempfile.TemporaryDirectory() as tmp:
+        jobs = []
+        for n, (locus_id, entry) in enumerate(loci.items()):
+            q = entry["query"]
+            qseq = seqs.get((q["strain"], q["contig"], q["start"], q["end"]))
+            genes = [(col, a - q["start"] + 1, b - q["start"] + 1) for col, a, b in q["genes"]]
+            qfa = Path(tmp, f"q{n}.fa")
+            if qseq:
+                qfa.write_text(f">query\n{qseq}\n")
+            for m, t in enumerate(entry["targets"]):
+                length = t["end"] - t["start"] + 1
+                key = (t["strain"], t["contig"], t["start"], t["end"])
+                if not qseq or t["contig"] == "-" or (length >= DNA_MIN_TARGET_BP and key not in seqs):
+                    rows += [[locus_id, t["strain"], col, "unchecked", ""] for col, _, _ in genes]
+                elif length < DNA_MIN_TARGET_BP:
+                    rows += [[locus_id, t["strain"], col, "absent", "0.000"] for col, _, _ in genes]
+                else:
+                    tfa = Path(tmp, f"t{n}_{m}.fa")
+                    tfa.write_text(f">target\n{seqs[key]}\n")
+                    jobs.append((locus_id, t["strain"], genes, qfa, tfa))
+
+        def run(job):
+            locus_id, strain, genes, qfa, tfa = job
+            hsps = blastn_hsps(qfa, tfa, blastn)
+            out = []
+            for col, g0, g1 in genes:
+                cov = gene_coverage(hsps, (g0, g1), min_id)
+                status = "present" if cov * 100 >= min_cov else "absent"
+                out.append([locus_id, strain, col, status, f"{cov:.3f}"])
+            return out
+
+        with ThreadPoolExecutor(max_workers=max(1, cpus)) as pool:
+            for out in pool.map(run, jobs):
+                rows += out
+    return rows
+
+
+def genome_paths(config: str, data_dir: str) -> dict[str, str]:
+    """{Short: data_dir/dna/<DNA>} from the samplesheet."""
+    return {s.short: str(Path(data_dir) / "dna" / s.dna) for s in parse_config(config)}
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--targets", required=True, help="batch_NNN.tsv from pangenome_island_loci.py")
+    ap.add_argument("--config", required=True, help="samplesheet CSV (Short, DNA columns)")
+    ap.add_argument("--data_dir", required=True, help="study data_dir holding dna/")
+    ap.add_argument("--min_id", type=float, default=DEFAULT_DNA_MIN_ID,
+                    help="minimum HSP identity, percent (default 90)")
+    ap.add_argument("--min_cov", type=float, default=DEFAULT_DNA_MIN_COV,
+                    help="minimum covered share of an exemplar gene, percent (default 80)")
+    ap.add_argument("--cpus", type=int, default=1, help="parallel blastn calls")
+    ap.add_argument("--blastn", default="blastn")
+    ap.add_argument("--output", required=True)
+    args = ap.parse_args(argv)
+    loci = read_targets(args.targets)
+    rows = check_batch(loci, genome_paths(args.config, args.data_dir), args.blastn,
+                       args.min_id, args.min_cov, args.cpus)
+    with open(args.output, "w", newline="") as fh:
+        w = csv.writer(fh, delimiter="\t", lineterminator="\n")
+        w.writerow(CALL_COLUMNS)
+        w.writerows(rows)
+    status = collections.Counter(r[3] for r in rows)
+    print(f"pangenome_island_dna_check: {len(loci)} loci, "
+          f"{sum(len(e['targets']) for e in loci.values())} strains checked; cells "
+          f"{dict(sorted(status.items()))}; wrote {args.output}", file=sys.stderr)
     return 0
 
 
@@ -3711,52 +4334,1141 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-
-- [ ] **Step 3: Read this first**
-
-Pick the strains from `island_loci.json`: for each of loci `L001`-`L005`, one full-locus strain as `--ref`, one empty-site strain and one partial strain as `--query` (the first strain of the largest `empty` and `partial` rows). Run each pair:
+Make it executable: `chmod +x bin/pangenome_island_dna_check.py`.
 
 
 - [ ] **Step 4: Run**
 
 ```bash
-cd "${SCRATCH:?}/lv_real"
-export PATH="/bigdata/stajichlab/jstajich/projects/NovInvenio-worktrees/locus-view-a/.pixi/envs/default/bin:$PATH"
+pixi run python -m pytest -q tests/test_pangenome_island_dna_check.py
+```
+
+Expected: 4 passed (blastn comes from the pixi env; without it 2 tests skip)
+
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add bin/pangenome_island_dna_check.py tests/test_pangenome_island_dna_check.py
+git commit -m "island locus view: blastn DNA presence check per locus and strain (spec section 4b) (#${ISSUE_A})" \
+  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+
+### Task 16: `pangenome_island_loci.py`: DNA pass 1 (work lists) and pass 2 (apply the calls)
+
+**Files:**
+- Modify: `bin/pangenome_island_loci.py`
+- Create: `tests/test_pangenome_island_loci_dna.py`
+
+**Interfaces:**
+- Consumes: `dna_checked_strains`, `dna_query`, `dna_target`, `apply_dna_calls` (Task 14); `load_gene_locations` (already imported); the Task 15 call TSV.
+- Produces: flags `--dna_targets_dir DIR`, `--dna_batch N` (50), `--dna_check true|false` (false), `--dna_calls FILE...`, `--dna_min_id` (90), `--dna_min_cov` (80); `dna_target_rows(drawn, exemplar_ranks, positions, gene_locs, k) -> list[list[row]]`; `write_dna_targets(out_dir, blocks, batch) -> list[Path]` (`batch_001.tsv`, ...); `read_dna_calls(paths) -> {locus_id: {strain: {col: status}}}`; `DNA_TARGET_COLUMNS`, `DNA_CALL_COLUMNS`; `locus_params` gains `dna_check`, `dna_min_id`, `dna_min_cov`; with the check on, each page entry gains `dna` and `counts.model_difference`, and the drawn loci are re-ordered before their keys are given (Ruling R17).
+
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tests/test_pangenome_island_loci_dna.py`:
+
+```python
+"""bin/pangenome_island_loci.py, the two DNA check passes (spec section
+4b): pass 1 writes the work list (--dna_targets_dir), pass 2 applies the
+calls (--dna_check true --dna_calls). Uses the four-strain fixture of
+tests/test_pangenome_island_loci.py: S1 and S2 carry the locus (A, B at
+ranks 5-6 on c1), S3 has the flanks only, S4 is uninformative. Every gene
+at rank r is at bp r*1000+1 .. r*1000+800."""
+import csv
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
+from pangenome_island_loci import main  # noqa: E402
+from test_pangenome_island_loci import LEFT, RIGHT, run, write_fixture  # noqa: E402
+
+
+def write_genes(d: Path) -> list[str]:
+    genes = ["Short\tprotein_id\tcontig\tstart\tend"]
+    cluster = []
+    orders = {"S1": LEFT + ["A", "B"] + RIGHT, "S2": LEFT + ["A", "B"] + RIGHT,
+              "S3": LEFT + RIGHT}
+    for s, fams in orders.items():
+        for r, f in enumerate(fams):
+            genes.append(f"{s}\t{s}_{f}\tc1\t{r * 1000 + 1}\t{r * 1000 + 800}")
+            cluster.append(f"{f}\t{s}|{s}_{f}")
+    genes.append("S4\tS4_F1\tc9\t1\t800")
+    cluster.append("F1\tS4|S4_F1")
+    (d / "genes.tsv").write_text("\n".join(genes) + "\n")
+    (d / "cluster.tsv").write_text("\n".join(cluster) + "\n")
+    return ["--gene_positions", str(d / "genes.tsv"), "--cluster_tsv", str(d / "cluster.tsv")]
+
+
+def rows_of(path: Path) -> list[dict]:
+    with open(path) as fh:
+        return list(csv.DictReader(fh, delimiter="\t"))
+
+
+def test_pass_1_writes_the_query_and_one_target_per_checked_strain(tmp_path):
+    write_fixture(tmp_path)
+    run(tmp_path, *write_genes(tmp_path), "--dna_targets_dir", str(tmp_path / "t"))
+    rows = rows_of(tmp_path / "t" / "batch_001.tsv")
+    assert [(r["role"], r["strain"]) for r in rows] == [("query", "S2"), ("target", "S3")]
+    q, t = rows
+    assert (q["contig"], q["start"], q["end"], q["genes"]) == ("c1", "5001", "6800",
+                                                               "5:5001-5800;6:6001-6800")
+    assert (t["contig"], t["start"], t["end"]) == ("c1", "4801", "5000")
+
+
+def test_pass_1_batches_loci(tmp_path):
+    write_fixture(tmp_path)
+    run(tmp_path, *write_genes(tmp_path), "--dna_targets_dir", str(tmp_path / "t"),
+        "--dna_batch", "1")
+    assert sorted(p.name for p in (tmp_path / "t").iterdir()) == ["batch_001.tsv"]
+
+
+def test_pass_1_needs_gene_positions(tmp_path):
+    write_fixture(tmp_path)
+    with pytest.raises(SystemExit, match="needs --gene_positions"):
+        run(tmp_path, "--dna_targets_dir", str(tmp_path / "t"))
+
+
+def write_calls(d: Path, status: str) -> str:
+    path = d / "dna_calls_batch_001.tsv"
+    path.write_text("locus_id\tstrain\tcol\tstatus\tcoverage\n"
+                    f"S1:c1:100-200\tS3\t5\t{status}\t1.000\n"
+                    f"S1:c1:100-200\tS3\t6\t{status}\t1.000\n")
+    return str(path)
+
+
+def test_pass_2_dna_present_makes_the_empty_site_a_model_difference(tmp_path):
+    write_fixture(tmp_path)
+    data = run(tmp_path, "--dna_check", "true", "--dna_calls", write_calls(tmp_path, "present"))
+    (locus,) = data["loci"]
+    assert locus["counts"] == {"full": 2, "partial": 0, "empty": 0, "model_difference": 1,
+                               "uninformative": 1}
+    assert [r["codes"] for r in locus["rows"] if r["row_class"] == "model_difference"] == [
+        "11111" + "66" + "11111"]
+    assert locus["dna"]["empty_to_model_difference"] == 1
+    assert data["locus_params"]["dna_check"] is True
+    assert data["locus_params"]["dna_min_id"] == 90.0
+
+
+def test_pass_2_dna_absent_confirms_the_empty_site(tmp_path):
+    write_fixture(tmp_path)
+    (locus,) = run(tmp_path, "--dna_check", "true",
+                   "--dna_calls", write_calls(tmp_path, "absent"))["loci"]
+    assert locus["counts"]["empty"] == 1 and locus["dna"]["empty_confirmed"] == 1
+
+
+def test_without_the_check_the_payload_says_so(tmp_path):
+    data = run(tmp_path)
+    assert data["locus_params"]["dna_check"] is False
+    assert "dna" not in data["loci"][0]
+
+
+def test_empty_calls_file_leaves_checked_strains_unchecked(tmp_path):
+    write_fixture(tmp_path)
+    (tmp_path / "none.tsv").write_text("")
+    (locus,) = run(tmp_path, "--dna_check", "true",
+                   "--dna_calls", str(tmp_path / "none.tsv"))["loci"]
+    assert locus["counts"]["empty"] == 1
+    assert locus["dna"] == {"checked": 0, "unchecked": 1, "empty_confirmed": 0,
+                            "empty_to_model_difference": 0}
+
+
+def test_cli_accepts_several_calls_files(tmp_path):
+    write_fixture(tmp_path)
+    first = write_calls(tmp_path, "present")
+    (tmp_path / "other.tsv").write_text("locus_id\tstrain\tcol\tstatus\tcoverage\n")
+    out = tmp_path / "o.json"
+    assert main(["--islands_with_domains", str(tmp_path / "islands.tsv"),
+                 "--presence_matrix", str(tmp_path / "matrix.tsv"),
+                 "--family_positions", str(tmp_path / "family_positions.tsv"),
+                 "--dna_check", "true", "--dna_calls", first, str(tmp_path / "other.tsv"),
+                 "--project", "demo", "--output", str(out)]) == 0
+```
+
+
+- [ ] **Step 2: Run**
+
+```bash
+pixi run python -m pytest -q tests/test_pangenome_island_loci_dna.py
+```
+
+Expected: FAIL: 8 failed (`unrecognized arguments: --dna_targets_dir` / `--dna_check`, and `KeyError: 'dna_check'`)
+
+
+- [ ] **Step 3: Make the change**
+
+In `bin/pangenome_island_loci.py`, replace this text (it occurs once):
+
+```python
+    locus_columns, locus_payload, rank_key,
+)
+```
+
+with:
+
+```python
+    locus_columns, locus_payload, rank_key,
+)
+from island_locus import (  # noqa: E402
+    DEFAULT_DNA_MIN_COV, DEFAULT_DNA_MIN_ID, apply_dna_calls, dna_checked_strains, dna_query,
+    dna_target,
+)
+```
+
+In `bin/pangenome_island_loci.py`, replace this text (it occurs once):
+
+```python
+
+    bins = read_bins(args.frequency_table)
+```
+
+with:
+
+```python
+
+    # DNA presence check (spec section 4b, plan Ruling R17): pass 1 writes
+    # the work list for ISLAND_DNA_CHECK; pass 2 (the same inputs, so the
+    # same drawn loci) applies its calls and re-orders the drawn loci.
+    if args.dna_targets_dir:
+        if not (args.gene_positions and args.cluster_tsv):
+            raise SystemExit("--dna_targets_dir needs --gene_positions and --cluster_tsv")
+        exemplar_ranks = {
+            loc.locus_id: [r for r, _ in sorted(scan2.orders.get((place.strain, place.contig), []))
+                           if place.lo <= r <= place.hi]
+            for loc, place, _, _ in with_cols}
+        dna_locs = load_gene_locations(
+            args.cluster_tsv, args.gene_positions, {f for r in drawn for f in r["families"]},
+            {s for r in drawn for s in dna_checked_strains(r)} | {r["exemplar"] for r in drawn},
+            args.id_sep)
+        write_dna_targets(args.dna_targets_dir,
+                          dna_target_rows(drawn, exemplar_ranks, scan3.positions, dna_locs, args.k),
+                          args.dna_batch)
+    dna_on = args.dna_check == "true"
+    if dna_on:
+        calls = read_dna_calls(args.dna_calls)
+        for r in drawn:
+            apply_dna_calls(r, calls.get(r["locus_id"], {}), species_of, args.empty_frac)
+        drawn.sort(key=lambda r: rank_key(r, args.rank_by))
+
+    bins = read_bins(args.frequency_table)
+```
+
+In `bin/pangenome_island_loci.py`, replace this text (it occurs once):
+
+```python
+                         "candidates": args.candidates, "min_strains": args.min_strains},
+```
+
+with:
+
+```python
+                         "candidates": args.candidates, "min_strains": args.min_strains,
+                         "dna_check": dna_on, "dna_min_id": args.dna_min_id,
+                         "dna_min_cov": args.dna_min_cov},
+```
+
+In `bin/pangenome_island_loci.py`, replace this text (it occurs once):
+
+```python
+    }
+
+```
+
+with:
+
+```python
+    }
+
+
+DNA_TARGET_COLUMNS = ["locus_id", "role", "strain", "contig", "start", "end", "genes"]
+DNA_CALL_COLUMNS = ["locus_id", "strain", "col", "status", "coverage"]
+
+
+def dna_target_rows(drawn: list[dict], exemplar_ranks: dict[str, list[int]],
+                    positions: dict, gene_locs: dict, k: int) -> list[list[list]]:
+    """The DNA check's work list, one block per drawn locus (spec 4b): a
+    query row (the exemplar's locus DNA; genes = 'column:start-end;...') and
+    a target row per checked strain. A strain without a target interval gets
+    contig '-' and start = end = 0 (Ruling R20). A locus with no checked
+    strain, or no exemplar locus gene with a gene model, has no block."""
+    blocks = []
+    for r in drawn:
+        strains = dna_checked_strains(r)
+        query = dna_query(r, exemplar_ranks.get(r["locus_id"], []), positions, gene_locs)
+        if not strains or query is None:
+            continue
+        contig, start, end, genes = query
+        rows = [[r["locus_id"], "query", r["exemplar"], contig, start, end,
+                 ";".join(f"{c}:{a}-{b}" for c, a, b in genes)]]
+        for s in strains:
+            target = dna_target(r, s, positions, gene_locs, k)
+            rows.append([r["locus_id"], "target", s, *(target or ("-", 0, 0)), ""])
+        blocks.append(rows)
+    return blocks
+
+
+def write_dna_targets(out_dir: str, blocks: list[list[list]], batch: int) -> list[Path]:
+    """batch_001.tsv, batch_002.tsv, ... in `out_dir`, `batch` loci each
+    (one ISLAND_DNA_CHECK task per file). No blocks, no files."""
+    d = Path(out_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    paths = []
+    step = max(1, batch)
+    for i in range(0, len(blocks), step):
+        path = d / ("batch_%03d.tsv" % (i // step + 1))
+        with open(path, "w", newline="") as fh:
+            w = csv.writer(fh, delimiter="\t", lineterminator="\n")
+            w.writerow(DNA_TARGET_COLUMNS)
+            for rows in blocks[i:i + step]:
+                w.writerows(rows)
+        paths.append(path)
+    return paths
+
+
+def read_dna_calls(paths: list[str]) -> dict[str, dict[str, dict[int, str]]]:
+    """{locus_id: {strain: {column: status}}} from ISLAND_DNA_CHECK's
+    dna_calls_*.tsv files. Missing or empty files are skipped."""
+    out: dict[str, dict[str, dict[int, str]]] = {}
+    for path in paths or []:
+        if not Path(path).is_file() or Path(path).stat().st_size == 0:
+            continue
+        with open_maybe_compressed(path) as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                out.setdefault(row["locus_id"], {}).setdefault(row["strain"], {})[
+                    int(row["col"])] = row["status"]
+    return out
+
+```
+
+In `bin/pangenome_island_loci.py`, replace this text (it occurs once):
+
+```python
+    ap.add_argument("--candidates", type=int, default=200)
+    ap.add_argument("--min_strains", type=int, default=2)
+```
+
+with:
+
+```python
+    ap.add_argument("--candidates", type=int, default=200)
+    ap.add_argument("--dna_targets_dir", default=None,
+                    help="pass 1 of the DNA presence check: write batch_NNN.tsv work lists here")
+    ap.add_argument("--dna_batch", type=int, default=50, help="loci per DNA check batch file")
+    ap.add_argument("--dna_check", choices=["true", "false"], default="false",
+                    help="pass 2: apply --dna_calls (spec section 4b)")
+    ap.add_argument("--dna_calls", nargs="*", default=[],
+                    help="dna_calls_*.tsv from bin/pangenome_island_dna_check.py")
+    ap.add_argument("--dna_min_id", type=float, default=DEFAULT_DNA_MIN_ID,
+                    help="recorded in locus_params for the page note")
+    ap.add_argument("--dna_min_cov", type=float, default=DEFAULT_DNA_MIN_COV,
+                    help="recorded in locus_params for the page note")
+    ap.add_argument("--min_strains", type=int, default=2)
+```
+
+
+- [ ] **Step 4: Run**
+
+```bash
+pixi run python -m pytest -q tests/test_pangenome_island_loci_dna.py tests/test_pangenome_island_loci.py
+```
+
+Expected: 19 passed
+
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add bin/pangenome_island_loci.py tests/test_pangenome_island_loci_dna.py
+git commit -m "island locus view: DNA check work lists and calls in pangenome_island_loci.py (#${ISSUE_A})" \
+  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+
+### Task 17: Page: DNA states, model-difference count and the "not DNA-confirmed" note
+
+**Files:**
+- Modify: `lib/island_locus_template.py`
+- Modify: `tests/test_island_locus_template.py` (append)
+
+**Interfaces:**
+- Consumes: codes `6`/`7`, `counts.model_difference`, `locus_meta.locus_params.dna_check`, `dna_min_id`, `dna_min_cov` (Task 16).
+- Produces: JS `locusSidebarStats(locus) -> string`, `locusDnaNote(params) -> string`; `locusStateStyle('6')` = hatched `--text-secondary` (grey), `locusStateStyle('7')` = plain `--grid` (drawn as absent); `locusClassLabel('model_difference')` = `model difference`; `locusSortedRows` orders full, partial, empty, model difference, uninformative; the legend adds the two DNA states only when `dna_check` is true; the main note ends with `locusDnaNote()`.
+
+
+- [ ] **Step 1: Write the failing test**
+
+Append to the end of `tests/test_island_locus_template.py`:
+
+```python
+
+
+# ---- DNA presence check (spec section 4b) ----
+
+def test_dna_states_are_hatched_grey_and_plain_absent():
+    out = run_node(["locusStateStyle", "locusStateLabel"], """
+      console.log(JSON.stringify([locusStateStyle("6"), locusStateStyle("7"),
+        locusStateLabel("6"), locusStateLabel("7")]));""")
+    assert out[0] == {"token": "--text-secondary", "alpha": 0.45, "hatch": True}
+    assert out[1] == {"token": "--grid", "alpha": 1, "hatch": False}
+    assert out[2].startswith("absent, DNA present") and out[3] == "absent, DNA absent"
+
+
+def test_model_difference_rows_sort_after_empty_sites():
+    rows = [{"row_class": "uninformative", "codes": "0", "count": 1, "strains": ["u"]},
+            {"row_class": "model_difference", "codes": "6", "count": 1, "strains": ["m"]},
+            {"row_class": "empty", "codes": "7", "count": 1, "strains": ["e"]}]
+    out = run_node(["speciesCounts", "haplotypeSpecies", "locusSortedRows", "locusClassLabel"], f"""
+      var r = locusSortedRows({json.dumps(rows)}, {{}});
+      console.log(JSON.stringify([r.map(function (x) {{ return x.strains[0]; }}),
+        locusClassLabel("model_difference")]));""")
+    assert out == [["e", "m", "u"], "model difference"]
+
+
+def test_sidebar_shows_the_model_difference_count_only_with_the_check():
+    base = {"size": 2, "n_variants": 1,
+            "counts": {"full": 3, "partial": 1, "empty": 0, "uninformative": 2}}
+    dna = dict(base, counts=dict(base["counts"], model_difference=9))
+    out = run_node(["locusSidebarStats"], f"""
+      console.log(JSON.stringify([locusSidebarStats({json.dumps(base)}),
+        locusSidebarStats({json.dumps(dna)})]));""")
+    assert "model difference" not in out[0]
+    assert "model difference 9" in out[1]
+
+
+def test_note_says_whether_empty_site_is_dna_confirmed():
+    out = run_node(["locusDnaNote"], """
+      console.log(JSON.stringify([locusDnaNote({dna_check: true, dna_min_id: 90, dna_min_cov: 80}),
+        locusDnaNote({dna_check: false}), locusDnaNote({})]));""")
+    assert "DNA-confirmed" in out[0] and ">= 90% identity" in out[0]
+    assert "not DNA-confirmed" in out[1] and "not DNA-confirmed" in out[2]
+
+
+def test_cell_reason_explains_the_dna_state():
+    out = run_node(["locusStateLabel", "cellReasonLines"], """
+      var locus = {families: ["F1", "A"]};
+      var row = {codes: "16", count: 1, strains: ["S1"], rep: {c: [], d: [null, null]}};
+      var row7 = {codes: "17", count: 1, strains: ["S1"], rep: {c: [], d: [null, null]}};
+      console.log(JSON.stringify([cellReasonLines(locus, row, 1, 10), cellReasonLines(locus, row7, 1, 10)]));""")
+    assert "not a deletion" in out[0][-1]
+    assert out[1][-1] == "The site lacks the exemplar gene's DNA in S1 (blastn)"
+
+```
+
+
+- [ ] **Step 2: Run**
+
+```bash
+pixi run python -m pytest -q tests/test_island_locus_template.py
+```
+
+Expected: FAIL: 5 new tests (`ValueError: substring not found` for `locusSidebarStats` and `locusDnaNote`, wrong style/labels for codes 6 and 7)
+
+
+- [ ] **Step 3: Make the change**
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+    if (code === "5") return { token: "--warn", alpha: 0.55, hatch: true };
+    return { token: "--grid", alpha: 1, hatch: false };
+```
+
+with:
+
+```python
+    if (code === "5") return { token: "--warn", alpha: 0.55, hatch: true };
+    if (code === "6") return { token: "--text-secondary", alpha: 0.45, hatch: true };
+    return { token: "--grid", alpha: 1, hatch: false };
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+      "4": "rescue, elsewhere (TBLASTN hit, no annotated gene)", "5": "contig break" };
+```
+
+with:
+
+```python
+      "4": "rescue, elsewhere (TBLASTN hit, no annotated gene)", "5": "contig break",
+      "6": "absent, DNA present (gene-model or annotation difference)",
+      "7": "absent, DNA absent" };
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+    var labels = { full: "full locus", partial: "partial", empty: "empty site", uninformative: "uninformative" };
+```
+
+with:
+
+```python
+    var labels = { full: "full locus", partial: "partial", empty: "empty site",
+      model_difference: "model difference", uninformative: "uninformative" };
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+    var order = ["full", "partial", "empty", "uninformative"];
+```
+
+with:
+
+```python
+    var order = ["full", "partial", "empty", "model_difference", "uninformative"];
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+    });
+  }
+```
+
+with:
+
+```python
+    });
+  }
+  function locusSidebarStats(locus) {
+    var c = locus.counts;
+    var text = locus.size + " families · " + locus.n_variants + " variants · " +
+      "empty " + c.empty + " · full " + c.full + " · partial " + c.partial;
+    if (c.model_difference !== undefined) text += " · model difference " + c.model_difference;
+    return text + " · uninformative " + c.uninformative;
+  }
+  function locusDnaNote(params) {
+    if (params.dna_check === true) {
+      return "Empty site is DNA-confirmed: blastn (megablast) of the exemplar's locus DNA " +
+        "against the strain's DNA between its flank genes; a gene is DNA present at >= " +
+        params.dna_min_id + "% identity over >= " + params.dna_min_cov + "% of its length. " +
+        "Hatched grey = absent, DNA present (model difference, not a deletion).";
+    }
+    return "Empty site is not DNA-confirmed (the DNA presence check did not run), so it can " +
+      "be a gene-model or annotation difference.";
+  }
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+    var d = row.rep.d[ci];
+    if (!d) {
+```
+
+with:
+
+```python
+    var d = row.rep.d[ci];
+    var dnaLine = code === "6"
+      ? "The exemplar gene's DNA is at this site in " + row.strains[0] + " (blastn): a gene-model or annotation difference, not a deletion"
+      : (code === "7" ? "The site lacks the exemplar gene's DNA in " + row.strains[0] + " (blastn)" : "");
+    if (!d) {
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+        : (code === "2" ? "Present in " + who + " but no position recorded" : "No copy in " + who));
+      return lines;
+```
+
+with:
+
+```python
+        : (code === "2" ? "Present in " + who + " but no position recorded" : "No copy in " + who));
+      if (dnaLine) lines.push(dnaLine);
+      return lines;
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+    }
+    return lines;
+```
+
+with:
+
+```python
+    }
+    if (dnaLine) lines.push(dnaLine);
+    return lines;
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+      var c = locus.counts;
+      btn.appendChild(el("div", "isv-item-stats",
+        locus.size + " families · " + locus.n_variants + " variants · " +
+        "empty " + c.empty + " · full " + c.full + " · partial " + c.partial +
+        " · uninformative " + c.uninformative));
+```
+
+with:
+
+```python
+      btn.appendChild(el("div", "isv-item-stats", locusSidebarStats(locus)));
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+    ["1", "2", "3", "0", "5"].forEach(function (code) {
+```
+
+with:
+
+```python
+    var codes = LPARAMS.dna_check === true ? ["1", "2", "3", "0", "5", "6", "7"] : ["1", "2", "3", "0", "5"];
+    codes.forEach(function (code) {
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+      "Bars above the columns: flank-intact strains changing between in place and absent, one bar per species (left to right as named); the last bar counts contig breaks");
+```
+
+with:
+
+```python
+      "Bars above the columns: flank-intact strains changing between in place and " +
+      (LPARAMS.dna_check === true ? "DNA absent" : "absent") +
+      ", one bar per species (left to right as named); the last bar counts contig breaks");
+```
+
+In `lib/island_locus_template.py`, replace this text (it occurs once):
+
+```python
+      ", uninformative " + c.uninformative + " strains.";
+```
+
+with:
+
+```python
+      (c.model_difference !== undefined ? ", model difference " + c.model_difference : "") +
+      ", uninformative " + c.uninformative + " strains. " + locusDnaNote(LPARAMS);
+```
+
+
+- [ ] **Step 4: Run**
+
+```bash
+pixi run python -m pytest -q tests/test_island_locus_template.py tests/test_report_templates.py tests/test_island_synteny.py tests/test_report_js_behaviour.py
+```
+
+Expected: all pass (the jsdom fixture has no `dna_check`, so its five-state legend check still holds)
+
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/island_locus_template.py tests/test_island_locus_template.py
+git commit -m "island locus view: draw DNA states and model difference; say when empty site is not DNA-confirmed (#${ISSUE_A})" \
+  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+
+### Task 18: Nextflow: `ISLAND_DNA_TARGETS`, `ISLAND_DNA_CHECK`, `--pangenome_locus_dna_check`, docs
+
+**Files:**
+- Create: `modules/pangenome/island_dna_check.nf`
+- Modify: `modules/pangenome/island_loci.nf`, `workflows/pangenome_profile.nf`, `nextflow.config` (params block only), `pangenome.nf` (help text, param validation)
+- Modify: `docs/pangenome-assumptions.md`, `CHANGES.md`, `.living/decisions.md`, `.living/learnings.md`
+
+**Interfaces:**
+- Consumes: the ISLAND_LOCI inputs (Task 12), `data_dir_abs`, `EMPTY_EVALUES_STUB`; `--dna_targets_dir`/`--dna_check`/`--dna_calls` (Task 16); `pangenome_island_dna_check.py` (Task 15).
+- Produces: `ISLAND_DNA_TARGETS` (`emit: batches`, optional), `ISLAND_DNA_CHECK` (one task per batch file, `emit: calls`); `ISLAND_LOCI` gains inputs `path(dna_calls)`, `val(dna_check)`; params `pangenome_locus_dna_check=true`, `pangenome_locus_dna_min_id=90`, `pangenome_locus_dna_min_cov=80`, `pangenome_locus_dna_batch=50`.
+
+
+- [ ] **Step 1: Read this first**
+
+As in Task 12, the checks are `nextflow lint` and `--help`. The empty stub is always mixed into `dna_calls`, so `ISLAND_LOCI` runs even when no batch file exists. During planning a toy workflow with the same channel chain (`batches.flatten()` -> check -> `.mix(stub).collect()`) staged `empty_evalues.tsv` alone for 0 batches, plus one or three `dna_calls_batch_*.tsv` for 1 or 3 batches.
+
+
+- [ ] **Step 2: Make the change**
+
+Create `modules/pangenome/island_dna_check.nf`:
+
+```groovy
+// DNA presence check of the island locus view (spec
+// docs/superpowers/specs/2026-09-24-island-locus-view-design.md, section 4b).
+//
+// ISLAND_DNA_TARGETS is pass 1 of bin/pangenome_island_loci.py: the same
+// inputs and parameters as ISLAND_LOCI, so the same drawn loci, plus
+// --dna_targets_dir. It writes one work list per --pangenome_locus_dna_batch
+// loci: the exemplar's locus DNA and, per checked strain (flank intact, a
+// locus column not in place), the DNA between its flank genes.
+//
+// ISLAND_DNA_CHECK runs blastn -task megablast (subject mode) per (locus,
+// strain) on one work list. It reads each strain's genome FASTA from the
+// study data_dir (passed as `val`, the GENE_POSITIONS convention -- needs
+// `--bind /bigdata` under singularity) once per batch. Measured 2026-09-26
+// on the 529-strain Coccidioides run, top 3 loci (828 checked strains):
+// 2 min 18 s wall at 6 cpus, 134 MB peak RSS; reading the 463 genomes took
+// 73 s of that. ISLAND_LOCI then applies the calls (pass 2).
+process ISLAND_DNA_TARGETS {
+    label 'low_cpu'
+    tag "island_dna_targets"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(islands_with_domains)
+    path(presence_matrix)
+    path(family_positions)
+    path(frequency_table)
+    path(assembly_quality)
+    path(samplesheet)
+    path(domtblout)
+    path(gene_positions)
+    path(cluster_tsv)
+
+    output:
+    path("dna_targets/batch_*.tsv"), optional: true, emit: batches
+
+    script:
+    """
+    pangenome_island_loci.py \
+        --islands_with_domains ${islands_with_domains} \
+        --presence_matrix ${presence_matrix} \
+        --family_positions ${family_positions} \
+        --frequency_table ${frequency_table} \
+        --assembly_quality ${assembly_quality} \
+        --config ${samplesheet} \
+        --domtblout ${domtblout} \
+        --domain_evalue ${params.pangenome_pfam_domain_evalue} \
+        --gene_positions ${gene_positions} \
+        --cluster_tsv ${cluster_tsv} \
+        --id_sep '${params.pangenome_id_sep}' \
+        --flank ${params.pangenome_locus_flank} \
+        --flank_min ${params.pangenome_locus_flank_min} \
+        --k ${params.pangenome_locus_k} \
+        --empty_frac ${params.pangenome_locus_empty_frac} \
+        --containment ${params.pangenome_locus_containment} \
+        --rank_by ${params.pangenome_locus_rank} \
+        --top_loci ${params.pangenome_top_loci} \
+        --candidates ${params.pangenome_locus_candidates} \
+        --min_strains ${params.pangenome_top_islands_min_strains} \
+        --dna_targets_dir dna_targets \
+        --dna_batch ${params.pangenome_locus_dna_batch} \
+        --project '${Helpers.projectName(params)}' \
+        --output island_loci.pre_dna.json
+    """
+}
+
+process ISLAND_DNA_CHECK {
+    label 'med_cpu'
+    tag "${targets.baseName}"
+    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+
+    input:
+    path(targets)
+    path(samplesheet)
+    val(data_dir_abs)
+
+    output:
+    path("dna_calls_*.tsv"), emit: calls
+
+    script:
+    """
+    pangenome_island_dna_check.py \
+        --targets ${targets} \
+        --config ${samplesheet} \
+        --data_dir ${data_dir_abs} \
+        --min_id ${params.pangenome_locus_dna_min_id} \
+        --min_cov ${params.pangenome_locus_dna_min_cov} \
+        --cpus ${task.cpus} \
+        --output dna_calls_${targets.baseName}.tsv
+    """
+}
+```
+
+In `modules/pangenome/island_loci.nf`, replace this text (it occurs once):
+
+```groovy
+// RSS, 1.94 MB island_loci.json -- inside low_cpu's 4 GB.
+//
+```
+
+with:
+
+```groovy
+// RSS, 1.94 MB island_loci.json -- inside low_cpu's 4 GB.
+//
+// With --pangenome_locus_dna_check (default true) this is pass 2 of the
+// DNA presence check (spec section 4b, modules/pangenome/island_dna_check.nf):
+// dna_calls are ISLAND_DNA_CHECK's dna_calls_*.tsv plus an empty stub file,
+// and dna_check is 'true'. With false, dna_calls is the stub alone.
+//
+```
+
+In `modules/pangenome/island_loci.nf`, replace this text (it occurs once):
+
+```groovy
+    path(cluster_tsv)
+
+```
+
+with:
+
+```groovy
+    path(cluster_tsv)
+    path(dna_calls)
+    val(dna_check)
+
+```
+
+In `modules/pangenome/island_loci.nf`, replace this text (it occurs once):
+
+```groovy
+        --candidates ${params.pangenome_locus_candidates} \
+        --min_strains ${params.pangenome_top_islands_min_strains} \
+```
+
+with:
+
+```groovy
+        --candidates ${params.pangenome_locus_candidates} \
+        --dna_check ${dna_check} \
+        --dna_calls ${dna_calls} \
+        --dna_min_id ${params.pangenome_locus_dna_min_id} \
+        --dna_min_cov ${params.pangenome_locus_dna_min_cov} \
+        --min_strains ${params.pangenome_top_islands_min_strains} \
+```
+
+In `workflows/pangenome_profile.nf`, replace this text (it occurs once):
+
+```groovy
+include { ISLAND_LOCI }                                                    from '../modules/pangenome/island_loci'
+include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
+```
+
+with:
+
+```groovy
+include { ISLAND_LOCI }                                                    from '../modules/pangenome/island_loci'
+include { ISLAND_DNA_TARGETS; ISLAND_DNA_CHECK }                           from '../modules/pangenome/island_dna_check'
+include { EMPTY_EVALUES_STUB as EMPTY_DNA_CALLS_STUB }                     from '../modules/empty_evalues_stub'
+include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
+```
+
+In `workflows/pangenome_profile.nf`, replace this text (it occurs once):
+
+```groovy
+        // Island locus view (docs/superpowers/specs/2026-09-24-island-locus-view-design.md).
+        ISLAND_LOCI(
+```
+
+with:
+
+```groovy
+        // Island locus view (docs/superpowers/specs/2026-09-24-island-locus-view-design.md).
+        // DNA presence check (spec section 4b): ISLAND_DNA_TARGETS writes the
+        // work lists (pass 1 of pangenome_island_loci.py), ISLAND_DNA_CHECK
+        // runs blastn on each, ISLAND_LOCI applies the calls (pass 2). The
+        // empty stub is always in dna_calls, so ISLAND_LOCI runs even when
+        // no locus needs a check.
+        EMPTY_DNA_CALLS_STUB()
+        if (Helpers.asBool(params.pangenome_locus_dna_check)) {
+            ISLAND_DNA_TARGETS(
+                REPORT_TABLES.out.islands_with_domains,
+                rescued_matrix,
+                FAMILY_POSITIONS.out.positions,
+                FREQUENCY_BINS.out.table,
+                ASSEMBLY_QUALITY_QC.out.table,
+                samplesheet,
+                FAMILY_PFAM_SCAN.out.domtblout,
+                GENE_POSITIONS.out.positions,
+                CLUSTER_TIER1.out.cluster_tsv,
+            )
+            ISLAND_DNA_CHECK(ISLAND_DNA_TARGETS.out.batches.flatten(), samplesheet, data_dir_abs)
+            dna_calls = ISLAND_DNA_CHECK.out.calls.mix(EMPTY_DNA_CALLS_STUB.out.evalues).collect()
+            dna_check = 'true'
+        }
+        else {
+            dna_calls = EMPTY_DNA_CALLS_STUB.out.evalues
+            dna_check = 'false'
+        }
+        ISLAND_LOCI(
+```
+
+In `workflows/pangenome_profile.nf`, replace this text (it occurs once):
+
+```groovy
+            CLUSTER_TIER1.out.cluster_tsv,
+        )
+```
+
+with:
+
+```groovy
+            CLUSTER_TIER1.out.cluster_tsv,
+            dna_calls,
+            dna_check,
+        )
+```
+
+In `nextflow.config`, replace this text (it occurs once):
+
+```groovy
+    pangenome_top_loci          = 50             // loci drawn in island_synteny.html
+    pangenome_locus_candidates  = 200            // loci whose states are computed before ranking
+```
+
+with:
+
+```groovy
+    pangenome_top_loci          = 50             // loci drawn in island_synteny.html
+    // DNA presence check (spec section 4b; ISLAND_DNA_TARGETS + ISLAND_DNA_CHECK).
+    // min_id / min_cov are the spec's chosen, not validated, defaults.
+    pangenome_locus_dna_check   = true           // blastn the locus DNA at each "empty" site
+    pangenome_locus_dna_min_id  = 90             // HSP identity, percent
+    pangenome_locus_dna_min_cov = 80             // covered share of an exemplar gene, percent
+    pangenome_locus_dna_batch   = 50             // loci per ISLAND_DNA_CHECK task
+    pangenome_locus_candidates  = 200            // loci whose states are computed before ranking
+```
+
+In `pangenome.nf`, replace this text (it occurs once):
+
+```groovy
+                                       this fraction of its families is in it (default: 0.5).
+      --pangenome_locus_candidates     Loci scored before ranking (default: 200).
+```
+
+with:
+
+```groovy
+                                       this fraction of its families is in it (default: 0.5).
+      --pangenome_locus_dna_check      blastn each "empty site" for the locus DNA
+                                       (default: true); false keeps annotation-only
+                                       states and the page says so.
+      --pangenome_locus_dna_min_id     DNA present: HSP identity >= this percent
+                                       (default: 90) ...
+      --pangenome_locus_dna_min_cov    ... over >= this percent of the exemplar
+                                       gene (default: 80).
+      --pangenome_locus_dna_batch      Loci per ISLAND_DNA_CHECK task (default: 50).
+      --pangenome_locus_candidates     Loci scored before ranking (default: 200).
+```
+
+In `pangenome.nf`, replace this text (it occurs once):
+
+```groovy
+        error "ERROR: --pangenome_locus_flank_min (${params.pangenome_locus_flank_min}) must not exceed --pangenome_locus_flank (${params.pangenome_locus_flank})"
+    if (params.pangenome_cluster_backend !in ['mmseqs', 'diamond'])
+```
+
+with:
+
+```groovy
+        error "ERROR: --pangenome_locus_flank_min (${params.pangenome_locus_flank_min}) must not exceed --pangenome_locus_flank (${params.pangenome_locus_flank})"
+    def dna_id = params.pangenome_locus_dna_min_id as double
+    def dna_cov = params.pangenome_locus_dna_min_cov as double
+    if (dna_id < 0 || dna_id > 100 || dna_cov < 0 || dna_cov > 100)
+        error "ERROR: --pangenome_locus_dna_min_id and --pangenome_locus_dna_min_cov are percents, 0-100 (got: ${params.pangenome_locus_dna_min_id}, ${params.pangenome_locus_dna_min_cov})"
+    if (params.pangenome_cluster_backend !in ['mmseqs', 'diamond'])
+```
+
+
+- [ ] **Step 3: Run**
+
+```bash
+pixi run nextflow lint modules/pangenome/island_dna_check.nf modules/pangenome/island_loci.nf workflows/pangenome_profile.nf pangenome.nf
+```
+
+Expected: `Nextflow linting complete!` with no errors
+
+
+- [ ] **Step 4: Run**
+
+```bash
+pixi run nextflow run pangenome.nf --help | grep -E 'pangenome_locus_dna'
+```
+
+Expected: the four `--pangenome_locus_dna_*` help lines
+
+
+- [ ] **Step 5: Run**
+
+```bash
+pixi run nextflow run pangenome.nf --pangenome_samplesheet tests/data/test.csv --pangenome_data_dir tests/data --pangenome_locus_dna_min_id 150 --outdir "$SCRATCH/lv_badparam_dna" 2>&1 | tail -2
+```
+
+Expected: `ERROR: --pangenome_locus_dna_min_id and --pangenome_locus_dna_min_cov are percents, 0-100 (got: 150, 80)` before any task runs
+
+
+- [ ] **Step 6: Make the change**
+
+In `docs/pangenome-assumptions.md`, replace this text (it occurs once):
+
+```markdown
+| `pangenome_locus_rank` / `pangenome_top_loci` | `informative` / `50` | `theory+practical` | Spec section 6. Caution: on the Coccidioides run 0 of 6 sequence-checked empty-site calls on the top 3 loci were real deletions (gene-model splits; plan Task 19). | same | Gene-model differences dominate the informative ranking | Spot check (plan Task 19) on the new study |
+```
+
+with:
+
+```markdown
+| `pangenome_locus_rank` / `pangenome_top_loci` | `informative` / `50` | `theory+practical` | Spec section 6; with the DNA check on, only DNA-confirmed empty-site strains count (spec 4b). On the Coccidioides run the top 3 loci by the annotation-only rule had 813 empty-site calls; the DNA check moved 617 to model difference and confirmed 0 (plan Task 19). | same | Gene-model differences dominate the annotation-only ranking | Compare `informative_score` with and without `--pangenome_locus_dna_check` |
+| `pangenome_locus_dna_check` | `true` | `theory+practical` | Spec section 4b: the annotation-only "empty site" was a gene-model difference in all 6 planning spot checks. Cost on the top 3 loci (828 strain checks): 2 min 18 s at 6 cpus plus one extra `pangenome_island_loci.py` pass (about 2 min). | 529-strain Coccidioides `rescue_freqpol_immitis_in_posadasii_out` | Studies without genome FASTAs in `data_dir/dna` (every target is unchecked) | Count `dna.unchecked` per locus in `island_loci.json` |
+| `pangenome_locus_dna_min_id` / `pangenome_locus_dna_min_cov` | `90` / `80` | `unvalidated-assumption` | Spec 4b: chosen, not validated. Planning: present genes had coverage 1.000 and absent ones 0.000 on the top 3 loci, so the cut-offs did not decide any call there. | same | Diverged lineages (identity below 90% at a shared site) | Histogram of the `coverage` column in `dna_calls_*.tsv` |
+| `pangenome_locus_dna_batch` | `50` | `theory+practical` | HPCC job sizing (about 1-1.5 h per job; plan Ruling R18). Every task reads each needed genome FASTA once (73 s for 463 genomes), so fewer, larger batches cost less. The top 50 loci need about 20,159 strain checks (planning `island_loci.json`); not yet measured as one task. | same | Many more loci or strains | Read ISLAND_DNA_CHECK task time from the trace (plan Task 19) and resize |
+```
+
+In `CHANGES.md`, replace this text (it occurs once):
+
+```markdown
+- Caution: on the Coccidioides run the top loci's "empty site" calls were gene-model splits, not
+  deletions, in all 6 sequence-checked cases (plan Task 19).
+```
+
+with:
+
+```markdown
+- **DNA presence check** (spec section 4b; `bin/pangenome_island_dna_check.py`,
+  `modules/pangenome/island_dna_check.nf`: `ISLAND_DNA_TARGETS`, `ISLAND_DNA_CHECK`) -- each
+  flank-intact strain that lacks a locus gene is checked with `blastn -task megablast`: the exemplar's
+  locus DNA against the strain's DNA between its flank genes. A gene is "DNA present" at >= 90%
+  identity over >= 80% of its length. "Absent, DNA present" cells are drawn hatched grey and make a new
+  row class, **model difference**; "empty site" and the informative ranking now use DNA-confirmed
+  absences only. With `--pangenome_locus_dna_check false` the page says that "empty site" is not
+  DNA-confirmed.
+- New params: `--pangenome_locus_dna_check` (true), `--pangenome_locus_dna_min_id` (90),
+  `--pangenome_locus_dna_min_cov` (80), `--pangenome_locus_dna_batch` (50).
+```
+
+Append to the end of `.living/decisions.md`:
+
+```markdown
+
+
+## 2026-09-26 — Island locus view: DNA presence check runs between two locus passes
+
+**Context**: Spec section 4b puts `ISLAND_DNA_CHECK` between the locus computation and the page, and changes the row classes and the ranking; the clinker strain choice (spec section 8) uses the row classes too.
+**Decision**: `pangenome_island_loci.py` runs twice: pass 1 (`ISLAND_DNA_TARGETS`) writes the work lists for the drawn loci; `ISLAND_DNA_CHECK` runs blastn per batch of 50 loci; pass 2 (`ISLAND_LOCI`) recomputes the same loci, applies the calls, re-orders the drawn loci and then gives keys and clinker strains (plan Rulings R17, R18). The drawn set is chosen by the annotation-only ranking.
+**Alternatives**: apply the calls to `island_loci.json` in a separate script (the clinker strain choice needs the per-strain cell data, which the JSON does not hold); run blastn inside `ISLAND_LOCI` (the spec asks for a separate process); check all 200 candidate loci (about 4 times the blastn work).
+**Rationale**: one code path for the states, the page and the clinker picks; the extra pass costs about 2 min.
+```
+
+Append to the end of `.living/learnings.md`:
+
+```markdown
+
+
+## 2026-09-26 — Island locus view: "empty site" at the top loci is mostly a gene-model difference
+
+**Context**: The DNA presence check (spec section 4b, plan Task 19) on the top 3 loci of the Coccidioides run, blastn of the exemplar's locus DNA against each strain's DNA between its flank genes.
+**Finding**: At 2 of the 3 loci every empty-site strain (292 and 325) carries the locus DNA: model difference. At `1M0:scaffold_217:2489-4804` one strain has two gene models (277 aa + 446 aa, two shell families) where another has one 705 aa model in a third family. At `1M0:scaffold_390:15977-16664` the check says "DNA absent" for all 196 empty-site strains, but the DNA is there: it lies inside the neighbouring flank gene's model, which the spec's target (inner edges of the flank genes) leaves out.
+**Why it matters**: Annotation-only presence overstates deletions. Read "DNA absent" with care where the strain's flank gene model is longer than the exemplar's.
+**Tags**: pangenome, island-locus-view, annotation, gene-model, validation
+```
+
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add modules/pangenome/island_dna_check.nf modules/pangenome/island_loci.nf workflows/pangenome_profile.nf nextflow.config pangenome.nf docs/pangenome-assumptions.md CHANGES.md .living/decisions.md .living/learnings.md
+git commit -m "island locus view: ISLAND_DNA_TARGETS and ISLAND_DNA_CHECK, --pangenome_locus_dna_check (#${ISSUE_A})" \
+  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+
+### Task 19: Regression: DNA check on the real run (spec validation item 3, controller task)
+
+**Files:**
+- No repo files. Outputs go to `$SCRATCH/lv_dna/` (never under the repo).
+
+**Interfaces:**
+- Consumes: Tasks 14-16 on the real run `rescue_freqpol_immitis_in_posadasii_out` and the study `data_dir`.
+- Produces: the six planning cases' classes, the number of top-50 empty-site calls that move to model difference, and the DNA check's run time, for the Checkpoint.
+
+
+- [ ] **Step 1: Read this first**
+
+Spec validation item 3: the 6 planning spot-check cases (2026-09-26, the `best_empty` clinker picks of L001-L003 in the pre-DNA ranking) must all be classed "absent, DNA present" / model difference. The cases, by locus ID: `1M0:scaffold_217:2489-4804` `UTAH_20380X10`, `Colorado_Springs_1`; `1M0:scaffold_390:15977-16664` `Guerrero_1`, `Tucson_2`; `1M0:scaffold_501:69-1229` `UTAH_20380X10`, `Phoenix_3`. Run on a compute node (`srun -p short -c 8 --mem 8G --pty bash`), from the worktree root.
+
+
+- [ ] **Step 2: Run**
+
+```bash
+export PATH="$PWD/.pixi/envs/default/bin:$PATH"
 ST=/bigdata/stajichlab/jstajich/projects/NovInvenio_Investigations/studies/fungi/coccidioides_pangenome
 P=$ST/results/rescue_freqpol_immitis_in_posadasii_out/output/pangenome
-python - <<'EOF' > pairs.txt
-import json
-d = json.load(open("island_loci.json"))
-for loc in d["loci"][:5]:
-    rows = sorted(loc["rows"], key=lambda r: -r["count"])
-    best = {c: next((r["strains"][0] for r in rows if r["row_class"] == c), None)
-            for c in ("full", "empty", "partial")}
-    for cls in ("empty", "partial"):
-        if best["full"] and best[cls]:
-            print(loc["key"], best["full"], best[cls], cls)
-EOF
-while read key ref qry cls; do
-  python spotcheck_locus_calls.py --loci_json island_loci.json --locus $key --ref $ref --query $qry \
-    --config $ST/config_immitis_in_posadasii_out.csv --data_dir $ST/data_dir \
-    --gene_positions $P/gene_positions.tsv.zst --cluster_tsv $P/cluster/tier1_cluster.tsv | tail -4
-done < pairs.txt | tee spotcheck.txt
+O="${SCRATCH:?}/lv_dna"; mkdir -p "$O"
+ARGS=(--islands_with_domains $P/report_tables/islands_with_domains.tsv
+      --presence_matrix $P/presence_matrix.rescued.tsv --family_positions $P/family_positions.tsv.zst
+      --frequency_table $P/frequency_table.tsv --assembly_quality $P/assembly_quality_vs_content.tsv
+      --config $ST/config_immitis_in_posadasii_out.csv
+      --gene_positions $P/gene_positions.tsv.zst --cluster_tsv $P/cluster/tier1_cluster.tsv
+      --project cocci)
+/usr/bin/time -v python bin/pangenome_island_loci.py "${ARGS[@]}" \
+  --dna_targets_dir "$O/targets" --output "$O/pre_dna.json" 2> "$O/pass1.time"
+for b in "$O"/targets/batch_*.tsv; do
+  n=$(basename "$b" .tsv)
+  /usr/bin/time -v python bin/pangenome_island_dna_check.py --targets "$b" \
+    --config $ST/config_immitis_in_posadasii_out.csv --data_dir $ST/data_dir --cpus 8 \
+    --output "$O/dna_calls_$n.tsv" 2> "$O/check_$n.time"
+done
+/usr/bin/time -v python bin/pangenome_island_loci.py "${ARGS[@]}" --dna_check true \
+  --dna_calls "$O"/dna_calls_*.tsv --output "$O/island_loci.json" 2> "$O/pass2.time"
+grep -HE 'pangenome_island|Elapsed|Maximum' "$O"/*.time
 ```
+
+
+- [ ] **Step 3: Run**
+
+```bash
+python - <<'EOF'
+import json, os
+O = os.environ["SCRATCH"] + "/lv_dna"
+pre = json.load(open(f"{O}/pre_dna.json"))["loci"]
+post = json.load(open(f"{O}/island_loci.json"))["loci"]
+CASES = {"1M0:scaffold_217:2489-4804": ["UTAH_20380X10", "Colorado_Springs_1"],
+         "1M0:scaffold_390:15977-16664": ["Guerrero_1", "Tucson_2"],
+         "1M0:scaffold_501:69-1229": ["UTAH_20380X10", "Phoenix_3"]}
+ok = 0
+for loc in post:
+    for s in CASES.get(loc["locus_id"], []):
+        row = next(r for r in loc["rows"] if s in r["strains"])
+        good = row["row_class"] == "model_difference"
+        ok += good
+        print(loc["key"], loc["locus_id"], s, row["row_class"], row["codes"], "PASS" if good else "FAIL")
+print(f"{ok}/6 planning cases are model difference")
+print(f"top {len(post)} loci: {sum(l['counts']['empty'] for l in pre)} empty-site calls before the check;",
+      f"{sum(l['dna']['empty_to_model_difference'] for l in post)} moved to model difference;",
+      f"{sum(l['dna']['empty_confirmed'] for l in post)} DNA-confirmed empty sites;",
+      f"{sum(l['dna']['unchecked'] for l in post)} checked strains without a call;",
+      f"{sum(1 for l in post if l['informative_score'] >= 0)} loci still informative")
+EOF
+```
+
+
+- [ ] **Step 4: Read this first**
+
+Planning result (2026-09-26, this code, `--top_loci 3`, so L001-L003 only): pass 1 2 min 37 s wall and 1.35 GB peak RSS; the check 2 min 18 s wall at 6 cpus (828 (locus, strain) checks; 73 s of it reading 463 genome FASTAs) and 134 MB; pass 2 1 min 55 s and 1.35 GB. **4 of 6 cases PASS**: at `1M0:scaffold_217:2489-4804` and `1M0:scaffold_501:69-1229` every empty-site strain (292 and 325) moved to model difference. **2 of 6 FAIL**: at `1M0:scaffold_390:15977-16664`, `Guerrero_1` and `Tucson_2` come out `partial` (codes `...70...`): the exemplar's first locus gene is DNA absent (coverage 0.000 in all 196 empty-site strains) and its second locus gene is a TBLASTN rescue hit with no gene model, so it stays unchecked (Ruling R20). The locus DNA is there: it lies inside the strain's neighbouring flank gene model (`Guerrero_1` `C3F11B8_006855-T1`, scaffold_51:90945-92044; the exemplar gene aligns at 99.9% to 90945-91632), and the spec's target stops at the inner edge of that flank gene. Widening every target by 1.5 kb on each side (a diagnostic, not in the spec) gave DNA present in 199 of 199 strains. On the top 3 loci: 813 empty-site calls before the check, 617 moved to model difference, 0 DNA-confirmed empty sites, 0 loci still informative.
 
 
 - [ ] **Step 5: Read this first**
 
-Expected output per pair: one line per locus column (`call 0, ... covered True -> DISAGREES` or `-> agrees`) and `N/M locus columns agree`. Paste `spotcheck.txt` into the PR description. Do not change code in response; the result goes to the user (Checkpoint).
+Record the actual values of the full top-50 run. The 2 failing cases are a spec question (the target definition in section 4b), not a code error: do not change code in response; report them at the Checkpoint.
 
 
-## Checkpoint after Task 14 (stop here)
+## Checkpoint after Task 19 (stop here)
 
 Open the Part A PR (after the user approves the push), then stop and report to the user:
 
 1. Task 13's measured time, memory, sizes and top-locus counts next to the planning numbers.
-2. Task 14's spot-check table.
-3. The planning result: 0 of 6 empty-site calls on L001-L003 were confirmed by the DNA; the locus DNA was present in every "empty" strain. On these loci the informative ranking finds gene-model differences, not insertions or deletions.
+2. Task 19's regression: how many of the 6 planning cases are model difference, how many top-50 empty-site calls moved to model difference, how many are DNA-confirmed, and the run time of pass 1, each `ISLAND_DNA_CHECK` batch and pass 2. Set `--pangenome_locus_dna_batch` from the measured batch time (Ruling R18) if it is far from 1-1.5 h per task, and say so.
+3. The planning result: 4 of 6 cases pass. The 2 cases at `1M0:scaffold_390:15977-16664` fail because the strain's neighbouring flank gene model covers the locus DNA and the spec's target (section 4b: between the inner edges of the flank genes) leaves it out; a 1.5 kb wider target found the DNA in 199 of 199 strains. Changing the target definition is a spec change.
 
-Ask the user whether to start Part B as written, or to change the empty-site rule first. A DNA-level presence test is not in the spec, so it needs a spec change before any code. Do not start Part B without an answer.
+Ask the user whether to start Part B as written, or to change the section 4b target first. Do not start Part B without an answer.
 
 ---
 
@@ -3766,15 +5478,15 @@ Setup: after Part A is merged, `git -C /bigdata/stajichlab/jstajich/projects/Nov
 
 Part B ends in working software: each drawn locus has `pangenome/clinker/<key>.html`, the page shows it in the "Synteny (clinker)" panel, and NII publishes `clinker/` with the page.
 
-### Task 15: Clinker strains and regions (spec section 8)
+### Task 20: Clinker strains and regions (spec section 8)
 
 **Files:**
 - Modify: `lib/island_locus.py` (keep `_placement` in `compute_locus`; append section 8)
 - Create: `tests/test_island_locus_clinker.py`
 
 **Interfaces:**
-- Consumes: `compute_locus` result keys `_cells`, `_pairs`, `_row_class`, and the new `_placement` (the exemplar's `Placement`).
-- Produces: `DEFAULT_CLINKER_MAX_STRAINS = 12`; `strain_region(result, strain, spans, flank, k=10) -> {'contig', 'rank_lo', 'rank_hi', 'anchors': [(rank, family)]} | None`; `select_clinker_strains(result, n50, species_of, spans, flank, k=10, max_strains=12) -> list[{'strain', 'reason', 'row_class', 'species', 'contig', 'rank_lo', 'rank_hi', 'anchors'}]` with `reason` in `exemplar | best_full | best_partial | best_empty | fill`.
+- Consumes: `compute_locus` result keys `_cells`, `_pairs`, `_row_class`, and the new `_placement` (the exemplar's `Placement`); `apply_dna_calls` (Task 14), which can set a strain's `_row_class` to `model_difference`.
+- Produces: `DEFAULT_CLINKER_MAX_STRAINS = 12`; `strain_region(result, strain, spans, flank, k=10) -> {'contig', 'rank_lo', 'rank_hi', 'anchors': [(rank, family)]} | None`; `select_clinker_strains(result, n50, species_of, spans, flank, k=10, max_strains=12) -> list[{'strain', 'reason', 'row_class', 'species', 'contig', 'rank_lo', 'rank_hi', 'anchors'}]` with `reason` in `exemplar | best_full | best_partial | best_empty | best_model_difference | fill`; `CLINKER_CLASSES = ('full', 'partial', 'empty', 'model_difference')` (spec section 8 item 2).
 
 
 - [ ] **Step 1: Write the failing test**
@@ -3789,7 +5501,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 
 from island_locus import (  # noqa: E402
-    Columns, Locus, Placement, compute_locus, select_clinker_strains, strain_region,
+    Columns, Locus, Placement, apply_dna_calls, compute_locus, select_clinker_strains,
+    strain_region,
 )
 
 FAMS = ["L1", "L2", "A", "B", "R1", "R2"]
@@ -3874,6 +5587,17 @@ def test_each_pick_carries_its_region_and_class():
     res, spans, species = build({"A1": ("c1", FULL, "sp")})
     (pick,) = select_clinker_strains(res, {}, species, spans, flank=5)
     assert pick["row_class"] == "full" and pick["contig"] == "c1" and pick["rank_hi"] == 30
+
+
+def test_a_model_difference_strain_is_chosen_after_the_empty_sites():
+    # Spec section 8 item 2 with section 4b: model difference is a row class.
+    res, spans, species = build({"A1": ("c1", FULL, "sp"), "D1": ("c1", EMPTY, "sp"),
+                                 "D2": ("c1", EMPTY, "sp")})
+    apply_dna_calls(res, {"D1": {2: "present", 3: "present"}}, species)
+    picks = select_clinker_strains(res, {}, species, spans, flank=5)
+    assert [(p["strain"], p["reason"], p["row_class"]) for p in picks] == [
+        ("A1", "exemplar", "full"), ("D2", "best_empty", "empty"),
+        ("D1", "best_model_difference", "model_difference")]
 ```
 
 
@@ -3908,7 +5632,7 @@ Append to the end of `lib/island_locus.py`:
 
 # ---- 8. clinker panel: strains and regions (spec section 8) --------------------
 DEFAULT_CLINKER_MAX_STRAINS = 12
-CLINKER_CLASSES = ("full", "partial", "empty")
+CLINKER_CLASSES = ("full", "partial", "empty", "model_difference")
 
 
 def strain_region(result: dict, strain: str, spans: ContigSpans, flank: int,
@@ -3945,9 +5669,10 @@ def select_clinker_strains(result: dict, n50: dict[str, int], species_of: dict[s
                            spans: ContigSpans, flank: int, k: int = DEFAULT_K,
                            max_strains: int = DEFAULT_CLINKER_MAX_STRAINS) -> list[dict]:
     """Up to `max_strains` strains for the clinker figure, in spec order:
-    the exemplar; per row class (full, partial, empty) and species the
-    flank-intact strain with the best quality_key(); then more full or
-    partial strains by quality_key() until the cap. Uninformative strains
+    the exemplar; per row class (full, partial, empty, model difference)
+    and species the flank-intact strain with the best quality_key(); then
+    more full or partial strains by quality_key() until the cap.
+    Uninformative strains
     are never chosen (the exemplar is kept even when its flanks are not
     intact). Each pick carries its reason and its strain_region()."""
     pairs = result["_pairs"]
@@ -3995,7 +5720,7 @@ def select_clinker_strains(result: dict, n50: dict[str, int], species_of: dict[s
 pixi run python -m pytest -q tests/test_island_locus_clinker.py tests/test_island_locus.py
 ```
 
-Expected: 48 passed
+Expected: 49 passed
 
 
 - [ ] **Step 5: Commit**
@@ -4007,14 +5732,14 @@ git commit -m "clinker panel: choose strains and regions per locus (spec section
 ```
 
 
-### Task 16: `pangenome_island_loci.py --regions_out` and `--clinker_max_strains`
+### Task 21: `pangenome_island_loci.py --regions_out` and `--clinker_max_strains`
 
 **Files:**
 - Modify: `bin/pangenome_island_loci.py`
 - Modify: `tests/test_pangenome_island_loci.py` (append)
 
 **Interfaces:**
-- Consumes: `select_clinker_strains` (Task 15).
+- Consumes: `select_clinker_strains` (Task 20).
 - Produces: `island_regions.tsv` with columns `locus_key strain reason row_class species contig rank_lo rank_hi anchors` (`anchors` = `rank:family;...`); each page entry gains `clinker_strains` (the picks without `anchors`); `write_regions(path, regions)`, `REGION_COLUMNS`.
 
 
@@ -4205,7 +5930,7 @@ git commit -m "clinker panel: write island_regions.tsv (#${ISSUE_B})" \
 ```
 
 
-### Task 17: GenBank slicing library `lib/genbank_slice.py`
+### Task 22: GenBank slicing library `lib/genbank_slice.py`
 
 **Files:**
 - Create: `lib/genbank_slice.py`
@@ -4504,14 +6229,14 @@ git commit -m "clinker panel: GenBank slices with the family_positions rank rule
 ```
 
 
-### Task 18: CLI `bin/pangenome_island_gbk_slice.py`
+### Task 23: CLI `bin/pangenome_island_gbk_slice.py`
 
 **Files:**
 - Create: `bin/pangenome_island_gbk_slice.py`
 - Create: `tests/test_pangenome_island_gbk_slice.py`
 
 **Interfaces:**
-- Consumes: `island_regions.tsv` (Task 16), samplesheet, data_dir, gff3_dir, `gene_positions.tsv[.zst]`, `rescue_positions.tsv`, tier-1 cluster TSV; `lib/genbank_slice.py`.
+- Consumes: `island_regions.tsv` (Task 21), samplesheet, data_dir, gff3_dir, `gene_positions.tsv[.zst]`, `rescue_positions.tsv`, tier-1 cluster TSV; `lib/genbank_slice.py`.
 - Produces: `<out_dir>/<key>/<safe strain>.gbk`, `<out_dir>/<key>/groups.csv` (`locus_tag,family`, no header), `<out_dir>/island_slices.tsv` (`locus_key strain contig bp_start bp_end n_genes n_rescue n_missing`); exit 1 when an anchor family does not match the rank rebuild.
 
 
@@ -4877,7 +6602,7 @@ git commit -m "clinker panel: ISLAND_GBK_SLICE script (#${ISSUE_B})" \
 ```
 
 
-### Task 19: clinker 0.0.32 in the environment, slimming, and the per-locus runner
+### Task 24: clinker 0.0.32 in the environment, slimming, and the per-locus runner
 
 **Files:**
 - Modify: `pixi.toml`, `pixi.lock`
@@ -4886,7 +6611,7 @@ git commit -m "clinker panel: ISLAND_GBK_SLICE script (#${ISSUE_B})" \
 - Create: `tests/test_clinker_html.py`, `tests/test_pangenome_island_clinker.py`
 
 **Interfaces:**
-- Consumes: `<key>/` dirs from Task 18.
+- Consumes: `<key>/` dirs from Task 23.
 - Produces: `slim_clinker_html(html: str) -> str` (raises `ValueError` on a non-clinker page); `bin/pangenome_island_clinker.py --locus_dirs D [D ...] --out_dir . --cpus N [--clinker EXE] [--keep_sequences]` writing `<out_dir>/<key>.html`, skipping a failed locus with a warning (Ruling R15); `clinker` on PATH in the pixi env.
 
 
@@ -5250,13 +6975,13 @@ git commit -m "clinker panel: clinker 0.0.32 from PyPI, slimming and per-locus r
 ```
 
 
-### Task 20: Check that the slimmed clinker page renders the same figure
+### Task 25: Check that the slimmed clinker page renders the same figure
 
 **Files:**
 - Create: `tests/test_clinker_render.py`
 
 **Interfaces:**
-- Consumes: `clinker` (Task 19), `slim_clinker_html`, a headless Chromium.
+- Consumes: `clinker` (Task 24), `slim_clinker_html`, a headless Chromium.
 - Produces: an opt-in test that compares drawn gene, cluster and link-path counts.
 
 
@@ -5370,7 +7095,7 @@ Expected: 1 passed where `clinker` is on PATH (the pixi env) and a headless Chro
 
 - [ ] **Step 4: Read this first**
 
-Manual check, once, in a desktop browser: open a slimmed page from Task 24's output (`$SCRATCH/lv_b/clinker/L001.html`), then its unslimmed twin (`--pangenome_clinker_slim false` output or `bin/pangenome_island_clinker.py --keep_sequences`). Hover a gene (tooltip shows its name and coordinates), hover a link (identity), drag a cluster name to reorder, and click a legend circle to recolour. All four must behave the same in both pages. If any differs, set `pangenome_clinker_slim = false` in `nextflow.config` and tell the user.
+Manual check, once, in a desktop browser: open a slimmed page from Task 29's output (`$SCRATCH/lv_b/clinker/L001.html`), then its unslimmed twin (`--pangenome_clinker_slim false` output or `bin/pangenome_island_clinker.py --keep_sequences`). Hover a gene (tooltip shows its name and coordinates), hover a link (identity), drag a cluster name to reorder, and click a legend circle to recolour. All four must behave the same in both pages. If any differs, set `pangenome_clinker_slim = false` in `nextflow.config` and tell the user.
 
 
 - [ ] **Step 5: Commit**
@@ -5382,7 +7107,7 @@ git commit -m "clinker panel: render check for slimmed pages (#${ISSUE_B})" \
 ```
 
 
-### Task 21: Page: "Synteny (clinker)" panel and CLI flags
+### Task 26: Page: "Synteny (clinker)" panel and CLI flags
 
 **Files:**
 - Modify: `lib/island_locus_template.py`
@@ -5390,7 +7115,7 @@ git commit -m "clinker panel: render check for slimmed pages (#${ISSUE_B})" \
 - Modify: `tests/test_island_locus_template.py`, `tests/test_pangenome_island_synteny.py`, `tests/test_report_js_behaviour.py`, `tests/js/drive_reports.mjs`
 
 **Interfaces:**
-- Consumes: `clinker_strains` per locus (Task 16), `island_slices.tsv` (Task 18), the list of locus keys that got a page (Task 22).
+- Consumes: `clinker_strains` per locus (Task 21), `island_slices.tsv` (Task 23), the list of locus keys that got a page (Task 27).
 - Produces: CLI flags `--slices_tsv`, `--clinker_keys`, `--clinker_enabled true|false`; `add_clinker(payload, slices_tsv, keys, enabled)`; payload `locus_meta.clinker = {enabled, keys}` and `bp_start bp_end n_genes` on each pick; JS `clinkerPanelState clinkerReason clinkerRegionText renderClinkerPanel`; DOM ids `lv-clinker lv-clinker-note lv-clinker-list lv-clinker-frame`; iframe `src="clinker/<key>.html"` only for keys matching `^L[0-9]+$`.
 
 
@@ -5716,7 +7441,7 @@ git commit -m "clinker panel: Synteny (clinker) panel below the grid (#${ISSUE_B
 ```
 
 
-### Task 22: Nextflow: `ISLAND_GBK_SLICE`, `ISLAND_CLINKER`, `--pangenome_clinker`
+### Task 27: Nextflow: `ISLAND_GBK_SLICE`, `ISLAND_CLINKER`, `--pangenome_clinker`
 
 **Files:**
 - Create: `modules/pangenome/island_gbk_slice.nf`, `modules/pangenome/island_clinker.nf`
@@ -6113,13 +7838,6 @@ Append to the end of `.living/learnings.md`:
 ```markdown
 
 
-## 2026-09-26 — Island locus view: "empty site" at the top loci is a gene-model split
-
-**Context**: Sequence spot check of empty-site calls on the Coccidioides run (plan Task 14), blastn of each strain's region DNA.
-**Finding**: 0 of 6 empty-site calls on L001-L003 were deletions. The "empty" strains carry the locus DNA at 97.0-99.9% identity. At L001 one strain has two gene models (277 aa + 446 aa, two shell families) where the other has one 705 aa model in a third family, so the locus families are absent by clustering, not by DNA.
-**Why it matters**: The informative ranking picks loci with many empty-site and full strains, which on this run selects gene-model differences. Read empty-site counts as annotation states until a DNA-level presence test exists.
-**Tags**: pangenome, island-locus-view, annotation, gene-model, validation
-
 ## 2026-09-26 — Nextflow 26 strict parser: no `collate`, no `type: 'dir'` before `emit:`
 
 **Finding**: `channel.collate(n)` fails with "Missing process or function collate"; use `buffer(size: n, remainder: true)`. `path("x*", type: 'dir'), optional: true, emit: x` fails `nextflow lint` ("Unexpected input: ','"); use `path("x*"), optional: true, emit: x`.
@@ -6136,14 +7854,14 @@ git commit -m "clinker panel: ISLAND_GBK_SLICE and ISLAND_CLINKER, --pangenome_c
 ```
 
 
-### Task 23: NovInvenio_Investigations: publish `clinker/` with the synteny page (DIFFERENT REPO)
+### Task 28: NovInvenio_Investigations: publish `clinker/` with the synteny page (DIFFERENT REPO)
 
 **Files:**
 - Repo: `NovInvenio_Investigations` (not NovInvenio). Use a worktree: `git -C /bigdata/stajichlab/jstajich/projects/NovInvenio_Investigations worktree add /bigdata/stajichlab/jstajich/projects/NovInvenio_Investigations/.worktrees/clinker-sync -b clinker-sync origin/main`
 - Modify: `bin/sync_pangenome_report.py`, `lib/pangenome_site.py` (docstring), `.gitignore`, `bin/publish_report_release.sh`, `.github/workflows/static.yml`, `tests/test_sync_pangenome_report.py`
 
 **Interfaces:**
-- Consumes: `<pangenome dir>/clinker/*.html` from Task 22.
+- Consumes: `<pangenome dir>/clinker/*.html` from Task 27.
 - Produces: `docs/<domain>/<set>/<run>/clinker/` staged, gitignored (class 3, release asset), packed by `publish_report_release.sh` and merged by `static.yml`.
 
 
@@ -6337,13 +8055,13 @@ git commit -m "pangenome site: stage and publish clinker/ with island_synteny.ht
 ```
 
 
-### Task 24: Real-data run of the clinker chain and visual checks (controller task, spec validation item 4)
+### Task 29: Real-data run of the clinker chain and visual checks (controller task, spec validation item 4)
 
 **Files:**
 - No repo files. Outputs go to `$SCRATCH/lv_b/`.
 
 **Interfaces:**
-- Consumes: Tasks 15-22 on the real run.
+- Consumes: Tasks 20-27 on the real run, and Task 19's `$SCRATCH/lv_dna/dna_calls_*.tsv`.
 - Produces: measured cost per locus, three rendered clinker pages, the visual check notes.
 
 
@@ -6359,6 +8077,7 @@ python bin/pangenome_island_loci.py \
   --presence_matrix $P/presence_matrix.rescued.tsv --family_positions $P/family_positions.tsv.zst \
   --frequency_table $P/frequency_table.tsv --assembly_quality $P/assembly_quality_vs_content.tsv \
   --config $ST/config_immitis_in_posadasii_out.csv --top_loci 3 \
+  --dna_check true --dna_calls "$SCRATCH"/lv_dna/dna_calls_*.tsv \
   --regions_out "$O/island_regions.tsv" --project cocci --output "$O/island_loci.json"
 /usr/bin/time -v python bin/pangenome_island_gbk_slice.py --regions "$O/island_regions.tsv" \
   --config $ST/config_immitis_in_posadasii_out.csv --data_dir $ST/data_dir --gff3_dir $ST/data_dir/gff3 \
@@ -6386,7 +8105,7 @@ Expected from planning (same code, 2026-09-26): 36 regions (12 per locus), 36 sl
 
 Visual checks (spec validation item 4; the controller does these by eye and writes the result into the PR). Open `$O/site/island_synteny.html` in a desktop browser from `file://`. For each of L001, L002, L003:
 1. The exemplar's clinker track shows the grid's columns as the same genes in the same order (the grid's column IDs are clinker's group labels; clinker may draw the track reversed, because gene_positions has no strand and the spec defers orientation to Phase 2).
-2. An empty-site strain shows its left and right flanks joined with no locus genes between them. Planning note: at L001 the empty-site strains carry one merged gene model in the locus position (Task 14), so expect a gene between the flanks there; record it, do not change code.
+2. An empty-site strain (DNA-confirmed: the command above passes Task 19's calls) shows its left and right flanks joined with no locus genes between them, and a model-difference strain (reason `best_model_difference`) shows a gene model of another family over the locus position. Planning note: on the top 3 loci the DNA check confirmed no empty site (Task 19), so there may be no empty-site strain to check; record that, do not change code.
 3. The strain list under the figure names each strain, its reason and its region (contig:start-end, gene count).
 Spike follow-up: for the spike island `407-0_S_OLD_CPA0002:scaffold_30:125276-129229` (3 of 5 member families co-located), rerun `pangenome_island_loci.py` with `--top_loci 200` and find the locus whose `families` contain `B11057|CCF9097_006184-T1`; report which locus columns are in place in its full-locus strains. The two near-singleton members should be `absent` or `elsewhere` there, so they do not widen any strain's region.
 
@@ -6401,26 +8120,31 @@ Spike follow-up: for the spike island `407-0_S_OLD_CPA0002:scaffold_30:125276-12
 | 2 Exemplar choice, `F_min` fallback, "short flanks" / "exemplar at contig end" | 2, 9 (badge) |
 | 3 Columns: `F` + locus + `F`, bin, Pfam class, exemplar location, anchor marks | 3, 7, 9 |
 | 4 Cell states incl. rescue hatched and contig break | 4, 9 |
+| 4b DNA presence check: checked strains, query, target, < 50 bp rule | 14, 16 |
+| 4b blastn megablast subject mode, `min_id` 90 / `min_cov` 80, merged HSP coverage | 14, 15 |
+| 4b DNA cell states (hatched grey), model-difference class, breakpoints on DNA absent | 14, 17 |
+| 4b ranking on DNA-confirmed empty sites; sidebar model-difference count | 14, 16, 17 |
+| 4b `ISLAND_DNA_CHECK`, batching, `--pangenome_locus_dna_check`, "not DNA-confirmed" note | 17, 18 |
 | 5 Row classes, grouping by class then species, breakpoint track by species | 5, 6, 9 |
 | 6 Informative ranking, alternative sorts, `--top_loci` 50 | 5, 7, 9, 12 |
 | 7 Page layout, popups, diagnostics banner + confound line | 9, 10, 11 |
-| 8 Clinker strains, regions, GenBank, clinker 0.0.32 PyPI, `-gf`, slimming, panel, switch, release assets | 15-24 |
-| Data and wiring (inputs, streaming, payload codes) | 7, 12, 22 |
-| Validation 1 (synthetic unit tests) | 1-6, 15, 17 |
+| 8 Clinker strains (incl. model difference), regions, GenBank, clinker 0.0.32 PyPI, `-gf`, slimming, panel, switch, release assets | 20-29 |
+| Data and wiring (inputs, streaming, payload codes, now 0-7) | 7, 12, 14, 18, 27 |
+| Validation 1 (synthetic unit tests) | 1-6, 14-16, 20, 22 |
 | Validation 2 (regression vs feasibility numbers) | 8 |
-| Validation 3 (sequence spot checks, 5 empty + 5 partial) | 14 |
-| Validation 4 (clinker visual checks on 3 loci) | 24 |
-| Spike: check that non-co-located members drop out of regions | 24 |
-| Spike: slimmed page renders the same | 20 |
+| Validation 3 (the 6 planning cases as a regression; moved count; run time) | 19 |
+| Validation 4 (clinker visual checks on 3 loci) | 29 |
+| Spike: check that non-co-located members drop out of regions | 29 |
+| Spike: slimmed page renders the same | 25 |
 
 **Placeholder scan.** No "TBD", "TODO" or "similar to Task N". `ISSUE_A`/`ISSUE_B` are shell variables set in the setup steps. Every code step shows the full code.
 
-**Type consistency.** Names were checked against the code that passed: `Placement`, `Columns`, `StrainCells`, `compute_locus` keys (`_cells`, `_pairs`, `_row_class`, `_placement`), `locus_payload`, `island_loci.json` keys, `island_regions.tsv` and `island_slices.tsv` columns, CLI flags, DOM ids and JS helper names are the same in every task that uses them.
+**Type consistency.** Names were checked against the code that passed: `Placement`, `Columns`, `StrainCells`, `compute_locus` keys (`_cells`, `_pairs`, `_row_class`, `_placement`), `locus_payload`, `apply_dna_calls` and the `dna` summary keys, the DNA work-list columns (`locus_id role strain contig start end genes`) and call columns (`locus_id strain col status coverage`), codes `6`/`7`, `island_loci.json` keys, `island_regions.tsv` and `island_slices.tsv` columns, CLI flags, DOM ids and JS helper names are the same in every task that uses them.
 
-**Review Focus.** The five items above each have a test in their owning task. Checked and left to existing tests: empty regions and `--top_loci 0` (Tasks 7, 18), missing N50 file (Task 7), unsafe strain names in file names (Task 17).
+**Review Focus.** The five items above each have a test in their owning task. For the DNA check, the edge cases the spec implies are pinned by tests too: a target shorter than 50 bp, a strain with no target interval, a missing genome FASTA (Task 15), an exemplar gene without a gene model, two HSPs over one gene, low-identity HSPs (Task 14), several calls files and an empty calls file (Task 16). Checked and left to existing tests: empty regions and `--top_loci 0` (Tasks 7, 23), missing N50 file (Task 7), unsafe strain names in file names (Task 22).
 
-**Replay.** The code in this plan was generated from files that passed the full suite in a scratch copy (1062 passed, 8 skipped; ruff clean; `nextflow lint` clean). A task-by-task replay of all ops onto a clean `origin/main` copy (NovInvenio) and a clean NII copy then ran every Run step of Tasks 1-12 and 15-23: each failing-test step failed, each passing step passed (counts in this plan are the replayed counts), both `nextflow lint` runs were clean, and the bad-param run printed the `--pangenome_locus_rank` error. Only `pixi install` (Task 19) was skipped; it was checked separately in a minimal pixi workspace.
+**Replay.** The code in this plan is generated from files that passed in a scratch copy. First version (2026-09-26): a task-by-task replay onto a clean `origin/main` ran every Run step of today's Tasks 1-12 and 20-28; only `pixi install` (Task 24) was skipped and checked in a minimal pixi workspace. This revision (spec section 4b): every task's operations were applied in order onto a clean copy of `origin/main` at `f193490` (NovInvenio) and of NII `origin/main`; all replace anchors still matched, including after PR #197. Only the Run steps of new or changed tasks were run: Tasks 5, 14, 15, 16, 17, 18, 20 and 27, plus Tasks 21 and 26, whose files the DNA tasks change. Each failing step failed and each passing step passed with the counts stated; both `nextflow lint` runs were clean, and the bad-parameter run printed the `--pangenome_locus_dna_min_id` error. Tasks 1-4, 6-13, 19, 22-25, 28 and 29 were not re-run. The full suite on the replayed tree (all 29 tasks applied) gave 1117 passed, 5 skipped (opt-in regression tests without their run directory, and the clinker render check, which needs clinker on PATH). The files of the replayed tree are byte-identical to the tested files for every file the DNA tasks touch (`nextflow.config` and `pangenome.nf` differ only by the lines PR #197 added on `main`).
 
 ## Execution
 
-Recommended: subagent-driven. The tasks depend on each other's names and payload keys, a shipped mistake in the page or the rank rebuild is hard to see without a fresh reviewer, and Tasks 13, 14, 20 and 24 need the controller on a compute node. Tasks 13, 14 and 24 are controller tasks (real data, `$SCRATCH`); Task 23 runs in the other repo.
+Recommended: subagent-driven. The tasks depend on each other's names and payload keys, a shipped mistake in the page or the rank rebuild is hard to see without a fresh reviewer, and Tasks 13, 19, 25 and 29 need the controller on a compute node. Tasks 13, 19 and 29 are controller tasks (real data, `$SCRATCH`); Task 28 runs in the other repo.
