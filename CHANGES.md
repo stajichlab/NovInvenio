@@ -11,7 +11,26 @@
   removed (5.35 -> 1.01 MB per page). `island_synteny.html` shows the figure in a "Synteny (clinker)"
   panel. Pages publish to `pangenome/clinker/<key>.html`.
 - New params: `--pangenome_clinker` (true), `--pangenome_clinker_max_strains` (12),
-  `--pangenome_clinker_slim` (true), `--pangenome_clinker_batch` (50).
+  `--pangenome_clinker_slim` (true), `--pangenome_clinker_batch` (50),
+  `--pangenome_clinker_max_gap` (20000; 0 disables) -- splits a strain's region into several
+  GenBank/clinker blocks at gene-free gaps longer than this, instead of one unreadable track
+  spanning a huge, mostly-empty region (real Cocci evidence: a 338,667 bp region with a 164 kb
+  gap). Rescue (TBLASTN-only) entries never trigger a split or form a block of their own; each
+  attaches to the nearest resulting block.
+- `bin/pangenome_island_clinker.py` fails loudly (exit 2, a clear message) when the `--clinker`
+  executable cannot be found, instead of every locus quietly failing individually -- the
+  published container image has no clinker.
+- `bin/pangenome_island_clinker.py` passes clinker its `.gbk` files in clinker pick order
+  (exemplar first) plus `-ufo`/`--use_file_order`, so the drawn cluster order matches the
+  panel's own strain list, instead of clinker's default alignment-based ordering.
+- `lib/clinker_html.py`'s `inject_ui_fixes()`: the options sidebar starts collapsed (its own
+  toggle still works), the iframe scrolls instead of clipping a tall figure, a left margin keeps
+  labels from being clipped by the browser's default body margin, and (final review) clinker's
+  "hide locus coordinates" option is turned on by default plus a small script pans the drawing
+  right if a cluster/locus label is still clipped off the left edge.
+- The panel's iframe is scrollable (`width: 100%`, `height: 640px`, `min-height: 480px`); each
+  strain line in the panel's list gets a hover/keyboard-focus popup with the strain's species,
+  the reason it was chosen, its region, block count and drawn bp.
 - The published container `0.5.0` has no clinker: rebuild and push the image before container runs.
 
 ### Island locus view: five rankings replace the single informative ranking (2026-09-27, ranks-brief.md, user-approved)
