@@ -128,6 +128,12 @@ def test_empty_calls_file_leaves_checked_strains_unchecked(tmp_path):
                             "empty_to_model_difference": 0}
 
 
+# run_two_locus() passes --per_rank 1 (ranks-brief.md, changed 2026-09-27): the
+# drawn set is the union of the top --per_rank loci under whole_annot/whole_dna/
+# species/within plus a presence-order fill, so with the default --per_rank 20
+# both of these two loci would join via whole_annot regardless of --top_loci --
+# --per_rank 1 keeps these tests' single-winner intent.
+#
 # V4: the DNA check covers all candidate loci, not just the pre-check
 # --top_loci winner (spec 4b "Ranking", changed 2026-09-27). Two loci A
 # (locus_id "S1:cA:100-200") and B ("S1:cB:100-200"), each with 2 full
@@ -189,7 +195,8 @@ def run_two_locus(d: Path, *extra) -> dict:
                "--family_positions", str(d / "family_positions.tsv"),
                "--gene_positions", str(d / "genes.tsv"),
                "--cluster_tsv", str(d / "cluster.tsv"),
-               "--project", "demo", "--output", str(out), "--top_loci", "1", *extra])
+               "--project", "demo", "--output", str(out), "--top_loci", "1", "--per_rank", "1",
+               *extra])
     assert rc == 0
     return json.loads(out.read_text())
 

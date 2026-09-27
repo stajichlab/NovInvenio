@@ -22,9 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from compressed_io import open_maybe_compressed  # noqa: E402
 from config_parser import parse_config  # noqa: E402
 from island_locus import (  # noqa: E402
-    DEFAULT_CONTAINMENT, DEFAULT_EMPTY_FRAC, DEFAULT_FLANK, DEFAULT_FLANK_MIN, DEFAULT_K,
-    candidate_loci, carrier_placements, choose_exemplar, compute_locus, group_loci,
-    locus_columns, locus_payload, rank_key,
+    DEFAULT_CONTAINMENT, DEFAULT_EMPTY_FRAC, DEFAULT_FIXED_DIFF, DEFAULT_FLANK,
+    DEFAULT_FLANK_MIN, DEFAULT_K, DEFAULT_POLY_MAX_FRAC, DEFAULT_POLY_MIN_FRAC,
+    DEFAULT_POLY_MIN_STRAINS, candidate_loci, carrier_placements, choose_exemplar, compute_locus,
+    group_loci, locus_columns, locus_payload, locus_ranks, rank_key, rank_sort_key,
 )
 from island_locus import (  # noqa: E402
     DEFAULT_DNA_MIN_COV, DEFAULT_DNA_MIN_ID, apply_dna_calls, dna_checked_strains, dna_query,
@@ -190,7 +191,17 @@ def build(args) -> dict:
         for r in results:
             apply_dna_calls(r, calls.get(r["locus_id"], {}), species_of, args.empty_frac)
         results.sort(key=lambda r: rank_key(r, args.rank_by))
-    drawn = results[:args.top_loci]
+
+    # Five rankings (ranks-brief.md, spec 4b/6 "Ranking", changed 2026-09-27):
+    # computed for every candidate AFTER the DNA calls are applied (or
+    # directly, when the check is off), so a locus the check promotes or
+    # demotes is ranked on its final states, not its pre-check ones.
+    n_species = len({sp for sp in species_of.values() if sp})
+    ranks_by_id = {
+        r["locus_id"]: locus_ranks(r, species_of, dna_on, n_species, args.fixed_diff,
+                                   args.poly_min_strains, args.poly_min_frac, args.poly_max_frac)
+        for r in results}
+    drawn = choose_drawn(results, ranks_by_id, args.top_loci, args.per_rank)
 
     bins = read_bins(args.frequency_table)
     fam_domains = (parse_domtblout([args.domtblout], max_ievalue=args.domain_evalue)
@@ -214,15 +225,20 @@ def build(args) -> dict:
         out_loci.append(locus_payload(
             r, "L%03d" % (i + 1), bins,
             [dominant_class(d) for d in dom_sets], [",".join(d) for d in dom_sets],
-            dominant_class(sorted({d for ds in dom_sets for d in ds})), locs, span))
+            dominant_class(sorted({d for ds in dom_sets for d in ds})), locs, span,
+            ranks_by_id[r["locus_id"]]))
     return {
         "project": args.project,
         "locus_params": {"flank": args.flank, "flank_min": args.flank_min, "k": args.k,
                          "empty_frac": args.empty_frac, "containment": args.containment,
-                         "rank_by": args.rank_by, "top_loci": args.top_loci,
+                         "rank_by": "presence" if args.rank_by == "informative" else args.rank_by,
+                         "top_loci": args.top_loci, "per_rank": args.per_rank,
                          "candidates": args.candidates, "min_strains": args.min_strains,
                          "dna_check": dna_on, "dna_min_id": args.dna_min_id,
-                         "dna_min_cov": args.dna_min_cov},
+                         "dna_min_cov": args.dna_min_cov, "n_species": n_species,
+                         "poly_min_strains": args.poly_min_strains,
+                         "poly_min_frac": args.poly_min_frac, "poly_max_frac": args.poly_max_frac,
+                         "fixed_diff": args.fixed_diff},
         "n_loci_total": len(loci),
         "n_loci_candidates": len(cands),
         "n_loci_unplaced": n_unplaced,
@@ -231,6 +247,37 @@ def build(args) -> dict:
         "loci": out_loci,
         "_results": drawn,
     }
+
+
+def choose_drawn(results: list[dict], ranks_by_id: dict[str, dict], top_loci: int,
+                 per_rank: int) -> list[dict]:
+    """The drawn-set union rule (ranks-brief.md "Drawn set"): the top
+    `per_rank` loci (score >= 0 only) under whole_annot, whole_dna, species
+    and within, then loci in presence (C) order -- including score -1 --
+    until the set holds `top_loci` loci or every candidate is in it.
+    Deduplicated; the result is always in presence (C) order."""
+    def sort_by(name):
+        pool = [r for r in results if ranks_by_id[r["locus_id"]][name] >= 0]
+        pool.sort(key=lambda r: rank_sort_key(ranks_by_id[r["locus_id"]], name, r["locus_id"]))
+        return pool
+
+    c_ordered = sorted(
+        results, key=lambda r: rank_sort_key(ranks_by_id[r["locus_id"]], "presence", r["locus_id"]))
+    drawn_ids: list[str] = []
+    seen: set[str] = set()
+    for name in ("whole_annot", "whole_dna", "species", "within"):
+        for r in sort_by(name)[:per_rank]:
+            if r["locus_id"] not in seen:
+                seen.add(r["locus_id"])
+                drawn_ids.append(r["locus_id"])
+    for r in c_ordered:
+        if len(drawn_ids) >= top_loci:
+            break
+        if r["locus_id"] not in seen:
+            seen.add(r["locus_id"])
+            drawn_ids.append(r["locus_id"])
+    drawn_set = set(drawn_ids)
+    return [r for r in c_ordered if r["locus_id"] in drawn_set]
 
 
 DNA_TARGET_COLUMNS = ["locus_id", "role", "strain", "contig", "start", "end", "genes"]
@@ -350,8 +397,27 @@ def parse_args(argv=None):
     ap.add_argument("--k", type=int, default=DEFAULT_K)
     ap.add_argument("--empty_frac", type=float, default=DEFAULT_EMPTY_FRAC)
     ap.add_argument("--containment", type=float, default=DEFAULT_CONTAINMENT)
-    ap.add_argument("--rank_by", choices=["informative", "strains", "size"], default="informative")
-    ap.add_argument("--top_loci", type=int, default=50)
+    ap.add_argument("--rank_by",
+                    choices=["presence", "within", "species", "whole_dna", "whole_annot",
+                             "informative", "strains", "size"],
+                    default="presence",
+                    help="page's default sort + legacy pre-DNA-check tie-break; 'informative' is "
+                    "an alias of 'presence' for old configs (ranks-brief.md)")
+    ap.add_argument("--top_loci", type=int, default=100,
+                    help="loci drawn on the page: the union of --per_rank winners under "
+                    "whole_annot/whole_dna/species/within plus a presence-order fill, up to this "
+                    "many (or all candidates)")
+    ap.add_argument("--per_rank", type=int, default=20,
+                    help="loci drawn per non-presence rank before the presence-order fill")
+    ap.add_argument("--poly_min_strains", type=int, default=DEFAULT_POLY_MIN_STRAINS,
+                    help="rank 'within': minimum strains of a species to be considered (default: 20)")
+    ap.add_argument("--poly_min_frac", type=float, default=DEFAULT_POLY_MIN_FRAC,
+                    help="rank 'within': minimum loss fraction within a species (default: 0.05)")
+    ap.add_argument("--poly_max_frac", type=float, default=DEFAULT_POLY_MAX_FRAC,
+                    help="rank 'within': maximum loss fraction within a species (default: 0.95)")
+    ap.add_argument("--fixed_diff", type=float, default=DEFAULT_FIXED_DIFF,
+                    help="rank 'species': minimum loss-fraction difference between species "
+                    "(default: 0.95)")
     ap.add_argument("--candidates", type=int, default=200)
     ap.add_argument("--dna_targets_dir", default=None,
                     help="pass 1 of the DNA presence check: write batch_NNN.tsv work lists here")

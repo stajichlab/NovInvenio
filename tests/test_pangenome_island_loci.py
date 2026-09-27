@@ -147,6 +147,23 @@ def test_cli_runs_as_a_script(tmp_path):
     assert json.loads(out.read_text())["project"] == "demo"
 
 
+def test_ranks_and_n_species_reach_the_payload(tmp_path):
+    # ranks-brief.md: every drawn locus carries the five rank scores plus
+    # within_species; locus_params records n_species (2 here: Sp one, Sp two).
+    data = run(tmp_path)
+    (locus,) = data["loci"]
+    assert set(locus["ranks"]) == {"whole_annot", "whole_dna", "presence", "species", "within"}
+    assert "within_species" in locus
+    assert data["locus_params"]["n_species"] == 2
+    assert data["locus_params"]["top_loci"] == 100 and data["locus_params"]["per_rank"] == 20
+    assert data["locus_params"]["rank_by"] == "presence"
+
+
+def test_rank_by_informative_is_normalised_to_presence_in_locus_params(tmp_path):
+    data = run(tmp_path, "--rank_by", "informative")
+    assert data["locus_params"]["rank_by"] == "presence"
+
+
 def test_without_config_all_strains_are_one_unknown_species_group(tmp_path):
     # Review Focus 5: no --config means no species map; the breakpoint track
     # then has one "unknown species" group and nothing crashes.
