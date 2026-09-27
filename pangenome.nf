@@ -192,6 +192,11 @@ workflow {
     if (!file(params.pangenome_data_dir).isDirectory())  error "ERROR: --pangenome_data_dir is not a directory: ${params.pangenome_data_dir}"
     if (params.pangenome_locus_rank !in ['informative', 'strains', 'size'])
         error "ERROR: --pangenome_locus_rank must be informative, strains or size (got: ${params.pangenome_locus_rank})"
+    def top_loci_str = params.pangenome_top_loci.toString()
+    if (!(top_loci_str ==~ /^[0-9]+$/) || (top_loci_str as int) < 1)
+        error "ERROR: --pangenome_top_loci must be an integer >= 1 (got: ${params.pangenome_top_loci})"
+    if ((params.pangenome_locus_candidates as int) < (top_loci_str as int))
+        error "ERROR: --pangenome_locus_candidates (${params.pangenome_locus_candidates}) must be >= --pangenome_top_loci (${params.pangenome_top_loci})"
     if (params.pangenome_locus_flank_min > params.pangenome_locus_flank)
         error "ERROR: --pangenome_locus_flank_min (${params.pangenome_locus_flank_min}) must not exceed --pangenome_locus_flank (${params.pangenome_locus_flank})"
     def dna_id = params.pangenome_locus_dna_min_id as double
