@@ -408,3 +408,136 @@ def _mark_contig_breaks(codes: list, anchors: list, strain: str, spans: ContigSp
             continue
         if rank - cmin <= k or cmax - rank <= k:
             codes[ci] = CONTIG_BREAK
+
+
+# ---- 5. row classes and breakpoints -----------------------------------------
+def flank_pair(positions: Positions, strain: str, left: list[str], right: list[str],
+               n_locus: int, k: int = DEFAULT_K,
+               in_place: set | None = None) -> tuple[str, int, int] | None:
+    """(contig, lower rank, upper rank) of the closest left-flank/right-flank
+    copy pair on one contig within n_locus + 2k ranks, or None (spec section
+    5, "flanks intact"). With `in_place` (a set of (contig, rank) in-place
+    copies) both copies must be in place; without it any copies count, which
+    is the feasibility script's rule."""
+    span = n_locus + 2 * k
+    best = None
+    for f in left:
+        for c1, r1 in positions.get((strain, f), ()):
+            if in_place is not None and (c1, r1) not in in_place:
+                continue
+            for g in right:
+                for c2, r2 in positions.get((strain, g), ()):
+                    if c2 != c1 or abs(r1 - r2) > span:
+                        continue
+                    if in_place is not None and (c2, r2) not in in_place:
+                        continue
+                    cand = (abs(r1 - r2), c1, min(r1, r2), max(r1, r2))
+                    if best is None or cand < best:
+                        best = cand
+    if best is None:
+        return None
+    return best[1], best[2], best[3]
+
+
+def row_class(base: list, n_left: int, n_locus: int, intact: bool,
+              empty_frac: float = DEFAULT_EMPTY_FRAC) -> str:
+    """full / partial / empty / uninformative (spec section 5), from the
+    base states (rescue counts as its base state; contig break as absent)."""
+    if not intact:
+        return "uninformative"
+    block = base[n_left:n_left + n_locus]
+    if block and sum(b == ABSENT for b in block) / len(block) >= empty_frac:
+        return "empty"
+    if all(b == IN_PLACE for b in block):
+        return "full"
+    return "partial"
+
+
+def breakpoint_track(strain_rows: list[tuple[str, str, str]], n_cols: int) -> list[dict]:
+    """Per boundary b (between columns b-1 and b): flank-intact strains whose
+    state changes between in place and absent, by species; and strains of any
+    class whose state changes between in place and contig break (Ruling R8).
+    `strain_rows` = [(species, row_class, codes)]. Only non-zero boundaries."""
+    out = []
+    for b in range(1, n_cols):
+        indel: dict[str, int] = collections.Counter()
+        brk = 0
+        for species, cls, codes in strain_rows:
+            pair = {codes[b - 1], codes[b]}
+            placed = bool(pair & IN_PLACE_CODES)
+            if placed and ABSENT in pair and cls != "uninformative":
+                indel[species] += 1
+            if placed and CONTIG_BREAK in pair:
+                brk += 1
+        if indel or brk:
+            out.append({"b": b, "indel": dict(sorted(indel.items())), "contig_break": brk})
+    return out
+
+
+# Display order of row classes. "model_difference" occurs only with the DNA
+# presence check (section 6b, spec section 4b).
+ROW_ORDER = ("full", "partial", "empty", "model_difference", "uninformative")
+
+
+def collapse_rows(per_strain: dict[str, tuple[str, str]],
+                  details: dict[str, list] | None = None,
+                  max_detail_rows: int = MAX_DETAIL_ROWS) -> list[dict]:
+    """Collapse strains with the same (row class, codes) into one row.
+    Sorted by ROW_ORDER, then codes. `rep` is the per-column detail
+    of the row's first strain, kept for the `max_detail_rows` rows with the
+    most strains (None beyond that, to bound the payload); see
+    encode_detail() for its shape."""
+    groups: dict[tuple[str, str], list[str]] = collections.defaultdict(list)
+    for strain, key in per_strain.items():
+        groups[key].append(strain)
+    rows = []
+    for (cls, codes), strains in groups.items():
+        strains.sort()
+        rows.append({"row_class": cls, "codes": codes, "count": len(strains), "strains": strains,
+                     "rep": None})
+    rows.sort(key=lambda r: (ROW_ORDER.index(r["row_class"]), r["codes"]))
+    if details is not None:
+        by_count = sorted(range(len(rows)), key=lambda i: (-rows[i]["count"], i))
+        for i in by_count[:max_detail_rows]:
+            rep = details.get(rows[i]["strains"][0])
+            rows[i]["rep"] = encode_detail(rep) if rep else None
+    return rows
+
+
+def encode_detail(detail: list) -> dict:
+    """Compact per-column detail for one strain: {"c": [contig names],
+    "d": [cell per column]}. A cell is null (no copy), [contig index, rank]
+    (a copy with no neighbour) or [contig index, rank, neighbour column,
+    signed rank delta] (in place)."""
+    contigs: list[str] = []
+    index: dict[str, int] = {}
+    cells = []
+    for d in detail:
+        if d is None:
+            cells.append(None)
+            continue
+        contig, rank, nbr, delta = d
+        if contig not in index:
+            index[contig] = len(contigs)
+            contigs.append(contig)
+        cells.append([index[contig], rank] if nbr is None else [index[contig], rank, nbr, delta])
+    return {"c": contigs, "d": cells}
+
+
+def informative_score(counts: dict[str, int]) -> int:
+    """Spec section 6: min(empty, full) when >= 10 empty-site and >= 2
+    full-locus strains, else -1."""
+    empty, full = counts.get("empty", 0), counts.get("full", 0)
+    if empty >= INFORMATIVE_MIN_EMPTY and full >= INFORMATIVE_MIN_FULL:
+        return min(empty, full)
+    return -1
+
+
+def rank_key(result: dict, rank_by: str) -> tuple:
+    """Sort key over computed locus results (dicts with informative_score,
+    n_carriers, size, locus_id); best first."""
+    if rank_by == "size":
+        return (-result["size"], -result["n_carriers"], result["locus_id"])
+    if rank_by == "strains":
+        return (-result["n_carriers"], -result["size"], result["locus_id"])
+    return (-result["informative_score"], -result["n_carriers"], -result["size"], result["locus_id"])

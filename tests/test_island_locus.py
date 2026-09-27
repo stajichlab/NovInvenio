@@ -216,3 +216,87 @@ def test_a_tandem_paralog_is_not_its_own_neighbour():
     cols = ["L1", "P", "P", "R1"]
     sc = strain_cells("S1", cols, {("S1", "P"): [("c1", 40)]}, {})
     assert sc.codes == [ABSENT, ELSEWHERE, ELSEWHERE, ABSENT]
+
+
+from island_locus import (  # noqa: E402
+    breakpoint_track, collapse_rows, flank_pair, informative_score, rank_key, row_class,
+)
+
+
+# ---- flanks, row classes, breakpoints ------------------------------------------------
+
+def test_flank_pair_on_one_contig_within_locus_plus_2k():
+    pos = {("S1", "L1"): [("c1", 5)], ("S1", "R1"): [("c1", 27)]}
+    assert flank_pair(pos, "S1", ["L1"], ["R1"], 2, k=10) == ("c1", 5, 27)
+    assert flank_pair(pos, "S1", ["L1"], ["R1"], 1, k=10) is None
+
+
+def test_flank_pair_on_different_contigs_is_not_intact():
+    pos = {("S1", "L1"): [("c1", 5)], ("S1", "R1"): [("c2", 6)]}
+    assert flank_pair(pos, "S1", ["L1"], ["R1"], 2) is None
+
+
+def test_flank_pair_can_require_in_place_copies():
+    pos = {("S1", "L1"): [("c1", 5)], ("S1", "R1"): [("c1", 6)]}
+    assert flank_pair(pos, "S1", ["L1"], ["R1"], 2, in_place={("c1", 5)}) is None
+    assert flank_pair(pos, "S1", ["L1"], ["R1"], 2, in_place={("c1", 5), ("c1", 6)}) == ("c1", 5, 6)
+
+
+def test_row_classes():
+    full = [IN_PLACE] * 4
+    assert row_class(full, 1, 2, True) == "full"
+    assert row_class([IN_PLACE, IN_PLACE, ABSENT, IN_PLACE], 1, 2, True) == "partial"
+    assert row_class([IN_PLACE, ABSENT, ABSENT, IN_PLACE], 1, 2, True) == "empty"
+    assert row_class(full, 1, 2, False) == "uninformative"
+
+
+def test_empty_site_threshold_is_80_percent_of_locus_columns():
+    four_of_five = [IN_PLACE] + [ABSENT] * 4 + [IN_PLACE] + [IN_PLACE]
+    three_of_five = [IN_PLACE] + [ABSENT] * 3 + [IN_PLACE] * 3
+    assert row_class(four_of_five, 1, 5, True, 0.8) == "empty"
+    assert row_class(three_of_five, 1, 5, True, 0.8) == "partial"
+
+
+def test_elsewhere_block_is_partial_not_full():
+    assert row_class([IN_PLACE, ELSEWHERE, IN_PLACE], 1, 1, True) == "partial"
+
+
+def test_breakpoint_track_counts_flank_intact_indels_by_species_and_contig_breaks():
+    rows = [("sp1", "empty", "1001"), ("sp1", "full", "1111"), ("sp2", "partial", "1101"),
+            ("sp2", "uninformative", "1001"), ("sp1", "uninformative", "1155")]
+    track = breakpoint_track(rows, 4)
+    assert track == [
+        {"b": 1, "indel": {"sp1": 1}, "contig_break": 0},
+        {"b": 2, "indel": {"sp2": 1}, "contig_break": 1},
+        {"b": 3, "indel": {"sp1": 1, "sp2": 1}, "contig_break": 0},
+    ]
+
+
+def test_collapse_groups_same_class_and_codes_and_orders_by_class():
+    rows = collapse_rows({"a": ("empty", "100"), "b": ("full", "111"), "c": ("full", "111"),
+                          "d": ("uninformative", "111")},
+                         details={"b": [("c1", 1, 1, 1), None, ("c1", 3, None, None)]})
+    assert [(r["row_class"], r["count"], r["strains"]) for r in rows] == [
+        ("full", 2, ["b", "c"]), ("empty", 1, ["a"]), ("uninformative", 1, ["d"])]
+    assert rows[0]["rep"] == {"c": ["c1"], "d": [[0, 1, 1, 1], None, [0, 3]]}
+
+
+def test_detail_is_kept_only_for_the_largest_rows():
+    per = {f"s{i}": ("full", format(i, "03b")) for i in range(4)}
+    per["s0b"] = ("full", "000")
+    rows = collapse_rows(per, details={s: [None, None, None] for s in per}, max_detail_rows=1)
+    assert [r["rep"] is not None for r in rows] == [True, False, False, False]
+
+
+def test_informative_score_needs_10_empty_and_2_full():
+    assert informative_score({"empty": 10, "full": 2}) == 2
+    assert informative_score({"empty": 9, "full": 50}) == -1
+    assert informative_score({"empty": 30, "full": 1}) == -1
+
+
+def test_rank_key_orders():
+    a = {"informative_score": 5, "n_carriers": 10, "size": 2, "locus_id": "a"}
+    b = {"informative_score": -1, "n_carriers": 90, "size": 9, "locus_id": "b"}
+    assert sorted([b, a], key=lambda r: rank_key(r, "informative"))[0] is a
+    assert sorted([a, b], key=lambda r: rank_key(r, "strains"))[0] is b
+    assert sorted([a, b], key=lambda r: rank_key(r, "size"))[0] is b
