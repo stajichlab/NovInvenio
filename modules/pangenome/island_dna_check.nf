@@ -16,10 +16,12 @@
 // ISLAND_DNA_CHECK runs blastn -task megablast (subject mode) per (locus,
 // strain) on one work list. It reads each strain's genome FASTA from the
 // study data_dir (passed as `val`, the GENE_POSITIONS convention -- needs
-// `--bind /bigdata` under singularity) once per batch. Measured 2026-09-26
-// on the 529-strain Coccidioides run, top 3 loci (828 checked strains):
-// 2 min 18 s wall at 6 cpus, 136 MB peak RSS; reading the 463 genomes took
-// 73 s of that. ISLAND_LOCI then applies the calls (pass 2).
+// `--bind /bigdata` under singularity) once per batch. Measured 2026-09-27
+// (Task 19, SLURM 29118233, node r41, short partition) on the 529-strain
+// Coccidioides run, one batch = all 50 drawn loci, 20159 (locus, strain)
+// checks: 10 min 09 s wall at 16 cpus, 338 MB peak RSS -- well under the
+// 1-1.5 h HPCC job-sizing target, so the default batch stays 50 (one task)
+// and no explicit `time` is set. ISLAND_LOCI then applies the calls (pass 2).
 process ISLAND_DNA_TARGETS {
     label 'low_cpu'
     tag "island_dna_targets"

@@ -442,7 +442,12 @@ def flank_pair(positions: Positions, strain: str, left: list[str], right: list[s
 def row_class(base: list, n_left: int, n_locus: int, intact: bool,
               empty_frac: float = DEFAULT_EMPTY_FRAC) -> str:
     """full / partial / empty / uninformative (spec section 5), from the
-    base states (rescue counts as its base state; contig break as absent)."""
+    base states (rescue counts as its base state; contig break as absent).
+    Falls to "partial" (the `return "partial"` below) whenever the block is
+    neither all in-place nor empty-fraction absent, including a block with
+    some column "elsewhere" and none "absent" -- matches the feasibility
+    prototype's behaviour; spec section 5's own wording for partial is
+    "some present, some absent"."""
     if not intact:
         return "uninformative"
     block = base[n_left:n_left + n_locus]

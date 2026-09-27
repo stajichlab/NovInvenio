@@ -6,8 +6,8 @@
 //
 // Streams family_positions three times, filtered each time (see
 // bin/pangenome_island_loci.py). Measured on the 529-strain Coccidioides run
-// (2026-09-26, 200 candidate loci, 50 drawn): 1 min 41 s wall, 1.36 GB peak
-// RSS, 1.94 MB island_loci.json -- inside low_cpu's 4 GB.
+// (Task 13, 2026-09-26, 200 candidate loci, 50 drawn): 38 s wall, 1.36 GB
+// peak RSS, 1.85 MB island_loci.json -- inside low_cpu's 4 GB.
 //
 // With --pangenome_locus_dna_check (default true) this is pass 2 of the
 // DNA presence check (spec section 4b, modules/pangenome/island_dna_check.nf):
