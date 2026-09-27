@@ -77,6 +77,7 @@ process ISLAND_DNA_CHECK {
     label 'med_cpu'
     tag "${targets.baseName}"
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+    publishDir { "${params.outdir}/${Helpers.projectName(params)}/pangenome/island_dna_calls" }, mode: 'copy'
 
     input:
     path(targets)
