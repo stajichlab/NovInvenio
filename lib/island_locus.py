@@ -611,14 +611,18 @@ def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Column
         "_cells": cells,
         "_pairs": pairs,
         "_row_class": {s: v[0] for s, v in per_strain.items()},
+        "_per_strain": per_strain,
     }
 
 
 def locus_payload(result: dict, key: str, bins: dict[str, str],
                   family_classes: list[str], family_domains: list[str],
                   dominant: str, family_locations: list | None = None,
-                  exemplar_span: tuple[int, int] | None = None) -> dict:
-    """The JSON-safe page entry for one computed locus (drops "_" keys)."""
+                  exemplar_span: tuple[int, int] | None = None,
+                  ranks: dict | None = None) -> dict:
+    """The JSON-safe page entry for one computed locus (drops "_" keys).
+    `ranks` (from locus_ranks()) becomes "ranks" (the five scores) and
+    "within_species" (spec 4b/6, ranks-brief.md)."""
     out = {k: v for k, v in result.items() if not k.startswith("_")}
     out["key"] = key
     out["family_bins"] = [bins.get(f, "") for f in result["families"]]
@@ -629,6 +633,10 @@ def locus_payload(result: dict, key: str, bins: dict[str, str],
                             if exemplar_span else None)
     if family_locations is not None:
         out["family_locations"] = family_locations
+    if ranks is not None:
+        out["ranks"] = {k: ranks[k] for k in
+                        ("whole_annot", "whole_dna", "presence", "species", "within")}
+        out["within_species"] = ranks["within_species"]
     return out
 
 
@@ -847,3 +855,142 @@ def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: 
         {"empty": summary["empty_confirmed"], "full": counts["full"]})
     result["dna"] = summary
     result["_row_class"] = {s: v[0] for s, v in per_strain.items()}
+    result["_per_strain"] = per_strain
+
+
+# ---- 6c. Multi-rank scores (ranks-brief.md, changed 2026-09-27) --------------
+# Five rankings replace the single "informative" ranking (spec section 6,
+# 4b "Ranking"). "presence" generalises the old informative_score() from
+# empty/full counts to a carriers/losses partition of every non-uninformative
+# strain, so an existing empty_frac-partial strain with a missing locus
+# column counts as a loss too, not only fully "empty" strains.
+DEFAULT_FIXED_DIFF = 0.95
+DEFAULT_POLY_MIN_STRAINS = 20
+DEFAULT_POLY_MIN_FRAC = 0.05
+DEFAULT_POLY_MAX_FRAC = 0.95
+
+
+def locus_species_stats(per_strain: dict[str, tuple[str, str]], species_of: dict[str, str],
+                        n_left: int, n_locus: int, missing_code: str) -> dict:
+    """carriers/losses over one locus's non-uninformative strains, overall and
+    per species (ranks-brief.md "Definitions"). `missing_code` is DNA_ABSENT
+    with the DNA check on, ABSENT otherwise -- the code a partial strain's
+    locus block must NOT contain to still count as a carrier."""
+    carriers = losses = 0
+    by_species: dict[str, dict[str, int]] = {}
+    for s, (cls, codes) in per_strain.items():
+        if cls == "uninformative":
+            continue
+        if cls in ("full", "model_difference"):
+            is_carrier = True
+        elif cls == "empty":
+            is_carrier = False
+        else:
+            is_carrier = missing_code not in codes[n_left:n_left + n_locus]
+        sp = species_of.get(s, "")
+        d = by_species.setdefault(sp, {"car": 0, "loss": 0})
+        if is_carrier:
+            carriers += 1
+            d["car"] += 1
+        else:
+            losses += 1
+            d["loss"] += 1
+    return {"carriers": carriers, "losses": losses, "by_species": by_species}
+
+
+def score_whole_annot(empty_n: int, full: int) -> int:
+    """Rank A (spec 4b/6): min(empty_n, full) if empty_n >= 10 and full >= 2,
+    else -1. Identical to informative_score() given the same counts."""
+    if empty_n >= INFORMATIVE_MIN_EMPTY and full >= INFORMATIVE_MIN_FULL:
+        return min(empty_n, full)
+    return -1
+
+
+def score_whole_dna(empty_n: int, full: int, model_difference: int) -> int:
+    """Rank B: like A, but the "full-locus-like" side also counts model
+    difference strains (annotated carriers plus a gene-model difference)."""
+    return score_whole_annot(empty_n, full + model_difference)
+
+
+def score_presence(carriers: int, losses: int) -> int:
+    """Rank C (the page default): min(losses, carriers) if losses >= 10 and
+    carriers >= 2, else -1."""
+    if losses >= INFORMATIVE_MIN_EMPTY and carriers >= INFORMATIVE_MIN_FULL:
+        return min(losses, carriers)
+    return -1
+
+
+def score_species(by_species: dict[str, dict[str, int]], n_species_total: int,
+                  fixed_diff: float = DEFAULT_FIXED_DIFF, min_n: int = 10) -> float | int:
+    """Rank D: max_s f_s - min_s f_s over species with n_s >= min_n, when at
+    least 2 such species exist and the difference is >= fixed_diff; else -1.
+    Always -1 when fewer than 2 species exist in the samplesheet at all."""
+    if n_species_total < 2:
+        return -1
+    fracs = []
+    for d in by_species.values():
+        n = d["car"] + d["loss"]
+        if n >= min_n:
+            fracs.append(d["loss"] / n)
+    if len(fracs) < 2:
+        return -1
+    diff = max(fracs) - min(fracs)
+    return round(diff, 3) if diff >= fixed_diff else -1
+
+
+def score_within(by_species: dict[str, dict[str, int]],
+                 poly_min_strains: int = DEFAULT_POLY_MIN_STRAINS,
+                 poly_min_frac: float = DEFAULT_POLY_MIN_FRAC,
+                 poly_max_frac: float = DEFAULT_POLY_MAX_FRAC) -> tuple[int, str | None]:
+    """Rank E: (score, species) where score = the largest min(car_s, loss_s)
+    over species with n_s >= poly_min_strains and a loss fraction inside
+    [poly_min_frac, poly_max_frac]; (-1, None) if none qualify. Ties go to
+    the alphabetically first species name."""
+    best = None
+    for sp, d in sorted(by_species.items()):
+        n = d["car"] + d["loss"]
+        if n < poly_min_strains:
+            continue
+        f = d["loss"] / n
+        if not (poly_min_frac <= f <= poly_max_frac):
+            continue
+        score = min(d["car"], d["loss"])
+        if best is None or score > best[1]:
+            best = (sp, score)
+    return (best[1], best[0]) if best else (-1, None)
+
+
+def locus_ranks(result: dict, species_of: dict[str, str], dna_on: bool, n_species_total: int,
+                fixed_diff: float = DEFAULT_FIXED_DIFF,
+                poly_min_strains: int = DEFAULT_POLY_MIN_STRAINS,
+                poly_min_frac: float = DEFAULT_POLY_MIN_FRAC,
+                poly_max_frac: float = DEFAULT_POLY_MAX_FRAC) -> dict:
+    """All five rank scores for one computed locus (ranks-brief.md), plus the
+    carriers/losses totals used for the shared tie-break (higher strain count,
+    then locus_id) and within_species (rank E's species, or None)."""
+    nl, nb = result["n_left"], result["n_locus"]
+    counts = result["counts"]
+    empty_n = result["dna"]["empty_confirmed"] if dna_on and "dna" in result else counts["empty"]
+    full = counts["full"]
+    model_difference = counts.get("model_difference", 0)
+    missing_code = DNA_ABSENT if dna_on else ABSENT
+    stats = locus_species_stats(result["_per_strain"], species_of, nl, nb, missing_code)
+    within_score, within_species = score_within(stats["by_species"], poly_min_strains,
+                                                poly_min_frac, poly_max_frac)
+    return {
+        "whole_annot": score_whole_annot(empty_n, full),
+        "whole_dna": score_whole_dna(empty_n, full, model_difference),
+        "presence": score_presence(stats["carriers"], stats["losses"]),
+        "species": score_species(stats["by_species"], n_species_total, fixed_diff),
+        "within": within_score,
+        "within_species": within_species,
+        "carriers": stats["carriers"],
+        "losses": stats["losses"],
+    }
+
+
+def rank_sort_key(ranks: dict, key: str, locus_id: str) -> tuple:
+    """Sort key for one rank score, best first: score descending, then
+    strain count (carriers + losses) descending, then locus_id (ranks-brief.md
+    "Ties inside a rank")."""
+    return (-ranks[key], -(ranks["carriers"] + ranks["losses"]), locus_id)
