@@ -1,9 +1,9 @@
 # =============================================================================
 # NovInvenio — all bioinformatics tools + Python runtime
 # Registry: ghcr.io/stajichlab/novinvenio
-# Image tag : 0.5.0  (mirrors pixi.toml version)
-# Build    : docker build -t ghcr.io/stajichlab/novinvenio:0.5.0 .
-# Push     : docker push ghcr.io/stajichlab/novinvenio:0.5.0
+# Image tag : 0.7.0  (mirrors pixi.toml version)
+# Build    : docker build -t ghcr.io/stajichlab/novinvenio:0.7.0 .
+# Push     : docker push ghcr.io/stajichlab/novinvenio:0.7.0
 # =============================================================================
 # This image contains only the tool layer.  The pipeline source (bin/, lib/,
 # modules/, workflows/) is supplied by the cloned repository; Nextflow stages

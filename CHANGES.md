@@ -31,7 +31,14 @@
 - The panel's iframe is scrollable (`width: 100%`, `height: 640px`, `min-height: 480px`); each
   strain line in the panel's list gets a hover/keyboard-focus popup with the strain's species,
   the reason it was chosen, its region, block count and drawn bp.
-- The published container `0.5.0` has no clinker: rebuild and push the image before container runs.
+- The image for `0.7.0` is built by CI on merge (`release-tag.yml` -> `docker-build.yml`) and
+  includes clinker 0.0.32; until it is published, container runs fail with the clinker-missing
+  error above.
+- Also adds N1 (`lib/clinker_html.py`'s `inject_ui_fixes()`): clinker's own default legend
+  position overlaps the figure on a long multi-block track; the legend is now hidden by default
+  (a "Show legend" checkbox is added to the sidebar, since clinker's own panel has none) and N3
+  (`lib/island_locus_template.py`): a locus not published on the site (see NII's
+  `--clinker_publish_top`) shows a note pointing at the full clinker folder instead of an iframe.
 
 ### Island locus view: five rankings replace the single informative ranking (2026-09-27, ranks-brief.md, user-approved)
 
