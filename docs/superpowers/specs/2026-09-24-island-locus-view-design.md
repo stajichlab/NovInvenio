@@ -153,17 +153,15 @@ keep the section 4 states.
 - **full locus** and **uninformative** as in section 5.
 The breakpoint track counts only changes between "in place" and "DNA absent".
 
-**Ranking (changes section 6).** "Informative polymorphism" uses DNA-confirmed
-empty-site strains: at least 10 empty-site strains (DNA absent) and at least 2
-full-locus strains, ranked by the smaller count. The sidebar also shows each
-locus's model-difference count. The check itself covers every candidate locus
-(`--candidates`, default 200), not only the `--top_loci` drawn on the page: the
-`--top_loci` loci are chosen from this DNA-informed ranking, i.e. the check
-runs first and the drawn set is picked after it (changed 2026-09-27; previously
-the drawn set was chosen from the annotation-only ranking before the check ran,
-so a locus whose empty sites turned out to be gene-model differences kept its
-top rank, and a locus whose empty sites were confirmed deletions could never be
-promoted into view).
+**Ranking (changes section 6; superseded by the five rankings below, changed
+2026-09-27 -- see section 6).** The DNA check itself still covers every
+candidate locus (`--candidates`, default 200), not only the loci drawn on the
+page: the drawn set is chosen from the DNA-informed ranking, i.e. the check
+runs first and the drawn set is picked after it (previously the drawn set was
+chosen from the annotation-only ranking before the check ran, so a locus whose
+empty sites turned out to be gene-model differences kept its top rank, and a
+locus whose empty sites were confirmed deletions could never be promoted into
+view).
 
 **Pipeline.** New process `ISLAND_DNA_CHECK` between the locus computation and
 the page. Inputs: the per-strain regions from the locus step and the genome
@@ -194,20 +192,61 @@ between "in place" and "absent" there, split by species. A tall bar is a
 **shared breakpoint**; a bar present in only one species is a lineage-specific
 event.
 
-### 6. Which loci to show
+### 6. Which loci to show (five rankings, changed 2026-09-27)
 
-Default ranking: loci with the most **informative polymorphism**: at least 10
-flank-intact strains in the empty-site class **and** at least 2 in the full-locus
-class, ranked by the smaller of those two counts. With the DNA check on
-(section 4b), only DNA-confirmed empty-site strains count, and the check covers
-all `--candidates` (default 200) before `--top_loci` (default 50) is chosen from
-the result (section 4b "Ranking"; changed 2026-09-27). Alternative sorts: strain
-count, size (today's order), and a text search.
+A single "informative polymorphism" ranking cannot separate a locus that
+deletes wholesale (every carrier has it, every non-carrier lacks it entirely)
+from one that is polymorphic within a species, or one whose loss frequency
+differs sharply between species. Five rankings replace it. Per locus, over
+only its non-**uninformative** strains: **carriers** = strains whose row class
+is **full** or **model difference**, plus **partial** strains with no missing
+locus column; **losses** = **empty**-class strains, plus **partial** strains
+with >= 1 missing locus column (a missing column is *DNA absent* with the DNA
+check on, plain *absent* otherwise). **empty_n** = the DNA-confirmed empty-site
+count with the check on (`dna.empty_confirmed`), else `counts.empty`. Per
+species s (species from the samplesheet; strains without one form a single ""
+group): `car_s`, `loss_s`, `n_s = car_s + loss_s`, `f_s = loss_s / n_s`.
+
+- **A "whole_annot"**: `min(empty_n, full)` if `empty_n >= 10` and `full >= 2`,
+  else -1 (the original informative-polymorphism rule, annotation only).
+- **B "whole_dna"**: like A, but the full-locus side also counts
+  model-difference strains: `min(empty_n, full + model_difference)` if
+  `empty_n >= 10` and `full + model_difference >= 2`.
+- **C "presence"** (the page default; alias `informative` in `--rank_by` /
+  `--pangenome_locus_rank` for old configs): `min(losses, carriers)` if
+  `losses >= 10` and `carriers >= 2`.
+- **D "species"**: `max_s f_s - min_s f_s` over species with `n_s >= 10`, when
+  at least 2 such species exist and the difference is >= `--pangenome_locus_fixed_diff`
+  (default 0.95); score = the difference. Always -1 when the samplesheet has
+  fewer than 2 species at all -- the page then hides this sort.
+- **E "within"**: the largest `min(car_s, loss_s)` over species with
+  `n_s >= --pangenome_locus_poly_min_strains` (default 20) and `f_s` in
+  [`--pangenome_locus_poly_min_frac`, `--pangenome_locus_poly_max_frac`]
+  (defaults 0.05, 0.95); -1 if none qualify. The winning species is recorded
+  (`within_species`).
+
+Ties inside a rank: higher strain count (`carriers + losses`), then locus ID.
+
+**Drawn set.** After the DNA calls are applied (or directly, with the check
+off), all five scores are computed for every candidate. The drawn set is the
+union, in this order, of the top `--pangenome_locus_per_rank` (default 20)
+loci under A, under B, under D, under E (score >= 0 only), then loci in C
+order (all, including -1) until the set holds `--pangenome_top_loci` (default
+100) loci or every candidate is in it. Deduplicated. The payload's `loci` list
+is always in C order, and locus keys (`L001`, ...) follow it regardless of
+`--pangenome_locus_rank`; each locus carries `ranks: {whole_annot, whole_dna,
+presence, species, within}` and `within_species`. `--pangenome_locus_rank`
+still sets the page's initial sort (default presence) and, pre-DNA-check, a
+legacy tie-break; it does not change the drawn set or the payload order.
+
+Alternative page sorts (client-side, over `locus.ranks`): strain count, size
+(today's order), locus ID, and a text search.
 
 ### 7. Page layout
 
 - Sidebar: loci with size, variant count, empty-site / full / partial /
-  uninformative strain counts, Pfam class chip.
+  uninformative strain counts, Pfam class chip, and (section 6) the active
+  sort's score, or "not informative for this sort" when it is -1.
 - Main: title = exemplar locus (strain:contig:start-end); note line stating the
   exemplar rule and `F`/`k`; breakpoint track; column header (labels + class
   strip + anchor marks); grid; legend for the five states.

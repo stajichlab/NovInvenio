@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Island locus view: five rankings replace the single informative ranking (2026-09-27, ranks-brief.md, user-approved)
+
+- **`lib/island_locus.py`**, **`bin/pangenome_island_loci.py`**, **`lib/island_locus_template.py`**,
+  **`modules/pangenome/island_loci.nf`**, **`modules/pangenome/island_dna_check.nf`**, **`pangenome.nf`**,
+  **`nextflow.config`** -- a single "informative polymorphism" ranking could not tell a whole-locus
+  deletion apart from a within-species polymorphism or a between-species pattern. Five rankings now
+  score every candidate locus: **presence/absence** (page default; carriers vs. losses, alias
+  `informative` for old configs), **within-species polymorphic**, **species-specific**,
+  **whole-island deletion** (DNA-confirmed), and **whole-island deletion, annotated carriers**
+  (annotation only). The loci drawn on the page are the union of the top `--pangenome_locus_per_rank`
+  (20) loci under the last four rankings plus a presence-order fill, up to `--pangenome_top_loci`
+  (raised 50 -> 100). Each drawn locus carries all five scores (`ranks`) and, for the within-species
+  rank, the species it is polymorphic in (`within_species`). The sort select on the page gained the
+  four new options (species hidden when the samplesheet has fewer than 2 species) and shows the
+  active sort's score in the sidebar.
+- New params: `--pangenome_locus_per_rank` (20), `--pangenome_locus_poly_min_strains` (20),
+  `--pangenome_locus_poly_min_frac` (0.05), `--pangenome_locus_poly_max_frac` (0.95),
+  `--pangenome_locus_fixed_diff` (0.95); `--pangenome_top_loci` default raised 50 -> 100;
+  `--pangenome_locus_rank` default changed `informative` -> `presence` (`informative` kept as an
+  alias).
+
 ### New: island locus view (default view of island_synteny.html)
 
 - **`lib/island_locus.py`**, **`bin/pangenome_island_loci.py`**, **`modules/pangenome/island_loci.nf`**,
