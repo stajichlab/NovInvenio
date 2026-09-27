@@ -139,3 +139,110 @@ def candidate_loci(loci: list[Locus], n_strains_total: int, rank_by: str,
     else:
         kept.sort(key=lambda loc: (-loc.carrier_proxy(n_strains_total), -loc.size, loc.locus_id))
     return kept[:n_candidates]
+
+
+# ---- 2. exemplar -----------------------------------------------------------
+@dataclass(frozen=True)
+class Placement:
+    """Where one strain carries a locus's root variant."""
+    strain: str
+    contig: str
+    lo: int
+    hi: int
+    left_avail: int
+    right_avail: int
+    contig_genes: int
+
+
+def _min_cover_window(copies: list[tuple[int, str]], need: int) -> tuple[int, int] | None:
+    """Smallest rank window over sorted (rank, family) copies that holds
+    every one of `need` distinct families. Ties: lowest start."""
+    best = None
+    count: dict[str, int] = collections.Counter()
+    have = 0
+    left = 0
+    for right, (r_rank, r_fam) in enumerate(copies):
+        count[r_fam] += 1
+        if count[r_fam] == 1:
+            have += 1
+        while have == need:
+            lo, hi = copies[left][0], r_rank
+            if best is None or hi - lo < best[1] - best[0]:
+                best = (lo, hi)
+            l_fam = copies[left][1]
+            count[l_fam] -= 1
+            if count[l_fam] == 0:
+                have -= 1
+            left += 1
+    return best
+
+
+def carrier_placements(members: list[str], positions: Positions, strains: list[str],
+                       spans: ContigSpans, k: int = DEFAULT_K) -> list[Placement]:
+    """Strains that carry the variant `members`, one Placement each.
+
+    A strain carries it when one contig holds a copy of every member family
+    within a span of at most len(set(members)) - 1 + k ranks (Ruling R3).
+    Per strain the tightest window wins; ties go to the contig name.
+    """
+    fams = sorted(set(members))
+    need = len(fams)
+    out = []
+    for s in strains:
+        by_contig: dict[str, list[tuple[int, str]]] = collections.defaultdict(list)
+        missing = False
+        for f in fams:
+            copies = positions.get((s, f))
+            if not copies:
+                missing = True
+                break
+            for contig, rank in copies:
+                by_contig[contig].append((rank, f))
+        if missing:
+            continue
+        best = None
+        for contig in sorted(by_contig):
+            copies = sorted(by_contig[contig])
+            win = _min_cover_window(copies, need)
+            if win is None or win[1] - win[0] > need - 1 + k:
+                continue
+            if best is None or win[1] - win[0] < best[2] - best[1]:
+                best = (contig, win[0], win[1])
+        if best is None:
+            continue
+        contig, lo, hi = best
+        cmin, cmax = spans.get((s, contig), (lo, hi))
+        out.append(Placement(s, contig, lo, hi, lo - cmin, cmax - hi, cmax - cmin + 1))
+    return out
+
+
+def quality_key(strain: str, n50: dict[str, int], contig_genes: int) -> tuple:
+    """Sort key, best first. Strains with an N50 rank before strains without
+    one; with an N50: N50 descending, then name (spec section 2). Without an
+    N50 (assembly_quality_vs_content.tsv covers only the ingroup): gene count
+    of the locus contig descending, then name (Ruling R4)."""
+    if strain in n50:
+        return (0, -n50[strain], strain)
+    return (1, -contig_genes, strain)
+
+
+def choose_exemplar(placements: list[Placement], n50: dict[str, int],
+                    flank: int = DEFAULT_FLANK,
+                    flank_min: int = DEFAULT_FLANK_MIN) -> tuple[Placement, str] | None:
+    """(exemplar, tier). Tier "full": >= `flank` genes on both sides.
+    "short_flanks": >= `flank_min` on both sides. "contig_end": the strain(s)
+    with the most flank genes in total. None when no strain carries it."""
+    if not placements:
+        return None
+
+    def best(pool):
+        return min(pool, key=lambda p: quality_key(p.strain, n50, p.contig_genes))
+
+    tier = [p for p in placements if p.left_avail >= flank and p.right_avail >= flank]
+    if tier:
+        return best(tier), "full"
+    tier = [p for p in placements if p.left_avail >= flank_min and p.right_avail >= flank_min]
+    if tier:
+        return best(tier), "short_flanks"
+    top = max(p.left_avail + p.right_avail for p in placements)
+    return best([p for p in placements if p.left_avail + p.right_avail == top]), "contig_end"

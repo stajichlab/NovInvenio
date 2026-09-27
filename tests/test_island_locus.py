@@ -62,3 +62,58 @@ def test_candidates_filter_on_min_strains_and_rank_by_proxy():
     loci = group_loci([isl("L1", ["a", "b"], 1), isl("L2", ["c", "d"], 9), isl("L3", ["e", "f", "g"], 3)])
     assert [loc.locus_id for loc in candidate_loci(loci, 20, "informative", 5, 2)] == ["L2", "L3"]
     assert [loc.locus_id for loc in candidate_loci(loci, 20, "size", 5, 2)] == ["L3", "L2"]
+
+
+from island_locus import Placement, carrier_placements, choose_exemplar, quality_key  # noqa: E402
+
+
+# ---- exemplar -----------------------------------------------------------------
+
+SPANS = {("S1", "c1"): (0, 19), ("S2", "c1"): (0, 19), ("S3", "c2"): (100, 104)}
+
+
+def test_carrier_needs_every_member_within_the_span_window():
+    pos = {("S1", "a"): [("c1", 8)], ("S1", "b"): [("c1", 9)],
+           ("S2", "a"): [("c1", 1)], ("S2", "b"): [("c1", 19)]}
+    places = carrier_placements(["a", "b"], pos, ["S1", "S2"], SPANS, k=10)
+    assert [(p.strain, p.lo, p.hi, p.left_avail, p.right_avail) for p in places] == [("S1", 8, 9, 8, 10)]
+
+
+def test_strain_missing_a_member_is_not_a_carrier():
+    pos = {("S1", "a"): [("c1", 8)]}
+    assert carrier_placements(["a", "b"], pos, ["S1"], SPANS) == []
+
+
+def test_tightest_window_wins_for_a_multicopy_member():
+    pos = {("S1", "a"): [("c1", 2), ("c1", 12)], ("S1", "b"): [("c1", 13)]}
+    (p,) = carrier_placements(["a", "b"], pos, ["S1"], SPANS)
+    assert (p.lo, p.hi) == (12, 13)
+
+
+def place(strain, left, right, genes=20):
+    return Placement(strain, "c1", left, left + 1, left, right, genes)
+
+
+def test_exemplar_prefers_full_flanks_then_n50_then_name():
+    picks = [place("B", 6, 6), place("A", 6, 6), place("C", 2, 9)]
+    assert choose_exemplar(picks, {"A": 10, "B": 50}) == (picks[0], "full")
+    assert choose_exemplar(picks, {"A": 50, "B": 50})[0].strain == "A"
+
+
+def test_exemplar_falls_back_to_short_flanks():
+    picks = [place("A", 4, 3), place("B", 9, 1)]
+    assert choose_exemplar(picks, {}, flank=5, flank_min=3) == (picks[0], "short_flanks")
+
+
+def test_exemplar_at_contig_end_takes_the_most_flank_genes():
+    picks = [place("A", 0, 2), place("B", 1, 2)]
+    assert choose_exemplar(picks, {}) == (picks[1], "contig_end")
+
+
+def test_strains_without_n50_rank_after_known_n50_then_by_contig_genes():
+    assert quality_key("X", {"Y": 1}, 500) > quality_key("Y", {"Y": 1}, 10)
+    assert quality_key("X", {}, 500) < quality_key("W", {}, 100)
+
+
+def test_no_carrier_gives_no_exemplar():
+    assert choose_exemplar([], {}) is None
