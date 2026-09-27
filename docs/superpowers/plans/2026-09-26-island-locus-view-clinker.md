@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12 (pixi), pytest, Biopython, Nextflow 26 DSL2 (strict parser), vanilla JS + `<canvas>` (the page must open from `file://`), node for JS unit checks, jsdom and headless Chromium for behaviour checks, gamcil/clinker 0.0.32 from PyPI, blastn (the DNA presence check; already in the pixi env).
 
-**Spec:** `docs/superpowers/specs/2026-09-24-island-locus-view-design.md` (on `main` at `f193490`, sections 1-8 and section 4b, added 2026-09-26 by PR #198). The spec is the authority; this plan adds Rulings only where the spec is silent or open.
+**Spec:** `docs/superpowers/specs/2026-09-24-island-locus-view-design.md` (on `main` at `f193490`, sections 1-8 and section 4b, added 2026-09-26 by PR #198; the 4b target rule as changed on branch `dna-target-include-flanks`, not yet merged, treated as binding). The spec is the authority; this plan adds Rulings only where the spec is silent or open.
 
 ## Global Constraints
 
@@ -27,7 +27,7 @@ Values copied from the spec:
 - Payload: state vectors as 3-bit codes per column, stored once per collapsed pattern.
 - Page: sidebar (size, variant count, empty-site / full / partial / uninformative counts, Pfam class chip); main (title = exemplar locus strain:contig:start-end; note with the exemplar rule and `F`/`k`; breakpoint track; column header with labels, class strip and anchor marks; grid; legend for the five states); popups (column: family, bin, domains, exemplar location; cell: strain(s), state, the strain's own contig:rank, and why the state was assigned); diagnostics banner kept; one line under it when `assembly_quality_confound` triggered.
 - Clinker: gamcil/clinker **0.0.32 from PyPI**, added to the pixi environment as a PyPI dependency and to the container. Bioconda's `clinker` 1.33 is a different, unrelated RNA-seq tool; do not use it. `clinker <locus>/*.gbk -gf <locus>.groups.csv -p <locus>.html`; the tier-1 family is the group.
-- DNA presence check (spec section 4b). Strains checked: for each drawn locus, every flank-intact strain with at least one locus column not "in place". Query: the exemplar's locus DNA, from the start of its first locus gene to the end of its last locus gene, with each exemplar locus gene's coordinates. Target: the strain's DNA on its flank contig, between the inner edges of its innermost in-place left-flank gene and innermost in-place right-flank gene; when the target is shorter than 50 bp, every missing column is DNA absent without an alignment.
+- DNA presence check (spec section 4b). Strains checked: for each drawn locus, every flank-intact strain with at least one locus column not "in place". Query: the exemplar's locus DNA, from the start of its first locus gene to the end of its last locus gene, with each exemplar locus gene's coordinates. Target: the strain's DNA on its flank contig, from the start of its innermost in-place left-flank gene to the end of its innermost in-place right-flank gene. The two flank genes are included because a gene model can extend over the locus DNA; the query holds only the exemplar's locus genes, so a hit inside a flank gene means that model spans the locus DNA (a model difference).
 - DNA alignment: `blastn -task megablast`, query against target (subject mode), one call per (locus, strain). A locus column is DNA present when HSPs with identity >= `--locus_dna_min_id` (default 90%) cover >= `--locus_dna_min_cov` (default 80%) of that exemplar gene's span. Both defaults are chosen, not validated.
 - DNA cell states: an "absent" or "elsewhere" locus cell in a checked strain becomes "absent, DNA present" (gene-model or annotation difference; drawn hatched grey) or "absent, DNA absent" (drawn as absent). "In place" and "contig break" cells are unchanged. Strains that are not checked keep the section 4 states.
 - DNA row classes: empty site = flanks intact, >= 80% of locus columns DNA absent; partial = flanks intact, some columns in place and some DNA absent; model difference = flanks intact, every locus column in place or "absent, DNA present", at least one of the latter (not a deletion); full locus and uninformative as before. The breakpoint track counts only changes between "in place" and "DNA absent".
@@ -80,10 +80,10 @@ Decisions on points the spec leaves open or silent. "Ruling Rn" in code comments
 - **R14 GenBank.** Each gene is written as a `gene` plus `CDS` feature (silences clinker's "Could not find parent gene" warning: 145 warnings in the spike, 0 with the gene feature). TBLASTN rescue hits have no gene model and are not drawn. A strain whose DNA, protein or GFF3 file is missing is skipped with a warning. Rank rebuild uses the exact rule of `bin/pangenome_build_family_positions.py`; a mismatch with the region's anchor families stops the task.
 - **R15 clinker failure.** A failed clinker run skips that locus with a warning; the page reports no figure for it.
 - **R16 Slimming.** On by default; `--pangenome_clinker_slim false` keeps clinker's page unchanged.
-- **R17 Two locus passes.** The DNA check sits between two runs of `pangenome_island_loci.py` with the same inputs: pass 1 (`--dna_targets_dir`, process `ISLAND_DNA_TARGETS`) writes the work lists; pass 2 (`--dna_check true --dna_calls ...`, process `ISLAND_LOCI`) recomputes the same states, applies the calls, re-orders the drawn loci by the DNA-confirmed score and only then gives keys (`L001`, ...) and clinker strains. The drawn set is the top `--pangenome_top_loci` by the annotation-only ranking; the check can re-order it but not replace a locus (the spec checks drawn loci only). Reason: the clinker choice (Part B) needs the per-strain cell data, which `island_loci.json` does not hold; the extra pass costs about 2 min (measured 1 min 55 s).
-- **R18 DNA batch size before measurement.** `--pangenome_locus_dna_batch` default 50, which is every drawn locus in one `ISLAND_DNA_CHECK` task. Measured on 3 loci (828 strain checks): 2 min 18 s at 6 cpus, of which 73 s was reading 463 genome FASTAs; each task reads every genome it needs once, so smaller batches repeat that cost. The top 50 loci need about 20,159 strain checks (planning `island_loci.json`, empty + partial); from the 3-locus rate that is about 10-15 min at 8 cpus. This is an extrapolation, not a measurement: Task 19 measures it, and the executor sets the default from that number (spec: "set from a measured run").
+- **R17 Two locus passes.** The DNA check sits between two runs of `pangenome_island_loci.py` with the same inputs: pass 1 (`--dna_targets_dir`, process `ISLAND_DNA_TARGETS`) writes the work lists; pass 2 (`--dna_check true --dna_calls ...`, process `ISLAND_LOCI`) recomputes the same states, applies the calls, re-orders the drawn loci by the DNA-confirmed score and only then gives keys (`L001`, ...) and clinker strains. The drawn set is the top `--pangenome_top_loci` by the annotation-only ranking; the check can re-order it but not replace a locus (the spec checks drawn loci only). Reason: the clinker choice (Part B) needs the per-strain cell data, which `island_loci.json` does not hold; the extra pass costs about 2 min (measured 1 min 52-55 s).
+- **R18 DNA batch size before measurement.** `--pangenome_locus_dna_batch` default 50, which is every drawn locus in one `ISLAND_DNA_CHECK` task. Measured on 3 loci (828 strain checks): 2 min 18 s at 6 cpus (both target rules), of which about 73 s was reading 463 genome FASTAs; each task reads every genome it needs once, so smaller batches repeat that cost. The top 50 loci need about 20,159 strain checks (planning `island_loci.json`, empty + partial); from the 3-locus rate that is about 10-15 min at 8 cpus. This is an extrapolation, not a measurement: Task 19 measures it, and the executor sets the default from that number (spec: "set from a measured run").
 - **R19 Base-pair position of a copy.** A family's copies on one contig in rank order are its annotated copies (`gene_positions`) in start order, because ranks enumerate genes sorted by (contig, start). A copy with no gene model (a TBLASTN rescue hit, which has only a start) has no base-pair span.
-- **R20 No target interval.** A checked strain without an annotated in-place flank gene on either side, or whose genome FASTA is missing, is written with contig `-` (start = end = 0) and all its columns come back `unchecked`. It keeps its section 4-5 states, is counted in `dna.unchecked`, and is never a DNA-confirmed empty site. An exemplar locus column without a gene model (a rescue hit) is left out of the query and stays unchecked in every strain.
+- **R20 No target interval.** A checked strain without an annotated in-place flank gene on either side, or whose genome FASTA is missing, is written with contig `-` (start = end = 0) and all its columns come back `unchecked`. It keeps its section 4-5 states, is counted in `dna.unchecked`, and is never a DNA-confirmed empty site. An exemplar locus column without a gene model (a rescue hit) is left out of the query and stays unchecked in every strain. The code keeps a guard from the first spec version: a target under 50 bp is DNA absent without an alignment; with the flank genes included a target cannot be that short.
 - **R21 DNA row classes, edge cases.** Checked cells are codes `0`, `2` and `4` (absent, elsewhere, rescue elsewhere); they become `6` (absent, DNA present) or `7` (absent, DNA absent), so the 3-bit codes use all of 0-7. A checked strain that fits none of full / empty site / model difference is partial; this covers a mix of DNA present and DNA absent with no in-place column, and an unchecked absent column next to DNA-present ones.
 - **R22 DNA-confirmed counts.** With the check on, the informative score counts only DNA-confirmed empty sites (`dna.empty_confirmed`); unchecked strains keep their drawn class but are not counted. The breakpoint track then counts only in place <-> DNA absent, so an unchecked strain's absences are not counted. Each page entry gets `dna = {checked, unchecked, empty_confirmed, empty_to_model_difference}`.
 - **R23 blastn settings.** `blastn -task megablast -query Q -subject T -outfmt "6 qstart qend pident"` with blastn's other defaults (e-value 10, DUST on). The identity filter and the merged coverage over each gene are computed in Python (`gene_coverage`). Calls run in parallel threads (`--cpus`, `task.cpus` of `med_cpu`).
@@ -101,7 +101,7 @@ All on NII `studies/fungi/coccidioides_pangenome/results/rescue_freqpol_immitis_
 - Clinker chain on 3 loci x 12 strains: GenBank step 35 s, 60 MB; clinker 56 s and 128 MB for one locus at 4 cores; the page 5.35 MB, slimmed 1.01 MB; headless Chromium draws the same 237 genes, 12 clusters and 1178 link paths for both.
 - `pixi` 0.71.3 installs clinker 0.0.32 from `[pypi-dependencies]`.
 - Sequence spot check (before spec section 4b, a throwaway tool): **0 of 6 empty-site calls on L001-L003 confirmed**; the "empty" strains carry the locus DNA at 97.0-99.9% identity. At L001 the difference is one merged gene model versus two split models.
-- DNA presence check (this plan's code, `--top_loci 3`; Task 19): pass 1 2 min 37 s and 1.35 GB; `ISLAND_DNA_CHECK` 2 min 18 s at 6 cpus and 134 MB for 828 strain checks (73 s reading 463 genome FASTAs); pass 2 1 min 55 s and 1.35 GB. 617 of 813 empty-site calls moved to model difference; 4 of the 6 planning cases are model difference; the other 2 (`1M0:scaffold_390:15977-16664`) come out partial, because the strain's flank gene model covers the locus DNA and the spec's target stops at that gene's inner edge (Task 19).
+- DNA presence check (this plan's code, `--top_loci 3`, flank genes in the target; Task 19): pass 1 2 min 07 s and 1.35 GB; `ISLAND_DNA_CHECK` 2 min 18 s at 6 cpus and 136 MB for 828 strain checks (about 73 s reading 463 genome FASTAs); pass 2 1 min 52 s and 1.35 GB. All 1457 checked cells are DNA present. 617 of 813 empty-site calls moved to model difference and 196 to partial; 4 of the 6 planning cases are model difference. The other 2 (`1M0:scaffold_390:15977-16664`) are partial only because the exemplar's second locus gene is a rescue hit and stays unchecked (Ruling R21). With the first spec target (inner edges of the flank genes) the first gene there was DNA absent in all 196 strains (Task 19).
 
 ## File structure
 
@@ -3605,7 +3605,7 @@ Expected: `50 of 50 shown`, the L001 exemplar title (`UTAH_20380X16:scaffold_5:1
 
 **Interfaces:**
 - Consumes: `compute_locus` result keys `_cells` (`StrainCells.codes`, `.in_place_copies`, `.detail`), `_pairs`, `_row_class`, `n_left`, `n_locus`, `families`, `exemplar`, `exemplar_contig` (Task 6); `collapse_rows`, `ROW_ORDER`, `breakpoint_track`, `informative_score` (Task 5); `gene_locs` = `load_gene_locations()` shape `{(strain, family): [(protein_id, contig, start, end)]}`.
-- Produces: codes `DNA_PRESENT='6'`, `DNA_ABSENT='7'`, `DNA_STATE_LABELS`, `DNA_CHECKED_CODES`, `DEFAULT_DNA_MIN_ID=90.0`, `DEFAULT_DNA_MIN_COV=80.0`, `DNA_MIN_TARGET_BP=50`; `dna_checked_strains(result) -> list[str]`; `copy_bp(positions, gene_locs, strain, family, contig, rank) -> (start, end) | None`; `dna_query(result, exemplar_ranks, positions, gene_locs) -> (contig, start, end, [(col, start, end)]) | None`; `dna_target(result, strain, positions, gene_locs, k=10) -> (contig, start, end) | None`; `merge_intervals(intervals) -> list[(lo, hi)]`; `gene_coverage(hsps, gene, min_id=90) -> float`; `row_class_dna(codes, n_left, n_locus, intact, empty_frac=0.8) -> str`; `apply_dna_calls(result, calls: {strain: {col: 'present'|'absent'|'unchecked'}}, species_of, empty_frac=0.8) -> None`, which rewrites `counts` (adds `model_difference`), `counts_by_species`, `rows`, `breakpoints`, `informative_score`, `_row_class` and adds `dna = {checked, unchecked, empty_confirmed, empty_to_model_difference}`.
+- Produces: codes `DNA_PRESENT='6'`, `DNA_ABSENT='7'`, `DNA_STATE_LABELS`, `DNA_CHECKED_CODES`, `DEFAULT_DNA_MIN_ID=90.0`, `DEFAULT_DNA_MIN_COV=80.0`, `DNA_MIN_TARGET_BP=50`; `dna_checked_strains(result) -> list[str]`; `copy_bp(positions, gene_locs, strain, family, contig, rank) -> (start, end) | None`; `dna_query(result, exemplar_ranks, positions, gene_locs) -> (contig, start, end, [(col, start, end)]) | None`; `dna_target(result, strain, positions, gene_locs, k=10) -> (contig, start, end) | None` (start of the innermost left-flank gene to end of the innermost right-flank gene); `merge_intervals(intervals) -> list[(lo, hi)]`; `gene_coverage(hsps, gene, min_id=90) -> float`; `row_class_dna(codes, n_left, n_locus, intact, empty_frac=0.8) -> str`; `apply_dna_calls(result, calls: {strain: {col: 'present'|'absent'|'unchecked'}}, species_of, empty_frac=0.8) -> None`, which rewrites `counts` (adds `model_difference`), `counts_by_species`, `rows`, `breakpoints`, `informative_score`, `_row_class` and adds `dna = {checked, unchecked, empty_confirmed, empty_to_model_difference}`.
 
 
 - [ ] **Step 1: Write the failing test**
@@ -3693,10 +3693,21 @@ def test_query_leaves_out_a_column_without_a_gene_model():
     assert dna_query(res, [11, 12], pos, locs)[3] == [(1, 11001, 11800)]
 
 
-def test_target_lies_between_the_inner_edges_of_the_innermost_flank_genes():
+def test_target_spans_the_innermost_flank_genes_themselves():
     res, pos, locs = fixture()
-    assert dna_target(res, "EMPTY", pos, locs) == ("c1", 10801, 11000)
-    assert dna_target(res, "PART", pos, locs) == ("c1", 10801, 13000)
+    assert dna_target(res, "EMPTY", pos, locs) == ("c1", 10001, 11800)
+    assert dna_target(res, "PART", pos, locs) == ("c1", 10001, 13800)
+
+
+def test_target_keeps_locus_dna_that_lies_inside_a_flank_gene_model():
+    # Guerrero_1 at scaffold_390 (plan Task 19): the strain's flank gene model
+    # extends over the site where the exemplar has a locus gene. The target
+    # must include that model, or the locus DNA is missed.
+    res, pos, locs = fixture()
+    locs[("EMPTY", "R1")] = [("EMPTY_R1", "c1", 10850, 12900)]
+    contig, start, end = dna_target(res, "EMPTY", pos, locs)
+    assert (contig, start, end) == ("c1", 10001, 12900)
+    assert start <= 11001 and 12800 <= end  # the exemplar's locus genes' span fits inside
 
 
 def test_no_target_without_an_annotated_in_place_flank_gene():
@@ -3808,7 +3819,7 @@ DNA_STATE_LABELS = {DNA_PRESENT: "absent, DNA present", DNA_ABSENT: "absent, DNA
 DNA_CHECKED_CODES = frozenset({ABSENT, ELSEWHERE, RESCUE_ELSEWHERE})
 DEFAULT_DNA_MIN_ID = 90.0
 DEFAULT_DNA_MIN_COV = 80.0
-DNA_MIN_TARGET_BP = 50
+DNA_MIN_TARGET_BP = 50  # guard only: a target holds two flank genes, so it is never this short
 # Breakpoint track with the check on: only in place <-> DNA absent counts
 # (spec 4b), so DNA absent is fed to breakpoint_track() as ABSENT and every
 # other not-in-place code as ELSEWHERE, which the track never counts.
@@ -3861,14 +3872,14 @@ def dna_query(result: dict, exemplar_ranks: list[int], positions: Positions,
 def dna_target(result: dict, strain: str, positions: Positions, gene_locs: dict,
                k: int = DEFAULT_K) -> tuple[str, int, int] | None:
     """The strain's target DNA (spec 4b): (contig, start, end), 1-based,
-    between the inner edges of its innermost in-place left-flank gene and
-    innermost in-place right-flank gene, on its flank-pair contig. Only
-    copies within n_locus + 2k ranks of the pair count (as in Ruling R11),
-    and only annotated copies (a bp position is needed). Innermost = the
-    flank column nearest the locus; ties between copies of that column go
-    to the copy nearest the pair. end < start when the two genes touch or
-    overlap: the target is then empty. None when either side has no
-    annotated in-place copy (Ruling R20)."""
+    from the start of its innermost in-place left-flank gene to the end of
+    its innermost in-place right-flank gene, on its flank-pair contig. The
+    two flank genes are included, because a gene model can extend over the
+    locus DNA. Only copies within n_locus + 2k ranks of the pair count (as
+    in Ruling R11), and only annotated copies (a bp position is needed).
+    Innermost = the flank column nearest the locus; ties between copies of
+    that column go to the copy nearest the pair. None when either side has
+    no annotated in-place copy (Ruling R20)."""
     nl, nb = result["n_left"], result["n_locus"]
     fams = result["families"]
     contig, p_lo, p_hi = result["_pairs"][strain]
@@ -3885,8 +3896,7 @@ def dna_target(result: dict, strain: str, positions: Positions, gene_locs: dict,
         return None
     a = min(left, key=lambda x: (-x[0], x[1]))[2]
     b = min(right, key=lambda x: (x[0], x[1]))[2]
-    lower, upper = sorted([a, b])
-    return contig, lower[1] + 1, upper[0] - 1
+    return contig, min(a[0], b[0]), max(a[1], b[1])
 
 
 def merge_intervals(intervals) -> list[tuple[int, int]]:
@@ -3988,7 +3998,7 @@ def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: 
 pixi run python -m pytest -q tests/test_island_locus_dna.py tests/test_island_locus.py
 ```
 
-Expected: 56 passed
+Expected: 57 passed
 
 
 - [ ] **Step 5: Commit**
@@ -4049,6 +4059,7 @@ def write_case(d: Path, gz: bool = False) -> Path:
         "KEEP": LEFT + GENE_A + SPACER + GENE_B + RIGHT,
         "GONE": LEFT + SPACER + RIGHT,
         "HALF": LEFT + GENE_A + SPACER + RIGHT,
+        "INFLANK": LEFT + GENE_A + SPACER + GENE_B + RIGHT,
     }
     (d / "dna").mkdir()
     lines = ["GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup"]
@@ -4070,6 +4081,7 @@ def write_case(d: Path, gz: bool = False) -> Path:
             f"L\ttarget\tKEEP\tctgKEEP\t1001\t{b1}\t",
             "L\ttarget\tGONE\tctgGONE\t1001\t1100\t",
             "L\ttarget\tHALF\tctgHALF\t1001\t1700\t",
+            "L\ttarget\tINFLANK\tctgINFLANK\t1\t3400\t",
             "L\ttarget\tSHORT\tctgGONE\t1001\t1040\t",
             "L\ttarget\tNOPAIR\t-\t0\t0\t",
             "L\ttarget\tNOFILE\tctgX\t1\t500\t"]
@@ -4100,6 +4112,9 @@ def test_same_dna_is_present_and_a_deletion_is_absent(tmp_path):
     assert got[("KEEP", "5")] == "present" and got[("KEEP", "6")] == "present"
     assert got[("GONE", "5")] == "absent" and got[("GONE", "6")] == "absent"
     assert got[("HALF", "5")] == "present" and got[("HALF", "6")] == "absent"
+    # Target = flank gene start .. flank gene end (spec 4b): locus DNA inside
+    # a flank gene model is found.
+    assert got[("INFLANK", "5")] == "present" and got[("INFLANK", "6")] == "present"
 
 
 @needs_blastn
@@ -4112,7 +4127,7 @@ def test_short_target_is_absent_and_missing_ones_are_unchecked_without_blastn(tm
     write_case(tmp_path)
     # Leave only targets that need no alignment; a blastn call would fail.
     rows = (tmp_path / "targets.tsv").read_text().splitlines()
-    keep = [r for r in rows if "\tKEEP\t" not in r and "\tGONE\t" not in r and "\tHALF\t" not in r]
+    keep = [r for r in rows if not any(f"\t{s}\t" in r for s in ("KEEP", "GONE", "HALF", "INFLANK"))]
     (tmp_path / "targets.tsv").write_text("\n".join(keep) + "\n")
     got = run(tmp_path, blastn=str(tmp_path / "no-such-blastn"))
     assert got[("SHORT", "5")] == "absent" and got[("SHORT", "6")] == "absent"
@@ -4148,7 +4163,8 @@ docs/superpowers/specs/2026-09-24-island-locus-view-design.md, section 4b).
 Input: one batch_NNN.tsv work list from bin/pangenome_island_loci.py
 --dna_targets_dir (columns locus_id, role, strain, contig, start, end,
 genes). Per locus, the query row is the exemplar's locus DNA and each target
-row is one checked strain's DNA between its flank genes.
+row is one checked strain's DNA from the start of its innermost left-flank
+gene to the end of its innermost right-flank gene (flank genes included).
 
 For every (locus, strain) this runs `blastn -task megablast` with the query
 against the target (subject mode). A locus column is DNA present when HSPs
@@ -4418,7 +4434,7 @@ def test_pass_1_writes_the_query_and_one_target_per_checked_strain(tmp_path):
     q, t = rows
     assert (q["contig"], q["start"], q["end"], q["genes"]) == ("c1", "5001", "6800",
                                                                "5:5001-5800;6:6001-6800")
-    assert (t["contig"], t["start"], t["end"]) == ("c1", "4801", "5000")
+    assert (t["contig"], t["start"], t["end"]) == ("c1", "4001", "5800")
 
 
 def test_pass_1_batches_loci(tmp_path):
@@ -4847,7 +4863,7 @@ with:
   function locusDnaNote(params) {
     if (params.dna_check === true) {
       return "Empty site is DNA-confirmed: blastn (megablast) of the exemplar's locus DNA " +
-        "against the strain's DNA between its flank genes; a gene is DNA present at >= " +
+        "against the strain's DNA from its left to its right flank gene; a gene is DNA present at >= " +
         params.dna_min_id + "% identity over >= " + params.dna_min_cov + "% of its length. " +
         "Hatched grey = absent, DNA present (model difference, not a deletion).";
     }
@@ -5007,14 +5023,15 @@ Create `modules/pangenome/island_dna_check.nf`:
 // inputs and parameters as ISLAND_LOCI, so the same drawn loci, plus
 // --dna_targets_dir. It writes one work list per --pangenome_locus_dna_batch
 // loci: the exemplar's locus DNA and, per checked strain (flank intact, a
-// locus column not in place), the DNA between its flank genes.
+// locus column not in place), its DNA from the innermost left-flank gene's
+// start to the innermost right-flank gene's end (flank genes included).
 //
 // ISLAND_DNA_CHECK runs blastn -task megablast (subject mode) per (locus,
 // strain) on one work list. It reads each strain's genome FASTA from the
 // study data_dir (passed as `val`, the GENE_POSITIONS convention -- needs
 // `--bind /bigdata` under singularity) once per batch. Measured 2026-09-26
 // on the 529-strain Coccidioides run, top 3 loci (828 checked strains):
-// 2 min 18 s wall at 6 cpus, 134 MB peak RSS; reading the 463 genomes took
+// 2 min 18 s wall at 6 cpus, 136 MB peak RSS; reading the 463 genomes took
 // 73 s of that. ISLAND_LOCI then applies the calls (pass 2).
 process ISLAND_DNA_TARGETS {
     label 'low_cpu'
@@ -5316,9 +5333,9 @@ In `docs/pangenome-assumptions.md`, replace this text (it occurs once):
 with:
 
 ```markdown
-| `pangenome_locus_rank` / `pangenome_top_loci` | `informative` / `50` | `theory+practical` | Spec section 6; with the DNA check on, only DNA-confirmed empty-site strains count (spec 4b). On the Coccidioides run the top 3 loci by the annotation-only rule had 813 empty-site calls; the DNA check moved 617 to model difference and confirmed 0 (plan Task 19). | same | Gene-model differences dominate the annotation-only ranking | Compare `informative_score` with and without `--pangenome_locus_dna_check` |
+| `pangenome_locus_rank` / `pangenome_top_loci` | `informative` / `50` | `theory+practical` | Spec section 6; with the DNA check on, only DNA-confirmed empty-site strains count (spec 4b). On the Coccidioides run the top 3 loci by the annotation-only rule had 813 empty-site calls; the DNA check moved 617 to model difference and 196 to partial, and confirmed 0 (plan Task 19). | same | Gene-model differences dominate the annotation-only ranking | Compare `informative_score` with and without `--pangenome_locus_dna_check` |
 | `pangenome_locus_dna_check` | `true` | `theory+practical` | Spec section 4b: the annotation-only "empty site" was a gene-model difference in all 6 planning spot checks. Cost on the top 3 loci (828 strain checks): 2 min 18 s at 6 cpus plus one extra `pangenome_island_loci.py` pass (about 2 min). | 529-strain Coccidioides `rescue_freqpol_immitis_in_posadasii_out` | Studies without genome FASTAs in `data_dir/dna` (every target is unchecked) | Count `dna.unchecked` per locus in `island_loci.json` |
-| `pangenome_locus_dna_min_id` / `pangenome_locus_dna_min_cov` | `90` / `80` | `unvalidated-assumption` | Spec 4b: chosen, not validated. Planning: present genes had coverage 1.000 and absent ones 0.000 on the top 3 loci, so the cut-offs did not decide any call there. | same | Diverged lineages (identity below 90% at a shared site) | Histogram of the `coverage` column in `dna_calls_*.tsv` |
+| `pangenome_locus_dna_min_id` / `pangenome_locus_dna_min_cov` | `90` / `80` | `unvalidated-assumption` | Spec 4b: chosen, not validated. Planning: all 1457 checked cells on the top 3 loci were DNA present, so the cut-offs did not decide any call there. | same | Diverged lineages (identity below 90% at a shared site) | Histogram of the `coverage` column in `dna_calls_*.tsv` |
 | `pangenome_locus_dna_batch` | `50` | `theory+practical` | HPCC job sizing (about 1-1.5 h per job; plan Ruling R18). Every task reads each needed genome FASTA once (73 s for 463 genomes), so fewer, larger batches cost less. The top 50 loci need about 20,159 strain checks (planning `island_loci.json`); not yet measured as one task. | same | Many more loci or strains | Read ISLAND_DNA_CHECK task time from the trace (plan Task 19) and resize |
 ```
 
@@ -5335,7 +5352,7 @@ with:
 - **DNA presence check** (spec section 4b; `bin/pangenome_island_dna_check.py`,
   `modules/pangenome/island_dna_check.nf`: `ISLAND_DNA_TARGETS`, `ISLAND_DNA_CHECK`) -- each
   flank-intact strain that lacks a locus gene is checked with `blastn -task megablast`: the exemplar's
-  locus DNA against the strain's DNA between its flank genes. A gene is "DNA present" at >= 90%
+  locus DNA against the strain's DNA from its left to its right flank gene. A gene is "DNA present" at >= 90%
   identity over >= 80% of its length. "Absent, DNA present" cells are drawn hatched grey and make a new
   row class, **model difference**; "empty site" and the informative ranking now use DNA-confirmed
   absences only. With `--pangenome_locus_dna_check false` the page says that "empty site" is not
@@ -5364,9 +5381,9 @@ Append to the end of `.living/learnings.md`:
 
 ## 2026-09-26 — Island locus view: "empty site" at the top loci is mostly a gene-model difference
 
-**Context**: The DNA presence check (spec section 4b, plan Task 19) on the top 3 loci of the Coccidioides run, blastn of the exemplar's locus DNA against each strain's DNA between its flank genes.
-**Finding**: At 2 of the 3 loci every empty-site strain (292 and 325) carries the locus DNA: model difference. At `1M0:scaffold_217:2489-4804` one strain has two gene models (277 aa + 446 aa, two shell families) where another has one 705 aa model in a third family. At `1M0:scaffold_390:15977-16664` the check says "DNA absent" for all 196 empty-site strains, but the DNA is there: it lies inside the neighbouring flank gene's model, which the spec's target (inner edges of the flank genes) leaves out.
-**Why it matters**: Annotation-only presence overstates deletions. Read "DNA absent" with care where the strain's flank gene model is longer than the exemplar's.
+**Context**: The DNA presence check (spec section 4b, plan Task 19) on the top 3 loci of the Coccidioides run, blastn of the exemplar's locus DNA against each strain's DNA from its left to its right flank gene.
+**Finding**: At 2 of the 3 loci every empty-site strain (292 and 325) carries the locus DNA: model difference. At `1M0:scaffold_217:2489-4804` one strain has two gene models (277 aa + 446 aa, two shell families) where another has one 705 aa model in a third family. At `1M0:scaffold_390:15977-16664` the locus DNA lies inside the strain's neighbouring flank gene model; a target that stopped at the flank genes' inner edges missed it in all 196 empty-site strains, so the target includes the flank genes.
+**Why it matters**: Annotation-only presence overstates deletions. Check where a gene model ends before calling a locus absent.
 **Tags**: pangenome, island-locus-view, annotation, gene-model, validation
 ```
 
@@ -5452,12 +5469,12 @@ EOF
 
 - [ ] **Step 4: Read this first**
 
-Planning result (2026-09-26, this code, `--top_loci 3`, so L001-L003 only): pass 1 2 min 37 s wall and 1.35 GB peak RSS; the check 2 min 18 s wall at 6 cpus (828 (locus, strain) checks; 73 s of it reading 463 genome FASTAs) and 134 MB; pass 2 1 min 55 s and 1.35 GB. **4 of 6 cases PASS**: at `1M0:scaffold_217:2489-4804` and `1M0:scaffold_501:69-1229` every empty-site strain (292 and 325) moved to model difference. **2 of 6 FAIL**: at `1M0:scaffold_390:15977-16664`, `Guerrero_1` and `Tucson_2` come out `partial` (codes `...70...`): the exemplar's first locus gene is DNA absent (coverage 0.000 in all 196 empty-site strains) and its second locus gene is a TBLASTN rescue hit with no gene model, so it stays unchecked (Ruling R20). The locus DNA is there: it lies inside the strain's neighbouring flank gene model (`Guerrero_1` `C3F11B8_006855-T1`, scaffold_51:90945-92044; the exemplar gene aligns at 99.9% to 90945-91632), and the spec's target stops at the inner edge of that flank gene. Widening every target by 1.5 kb on each side (a diagnostic, not in the spec) gave DNA present in 199 of 199 strains. On the top 3 loci: 813 empty-site calls before the check, 617 moved to model difference, 0 DNA-confirmed empty sites, 0 loci still informative.
+Planning result (2026-09-26, this code, `--top_loci 3`, so L001-L003 only; target = start of the innermost left-flank gene to end of the innermost right-flank gene): pass 1 2 min 07 s wall and 1.35 GB peak RSS; the check 2 min 18 s wall at 6 cpus (828 (locus, strain) checks; about 73 s of it reading 463 genome FASTAs) and 136 MB; pass 2 1 min 52 s and 1.35 GB. Every checked cell (1457) came back DNA present. **4 of 6 cases PASS**: at `1M0:scaffold_217:2489-4804` and `1M0:scaffold_501:69-1229` every empty-site strain (292 and 325) moved to model difference. **2 of 6 FAIL**: at `1M0:scaffold_390:15977-16664`, `Guerrero_1` and `Tucson_2` come out `partial` (locus codes `60`): the first locus gene is now DNA present (it lies inside the strain's flank gene model, which the target now includes), but the exemplar's second locus gene is a TBLASTN rescue hit with no gene model, so that column stays unchecked (`0`), and Ruling R21 counts an unchecked absent column against model difference. If unchecked columns were ignored instead, all 196 empty-site strains there (and both cases) would be model difference. On the top 3 loci: 813 empty-site calls before the check, 617 moved to model difference, 196 to partial, 0 DNA-confirmed empty sites, 0 still annotation-only (unchecked), 0 loci still informative.
 
 
 - [ ] **Step 5: Read this first**
 
-Record the actual values of the full top-50 run. The 2 failing cases are a spec question (the target definition in section 4b), not a code error: do not change code in response; report them at the Checkpoint.
+Record the actual values of the full top-50 run. The 2 failing cases are a Ruling question (R21: how an unchecked column counts), not a code error: do not change code in response; report them at the Checkpoint.
 
 
 ## Checkpoint after Task 19 (stop here)
@@ -5466,9 +5483,9 @@ Open the Part A PR (after the user approves the push), then stop and report to t
 
 1. Task 13's measured time, memory, sizes and top-locus counts next to the planning numbers.
 2. Task 19's regression: how many of the 6 planning cases are model difference, how many top-50 empty-site calls moved to model difference, how many are DNA-confirmed, and the run time of pass 1, each `ISLAND_DNA_CHECK` batch and pass 2. Set `--pangenome_locus_dna_batch` from the measured batch time (Ruling R18) if it is far from 1-1.5 h per task, and say so.
-3. The planning result: 4 of 6 cases pass. The 2 cases at `1M0:scaffold_390:15977-16664` fail because the strain's neighbouring flank gene model covers the locus DNA and the spec's target (section 4b: between the inner edges of the flank genes) leaves it out; a 1.5 kb wider target found the DNA in 199 of 199 strains. Changing the target definition is a spec change.
+3. The planning result: 4 of 6 cases pass. The 2 cases at `1M0:scaffold_390:15977-16664` have their first locus gene DNA present, but the exemplar's second locus gene is a TBLASTN rescue hit with no gene model, so it stays unchecked and Ruling R21 makes the strain partial. Ignoring unchecked columns would make all 196 empty-site strains there model difference. Ask the user which rule R21 should use.
 
-Ask the user whether to start Part B as written, or to change the section 4b target first. Do not start Part B without an answer.
+Ask the user whether to start Part B as written, or to change Ruling R21 first. Do not start Part B without an answer.
 
 ---
 
@@ -8120,7 +8137,7 @@ Spike follow-up: for the spike island `407-0_S_OLD_CPA0002:scaffold_30:125276-12
 | 2 Exemplar choice, `F_min` fallback, "short flanks" / "exemplar at contig end" | 2, 9 (badge) |
 | 3 Columns: `F` + locus + `F`, bin, Pfam class, exemplar location, anchor marks | 3, 7, 9 |
 | 4 Cell states incl. rescue hatched and contig break | 4, 9 |
-| 4b DNA presence check: checked strains, query, target, < 50 bp rule | 14, 16 |
+| 4b DNA presence check: checked strains, query, target (flank genes included) | 14, 16 |
 | 4b blastn megablast subject mode, `min_id` 90 / `min_cov` 80, merged HSP coverage | 14, 15 |
 | 4b DNA cell states (hatched grey), model-difference class, breakpoints on DNA absent | 14, 17 |
 | 4b ranking on DNA-confirmed empty sites; sidebar model-difference count | 14, 16, 17 |
@@ -8141,9 +8158,9 @@ Spike follow-up: for the spike island `407-0_S_OLD_CPA0002:scaffold_30:125276-12
 
 **Type consistency.** Names were checked against the code that passed: `Placement`, `Columns`, `StrainCells`, `compute_locus` keys (`_cells`, `_pairs`, `_row_class`, `_placement`), `locus_payload`, `apply_dna_calls` and the `dna` summary keys, the DNA work-list columns (`locus_id role strain contig start end genes`) and call columns (`locus_id strain col status coverage`), codes `6`/`7`, `island_loci.json` keys, `island_regions.tsv` and `island_slices.tsv` columns, CLI flags, DOM ids and JS helper names are the same in every task that uses them.
 
-**Review Focus.** The five items above each have a test in their owning task. For the DNA check, the edge cases the spec implies are pinned by tests too: a target shorter than 50 bp, a strain with no target interval, a missing genome FASTA (Task 15), an exemplar gene without a gene model, two HSPs over one gene, low-identity HSPs (Task 14), several calls files and an empty calls file (Task 16). Checked and left to existing tests: empty regions and `--top_loci 0` (Tasks 7, 23), missing N50 file (Task 7), unsafe strain names in file names (Task 22).
+**Review Focus.** The five items above each have a test in their owning task. For the DNA check, the edge cases the spec implies are pinned by tests too: locus DNA inside a flank gene model (Tasks 14, 15), a target shorter than 50 bp (a guard), a strain with no target interval, a missing genome FASTA (Task 15), an exemplar gene without a gene model, two HSPs over one gene, low-identity HSPs (Task 14), several calls files and an empty calls file (Task 16). Checked and left to existing tests: empty regions and `--top_loci 0` (Tasks 7, 23), missing N50 file (Task 7), unsafe strain names in file names (Task 22).
 
-**Replay.** The code in this plan is generated from files that passed in a scratch copy. First version (2026-09-26): a task-by-task replay onto a clean `origin/main` ran every Run step of today's Tasks 1-12 and 20-28; only `pixi install` (Task 24) was skipped and checked in a minimal pixi workspace. This revision (spec section 4b): every task's operations were applied in order onto a clean copy of `origin/main` at `f193490` (NovInvenio) and of NII `origin/main`; all replace anchors still matched, including after PR #197. Only the Run steps of new or changed tasks were run: Tasks 5, 14, 15, 16, 17, 18, 20 and 27, plus Tasks 21 and 26, whose files the DNA tasks change. Each failing step failed and each passing step passed with the counts stated; both `nextflow lint` runs were clean, and the bad-parameter run printed the `--pangenome_locus_dna_min_id` error. Tasks 1-4, 6-13, 19, 22-25, 28 and 29 were not re-run. The full suite on the replayed tree (all 29 tasks applied) gave 1117 passed, 5 skipped (opt-in regression tests without their run directory, and the clinker render check, which needs clinker on PATH). The files of the replayed tree are byte-identical to the tested files for every file the DNA tasks touch (`nextflow.config` and `pangenome.nf` differ only by the lines PR #197 added on `main`).
+**Replay.** The code in this plan is generated from files that passed in a scratch copy. First version (2026-09-26): a task-by-task replay onto a clean `origin/main` ran every Run step of today's Tasks 1-12 and 20-28; only `pixi install` (Task 24) was skipped and checked in a minimal pixi workspace. This revision (spec section 4b): every task's operations were applied in order onto a clean copy of `origin/main` at `f193490` (NovInvenio) and of NII `origin/main`; all replace anchors still matched, including after PR #197. Only the Run steps of new or changed tasks were run: Tasks 5, 14, 15, 16, 17, 18, 20 and 27, plus Tasks 21 and 26, whose files the DNA tasks change. Each failing step failed and each passing step passed with the counts stated; both `nextflow lint` runs were clean, and the bad-parameter run printed the `--pangenome_locus_dna_min_id` error. Tasks 1-4, 6-13, 19, 22-25, 28 and 29 were not re-run. After the target rule change (flank genes included), Tasks 14-18 were replayed again on a fresh clean copy of `origin/main` (`f193490`): red and green steps as stated, 57 passed in Task 14. The full suite on the replayed tree (all 29 tasks applied) gave 1117 passed, 5 skipped (opt-in regression tests without their run directory, and the clinker render check, which needs clinker on PATH). The files of the replayed tree are byte-identical to the tested files for every file the DNA tasks touch (`nextflow.config` and `pangenome.nf` differ only by the lines PR #197 added on `main`).
 
 ## Execution
 
