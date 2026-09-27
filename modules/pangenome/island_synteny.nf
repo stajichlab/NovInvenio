@@ -35,6 +35,8 @@ process ISLAND_SYNTENY {
     path(gene_positions)
     path(cluster_tsv)
     path(rescue_positions)
+    path(loci_json)
+    path(diagnostics_tsv)
 
     output:
     path("island_synteny.html"), emit: page
@@ -56,6 +58,8 @@ process ISLAND_SYNTENY {
         --cluster_tsv ${cluster_tsv} \
         --rescue_positions ${rescue_positions} \
         --id_sep '${params.pangenome_id_sep}' \
+        --loci_json ${loci_json} \
+        --diagnostics_tsv ${diagnostics_tsv} \
         --output island_synteny.html
     """
 }

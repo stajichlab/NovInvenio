@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### New: island locus view (default view of island_synteny.html)
+
+- **`lib/island_locus.py`**, **`bin/pangenome_island_loci.py`**, **`modules/pangenome/island_loci.nf`**,
+  **`lib/island_locus_template.py`** (spec `docs/superpowers/specs/2026-09-24-island-locus-view-design.md`,
+  plan `docs/superpowers/plans/2026-09-26-island-locus-view-clinker.md`) -- islands are grouped into
+  loci; each locus is drawn on one exemplar's genes (5 flank genes each side, 3 near contig ends) and
+  every strain gets a state per column: in place, elsewhere, rescue (hatched), absent or contig break.
+  Rows are grouped into full locus / partial / empty site / uninformative, and a track above the
+  columns counts shared breakpoints per species. The page opens on this view; the island presence
+  view is one click away.
+- New params: `--pangenome_top_loci` (50), `--pangenome_locus_rank` (`informative`), `--pangenome_locus_flank` (5),
+  `--pangenome_locus_flank_min` (3), `--pangenome_locus_k` (10), `--pangenome_locus_empty_frac` (0.8),
+  `--pangenome_locus_containment` (0.5), `--pangenome_locus_candidates` (200).
+- Caution: on the Coccidioides run the top loci's "empty site" calls were gene-model splits, not
+  deletions, in all 6 sequence-checked cases (plan Task 19).
+
 ### pangenome.nf project-name fallback fix (#194); BUILD_PRESENCE_MATRIX memory scaling (#189)
 
 - **`lib/Helpers.groovy`** — `projectName(params)` now falls back through

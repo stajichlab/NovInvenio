@@ -152,6 +152,19 @@ def print_help() {
       --pangenome_viz_top_islands      Islands drawn in island_synteny.html
                                        (default: 50), selected by size after
                                        the min-strains filter above.
+      --pangenome_top_loci             Loci drawn in island_synteny.html's locus
+                                       view (default: 50).
+      --pangenome_locus_rank           Locus ranking: informative (default; >= 10
+                                       empty-site and >= 2 full-locus strains,
+                                       by the smaller count), strains, or size.
+      --pangenome_locus_flank          Flank genes per side (default: 5); falls back
+                                       to --pangenome_locus_flank_min (default: 3).
+      --pangenome_locus_k              Gene window of the "in place" test (default: 10).
+      --pangenome_locus_empty_frac     Empty site: this fraction of locus columns
+                                       absent (default: 0.8).
+      --pangenome_locus_containment    An island joins a larger island's locus when
+                                       this fraction of its families is in it (default: 0.5).
+      --pangenome_locus_candidates     Loci scored before ranking (default: 200).
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two
@@ -169,6 +182,10 @@ workflow {
     if (!params.pangenome_data_dir)    error "ERROR: --pangenome_data_dir <data_dir> is required"
     if (!file(params.pangenome_samplesheet).exists())    error "ERROR: --pangenome_samplesheet file not found: ${params.pangenome_samplesheet}"
     if (!file(params.pangenome_data_dir).isDirectory())  error "ERROR: --pangenome_data_dir is not a directory: ${params.pangenome_data_dir}"
+    if (params.pangenome_locus_rank !in ['informative', 'strains', 'size'])
+        error "ERROR: --pangenome_locus_rank must be informative, strains or size (got: ${params.pangenome_locus_rank})"
+    if (params.pangenome_locus_flank_min > params.pangenome_locus_flank)
+        error "ERROR: --pangenome_locus_flank_min (${params.pangenome_locus_flank_min}) must not exceed --pangenome_locus_flank (${params.pangenome_locus_flank})"
     if (params.pangenome_cluster_backend !in ['mmseqs', 'diamond'])
         error "ERROR: --pangenome_cluster_backend must be mmseqs or diamond (got: ${params.pangenome_cluster_backend})"
     // Previously hard-blocked here: diamond's tier-1 branch had no equivalent

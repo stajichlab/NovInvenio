@@ -1412,3 +1412,11 @@ far). This decision closes #135's investigation; it does not flip the pipeline d
 **Alternatives**: keep fast mode (29-69% of candidates contradicted by TBLASTN); add the qcov-15 floor (little extra effect); a stricter other-group E-value (worse at every threshold tested).
 **Rationale**: very-sensitive cut TBLASTN-contradicted candidates to 9-33% with controls unchanged, at ≤1.7× search cost. The UniProt index gives every protein its own UniProt/AlphaFold/xref links (100% on UniProt-sourced proteomes, 7-54% on BFD gene models by exact sequence).
 **Consequence**: every study's results change on rerun.
+
+
+## 2026-09-26 — Island locus view: page, ranking, carriers and N50 gaps
+
+**Context**: Spec `docs/superpowers/specs/2026-09-24-island-locus-view-design.md` left the page choice (open question 3) open and assumed N50 for every strain and a list of carrier strains, which the inputs do not provide.
+**Decision**: Locus view is the default view inside the existing `island_synteny.html`; the island presence view stays one click away (plan Ruling R1). Carriers are strains with every root member family on one contig within `len - 1 + k` ranks (R3). Strains without an N50 (ASSEMBLY_QUALITY_QC covers the ingroup only: 169 of 529) rank after strains with one, by locus-contig gene count (R4). States are computed for 200 candidate loci before ranking (R5).
+**Alternatives**: a separate locus page; compute N50 for all strains in ASSEMBLY_QUALITY_QC (a change to a module outside this spec); rank every locus (1301 loci, memory grows with column families).
+**Rationale**: keeps the current page and links working; uses only existing inputs; measured cost 1 min 41 s, 1.36 GB.

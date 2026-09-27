@@ -59,6 +59,7 @@ include { SELECT_BACKGROUND_REPS; HMMPRESS_PFAM; FAMILY_PFAM_SCAN;
 include { REPORT_TABLES; REPORT_RENDER; DIAGNOSTICS }                      from '../modules/pangenome/report'
 include { ASSEMBLY_QUALITY_QC }                                            from '../modules/pangenome/assembly_quality_qc'
 include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
+include { ISLAND_LOCI }                                                    from '../modules/pangenome/island_loci'
 include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
@@ -399,6 +400,18 @@ workflow PANGENOME_PROFILE {
     // --- 9c. Island synteny (still gated -- genuinely needs FAMILY_PFAM_SCAN,
     // only computed inside the islands+Pfam branch) ------------------------
     if (params.pangenome_island_pfam_hmm) {
+        // Island locus view (docs/superpowers/specs/2026-09-24-island-locus-view-design.md).
+        ISLAND_LOCI(
+            REPORT_TABLES.out.islands_with_domains,
+            rescued_matrix,
+            FAMILY_POSITIONS.out.positions,
+            FREQUENCY_BINS.out.table,
+            ASSEMBLY_QUALITY_QC.out.table,
+            samplesheet,
+            FAMILY_PFAM_SCAN.out.domtblout,
+            GENE_POSITIONS.out.positions,
+            CLUSTER_TIER1.out.cluster_tsv,
+        )
         ISLAND_SYNTENY(
             REPORT_TABLES.out.islands_with_domains,
             rescued_matrix,
@@ -409,6 +422,8 @@ workflow PANGENOME_PROFILE {
             GENE_POSITIONS.out.positions,
             CLUSTER_TIER1.out.cluster_tsv,
             rescue_positions,
+            ISLAND_LOCI.out.loci,
+            DIAGNOSTICS.out.tsv,
         )
     }
 
