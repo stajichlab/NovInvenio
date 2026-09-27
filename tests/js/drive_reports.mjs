@@ -620,6 +620,22 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         d.getElementById('lv-clinker-note').textContent === 'No synteny figure for this locus.',
         d.getElementById('lv-clinker-note').textContent);
   check('clinker panel: and shows no iframe', !frame());
+
+  // N3: NII's per-run sync only publishes the top N loci' clinker pages;
+  // window.CLINKER_PUBLISHED (injected into the staged page) says which
+  // keys made the cut. L001 is in clinker.keys but not in
+  // window.CLINKER_PUBLISHED here, so the panel must show a note pointing
+  // at the full folder instead of an iframe -- and never an iframe.
+  const pub = boot(path.join(FX, 'island_synteny_clinker_unpublished.html'));
+  const dp = pub.window.document;
+  await sleep(60);
+  check('clinker panel (N3): unpublished locus shows the not-published note',
+        dp.getElementById('lv-clinker-note').textContent ===
+          'Synteny figure not published on the site (top 0 loci only). ' +
+          'Full set: /bigdata/example/clinker/L001.html',
+        dp.getElementById('lv-clinker-note').textContent);
+  check('clinker panel (N3): unpublished locus shows no iframe',
+        !dp.querySelector('#lv-clinker-frame iframe'));
 }
 
 // ------------------------------- island synteny: no loci keeps the old page

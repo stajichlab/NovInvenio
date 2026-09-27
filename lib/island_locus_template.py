@@ -265,6 +265,15 @@ LOCUS_VIEW_JS = r"""
     if (!/^L[0-9]+$/.test(locus.key) || (clinker.keys || []).indexOf(locus.key) === -1) {
       return { mode: "missing", src: "" };
     }
+    // N3: NII's per-run sync only publishes the top N loci' clinker pages
+    // (--clinker_publish_top); window.CLINKER_PUBLISHED, when the sync
+    // injected it, lists exactly which keys made the cut. Undefined means
+    // this page wasn't produced by that sync (pipeline output, local/HPCC
+    // web view) -- every key in clinker.keys still gets its iframe.
+    var published = typeof window !== "undefined" ? window.CLINKER_PUBLISHED : undefined;
+    if (Array.isArray(published) && published.indexOf(locus.key) === -1) {
+      return { mode: "not_published", src: "" };
+    }
     return { mode: "ok", src: "clinker/" + locus.key + ".html" };
   }
   function clinkerReason(pick) {
@@ -326,6 +335,16 @@ LOCUS_VIEW_JS = r"""
     }
     if (st.mode === "missing") {
       note.textContent = "No synteny figure for this locus.";
+      return;
+    }
+    if (st.mode === "not_published") {
+      var published = window.CLINKER_PUBLISHED || [];
+      var text = "Synteny figure not published on the site (top " + published.length +
+        " loci only).";
+      if (typeof window.CLINKER_FULL_DIR === "string") {
+        text += " Full set: " + window.CLINKER_FULL_DIR + "/" + locus.key + ".html";
+      }
+      note.textContent = text;
       return;
     }
     note.textContent = "clinker 0.0.32: each strain's region, genes linked by similarity and " +

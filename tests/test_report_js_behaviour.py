@@ -366,6 +366,17 @@ def fixture_dir(tmp_path_factory):
         '--clinker_enabled', 'true', '--clinker_keys', 'L001',
         '--project', 'demo', '--output', str(d / 'island_synteny_clinker.html'))
 
+    # N3: same page, but with the script NII's per-run sync injects when a
+    # locus's clinker page wasn't published (top-N only). L001 is in
+    # clinker.keys (built above) but not in CLINKER_PUBLISHED, so the panel
+    # must show the note instead of an iframe.
+    clinker_page = (d / 'island_synteny_clinker.html').read_text()
+    unpublished = clinker_page.replace(
+        "</head>",
+        '<script>window.CLINKER_PUBLISHED=[];'
+        'window.CLINKER_FULL_DIR="/bigdata/example/clinker";</script></head>', 1)
+    (d / 'island_synteny_clinker_unpublished.html').write_text(unpublished)
+
     (d / 'isv_loci_name_sort.json').write_text(json.dumps(ISV_LOCI_NAME_SORT))
     run('pangenome_island_synteny.py',
         '--islands_with_domains', str(d / 'isv_islands.tsv'),

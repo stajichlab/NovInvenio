@@ -361,6 +361,29 @@ def test_clinker_panel_states():
                    {"mode": "off", "src": ""}, {"mode": "missing", "src": ""}]
 
 
+# N3: NII's per-run sync publishes only the top N loci' clinker pages and
+# sets window.CLINKER_PUBLISHED to record which keys made the cut. Undefined
+# (no `window` global at all under plain node, or the property unset in
+# jsdom) must behave exactly like today (every key in `clinker.keys` gets
+# its iframe); a key present in CLINKER_PUBLISHED still does; one absent
+# from it switches to the new "not_published" mode instead of "ok".
+def test_clinker_panel_state_respects_clinker_published():
+    out = run_node(["clinkerPanelState"], """
+      global.window = {};
+      var on = {enabled: true, keys: ["L001", "L002"]};
+      var results = [];
+      results.push(clinkerPanelState({key: "L001"}, on));
+      window.CLINKER_PUBLISHED = ["L001"];
+      results.push(clinkerPanelState({key: "L001"}, on));
+      results.push(clinkerPanelState({key: "L002"}, on));
+      console.log(JSON.stringify(results));""")
+    assert out == [
+        {"mode": "ok", "src": "clinker/L001.html"},
+        {"mode": "ok", "src": "clinker/L001.html"},
+        {"mode": "not_published", "src": ""},
+    ]
+
+
 def test_clinker_reason_and_region_text():
     out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText"], """
       var a = {reason: "exemplar", row_class: "full", species: "", contig: "c1", rank_lo: 3, rank_hi: 9};
