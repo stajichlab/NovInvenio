@@ -181,6 +181,66 @@ def test_protein_id_clash_across_strains_prefixes_labels(tmp_path):
     assert "S1|p1" in labels and "S2|p1" in labels
 
 
+# ---- M7 (final review): clinker_order.txt captures pick order, not the
+# by_strain loop's alphabetical processing order. ----
+
+def test_clinker_order_file_reflects_pick_order_not_alphabetical(tmp_path):
+    d = tmp_path
+    for sub in ("dna", "pep", "gff3"):
+        (d / "data" / sub).mkdir(parents=True, exist_ok=True)
+    cfg_lines = ["GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup\n"]
+    gene_lines = ["Short\tprotein_id\tcontig\tstart\tend\n"]
+    cluster_lines = []
+    # island_regions.tsv row order is the pick order: S2 (the exemplar)
+    # first, S1 (a later "fill" pick) second -- the REVERSE of the
+    # by_strain loop's alphabetical processing order.
+    region_lines = [REGION_HEADER, "L001\tS2\texemplar\tfull\tSp\tc1\t0\t2\t0:famA\n",
+                    "L001\tS1\tfill\tfull\tSp\tc1\t0\t2\t0:famA\n"]
+    for strain in ("S1", "S2"):
+        (d / "data" / "dna" / f"{strain}.dna.fa").write_text(f">c1\n{'ACGT' * 100}\n")
+        (d / "data" / "pep" / f"{strain}.pep.fa").write_text(">p1\nMKV*\n>p2\nMRR\n>p3\nMQQ\n")
+        (d / "data" / "gff3" / f"{strain}.gff3").write_text(
+            "##gff-version 3\nc1\tsrc\tCDS\t10\t40\t.\t+\t0\tParent=p1\n"
+            "c1\tsrc\tCDS\t60\t99\t.\t-\t0\tParent=p2\nc1\tsrc\tCDS\t120\t150\t.\t+\t0\tParent=p3\n")
+        cfg_lines.append(f"IN,Sp,{strain},{strain}.pep.fa,{strain}.dna.fa,{strain}.gff3,{strain},t\n")
+        gene_lines.append(f"{strain}\tp1\tc1\t10\t40\n{strain}\tp2\tc1\t60\t99\n"
+                          f"{strain}\tp3\tc1\t120\t150\n")
+        cluster_lines.append(f"famA\t{strain}|p1\nfamB\t{strain}|p2\nfamC\t{strain}|p3\n")
+    (d / "config.csv").write_text("".join(cfg_lines))
+    (d / "gene_positions.tsv").write_text("".join(gene_lines))
+    (d / "cluster.tsv").write_text("".join(cluster_lines))
+    (d / "regions.tsv").write_text("".join(region_lines))
+    args = ["--regions", str(d / "regions.tsv"), "--config", str(d / "config.csv"),
+           "--data_dir", str(d / "data"), "--gff3_dir", str(d / "data" / "gff3"),
+           "--gene_positions", str(d / "gene_positions.tsv"),
+           "--cluster_tsv", str(d / "cluster.tsv"), "--out_dir", str(d / "gbk")]
+    assert main(args) == 0
+    order = (d / "gbk" / "L001" / "clinker_order.txt").read_text().splitlines()
+    assert order == ["S2.gbk", "S1.gbk"]
+
+
+def test_clinker_order_file_omits_strains_that_were_skipped(tmp_path):
+    # A picked strain missing its DNA/protein/GFF3 file is skipped (an
+    # existing WARNING path); clinker_order.txt must not list a .gbk that
+    # was never written. S2 gets gene_positions/cluster_tsv rows (so the
+    # rank rebuild still matches island_regions.tsv's anchors) but no
+    # actual DNA/protein/GFF3 file under data_dir, so it hits the "file not
+    # found" skip.
+    args = fixture(tmp_path)
+    d = tmp_path
+    with open(d / "config.csv", "a") as fh:
+        fh.write("IN,Sp,S2,S2.pep.fa,S2.dna.fa,S2.gff3,S2,t\n")
+    with open(d / "gene_positions.tsv", "a") as fh:
+        fh.write("S2\tp1\tc1\t10\t40\nS2\tp2\tc1\t60\t99\nS2\tp3\tc1\t120\t150\n")
+    with open(d / "cluster.tsv", "a") as fh:
+        fh.write("famA\tS2|p1\nfamB\tS2|p2\nfamC\tS2|p3\n")
+    with open(d / "regions.tsv", "a") as fh:
+        fh.write("L001\tS2\tfill\tfull\tSp\tc1\t0\t2\t0:famA\n")
+    assert main(args) == 0
+    order = (d / "gbk" / "L001" / "clinker_order.txt").read_text().splitlines()
+    assert order == ["S1.gbk"]
+
+
 def test_gzipped_genome_and_proteins_are_read(tmp_path):
     # Review Focus 4: study FASTAs may be .gz; lib/compressed_io handles them.
     import gzip

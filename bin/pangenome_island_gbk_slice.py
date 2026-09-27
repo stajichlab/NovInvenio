@@ -6,6 +6,11 @@ Writes, under --out_dir:
   <locus_key>/<strain>.gbk   gene + CDS features, /locus_tag, /translation,
                              /note="family=<tier-1 family>"
   <locus_key>/groups.csv     locus_tag,family (clinker -gf; no header)
+  <locus_key>/clinker_order.txt  one <strain>.gbk file name per line, in
+                             clinker pick order (exemplar first, M7 --
+                             island_regions.tsv's row order for this
+                             locus_key), for bin/pangenome_island_clinker.py
+                             to pass to clinker -ufo/--use_file_order.
   island_slices.tsv          locus_key, strain, contig, bp_start, bp_end,
                              n_genes, n_rescue, n_missing
 Exits non-zero if a region's anchor families do not match the families at
@@ -143,6 +148,21 @@ def main(argv=None) -> int:
     by_strain: dict[str, list[int]] = {}
     for i, r in enumerate(regions):
         by_strain.setdefault(r["strain"], []).append(i)
+    # M7 (final review): island_regions.tsv's row order for a locus_key IS
+    # the clinker pick order (exemplar first -- bin/pangenome_island_loci.py
+    # appends select_clinker_strains()'s picks in that order, per locus, and
+    # read_regions() above preserves file order). The by_strain loop right
+    # below processes strains alphabetically instead (grouping avoids
+    # reopening each strain's DNA/protein/GFF3 files more than once), which
+    # would lose that order, so it is captured here, before that regrouping,
+    # and written out per locus as clinker_order.txt (least invasive: one
+    # side file, not a reorder of this function's own strain-major loop).
+    pick_order: dict[str, list[str]] = {}
+    for r in regions:
+        seen = pick_order.setdefault(r["locus_key"], [])
+        if r["strain"] not in seen:
+            seen.append(r["strain"])
+    written: dict[str, set[str]] = {}
     rows_out = []
     group_rows: dict[str, dict[str, str]] = {}
     pid_owner: dict[str, dict[str, set[str]]] = {}
@@ -204,10 +224,18 @@ def main(argv=None) -> int:
             locus_dir = out_dir / r["locus_key"]
             locus_dir.mkdir(exist_ok=True)
             SeqIO.write(recs, str(locus_dir / f"{safe_name(strain)}.gbk"), "genbank")
+            written.setdefault(r["locus_key"], set()).add(strain)
             group_rows.setdefault(r["locus_key"], {}).update(labels)
             rows_out.append([r["locus_key"], strain, r["contig"], bp_start, bp_end, n_genes,
                              n_rescue, n_missing, split_stats["n_blocks"], split_stats["gap_bp"],
                              split_stats["max_gap_bp"], split_stats["drawn_bp"]])
+    for key, strains in pick_order.items():
+        done = written.get(key)
+        if not done:
+            continue
+        order = [s for s in strains if s in done]
+        with open(out_dir / key / "clinker_order.txt", "w") as fh:
+            fh.write("".join(f"{safe_name(s)}.gbk\n" for s in order))
     for key, labels in group_rows.items():
         with open(out_dir / key / "groups.csv", "w", newline="") as fh:
             w = csv.writer(fh, lineterminator="\n")
