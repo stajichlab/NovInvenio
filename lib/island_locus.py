@@ -288,3 +288,123 @@ def locus_columns(order: list[tuple[int, str]], members, flank: int,
         left_avail=lo,
         right_avail=len(seq) - 1 - hi,
     )
+
+
+# ---- 4. cell states ----------------------------------------------------------
+@dataclass
+class StrainCells:
+    """One strain's view of one locus."""
+    base: list  # ABSENT / IN_PLACE / ELSEWHERE only (the feasibility rule)
+    codes: list  # display codes, adds rescue and contig break
+    detail: list  # per column: None or (contig, rank, neighbour_col, delta)
+    in_place_copies: list  # [(col, contig, rank)] for every in-place copy
+
+
+def _nearest_other_family(copies: list[tuple[int, int]], idx: int, k: int,
+                          columns: list[str]) -> tuple[int, int] | None:
+    """(column, signed rank delta) of the nearest copy of a DIFFERENT FAMILY
+    within `k` ranks of copies[idx], in a rank-sorted list of (rank, column).
+    A family that fills two columns (a tandem paralog in the exemplar) is
+    never its own neighbour. Ties: the left one."""
+    rank, ci = copies[idx]
+    fam = columns[ci]
+    left = right = None
+    j = idx - 1
+    while j >= 0 and rank - copies[j][0] <= k:
+        if columns[copies[j][1]] != fam:
+            left = (copies[j][1], copies[j][0] - rank)
+            break
+        j -= 1
+    j = idx + 1
+    while j < len(copies) and copies[j][0] - rank <= k:
+        if columns[copies[j][1]] != fam:
+            right = (copies[j][1], copies[j][0] - rank)
+            break
+        j += 1
+    if left is None:
+        return right
+    if right is None or -left[1] <= right[1]:
+        return left
+    return right
+
+
+def strain_cells(strain: str, columns: list[str], positions: Positions,
+                 spans: ContigSpans, k: int = DEFAULT_K,
+                 genome_only: frozenset = frozenset(),
+                 present_unplaced: frozenset = frozenset()) -> StrainCells:
+    """Cell states for one strain (spec section 4).
+
+    A copy is in place when a copy of a different column's family sits on
+    the same contig within `k` ranks (Ruling R9). `genome_only` names the
+    families this strain carries only as a TBLASTN rescue hit (matrix call
+    genome_only).
+    `present_unplaced` names families the matrix calls present with no
+    position row; they are "elsewhere" (Ruling R6).
+    """
+    n = len(columns)
+    by_contig: dict[str, list[tuple[int, int]]] = collections.defaultdict(list)
+    has_copy = [False] * n
+    for ci, fam in enumerate(columns):
+        for contig, rank in positions.get((strain, fam), ()):
+            by_contig[contig].append((rank, ci))
+            has_copy[ci] = True
+    best_detail: list = [None] * n
+    in_place_copies = []
+    for contig, copies in by_contig.items():
+        copies.sort()
+        for idx, (rank, ci) in enumerate(copies):
+            nbr = _nearest_other_family(copies, idx, k, columns)
+            if nbr is None:
+                continue
+            in_place_copies.append((ci, contig, rank))
+            cur = best_detail[ci]
+            cand = (contig, rank, nbr[0], nbr[1])
+            if cur is None or (abs(cand[3]), cand[0], cand[1]) < (abs(cur[3]), cur[0], cur[1]):
+                best_detail[ci] = cand
+    base = []
+    codes = []
+    detail = []
+    for ci, fam in enumerate(columns):
+        if best_detail[ci] is not None:
+            b = IN_PLACE
+            d = best_detail[ci]
+        elif has_copy[ci]:
+            b = ELSEWHERE
+            contig, rank = min(positions[(strain, fam)])
+            d = (contig, rank, None, None)
+        elif fam in present_unplaced:
+            b = ELSEWHERE
+            d = None
+        else:
+            b = ABSENT
+            d = None
+        base.append(b if (has_copy[ci] or b == ABSENT) else ABSENT)
+        rescued = fam in genome_only and b != ABSENT
+        if rescued:
+            codes.append(RESCUE_IN_PLACE if b == IN_PLACE else RESCUE_ELSEWHERE)
+        else:
+            codes.append(b)
+        detail.append(d)
+    _mark_contig_breaks(codes, best_detail, strain, spans, k)
+    return StrainCells(base=base, codes=codes, detail=detail, in_place_copies=in_place_copies)
+
+
+def _mark_contig_breaks(codes: list, anchors: list, strain: str, spans: ContigSpans, k: int) -> None:
+    """Turn ABSENT/ELSEWHERE into CONTIG_BREAK where the locus runs off the
+    assembly (spec section 4, Ruling R7): the column lies outside the column
+    range of the strain's in-place columns, and the nearest in-place copy is
+    within `k` ranks of either end of its contig."""
+    placed = [ci for ci, a in enumerate(anchors) if a is not None]
+    if not placed:
+        return
+    first, last = placed[0], placed[-1]
+    for ci, code in enumerate(codes):
+        if code not in (ABSENT, ELSEWHERE) or first <= ci <= last:
+            continue
+        j = first if ci < first else last
+        contig, rank = anchors[j][0], anchors[j][1]
+        cmin, cmax = spans.get((strain, contig), (None, None))
+        if cmin is None:
+            continue
+        if rank - cmin <= k or cmax - rank <= k:
+            codes[ci] = CONTIG_BREAK

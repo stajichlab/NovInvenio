@@ -152,3 +152,67 @@ def test_without_block_every_member_copy_on_the_contig_sets_the_block():
 
 def test_no_member_on_the_contig_gives_none():
     assert locus_columns(ORDER, ["zz"], 5) is None
+
+
+from island_locus import (  # noqa: E402
+    ABSENT, CONTIG_BREAK, ELSEWHERE, IN_PLACE, RESCUE_ELSEWHERE, RESCUE_IN_PLACE, strain_cells,
+)
+
+
+# ---- cell states ------------------------------------------------------------------
+
+COLS = ["L1", "A", "B", "R1"]
+
+
+def test_in_place_needs_another_column_within_k_on_the_same_contig():
+    pos = {("S1", "L1"): [("c1", 5)], ("S1", "A"): [("c1", 6)], ("S1", "B"): [("c2", 6)],
+           ("S1", "R1"): [("c1", 30)]}
+    sc = strain_cells("S1", COLS, pos, {}, k=10)
+    assert sc.codes == [IN_PLACE, IN_PLACE, ELSEWHERE, ELSEWHERE]
+    assert sc.detail[0] == ("c1", 5, 1, 1)
+    assert sc.detail[2] == ("c2", 6, None, None)
+
+
+def test_absent_when_no_copy():
+    sc = strain_cells("S1", COLS, {("S1", "L1"): [("c1", 5)], ("S1", "R1"): [("c1", 7)]}, {})
+    assert sc.codes == [IN_PLACE, ABSENT, ABSENT, IN_PLACE]
+
+
+def test_a_genome_only_family_is_drawn_as_rescue():
+    pos = {("S1", "L1"): [("c1", 5)], ("S1", "A"): [("c1", 6)], ("S1", "B"): [("c9", 1)]}
+    sc = strain_cells("S1", COLS, pos, {}, genome_only=frozenset({"A", "B"}))
+    assert sc.codes[:3] == [IN_PLACE, RESCUE_IN_PLACE, RESCUE_ELSEWHERE]
+    assert sc.base[:3] == [IN_PLACE, IN_PLACE, ELSEWHERE]
+
+
+def test_present_without_a_position_is_elsewhere_but_base_absent():
+    sc = strain_cells("S1", COLS, {}, {}, present_unplaced=frozenset({"A"}))
+    assert sc.codes[1] == ELSEWHERE and sc.base[1] == ABSENT
+
+
+def test_contig_break_beyond_the_last_anchor_near_a_contig_end():
+    pos = {("S1", "L1"): [("c1", 97)], ("S1", "A"): [("c1", 98)]}
+    sc = strain_cells("S1", COLS, pos, {("S1", "c1"): (0, 99)}, k=10)
+    assert sc.codes == [IN_PLACE, IN_PLACE, CONTIG_BREAK, CONTIG_BREAK]
+    assert sc.base[2:] == [ABSENT, ABSENT]
+
+
+def test_absence_between_anchors_is_never_a_contig_break():
+    pos = {("S1", "L1"): [("c1", 97)], ("S1", "R1"): [("c1", 98)]}
+    sc = strain_cells("S1", COLS, pos, {("S1", "c1"): (0, 99)})
+    assert sc.codes == [IN_PLACE, ABSENT, ABSENT, IN_PLACE]
+
+
+def test_absence_far_from_a_contig_end_is_absent():
+    pos = {("S1", "L1"): [("c1", 50)], ("S1", "A"): [("c1", 51)]}
+    sc = strain_cells("S1", COLS, pos, {("S1", "c1"): (0, 99)})
+    assert sc.codes[2:] == [ABSENT, ABSENT]
+
+
+def test_a_tandem_paralog_is_not_its_own_neighbour():
+    # Review Focus 1: family P fills two columns (two copies in the exemplar).
+    # A strain with one lone copy of P must not be "in place" because the
+    # same copy sits in both columns.
+    cols = ["L1", "P", "P", "R1"]
+    sc = strain_cells("S1", cols, {("S1", "P"): [("c1", 40)]}, {})
+    assert sc.codes == [ABSENT, ELSEWHERE, ELSEWHERE, ABSENT]
