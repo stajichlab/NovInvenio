@@ -185,3 +185,43 @@ def test_split_blocks_drawn_bp_uses_the_blocks_running_max_end_not_the_last_entr
     blocks, stats = split_blocks(entries, 20000)
     assert stats["n_blocks"] == 1
     assert stats["drawn_bp"] == 500 - 10 + 1
+
+
+# ---- M2: split decisions use gene entries only; rescue entries (pid is
+# None) attach to the nearest resulting block instead of participating in
+# gap/split decisions -- they have no gene model and are never drawn. ----
+
+def test_split_blocks_rescue_entry_in_a_long_gap_does_not_prevent_the_split():
+    # Old behaviour: a rescue entry sitting inside the 199,900 bp gap
+    # between g1 and g2 would split that one real gap into two smaller
+    # gaps, either of which could fall under max_gap and wrongly suppress
+    # the split. New behaviour: the split decision only looks at genes, so
+    # the real gap is still seen as one gap > max_gap and still splits.
+    entries = [(0, "p1", None, 1, 100), (1, None, "famR", 50000, 50000),
+               (2, "p2", None, 200000, 200100)]
+    blocks, stats = split_blocks(entries, 20000)
+    assert stats["n_blocks"] == 2
+    assert [len(b) for b in blocks] == [2, 1]
+    # The rescue entry (closer to g1's block) is attached there, not to g2's.
+    assert [e[1] for e in blocks[0]] == ["p1", None]
+    assert blocks[0][1][2] == "famR"
+    assert [e[1] for e in blocks[1]] == ["p2"]
+
+
+def test_split_blocks_rescue_entry_far_from_any_gene_stays_in_the_only_block():
+    # Old behaviour: a single gene plus one far-away rescue entry would
+    # split into two blocks, one of them gene-less (nothing for clinker to
+    # draw). New behaviour: with only one gene, there is only one gene
+    # block, and the rescue entry attaches to it rather than forming its
+    # own gene-less block.
+    entries = [(0, "p1", None, 1, 100), (1, None, "famR", 5_000_000, 5_000_000)]
+    blocks, stats = split_blocks(entries, 20000)
+    assert stats["n_blocks"] == 1
+    assert len(blocks) == 1 and len(blocks[0]) == 2
+
+
+def test_split_blocks_region_with_only_rescue_entries_keeps_one_block():
+    entries = [(0, None, "famR", 10, 10), (1, None, "famZ", 50, 50)]
+    blocks, stats = split_blocks(entries, 20000)
+    assert stats["n_blocks"] == 1
+    assert len(blocks) == 1 and len(blocks[0]) == 2

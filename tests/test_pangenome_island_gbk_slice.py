@@ -65,9 +65,13 @@ def test_slices_table_reports_bp_and_counts(tmp_path):
 
 def test_max_gap_splits_the_genbank_record_into_blocks(tmp_path):
     # Entries in this fixture (rank_lo=0, rank_hi=3) are p1(10-40), p2(60-99),
-    # the rescue hit famR(c1:110, no gene model) and p3(120-150). --max_gap
-    # 10 splits at the p1->p2 gap (20 bp) and the p2->famR gap (11 bp), but
-    # not famR->p3 (10 bp, not > 10): three blocks, one .gbk record each.
+    # the rescue hit famR(c1:110, no gene model) and p3(120-150). M2: split
+    # points come from GENE entries only, so --max_gap 10 splits at the
+    # p1->p2 gene gap (20 bp) and the p2->p3 gene gap (21 bp); famR never
+    # participates in the split decision, and is attached to the nearest
+    # resulting block (p3's, 10 bp away, vs. 11 bp to p2's) instead of
+    # forming a block of its own -- still three blocks, one .gbk record
+    # each, same grouping as before M2 (only the reported gap stats change).
     args = fixture(tmp_path) + ["--max_gap", "10"]
     assert main(args) == 0
     recs = list(SeqIO.parse(str(tmp_path / "gbk" / "L001" / "S1.gbk"), "genbank"))
@@ -78,8 +82,8 @@ def test_max_gap_splits_the_genbank_record_into_blocks(tmp_path):
     assert [len([f for f in r.features if f.type == "CDS"]) for r in recs] == [1, 1, 1]
     (row,) = list(csv.DictReader(open(tmp_path / "gbk" / "island_slices.tsv"), delimiter="\t"))
     assert row["n_blocks"] == "3"
-    assert row["gap_bp"] == str((60 - 40) + (110 - 99))
-    assert row["max_gap_bp"] == str(60 - 40)
+    assert row["gap_bp"] == str((60 - 40) + (120 - 99))
+    assert row["max_gap_bp"] == str(120 - 99)
     drawn = (40 - 10 + 1) + (99 - 60 + 1) + (150 - 110 + 1)
     assert row["drawn_bp"] == str(drawn)
     # groups.csv still maps every locus_tag across all blocks to its family.

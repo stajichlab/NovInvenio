@@ -73,30 +73,61 @@ def split_blocks(entries: list, max_gap: int) -> tuple[list[list], dict]:
     spanning a huge, mostly empty region (spec section 8 C1; real Cocci
     evidence: strain B3245's 338,667 bp slice has a 164 kb gene-free gap).
 
+    Split points come from gene entries only (`pid` is not None). Rescue
+    entries (`pid` is None -- a TBLASTN hit with no gene model, never
+    drawn) never trigger a split and never form a block of their own:
+    each is attached to whichever resulting block's gene-only span is
+    nearest it (M2 -- a rescue hit sitting inside an otherwise huge
+    gene-free gap must not fool the split into treating that one real gap
+    as two smaller ones, and a rescue hit far from every gene must not
+    produce a gene-less block clinker can't draw). A region with no gene
+    entries at all (only rescue hits) keeps a single block.
+
     `max_gap` <= 0 disables splitting (always one block). Returns
     (blocks, stats): `blocks` is `entries` ordered by start and grouped;
     `stats` has n_blocks, gap_bp (sum of the skipped gaps that triggered a
     split), max_gap_bp (the largest one) and drawn_bp (sum of each block's
-    bp span, inclusive of both ends)."""
-    ordered = sorted(entries, key=lambda e: e[3])
-    if not ordered:
+    bp span, inclusive of both ends, over ALL of that block's entries,
+    including any attached rescue hits)."""
+    if not entries:
         return [], {"n_blocks": 0, "gap_bp": 0, "max_gap_bp": 0, "drawn_bp": 0}
-    blocks = [[ordered[0]]]
+    genes = sorted((e for e in entries if e[1] is not None), key=lambda e: e[3])
+    rescues = sorted((e for e in entries if e[1] is None), key=lambda e: e[3])
+    if not genes:
+        ordered = rescues
+        span = max(e[4] for e in ordered) - ordered[0][3] + 1
+        return [ordered], {"n_blocks": 1, "gap_bp": 0, "max_gap_bp": 0, "drawn_bp": span}
+    blocks = [[genes[0]]]
     # Fix round 1, item 3: track each block's running MAX end (not just the
     # last-appended entry's), so a gene fully nested inside an earlier one
     # in the same block can't shrink the reported span.
-    block_ends = [ordered[0][4]]
+    gene_starts = [genes[0][3]]
+    block_ends = [genes[0][4]]
     gaps = []
-    for e in ordered[1:]:
+    for e in genes[1:]:
         gap = e[3] - block_ends[-1]
         if max_gap > 0 and gap > max_gap:
             gaps.append(gap)
             blocks.append([])
+            gene_starts.append(e[3])
             block_ends.append(e[4])
         else:
             block_ends[-1] = max(block_ends[-1], e[4])
         blocks[-1].append(e)
-    drawn_bp = sum(end - b[0][3] + 1 for b, end in zip(blocks, block_ends))
+    # Attach each rescue entry to the nearest block's gene-only span (fixed
+    # before any rescue is attached, so several rescue hits can't shift
+    # each other's target block).
+    for r in rescues:
+        def distance(i):
+            if gene_starts[i] <= r[3] <= block_ends[i]:
+                return 0
+            return min(abs(r[3] - gene_starts[i]), abs(r[3] - block_ends[i]))
+        best = min(range(len(blocks)), key=distance)
+        blocks[best].append(r)
+        block_ends[best] = max(block_ends[best], r[4])
+    for b in blocks:
+        b.sort(key=lambda e: e[3])
+    drawn_bp = sum(end - min(e[3] for e in b) + 1 for b, end in zip(blocks, block_ends))
     return blocks, {"n_blocks": len(blocks), "gap_bp": sum(gaps),
                     "max_gap_bp": max(gaps) if gaps else 0, "drawn_bp": drawn_bp}
 
