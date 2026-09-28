@@ -378,6 +378,8 @@ workflow PANGENOME_PROFILE {
         pfam_domtblout_ch,
         CLUSTER_TIER1.out.cluster_tsv,
         GENE_POSITIONS.out.positions,
+        effective_samplesheet,
+        strain_inventory,
     )
 
     // Issue #134: pipeline diagnostics (rescue_redundancy + assembly_quality_

@@ -35,6 +35,8 @@ process REPORT_TABLES {
     path(domtblout)
     path(cluster_tsv)
     path(gene_positions)
+    path(samplesheet)
+    path(strain_inventory, stageAs: 'strain_inventory.tsv')   // 0-byte stub when dereplication is off; own name avoids the #203 stub collision
 
     output:
     path("islands_with_domains.tsv"), emit: islands_with_domains
@@ -59,6 +61,10 @@ process REPORT_TABLES {
         --cluster_tsv ${cluster_tsv} \
         --gene_positions ${gene_positions} \
         --id_sep '${params.pangenome_id_sep.replace("'", "'\\''")}' \
+        --samplesheet ${samplesheet} \
+        --strain_inventory ${strain_inventory} \
+        --ingroup_label '${params.pangenome_ingroup_label}' \
+        --outgroup_label '${params.pangenome_outgroup_label}' \
         --out_dir .
     """
 }
