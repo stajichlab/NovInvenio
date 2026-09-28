@@ -6,7 +6,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
 import pangenome_report_render
 from pangenome_report_render import (
     render_report_markdown, fit_heaps_law, fit_core_decay, build_presence_bool_array,
-    cap_zero_q_sentinel,
+    cap_zero_q_sentinel, order_genome_blocks, plot_per_genome_class_composition,
+    per_genome_figure_height,
 )
 import numpy as np
 
@@ -708,3 +709,93 @@ def test_report_includes_view_b1_neighbourhood_table_with_its_scale():
 def test_report_omits_neighbourhood_section_without_rows():
     assert "Trans-module genomic clustering" not in _md_with_neighborhood(None)
     assert "No trans modules" in _md_with_neighborhood([])
+
+
+def _strain(short, **bands):
+    row = {"Short": short, "core": "0", "soft_core": "0", "shell": "0",
+           "cloud": "0", "singleton": "0"}
+    row.update({k: str(v) for k, v in bands.items()})
+    return row
+
+
+def test_order_genome_blocks_by_group_then_species_then_total():
+    per_strain = [
+        _strain("imm_small", core=10), _strain("pos_big", core=30),
+        _strain("imm_big", core=20), _strain("out1", core=5),
+        _strain("pos_small", core=15),
+    ]
+    samplesheet = {
+        "imm_small": ("IN", "Coccidioides immitis"),
+        "imm_big": ("IN", "Coccidioides immitis"),
+        "pos_big": ("IN", "Coccidioides posadasii"),
+        "pos_small": ("IN", "Coccidioides posadasii"),
+        "out1": ("OUT", "Uncinocarpus reesii"),
+    }
+    blocks = order_genome_blocks(per_strain, samplesheet, "IN", "OUT")
+    assert [label for label, _ in blocks] == [
+        "Coccidioides immitis (IN)", "Coccidioides posadasii (IN)",
+        "Uncinocarpus reesii (OUT)"]
+    assert [[r["Short"] for r in rows] for _, rows in blocks] == [
+        ["imm_big", "imm_small"], ["pos_big", "pos_small"], ["out1"]]
+
+
+def test_order_genome_blocks_puts_other_groups_and_unknown_strains_last():
+    per_strain = [_strain("x", core=1), _strain("o", core=1), _strain("i", core=1)]
+    samplesheet = {"i": ("IN", "Sp a"), "o": ("OUT", "Sp b"), "q": ("NEAR", "Sp c")}
+    blocks = order_genome_blocks(per_strain, samplesheet, "IN", "OUT")
+    assert [label for label, _ in blocks] == ["Sp a (IN)", "Sp b (OUT)", "other"]
+
+
+def test_order_genome_blocks_without_samplesheet_sorts_by_total():
+    per_strain = [_strain("a", core=1), _strain("b", core=5, cloud=5), _strain("c", core=3)]
+    blocks = order_genome_blocks(per_strain, None, "IN", "OUT")
+    assert blocks == [("", [per_strain[1], per_strain[2], per_strain[0]])]
+
+
+def test_per_genome_figure_height_labelled_up_to_150_then_shorter_rows():
+    assert per_genome_figure_height(10) == (1.5 + 0.15 * 10, True)
+    assert per_genome_figure_height(150) == (1.5 + 0.15 * 150, True)
+    assert per_genome_figure_height(529) == (1.5 + 0.04 * 529, False)
+    assert per_genome_figure_height(5000) == (30.0, False)
+
+
+def test_plot_per_genome_class_composition_writes_png_and_pdf(tmp_path):
+    blocks = [("Sp a (IN)", [_strain("a", core=5, shell=2)]),
+              ("Sp b (OUT)", [_strain("b", core=4, cloud=3, singleton=1)])]
+    plot_per_genome_class_composition(blocks, tmp_path)
+    assert (tmp_path / "figures" / "per_genome_class_composition.png").stat().st_size > 0
+    assert (tmp_path / "figures_pdf" / "per_genome_class_composition.pdf").stat().st_size > 0
+
+
+def test_report_embeds_per_genome_figure_only_when_flagged():
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [100],
+                                per_genome_figure=True)
+    assert "figures/per_genome_class_composition.png" in md
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [100])
+    assert "per_genome_class_composition" not in md
+
+
+def test_main_writes_per_genome_figure_with_samplesheet(tmp_path, monkeypatch):
+    (tmp_path / "ft.tsv").write_text("family\tfrequency\tbin\nfamA\t1.0\tcore\n")
+    (tmp_path / "pm.tsv").write_text("family\ts1\ts2\nfamA\tpresent\tpresent\n")
+    (tmp_path / "cc.tsv").write_text("classification\tcount\n")
+    (tmp_path / "ps.tsv").write_text(
+        "Short\tn_families\tcore\tsoft_core\tshell\tcloud\tsingleton\tsingleton_z\tis_outlier\n"
+        "s1\t1\t1\t0\t0\t0\t0\t0\tN\ns2\t1\t1\t0\t0\t0\t0\t0\tN\n")
+    (tmp_path / "ss.csv").write_text(
+        "GROUP,Species,Strain,Protein,DNA,GFF3,Short,TaxonGroup\n"
+        "IN,Sp a,s1,,,,s1,\nOUT,Sp b,s2,,,,s2,\n")
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", [
+        "pangenome_report_render.py",
+        "--frequency_table", str(tmp_path / "ft.tsv"),
+        "--presence_matrix", str(tmp_path / "pm.tsv"),
+        "--classification_counts", str(tmp_path / "cc.tsv"),
+        "--per_strain_summary", str(tmp_path / "ps.tsv"),
+        "--samplesheet", str(tmp_path / "ss.csv"),
+        "--n_permutations", "1",
+        "--out_dir", str(out_dir),
+    ])
+    pangenome_report_render.main()
+    assert (out_dir / "figures" / "per_genome_class_composition.png").exists()
+    assert "per_genome_class_composition.png" in (out_dir / "report.md").read_text()
