@@ -87,6 +87,7 @@ something else.
 | `pangenome_core_cutoff` | `0.95` | `unvalidated-assumption` | Conventional pangenomics values (95%/90%/15% core/softcore/shell splits are widely used in the literature) with no dataset-specific measurement behind them in this repo. Issue #132 priority-2 names this explicitly as open: "measure the frequency distribution's actual shape... is there a natural trough to cut at, or is it a continuum where any cutoff is arbitrary? If the latter, say so... rather than implying the values are principled." | **Not yet measured** | — | This is the entire subject of issue #132 priority 2. Do not treat as validated until that sweep runs. |
 | `pangenome_softcore_cutoff` | `0.90` | `unvalidated-assumption` | Same as above. | **Not yet measured** | — | Same as above. |
 | `pangenome_shell_cutoff` | `0.15` | `unvalidated-assumption` | Same as above. | **Not yet measured** | — | Same as above. |
+| `pangenome_outgroup_min_bin_strains` | `3` | `unvalidated-assumption` | Issue #212: the outgroup gets its own bins (`bin_out`) only with at least this many representative strains. 3 is the smallest size at which core (>= 95%) and cloud (< 15%) can differ; it is a judgement, not a measurement. | **Not measured** | An outgroup of 3-5 strains whose `bin_out` classes swing on one strain's gain or loss. | Compare `bin_out` counts with one outgroup strain left out, per run. |
 
 ## 5. Co-occurrence screen (Fisher / BH-FDR)
 

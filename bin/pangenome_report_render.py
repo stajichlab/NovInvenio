@@ -112,6 +112,19 @@ def group_class_counts(frequency_table_rows: list[dict]) -> dict[str, dict[str, 
     return out
 
 
+def outgroup_fallback_reason(frequency_table_rows: list[dict], per_strain_rows: list[dict],
+                             outgroup_label: str) -> str:
+    """Why outgroup genomes are drawn with ingroup classes: "" (they are not),
+    "no_out_columns" (the frequency table predates per-group bins) or
+    "too_few" (the outgroup had too few representatives to bin)."""
+    if not any(r.get("group") == outgroup_label and r.get("bins_from") == "in"
+               for r in per_strain_rows):
+        return ""
+    if frequency_table_rows and "bin_out" not in frequency_table_rows[0]:
+        return "no_out_columns"
+    return "too_few"
+
+
 def plot_group_composition(group_counts: dict[str, dict[str, int]], out_dir: Path) -> None:
     """One horizontal stacked bar per binned group on a shared axis (spec
     section 4); only core ... singleton are drawn."""
@@ -596,7 +609,7 @@ def render_report_markdown(
     neighborhood_rows: list[dict] | None = None,
     pfam_urls: dict[str, str] | None = None,
     per_genome_figure: bool = False,
-    outgroup_fallback: bool = False,
+    outgroup_fallback: str = "",
 ) -> str:
     lines: list[str] = []
     if diagnostics_banner:
@@ -645,9 +658,12 @@ def render_report_markdown(
     if per_genome_figure:
         lines += ["![Gene families per genome by frequency class]"
                   "(figures/per_genome_class_composition.png)", ""]
-        if outgroup_fallback:
+        if outgroup_fallback == "too_few":
             lines += ["*The outgroup has too few representative genomes to bin on its own; "
                       "outgroup genomes use ingroup classes.*", ""]
+        elif outgroup_fallback == "no_out_columns":
+            lines += ["*This run's frequency table predates per-group bins (no outgroup "
+                      "columns); outgroup genomes use ingroup classes.*", ""]
 
     if islands_available:
         lines += ["## Accessory islands", ""]
@@ -874,8 +890,8 @@ def main() -> int:
         neighborhood_rows=neighborhood_rows,
         pfam_urls=pfam_urls,
         per_genome_figure=per_genome_figure,
-        outgroup_fallback=any(r.get("group") == args.outgroup_label and r.get("bins_from") == "in"
-                              for r in per_strain_rows),
+        outgroup_fallback=outgroup_fallback_reason(frequency_table_rows, per_strain_rows,
+                                                   args.outgroup_label),
     )
     (out_dir / "report.md").write_text(markdown)
 

@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Changed: per-group frequency bins; `singleton` fix (#212)
+
+- **`frequency_table.tsv`**: `bin` is still the ingroup class, but a family counted in no
+  ingroup representative is now `nonrep_only` (only in dereplicated non-representative ingroup
+  strains), `outgroup_only` (only in the outgroup) or `absent`, not `singleton`. New columns
+  `frequency_out`, `strain_count_out`, `bin_out` give the outgroup's own classes (mirror label
+  `ingroup_only`), or `-` when the outgroup has fewer than `--pangenome_outgroup_min_bin_strains`
+  (new param, default 3) representatives. Co-occurrence, islands, enrichment background and
+  neighborhood read only core/soft_core/shell/cloud and are unchanged; the assembly-quality
+  singleton set shrinks to true ingroup singletons.
+- **`per_strain_summary.tsv`**: new columns `group`, `is_representative`, `bins_from`,
+  `nonrep_only`, `outgroup_only`. Each strain is counted with its own group's classes;
+  `singleton_z`/`is_outlier` use the median/MAD of its group's representatives.
+- **Report**: `figures/core_shell_cloud_pie` is replaced by `figures/group_composition`
+  (one bar per group); the per-genome figure marks non-representative genomes and draws
+  `nonrep_only`/`outgroup_only` segments. REPORT_TABLES now takes the samplesheet and strain
+  inventory.
+
 ### New: clinker synteny panel
 
 - **`lib/genbank_slice.py`**, **`bin/pangenome_island_gbk_slice.py`** (`ISLAND_GBK_SLICE`),

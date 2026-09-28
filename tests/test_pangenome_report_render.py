@@ -820,8 +820,27 @@ def test_band_total_includes_new_segments():
 
 def test_report_notes_outgroup_fallback():
     md = render_report_markdown({}, {}, {}, [], 0, None, None, [100],
-                                per_genome_figure=True, outgroup_fallback=True)
+                                per_genome_figure=True, outgroup_fallback="too_few")
+    assert "too few representative genomes" in md
     assert "outgroup genomes use ingroup classes" in md
+
+
+def test_report_notes_old_table_fallback_reason():
+    # Review finding: a frequency_table.tsv without *_out columns must not be
+    # reported as "too few representative genomes".
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [100],
+                                per_genome_figure=True, outgroup_fallback="no_out_columns")
+    assert "too few representative" not in md
+    assert "predates per-group bins" in md
+
+
+def test_outgroup_fallback_reason_from_table_and_rows():
+    rows = [{"group": "OUT", "bins_from": "in"}]
+    f = pangenome_report_render.outgroup_fallback_reason
+    assert f([{"bin": "core"}], rows, "OUT") == "no_out_columns"
+    assert f([{"bin": "core", "bin_out": "-"}], rows, "OUT") == "too_few"
+    assert f([{"bin": "core", "bin_out": "core"}], [{"group": "OUT", "bins_from": "out"}], "OUT") == ""
+    assert f([{"bin": "core"}], [{"group": "IN", "bins_from": "in"}], "OUT") == ""
 
 
 def test_group_class_counts_both_groups():
