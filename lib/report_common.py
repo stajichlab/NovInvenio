@@ -166,13 +166,14 @@ LOGO_CSS = r"""
   header.top .logo { width: 40px; height: 40px; border-radius: 8px; flex: 0 0 auto; }
 """
 
-# Top-of-page "up" navigation for the published two-tier gallery layout NII's
-# bin/sync_reports.sh/generate_docs.py relocates these pages into --
-# docs/<domain>/<set>/*.html sitting under docs/<domain>/index.html sitting
-# under docs/index.html (see that repo's DESIGN.md Sec 3/8). Every report page
-# a study produces (report.html, novelties.html, core.html, losses.html,
-# alignment.html) lives in the same <set> directory, so the relative paths
-# below are the same from any of them -- no per-page computation needed.
+# Top-of-page "up" navigation for NII's published per-run layout (that
+# repo's DESIGN.md Sec 8, 2026-09-24 update): every page a run produces
+# (report.html, novelties.html, core.html, losses.html, alignment.html,
+# island_synteny.html) sits in docs/<domain>/<study>/<run>/, under the study's
+# run list (docs/<domain>/<study>/report.html), the domain gallery
+# (docs/<domain>/index.html) and the site root (docs/index.html). All pages
+# of a run share one directory, so the relative paths below are the same from
+# any of them -- no per-page computation needed.
 # Degrades harmlessly (a dead relative link, nothing else on the page depends
 # on it) when a page is opened outside that layout, e.g. NovInvenio's own flat
 # results/<project>/ copies, or this repo's own -profile test smoke output --
@@ -189,18 +190,19 @@ BREADCRUMB_NAV_CSS = r"""
 """
 
 
-def breadcrumb_nav_html(*, study: bool = True) -> str:
+def breadcrumb_nav_html(*, run: bool = True) -> str:
     """The nav bar itself, broadest first (left to right): All studies (site
-    root) -> Group gallery -> Study folder.
+    root) -> Group (domain gallery) -> Study (run list) -> Run (this run's
+    report.html).
 
-    ``study=False`` omits the study-folder link -- pass it on report.html
-    itself, where linking to "report.html" would just point at the current
-    page.
+    ``run=False`` omits the Run link -- pass it on report.html itself, where
+    linking to "report.html" would just point at the current page.
     """
-    links = ['<a href="../../index.html">&#127968; All studies</a>',
-             '<a href="../index.html">&#128194; Group</a>']
-    if study:
-        links.append('<a href="report.html">&#128193; Study</a>')
+    links = ['<a href="../../../index.html">&#127968; All studies</a>',
+             '<a href="../../index.html">&#128194; Group</a>',
+             '<a href="../report.html">&#128193; Study</a>']
+    if run:
+        links.append('<a href="report.html">&#128196; Run</a>')
     return '<nav class="breadcrumb">' + ''.join(links) + '</nav>'
 
 # <head> snippet -- must run before first paint so a stored skin choice does
