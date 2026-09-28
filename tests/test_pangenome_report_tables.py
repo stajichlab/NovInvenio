@@ -7,6 +7,8 @@ import pangenome_report_tables
 from pangenome_report_tables import (
     add_island_locus,
     add_outlier_flags,
+    add_group_outlier_flags,
+    read_representatives,
     annotate_islands_with_domains,
     island_size_distribution,
     classification_counts,
@@ -152,11 +154,13 @@ def test_per_strain_summary_counts_genes_and_bins(tmp_path):
     by_strain = {r["Short"]: r for r in result}
     # Only 2 strains -- add_outlier_flags emits the "-" sentinel (n<3).
     assert by_strain["s1"] == {
-        "Short": "s1", "n_families": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0,
+        "Short": "s1", "group": "", "is_representative": "Y", "bins_from": "in", "nonrep_only": 0, "outgroup_only": 0,
+        "n_families": 3, "core": 1, "soft_core": 0, "shell": 1, "cloud": 1, "singleton": 0,
         "singleton_z": "-", "is_outlier": "-",
     }
     assert by_strain["s2"] == {
-        "Short": "s2", "n_families": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0,
+        "Short": "s2", "group": "", "is_representative": "Y", "bins_from": "in", "nonrep_only": 0, "outgroup_only": 0,
+        "n_families": 1, "core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0,
         "singleton_z": "-", "is_outlier": "-",
     }
 
@@ -405,3 +409,62 @@ def test_main_without_significant_islands_writes_empty_islands_outputs(tmp_path,
     assert (out_dir / "classification_counts.tsv").read_text() == "classification\tcount\ntrans\t1\n"
     per_strain = (out_dir / "per_strain_summary.tsv").read_text()
     assert "s1" in per_strain
+
+
+def test_per_strain_summary_uses_own_group_classes(tmp_path):
+    pm = tmp_path / "pm.tsv"
+    pm.write_text("family\ti1\ti2\to1\tx1\n"
+                  "fA\tpresent\tpresent\tpresent\tpresent\n"
+                  "fB\tabsent\tabsent\tpresent\tabsent\n"
+                  "fC\tabsent\tpresent\tabsent\tabsent\n")
+    family_bin = {"fA": "core", "fB": "outgroup_only", "fC": "nonrep_only"}
+    family_bin_out = {"fA": "core", "fB": "cloud", "fC": "ingroup_only"}
+    rows = {r["Short"]: r for r in per_strain_summary(
+        str(pm), family_bin, family_bin_out,
+        strain_group={"i1": "IN", "i2": "IN", "o1": "OUT", "x1": "NEAR_INGROUP"},
+        representatives={"i1", "o1", "x1"})}
+    assert rows["i1"]["bins_from"] == "in" and rows["i1"]["core"] == 1
+    assert rows["i2"]["is_representative"] == "N" and rows["i2"]["nonrep_only"] == 1
+    assert rows["o1"]["bins_from"] == "out"
+    assert (rows["o1"]["core"], rows["o1"]["cloud"], rows["o1"]["outgroup_only"]) == (1, 1, 0)
+    assert rows["x1"]["group"] == "NEAR_INGROUP" and rows["x1"]["bins_from"] == "in"
+
+
+def test_per_strain_summary_old_table_falls_back_to_ingroup_bins(tmp_path):
+    pm = tmp_path / "pm.tsv"
+    pm.write_text("family\ti1\to1\nfA\tpresent\tpresent\nfB\tabsent\tpresent\n")
+    rows = {r["Short"]: r for r in per_strain_summary(
+        str(pm), {"fA": "core", "fB": "outgroup_only"}, None,
+        strain_group={"i1": "IN", "o1": "OUT"}, representatives=None)}
+    assert rows["o1"]["bins_from"] == "in"
+    assert rows["o1"]["outgroup_only"] == 1
+    assert rows["o1"]["is_representative"] == "Y"
+
+
+def test_per_strain_summary_absent_class_counts_only_in_total(tmp_path):
+    pm = tmp_path / "pm.tsv"
+    pm.write_text("family\tx1\nfZ\tpresent\n")
+    (row,) = per_strain_summary(str(pm), {"fZ": "absent"}, None, strain_group={"x1": "NEAR"})
+    assert row["n_families"] == 1
+    assert sum(row[k] for k in ("core", "soft_core", "shell", "cloud", "singleton",
+                                "nonrep_only", "outgroup_only")) == 0
+
+
+def test_group_outlier_flags_use_group_representatives_only():
+    rows = [{"Short": f"r{i}", "group": "IN", "is_representative": "Y", "singleton": v}
+            for i, v in enumerate([10, 11, 9, 10, 12])]
+    rows += [{"Short": "dup", "group": "IN", "is_representative": "N", "singleton": 400},
+             {"Short": "o1", "group": "OUT", "is_representative": "Y", "singleton": 1500},
+             {"Short": "o2", "group": "OUT", "is_representative": "Y", "singleton": 1400},
+             {"Short": "o3", "group": "OUT", "is_representative": "Y", "singleton": 1600}]
+    out = {r["Short"]: r for r in add_group_outlier_flags(rows)}
+    assert out["dup"]["is_outlier"] == "Y"          # scored against IN reps
+    assert out["r0"]["is_outlier"] == "N"
+    assert out["o1"]["is_outlier"] == "N"           # OUT judged against OUT, not IN
+
+
+def test_read_representatives_empty_stub_is_none(tmp_path):
+    stub = tmp_path / "empty_evalues.tsv"
+    stub.write_text("")
+    assert read_representatives(str(stub)) is None
+    assert read_representatives(None) is None

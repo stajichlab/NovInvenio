@@ -176,41 +176,75 @@ def marker_summary(islands_rows: list[dict], fieldnames: list[str]) -> list[dict
     return rows
 
 
-def per_strain_summary(presence_matrix_path: str, family_bin: dict[str, str]) -> list[dict]:
-    """One row per strain: total families present (`n_families` -- paralogs
-    collapse to one family in the presence matrix, so this is a family
-    count, not a raw gene count), plus counts broken down by frequency bin
-    (core/soft_core/shell/cloud/singleton). `genome_only` counts as present
-    (matches lib/pangenome_matrix.PresenceMatrix.is_present's semantics) --
-    rescued genome-only calls are real presence evidence, not a weaker
-    state."""
+PER_STRAIN_FIELDS = ["Short", "group", "is_representative", "bins_from", "n_families",
+                     "core", "soft_core", "shell", "cloud", "singleton",
+                     "nonrep_only", "outgroup_only", "singleton_z", "is_outlier"]
+_COUNTED = ("core", "soft_core", "shell", "cloud", "singleton", "nonrep_only", "outgroup_only")
+
+
+def read_strain_groups(samplesheet_path: str) -> dict[str, str]:
+    from config_parser import parse_config  # noqa: E402
+    return {s.short: s.group for s in parse_config(samplesheet_path)}
+
+
+def read_representatives(inventory_path: str | None) -> set[str] | None:
+    """Representative Shorts, or None when dereplication is off (no path or
+    the 0-byte stub)."""
+    if not inventory_path or Path(inventory_path).stat().st_size == 0:
+        return None
+    from pangenome_strain_inventory import read_representative_shorts  # noqa: E402
+    return set(read_representative_shorts(inventory_path))
+
+
+def per_strain_summary(
+    presence_matrix_path: str, family_bin: dict[str, str],
+    family_bin_out: dict[str, str] | None = None,
+    strain_group: dict[str, str] | None = None,
+    representatives: set[str] | None = None,
+    ingroup_label: str = "IN", outgroup_label: str = "OUT",
+) -> list[dict]:
+    """One row per strain (spec section 3): families present, tallied by the
+    strain's own group's class -- `bin_out` for outgroup strains when the
+    outgroup is binned (`family_bin_out` given), `bin` otherwise.
+    `genome_only` counts as present. Classes outside PER_STRAIN_FIELDS
+    (`absent`) count only toward n_families."""
+    strain_group = strain_group or {}
     with open(presence_matrix_path, newline="") as fh:
         reader = csv.reader(fh, delimiter="\t")
-        header = next(reader)
-        strains = header[1:]
-        totals = {
-            s: {"Short": s, "n_families": 0, "core": 0, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}
-            for s in strains
-        }
+        strains = next(reader)[1:]
+        totals, lookup = {}, {}
+        for s in strains:
+            group = strain_group.get(s, "")
+            use_out = group == outgroup_label and family_bin_out is not None
+            lookup[s] = family_bin_out if use_out else family_bin
+            totals[s] = {"Short": s, "group": group,
+                         "is_representative": "Y" if representatives is None or s in representatives else "N",
+                         "bins_from": "out" if use_out else "in", "n_families": 0,
+                         **{k: 0 for k in _COUNTED}}
         for row in reader:
             family = row[0]
-            b = family_bin.get(family)
             for strain, call in zip(strains, row[1:]):
                 if call != "absent":
-                    totals[strain]["n_families"] += 1
-                    if b in totals[strain]:
-                        totals[strain][b] += 1
-    return add_outlier_flags(list(totals.values()))
+                    t = totals[strain]
+                    t["n_families"] += 1
+                    b = lookup[strain].get(family)
+                    if b in _COUNTED:
+                        t[b] += 1
+    return add_group_outlier_flags(list(totals.values()))
 
 
-def add_outlier_flags(totals: list[dict], mad_multiplier: float = 0.6745, threshold: float = 3.5) -> list[dict]:
+def add_outlier_flags(totals: list[dict], mad_multiplier: float = 0.6745, threshold: float = 3.5,
+                      reference: list[dict] | None = None) -> list[dict]:
     """Modified z-score (Iglewicz-Hoaglin) on each strain's `singleton` count
     across the whole cohort -- NOT a mean/stdev z-score, which is bounded
     (max |z| = sqrt(n-1)) and cannot exceed ~3.0 at n=10, making a fixed >3
     cutoff unreachable for small cohorts. singleton_z/is_outlier are `-`
     (not a fabricated number, not a crash) when n<3 or MAD==0 (most strains
-    share the same singleton count -- statistic is undefined)."""
-    values = [t["singleton"] for t in totals]
+    share the same singleton count -- statistic is undefined).
+    `reference` (default: `totals`) supplies the singleton values the
+    median/MAD are computed from; every row of `totals` is scored against
+    them."""
+    values = [t["singleton"] for t in (totals if reference is None else reference)]
     out = [dict(t) for t in totals]
     if len(values) < 3:
         for row in out:
@@ -237,6 +271,20 @@ def add_outlier_flags(totals: list[dict], mad_multiplier: float = 0.6745, thresh
     return out
 
 
+def add_group_outlier_flags(totals: list[dict]) -> list[dict]:
+    """Spec section 3: per `group`, median/MAD over that group's
+    representatives; every strain of the group is scored."""
+    out: list[dict] = []
+    by_group: dict[str, list[dict]] = {}
+    for t in totals:
+        by_group.setdefault(t.get("group", ""), []).append(t)
+    for rows in by_group.values():
+        reps = [r for r in rows if r.get("is_representative", "Y") == "Y"]
+        out += add_outlier_flags(rows, reference=reps)
+    order = {t["Short"]: i for i, t in enumerate(totals)}
+    return sorted(out, key=lambda r: order[r["Short"]])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument(
@@ -259,6 +307,10 @@ def main() -> int:
     ap.add_argument("--cluster_tsv", required=True)
     ap.add_argument("--gene_positions", required=True)
     ap.add_argument("--id_sep", default="|")
+    ap.add_argument("--samplesheet", default=None)
+    ap.add_argument("--strain_inventory", default=None)
+    ap.add_argument("--ingroup_label", default="IN")
+    ap.add_argument("--outgroup_label", default="OUT")
     ap.add_argument("--out_dir", required=True)
     args = ap.parse_args()
 
@@ -328,13 +380,20 @@ def main() -> int:
             out.write(f"{classification}\t{count}\n")
 
     family_bin: dict[str, str] = {}
+    family_bin_out: dict[str, str] = {}
     with open(args.frequency_table, newline="") as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             family_bin[row["family"]] = row["bin"]
-    strain_rows = per_strain_summary(args.presence_matrix, family_bin)
+            if row.get("bin_out", "-") != "-":
+                family_bin_out[row["family"]] = row["bin_out"]
+    strain_rows = per_strain_summary(
+        args.presence_matrix, family_bin, family_bin_out or None,
+        strain_group=read_strain_groups(args.samplesheet) if args.samplesheet else None,
+        representatives=read_representatives(args.strain_inventory),
+        ingroup_label=args.ingroup_label, outgroup_label=args.outgroup_label,
+    )
     with open(out_dir / "per_strain_summary.tsv", "w", newline="") as out:
-        fieldnames = ["Short", "n_families", "core", "soft_core", "shell", "cloud", "singleton", "singleton_z", "is_outlier"]
-        writer = csv.DictWriter(out, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
+        writer = csv.DictWriter(out, fieldnames=PER_STRAIN_FIELDS, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         for row in sorted(strain_rows, key=lambda r: r["n_families"]):
             writer.writerow(row)
