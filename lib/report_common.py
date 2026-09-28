@@ -190,17 +190,17 @@ BREADCRUMB_NAV_CSS = r"""
 
 
 def breadcrumb_nav_html(*, study: bool = True) -> str:
-    """The nav bar itself: Study folder -> Group gallery -> All studies (site root).
+    """The nav bar itself, broadest first (left to right): All studies (site
+    root) -> Group gallery -> Study folder.
 
     ``study=False`` omits the study-folder link -- pass it on report.html
     itself, where linking to "report.html" would just point at the current
     page.
     """
-    links = []
+    links = ['<a href="../../index.html">&#127968; All studies</a>',
+             '<a href="../index.html">&#128194; Group</a>']
     if study:
         links.append('<a href="report.html">&#128193; Study</a>')
-    links.append('<a href="../index.html">&#128194; Group</a>')
-    links.append('<a href="../../index.html">&#127968; All studies</a>')
     return '<nav class="breadcrumb">' + ''.join(links) + '</nav>'
 
 # <head> snippet -- must run before first paint so a stored skin choice does
