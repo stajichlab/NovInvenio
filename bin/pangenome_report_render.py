@@ -434,7 +434,7 @@ def plot_per_genome_class_composition(blocks: list[tuple[str, list[dict]]], out_
         ax.set_ylabel(f"{len(rows)} genomes (per-genome values in per_strain_summary.tsv)")
         ys = [i for i, n in enumerate(nonrep) if n]
         if ys:
-            ax.scatter([0] * len(ys), ys, marker="|", s=12, color="black",
+            ax.scatter([0] * len(ys), ys, marker="_", s=40, linewidths=1.2, color="black",
                        transform=ax.get_yaxis_transform(), clip_on=False, zorder=3)
     start = 0
     for i, (label, block) in enumerate(blocks):
@@ -450,10 +450,13 @@ def plot_per_genome_class_composition(blocks: list[tuple[str, list[dict]]], out_
     if any(nonrep):
         # Marker-less legend entry: explains the dagger / tick without extra
         # figure space (short figures have none to spare).
-        mark = "†" if show_labels else "left-edge tick"
-        ax.plot([], [], " ", label=f"{mark}: non-representative (dereplicated near-duplicate)")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.04 * 20 / height),
-              ncol=max(1, len(drawn)), frameon=False)
+        mark = "†" if show_labels else "left tick"
+        ax.plot([], [], " ", label=f"{mark} = non-representative genome")
+    handles, labels = ax.get_legend_handles_labels()
+    order = sorted(range(len(labels)), key=lambda i: labels[i] not in drawn)  # bands first, note last
+    ax.legend([handles[i] for i in order], [labels[i] for i in order],
+              loc="upper center", bbox_to_anchor=(0.5, -0.04 * 20 / height),
+              ncol=max(1, min(4, len(labels))), frameon=False)
     fig.tight_layout()
     _savefig_both(fig, out_dir, "per_genome_class_composition")
     plt.close(fig)
@@ -612,7 +615,7 @@ def render_report_markdown(
                 lines.append(f"- **{label}**: {gc[label]} ({pct:.1f}%)")
         extra = [f"- **{label}**: {gc[label]}" for label in EXTRA_CLASSES if gc.get(label, 0)]
         if extra:
-            lines += ["", "Not in this group's pangenome:"] + extra
+            lines += ["", "Not counted in this group's classes:"] + extra
         lines.append("")
     if counts:
         lines += ["![Composition](figures/group_composition.png)", ""]
