@@ -139,7 +139,9 @@ are chosen, not validated.
 **Cell states (adds to section 4).** An "absent" or "elsewhere" locus cell in a
 checked strain becomes one of:
 - **absent, DNA present**: gene-model or annotation difference. Drawn hatched grey.
-- **absent, DNA absent**: the site lacks the gene's DNA. Drawn as absent.
+- **absent, DNA absent**: a confirmed deletion. Drawn dark solid (changed
+  2026-09-27; previously drawn identically to "absent, not checked", which read
+  as if the deletion were itself unconfirmed).
 "In place" and "contig break" cells are unchanged. Strains that are not checked
 keep the section 4 states.
 
@@ -151,10 +153,15 @@ keep the section 4 states.
 - **full locus** and **uninformative** as in section 5.
 The breakpoint track counts only changes between "in place" and "DNA absent".
 
-**Ranking (changes section 6).** "Informative polymorphism" uses DNA-confirmed
-empty-site strains: at least 10 empty-site strains (DNA absent) and at least 2
-full-locus strains, ranked by the smaller count. The sidebar also shows each
-locus's model-difference count.
+**Ranking (changes section 6; superseded by the five rankings below, changed
+2026-09-27 -- see section 6).** The DNA check itself still covers every
+candidate locus (`--candidates`, default 200), not only the loci drawn on the
+page: the drawn set is chosen from the DNA-informed ranking, i.e. the check
+runs first and the drawn set is picked after it (previously the drawn set was
+chosen from the annotation-only ranking before the check ran, so a locus whose
+empty sites turned out to be gene-model differences kept its top rank, and a
+locus whose empty sites were confirmed deletions could never be promoted into
+view).
 
 **Pipeline.** New process `ISLAND_DNA_CHECK` between the locus computation and
 the page. Inputs: the per-strain regions from the locus step and the genome
@@ -185,18 +192,61 @@ between "in place" and "absent" there, split by species. A tall bar is a
 **shared breakpoint**; a bar present in only one species is a lineage-specific
 event.
 
-### 6. Which loci to show
+### 6. Which loci to show (five rankings, changed 2026-09-27)
 
-Default ranking: loci with the most **informative polymorphism**: at least 10
-flank-intact strains in the empty-site class **and** at least 2 in the full-locus
-class, ranked by the smaller of those two counts. With the DNA check on
-(section 4b), only DNA-confirmed empty-site strains count. Alternative sorts: strain
-count, size (today's order), and a text search. `--top_loci` (default 50).
+A single "informative polymorphism" ranking cannot separate a locus that
+deletes wholesale (every carrier has it, every non-carrier lacks it entirely)
+from one that is polymorphic within a species, or one whose loss frequency
+differs sharply between species. Five rankings replace it. Per locus, over
+only its non-**uninformative** strains: **carriers** = strains whose row class
+is **full** or **model difference**, plus **partial** strains with no missing
+locus column; **losses** = **empty**-class strains, plus **partial** strains
+with >= 1 missing locus column (a missing column is *DNA absent* with the DNA
+check on, plain *absent* otherwise). **empty_n** = the DNA-confirmed empty-site
+count with the check on (`dna.empty_confirmed`), else `counts.empty`. Per
+species s (species from the samplesheet; strains without one form a single ""
+group): `car_s`, `loss_s`, `n_s = car_s + loss_s`, `f_s = loss_s / n_s`.
+
+- **A "whole_annot"**: `min(empty_n, full)` if `empty_n >= 10` and `full >= 2`,
+  else -1 (the original informative-polymorphism rule, annotation only).
+- **B "whole_dna"**: like A, but the full-locus side also counts
+  model-difference strains: `min(empty_n, full + model_difference)` if
+  `empty_n >= 10` and `full + model_difference >= 2`.
+- **C "presence"** (the page default; alias `informative` in `--rank_by` /
+  `--pangenome_locus_rank` for old configs): `min(losses, carriers)` if
+  `losses >= 10` and `carriers >= 2`.
+- **D "species"**: `max_s f_s - min_s f_s` over species with `n_s >= 10`, when
+  at least 2 such species exist and the difference is >= `--pangenome_locus_fixed_diff`
+  (default 0.95); score = the difference. Always -1 when the samplesheet has
+  fewer than 2 species at all -- the page then hides this sort.
+- **E "within"**: the largest `min(car_s, loss_s)` over species with
+  `n_s >= --pangenome_locus_poly_min_strains` (default 20) and `f_s` in
+  [`--pangenome_locus_poly_min_frac`, `--pangenome_locus_poly_max_frac`]
+  (defaults 0.05, 0.95); -1 if none qualify. The winning species is recorded
+  (`within_species`).
+
+Ties inside a rank: higher strain count (`carriers + losses`), then locus ID.
+
+**Drawn set.** After the DNA calls are applied (or directly, with the check
+off), all five scores are computed for every candidate. The drawn set is the
+union, in this order, of the top `--pangenome_locus_per_rank` (default 20)
+loci under A, under B, under D, under E (score >= 0 only), then loci in C
+order (all, including -1) until the set holds `--pangenome_top_loci` (default
+100) loci or every candidate is in it. Deduplicated. The payload's `loci` list
+is always in C order, and locus keys (`L001`, ...) follow it regardless of
+`--pangenome_locus_rank`; each locus carries `ranks: {whole_annot, whole_dna,
+presence, species, within}` and `within_species`. `--pangenome_locus_rank`
+still sets the page's initial sort (default presence) and, pre-DNA-check, a
+legacy tie-break; it does not change the drawn set or the payload order.
+
+Alternative page sorts (client-side, over `locus.ranks`): strain count, size
+(today's order), locus ID, and a text search.
 
 ### 7. Page layout
 
 - Sidebar: loci with size, variant count, empty-site / full / partial /
-  uninformative strain counts, Pfam class chip.
+  uninformative strain counts, Pfam class chip, and (section 6) the active
+  sort's score, or "not informative for this sort" when it is -1.
 - Main: title = exemplar locus (strain:contig:start-end); note line stating the
   exemplar rule and `F`/`k`; breakpoint track; column header (labels + class
   strip + anchor marks); grid; legend for the five states.
@@ -213,7 +263,7 @@ The grid shows presence and position states. It does not show the genes
 themselves. For each drawn locus, a clinker figure shows the real gene
 neighbourhoods of a few strains side by side, with links between similar genes.
 
-**Loci.** The loci the page draws (`--top_loci`, default 50).
+**Loci.** The loci the page draws (`--top_loci`, default 100).
 
 **Strains** (at most `--clinker_max_strains`, default 12), chosen in this order:
 1. The locus exemplar (section 2).
@@ -240,6 +290,37 @@ computed by the locus-view step. Output: one `.gbk` per (locus, strain). Each CD
 carries `/locus_tag` = the gene ID, `/translation` from the protein FASTA, and
 `/note="family=<tier-1 family>"`.
 
+**Gap-split blocks (changed 2026-09-27, real Cocci evidence, user-approved).**
+clinker draws every gene at its true bp position, on one scale for the whole
+region. A strain whose region has a long gene-free gap -- real example, locus
+L005, strain B3245: genes at 1..26528, 58376..60729, 105854..107065,
+271300..338667, a 164 kb gap between 107 kb and 271 kb in a 338,667 bp region
+-- becomes an unreadable track: almost the whole width is empty and the few
+genes are squeezed into slivers. `ISLAND_GBK_SLICE` now splits each
+(locus, strain) region's GENE entries, ordered by start, into blocks: a new
+block starts whenever `start(next gene) - end(previous gene) >
+--pangenome_clinker_max_gap` (default 20000 bp; 0 disables splitting).
+Rescue entries (TBLASTN hits with no gene model) never trigger a split and
+never form a block of their own -- each attaches to whichever resulting
+block's gene-only span is nearest it, so a rescue hit sitting inside an
+otherwise-huge gene-free gap can't wrongly suppress a real split, and one
+far from every gene can't produce a gene-less block clinker has nothing to
+draw for (review fix, final pass). Every block is written as its own
+GenBank record in the same `<strain>.gbk` file, named `b<N>` (never
+`<strain>_b<N>` -- that truncates identically for a long strain name; review
+fix round 1), its sequence and features covering only that block's span
+(features shifted to the block start). clinker 0.0.32 reads a multi-record
+file as one cluster (named after the file) with one locus per record --
+checked directly against clinker (`tests/test_clinker_render.py`) -- so this
+draws each gene-dense block to its own, readable scale instead of one
+gap-dominated track. `island_slices.tsv` gains `n_blocks`,
+`gap_bp` (sum of the skipped gaps that triggered a split), `max_gap_bp` (the
+largest one) and `drawn_bp` (sum of the blocks' spans); `bp_start`/`bp_end`
+stay the full region. The page's per-strain line and hover popup say
+"N blocks, X kb without genes not drawn" when a strain's region was split.
+Each locus also carries `clinker_max_gap_bp` (the max over its strains), for
+possible later use in island pruning.
+
 **Clinker.** New process `ISLAND_CLINKER`, one task per locus:
 `clinker <locus>/*.gbk -gf <locus>.groups.csv -p <locus>.html` with
 gamcil/clinker **0.0.32 from PyPI** (added to the pixi environment as a PyPI
@@ -262,10 +343,47 @@ with the page.
 **Switch.** `--pangenome_clinker true|false` (default true). With false, both
 processes are skipped and the panel says the step was not run.
 
+**Panel UI fixes (changed 2026-09-27, real Cocci evidence, user-approved).**
+Inspecting a real clinker 0.0.32 page in the panel's iframe found three
+problems: (1) clinker's `#div-floater` options/instructions sidebar starts
+open and, in a panel-sized iframe, covers most of the figure; (2) the page's
+`overflow: hidden` body clips a figure taller than the iframe instead of
+letting it scroll; (3) the browser's default body margin can clip the
+left-most locus labels in a narrow iframe. `lib/clinker_html.py`'s
+`inject_ui_fixes()` fixes all three (collapses the sidebar behind its own,
+still-working toggle button; sets `overflow: auto` and a left margin) and is
+applied both when the page is slimmed and when `--pangenome_clinker_slim
+false` (`--keep_sequences`) skips slimming. The panel's iframe is `width:
+100%`, `height: 640px` (`min-height: 480px`), scrolling enabled. Each strain
+line in the panel's list also gets a hover/keyboard-focus popup (the page's
+existing tooltip): full strain name, species (from the page's `SPECIES` map,
+not the possibly-stale per-pick `species` field), the reason it was chosen,
+its region, block count, the gap-split note when split, and drawn bp.
+
+**Cluster order (M7, final review).** `ISLAND_CLINKER` passes clinker its
+`.gbk` files in clinker pick order (the exemplar first, then the other
+`select_clinker_strains()` picks) via clinker's own `-ufo`/`--use_file_order`
+flag, instead of clinker's default alignment-based ordering, so the figure's
+cluster order matches the panel's own strain list. `ISLAND_GBK_SLICE` writes
+this order to each locus's `clinker_order.txt` (`island_regions.tsv`'s row
+order for that locus, captured before its own strain-major processing loop
+would otherwise lose it).
+
+**Label clipping fix (L, final review, verified).** clinker's default
+`alignLabels` config can put a long cluster/locus label at a negative x,
+clipping it off the left of the figure. `inject_ui_fixes()` also turns on
+clinker's own "hide locus coordinates" option (config + sidebar checkbox,
+checked by default) and inserts a small window-load script that pans the
+drawing right if the label group's bounding box still starts left of the
+SVG's own edge. Verified against a real clinker 0.0.32 page under headless
+Chromium: unfixed minimum label x -116.8 (clipped), fixed minimum label x 0.
+
 **Cost and limits.** clinker compares every pair of clusters, so cost grows with
 the square of the strain count; the cap keeps it at most 66 pairs per locus.
-Measured by the 2026-09-26 spike (below): about 30 s and 104 MB per locus, so
-50 loci are about 25 min of single-task CPU.
+Measured 2026-09-27 (Coccidioides, real `rescue_freqpol_immitis_in_posadasii_out`
+run, 5 loci): `ISLAND_GBK_SLICE` 53 slices in 18 s / 60 MB; clinker 5 of 5 loci
+in 5 min 42 s at 2 cpus / 124 MB peak RSS. 100 loci (the current
+`--top_loci` default) has not been measured.
 
 **Clinker spike (measured 2026-09-26, throwaway, `$SCRATCH/clinker_spike/`).**
 Run `rescue_freqpol_immitis_in_posadasii_out`. Island

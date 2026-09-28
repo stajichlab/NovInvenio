@@ -451,5 +451,207 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         !/excluded/.test(summaryText), summaryText);
 }
 
+// ------------------------------------------------ island synteny: locus view
+{
+  const dom = boot(path.join(FX, 'island_synteny_loci.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('locus view: loads without error', errors.length === 0, errors.join('; '));
+  check('locus view: is the default view',
+        !d.getElementById('locus-view').classList.contains('hidden') &&
+        d.getElementById('island-view').classList.contains('hidden'));
+  check('locus view: view switch is shown',
+        !d.getElementById('lv-switch').classList.contains('hidden'));
+  const items = () => [...d.querySelectorAll('#lv-list .isv-item')];
+  check('locus view: sidebar lists both loci', items().length === 2, items().length);
+  check('locus view: subtitle names the locus view',
+        d.getElementById('subtitle').textContent ===
+          '2 loci drawn from 3 candidates (2 loci in total).',
+        d.getElementById('subtitle').textContent);
+  check('locus view: default order is the presence rank (L001 first)',
+        items()[0].textContent.includes('B:c1:1-9'), items()[0].textContent);
+  check('locus view: species sort option is hidden with one species',
+        d.getElementById('lv-sort-species').hidden === true);
+  check('locus view: title is the exemplar locus',
+        d.getElementById('lv-title').textContent === 'S1:c1:10-90',
+        d.getElementById('lv-title').textContent);
+  items()[1].dispatchEvent(ev(w, 'click'));
+  check('locus view: selecting the second locus updates the title',
+        d.getElementById('lv-title').textContent === 'S2:c1:10-90',
+        d.getElementById('lv-title').textContent);
+  const sort = d.getElementById('lv-sort');
+  sort.value = 'name';
+  sort.dispatchEvent(ev(w, 'change'));
+  check('locus view: sort by locus ID puts A:... first',
+        items()[0].textContent.includes('A:c1:1-9'), items()[0].textContent);
+  sort.value = 'whole_annot';
+  sort.dispatchEvent(ev(w, 'change'));
+  check('locus view: switching the sort reorders the sidebar (whole_annot puts B:... first)',
+        items()[0].textContent.includes('B:c1:1-9'), items()[0].textContent);
+  check('locus view: sidebar shows the active rank\'s score',
+        items()[0].textContent.includes('whole-island deletion, annotated carriers: 7'),
+        items()[0].textContent);
+  sort.value = 'species';
+  sort.dispatchEvent(ev(w, 'change'));
+  check('locus view: sidebar says a locus is not informative for the species sort',
+        items()[0].textContent.includes('not informative for this sort'), items()[0].textContent);
+  sort.value = 'presence';
+  sort.dispatchEvent(ev(w, 'change'));
+  const search = d.getElementById('lv-search');
+  search.value = 'B:c1';
+  search.dispatchEvent(ev(w, 'input'));
+  check('locus view: search filters the list', items().length === 1, items().length);
+  check('locus view: legend has the six cell states (rescue elsewhere included)',
+        d.querySelectorAll('#lv-legend .isv-swatch').length === 6,
+        d.querySelectorAll('#lv-legend .isv-swatch').length);
+  const drawn = w.__fillTextCalls.join('|');
+  check('locus view: grid rows were drawn', drawn.includes('S1 +1') && drawn.includes('S3'), drawn.slice(0, 200));
+  check('locus view: row-class band headers are labelled',
+        drawn.includes('full locus') && drawn.includes('empty site'), drawn.slice(0, 200));
+  d.getElementById('lv-btn-islands').dispatchEvent(ev(w, 'click'));
+  check('locus view: islands button shows the island view',
+        d.getElementById('locus-view').classList.contains('hidden') &&
+        !d.getElementById('island-view').classList.contains('hidden'));
+  check('locus view: islands button is pressed',
+        d.getElementById('lv-btn-islands').getAttribute('aria-pressed') === 'true');
+  check('locus view: subtitle names the island view after switching',
+        d.getElementById('subtitle').textContent ===
+          '2 of 2 located accessory islands shown, in locus order.',
+        d.getElementById('subtitle').textContent);
+}
+
+// ------------------ island synteny: locus view initial selection follows sort
+// smallfix-brief.md S1: rank_by "name" puts L002 ("A:c1:1-9") first even
+// though it is LOCI[1]; the initial selection (and title) must follow it.
+{
+  const dom = boot(path.join(FX, 'island_synteny_loci_name_sort.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('locus view: initial selection follows the active sort (loads without error)',
+        errors.length === 0, errors.join('; '));
+  const items = () => [...d.querySelectorAll('#lv-list .isv-item')];
+  check('locus view: initial selection follows the active sort (sidebar order is A:... first)',
+        items()[0].textContent.includes('A:c1:1-9'), items()[0].textContent);
+  check('locus view: initial selection follows the active sort (selected item is A:...)',
+        items()[0].classList.contains('sel'), items()[0].className);
+  check('locus view: initial selection follows the active sort (title is the sorted-first locus)',
+        d.getElementById('lv-title').textContent === 'S2:c1:10-90',
+        d.getElementById('lv-title').textContent);
+}
+
+// -------------------------- island synteny: locus view, DNA check ran (F1/F4)
+{
+  const dom = boot(path.join(FX, 'island_synteny_loci_dna.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('locus view (dna check): loads without error', errors.length === 0, errors.join('; '));
+  const sidebarStats = d.querySelector('#lv-list .isv-item-stats').textContent;
+  check('locus view (dna check): sidebar uses the DNA-confirmed empty count',
+        sidebarStats.includes('empty 2') && !sidebarStats.includes('empty 5'), sidebarStats);
+  check('locus view (dna check): sidebar flags unchecked strains separately',
+        sidebarStats.includes('empty site, not checked 6'), sidebarStats);
+  const note = d.getElementById('lv-note').textContent;
+  check('locus view (dna check): note does not claim unchecked strains are DNA-confirmed',
+        note.includes('DNA-confirmed for 2 of 8 checked strains') && note.includes('6 had no DNA call'),
+        note);
+  check('locus view (dna check): note empty-site count matches the confirmed count, not counts.empty',
+        note.includes('empty site 2') && !note.includes('empty site 5'), note);
+  const legendItems = [...d.querySelectorAll('#lv-legend .isv-legend-item')].map((x) => x.textContent);
+  check('locus view (dna check): legend has eight cell states',
+        d.querySelectorAll('#lv-legend .isv-swatch').length === 8,
+        d.querySelectorAll('#lv-legend .isv-swatch').length);
+  check('locus view (dna check): legend labels code 0 as not checked',
+        legendItems.includes('absent (not checked)'), legendItems);
+  check('locus view (dna check): legend still labels code 7 as DNA absent',
+        legendItems.includes('absent, DNA absent'), legendItems);
+}
+
+// ------------------------------------- island synteny: clinker panel
+{
+  const off = boot(path.join(FX, 'island_synteny_loci.html')).window.document;
+  await sleep(60);
+  check('clinker panel: says the step was not run when disabled',
+        /not run/.test(off.getElementById('lv-clinker-note').textContent),
+        off.getElementById('lv-clinker-note').textContent);
+  check('clinker panel: no iframe when disabled', !off.querySelector('#lv-clinker-frame iframe'));
+
+  const dom = boot(path.join(FX, 'island_synteny_clinker.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('clinker panel: loads without error', errors.length === 0, errors.join('; '));
+  const frame = () => d.querySelector('#lv-clinker-frame iframe');
+  check('clinker panel: L001 loads clinker/L001.html',
+        frame() && frame().getAttribute('src') === 'clinker/L001.html',
+        frame() && frame().getAttribute('src'));
+  check('clinker panel: lists the strains shown with a reason',
+        /S1: locus exemplar/.test(d.getElementById('lv-clinker-list').textContent),
+        d.getElementById('lv-clinker-list').textContent);
+  check('clinker panel (C1): strain line shows the gap-split note when n_blocks > 1',
+        /4 blocks, 241.2 kb without genes not drawn/.test(d.getElementById('lv-clinker-list').textContent),
+        d.getElementById('lv-clinker-list').textContent);
+  const iframe = frame();
+  check('clinker panel (C3): iframe allows scrolling',
+        iframe && iframe.getAttribute('scrolling') === 'yes', iframe && iframe.outerHTML);
+
+  const strainLi = d.querySelector('#lv-clinker-list li');
+  check('clinker panel (C3): strain line is focusable', strainLi && strainLi.tabIndex === 0);
+  const tip = d.getElementById('tip');
+  strainLi.dispatchEvent(new w.MouseEvent('mouseenter', { bubbles: true, clientX: 5, clientY: 5 }));
+  check('clinker panel (C3): hover popup shows strain, reason and drawn bp',
+        tip.textContent.includes('S1') && tip.textContent.includes('locus exemplar') &&
+        tip.textContent.includes('drawn: 97462 bp'), tip.textContent);
+  strainLi.dispatchEvent(ev(w, 'mouseleave'));
+  check('clinker panel (C3): popup hides on mouseleave', tip.style.display === 'none');
+  strainLi.focus();
+  check('clinker panel (C3): popup shows on keyboard focus too', tip.textContent.includes('S1'));
+  strainLi.dispatchEvent(ev(w, 'blur'));
+  check('clinker panel (C3): popup hides on blur', tip.style.display === 'none');
+
+  [...d.querySelectorAll('#lv-list .isv-item')][1].dispatchEvent(ev(w, 'click'));
+  check('clinker panel: a locus without a file says so',
+        d.getElementById('lv-clinker-note').textContent === 'No synteny figure for this locus.',
+        d.getElementById('lv-clinker-note').textContent);
+  check('clinker panel: and shows no iframe', !frame());
+
+  // N3: NII's per-run sync only publishes the top N loci' clinker pages;
+  // window.CLINKER_PUBLISHED (injected into the staged page) says which
+  // keys made the cut. L001 is in clinker.keys but not in
+  // window.CLINKER_PUBLISHED here, so the panel must show a note pointing
+  // at the full folder instead of an iframe -- and never an iframe.
+  const pub = boot(path.join(FX, 'island_synteny_clinker_unpublished.html'));
+  const dp = pub.window.document;
+  await sleep(60);
+  check('clinker panel (N3): unpublished locus shows the not-published note',
+        dp.getElementById('lv-clinker-note').textContent ===
+          'Synteny figure not published on the site (top 0 loci only). ' +
+          'Full set: /bigdata/example/clinker/L001.html',
+        dp.getElementById('lv-clinker-note').textContent);
+  check('clinker panel (N3): unpublished locus shows no iframe',
+        !dp.querySelector('#lv-clinker-frame iframe'));
+}
+
+// ------------------------------- island synteny: no loci keeps the old page
+{
+  const dom = boot(path.join(FX, 'island_synteny.html'));
+  const d = dom.window.document;
+  await sleep(60);
+  check('locus view: absent without loci (switch hidden)',
+        d.getElementById('lv-switch').classList.contains('hidden'));
+  check('locus view: absent without loci (island view shown)',
+        !d.getElementById('island-view').classList.contains('hidden'));
+  check('locus view: absent without loci (subtitle is the island sentence)',
+        d.getElementById('subtitle').textContent ===
+          '2 of 2 located accessory islands shown, in locus order.',
+        d.getElementById('subtitle').textContent);
+}
+
 console.log(failures === 0 ? 'ALL PASSED' : failures + ' FAILED');
 process.exit(failures === 0 ? 0 : 1);

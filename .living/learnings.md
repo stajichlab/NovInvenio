@@ -780,3 +780,17 @@ large fraction of #135's population moot. Full decomposition posted to issue #13
 **Finding**: Nextflow 26 evaluates a closure-valued `process.container` at session init, before params are bound. A toy config reproduced it (closure: 1 warning; plain string: 0). A plain interpolated string still honours a CLI `--container_version` (`nextflow inspect`: all 55 processes change tag). Fixed in PR #170 (#169).
 **Why it matters**: Use a plain string for config values that only read params. `nextflow config` does not accept `--param` overrides; use `nextflow inspect -format config` to check resolved per-process directives.
 **Tags**: nextflow, config, container, warning
+
+
+## 2026-09-26 — Island locus view: "empty site" at the top loci is mostly a gene-model difference
+
+**Context**: The DNA presence check (spec section 4b, plan Task 19) on the top 3 loci of the Coccidioides run, blastn of the exemplar's locus DNA against each strain's DNA from its left to its right flank gene.
+**Finding**: At all 3 loci every empty-site strain (292, 196 and 325) carries the locus DNA: model difference. At `1M0:scaffold_217:2489-4804` one strain has two gene models (277 aa + 446 aa, two shell families) where another has one 705 aa model in a third family. At `1M0:scaffold_390:15977-16664` the locus DNA lies inside the strain's neighbouring flank gene model; a target that stopped at the flank genes' inner edges missed it in all 196 empty-site strains, so the target includes the flank genes. The exemplar's second locus column there is a TBLASTN rescue hit that lies inside its first locus gene's model; with the hit's span as the query gene, it is DNA present in all 199 checked strains.
+**Why it matters**: Annotation-only presence overstates deletions. Check where a gene model ends before calling a locus absent.
+**Tags**: pangenome, island-locus-view, annotation, gene-model, validation
+
+
+## 2026-09-26 — Nextflow 26 strict parser: no `collate`, no `type: 'dir'` before `emit:`
+
+**Finding**: `channel.collate(n)` fails with "Missing process or function collate"; use `buffer(size: n, remainder: true)`. `path("x*", type: 'dir'), optional: true, emit: x` fails `nextflow lint` ("Unexpected input: ','"); use `path("x*"), optional: true, emit: x`.
+**Tags**: nextflow, strict-syntax, channels

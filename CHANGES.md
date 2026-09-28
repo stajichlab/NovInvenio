@@ -2,6 +2,89 @@
 
 ## Unreleased
 
+### New: clinker synteny panel
+
+- **`lib/genbank_slice.py`**, **`bin/pangenome_island_gbk_slice.py`** (`ISLAND_GBK_SLICE`),
+  **`lib/clinker_html.py`**, **`bin/pangenome_island_clinker.py`** (`ISLAND_CLINKER`) -- for each drawn
+  locus, up to 12 strains' regions are written as GenBank files and drawn with gamcil/clinker 0.0.32
+  (PyPI; bioconda's `clinker` is an unrelated tool), grouped by tier-1 family. Embedded sequences are
+  removed (5.35 -> 1.01 MB per page). `island_synteny.html` shows the figure in a "Synteny (clinker)"
+  panel. Pages publish to `pangenome/clinker/<key>.html`.
+- New params: `--pangenome_clinker` (true), `--pangenome_clinker_max_strains` (12),
+  `--pangenome_clinker_slim` (true), `--pangenome_clinker_batch` (50),
+  `--pangenome_clinker_max_gap` (20000; 0 disables) -- splits a strain's region into several
+  GenBank/clinker blocks at gene-free gaps longer than this, instead of one unreadable track
+  spanning a huge, mostly-empty region (real Cocci evidence: a 338,667 bp region with a 164 kb
+  gap). Rescue (TBLASTN-only) entries never trigger a split or form a block of their own; each
+  attaches to the nearest resulting block.
+- `bin/pangenome_island_clinker.py` fails loudly (exit 2, a clear message) when the `--clinker`
+  executable cannot be found, instead of every locus quietly failing individually -- the
+  published container image has no clinker.
+- `bin/pangenome_island_clinker.py` passes clinker its `.gbk` files in clinker pick order
+  (exemplar first) plus `-ufo`/`--use_file_order`, so the drawn cluster order matches the
+  panel's own strain list, instead of clinker's default alignment-based ordering.
+- `lib/clinker_html.py`'s `inject_ui_fixes()`: the options sidebar starts collapsed (its own
+  toggle still works), the iframe scrolls instead of clipping a tall figure, a left margin keeps
+  labels from being clipped by the browser's default body margin, and (final review) clinker's
+  "hide locus coordinates" option is turned on by default plus a small script pans the drawing
+  right if a cluster/locus label is still clipped off the left edge.
+- The panel's iframe is scrollable (`width: 100%`, `height: 640px`, `min-height: 480px`); each
+  strain line in the panel's list gets a hover/keyboard-focus popup with the strain's species,
+  the reason it was chosen, its region, block count and drawn bp.
+- The image for `0.7.0` is built by CI on merge (`release-tag.yml` -> `docker-build.yml`) and
+  includes clinker 0.0.32; until it is published, container runs fail with the clinker-missing
+  error above.
+- Also adds N1 (`lib/clinker_html.py`'s `inject_ui_fixes()`): clinker's own default legend
+  position overlaps the figure on a long multi-block track; the legend is now hidden by default
+  (a "Show legend" checkbox is added to the sidebar, since clinker's own panel has none) and N3
+  (`lib/island_locus_template.py`): a locus not published on the site (see NII's
+  `--clinker_publish_top`) shows a note pointing at the full clinker folder instead of an iframe.
+
+### Island locus view: five rankings replace the single informative ranking (2026-09-27, ranks-brief.md, user-approved)
+
+- **`lib/island_locus.py`**, **`bin/pangenome_island_loci.py`**, **`lib/island_locus_template.py`**,
+  **`modules/pangenome/island_loci.nf`**, **`modules/pangenome/island_dna_check.nf`**, **`pangenome.nf`**,
+  **`nextflow.config`** -- a single "informative polymorphism" ranking could not tell a whole-locus
+  deletion apart from a within-species polymorphism or a between-species pattern. Five rankings now
+  score every candidate locus: **presence/absence** (page default; carriers vs. losses, alias
+  `informative` for old configs), **within-species polymorphic**, **species-specific**,
+  **whole-island deletion** (DNA-confirmed), and **whole-island deletion, annotated carriers**
+  (annotation only). The loci drawn on the page are the union of the top `--pangenome_locus_per_rank`
+  (20) loci under the last four rankings plus a presence-order fill, up to `--pangenome_top_loci`
+  (raised 50 -> 100). Each drawn locus carries all five scores (`ranks`) and, for the within-species
+  rank, the species it is polymorphic in (`within_species`). The sort select on the page gained the
+  four new options (species hidden when the samplesheet has fewer than 2 species) and shows the
+  active sort's score in the sidebar.
+- New params: `--pangenome_locus_per_rank` (20), `--pangenome_locus_poly_min_strains` (20),
+  `--pangenome_locus_poly_min_frac` (0.05), `--pangenome_locus_poly_max_frac` (0.95),
+  `--pangenome_locus_fixed_diff` (0.95); `--pangenome_top_loci` default raised 50 -> 100;
+  `--pangenome_locus_rank` default changed `informative` -> `presence` (`informative` kept as an
+  alias).
+
+### New: island locus view (default view of island_synteny.html)
+
+- **`lib/island_locus.py`**, **`bin/pangenome_island_loci.py`**, **`modules/pangenome/island_loci.nf`**,
+  **`lib/island_locus_template.py`** (spec `docs/superpowers/specs/2026-09-24-island-locus-view-design.md`,
+  plan `docs/superpowers/plans/2026-09-26-island-locus-view-clinker.md`) -- islands are grouped into
+  loci; each locus is drawn on one exemplar's genes (5 flank genes each side, 3 near contig ends) and
+  every strain gets a state per column: in place, elsewhere, rescue (hatched), absent or contig break.
+  Rows are grouped into full locus / partial / empty site / uninformative, and a track above the
+  columns counts shared breakpoints per species. The page opens on this view; the island presence
+  view is one click away.
+- New params: `--pangenome_top_loci` (50), `--pangenome_locus_rank` (`informative`), `--pangenome_locus_flank` (5),
+  `--pangenome_locus_flank_min` (3), `--pangenome_locus_k` (10), `--pangenome_locus_empty_frac` (0.8),
+  `--pangenome_locus_containment` (0.5), `--pangenome_locus_candidates` (200).
+- **DNA presence check** (spec section 4b; `bin/pangenome_island_dna_check.py`,
+  `modules/pangenome/island_dna_check.nf`: `ISLAND_DNA_TARGETS`, `ISLAND_DNA_CHECK`) -- each
+  flank-intact strain that lacks a locus gene is checked with `blastn -task megablast`: the exemplar's
+  locus DNA against the strain's DNA from its left to its right flank gene. A gene is "DNA present" at >= 90%
+  identity over >= 80% of its length. "Absent, DNA present" cells are drawn hatched grey and make a new
+  row class, **model difference**; "empty site" and the informative ranking now use DNA-confirmed
+  absences only. With `--pangenome_locus_dna_check false` the page says that "empty site" is not
+  DNA-confirmed.
+- New params: `--pangenome_locus_dna_check` (true), `--pangenome_locus_dna_min_id` (90),
+  `--pangenome_locus_dna_min_cov` (80), `--pangenome_locus_dna_batch` (50).
+
 ### pangenome.nf project-name fallback fix (#194); BUILD_PRESENCE_MATRIX memory scaling (#189)
 
 - **`lib/Helpers.groovy`** — `projectName(params)` now falls back through

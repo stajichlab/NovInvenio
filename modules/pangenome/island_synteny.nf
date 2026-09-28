@@ -34,7 +34,20 @@ process ISLAND_SYNTENY {
     path(diagnostics_banner_html)
     path(gene_positions)
     path(cluster_tsv)
-    path(rescue_positions)
+    // I1 (final review): both rescue_positions and slices_tsv can arrive as
+    // EMPTY_EVALUES_STUB's output (--pangenome_rescue_enable false,
+    // --pangenome_clinker false respectively -- workflows/pangenome_profile.nf),
+    // which is always literally named "empty_evalues.tsv". Without stageAs,
+    // staging both real files in the same task work dir when they're
+    // simultaneously stubs collides on that one file name (Part A already
+    // hit and fixed the identical problem for rescue_tblastn in
+    // modules/pangenome/island_dna_check.nf).
+    path(rescue_positions, stageAs: 'rescue_positions.tsv')
+    path(loci_json)
+    path(diagnostics_tsv)
+    path(slices_tsv, stageAs: 'island_slices.tsv')
+    val(clinker_keys)
+    val(clinker_enabled)
 
     output:
     path("island_synteny.html"), emit: page
@@ -56,6 +69,11 @@ process ISLAND_SYNTENY {
         --cluster_tsv ${cluster_tsv} \
         --rescue_positions ${rescue_positions} \
         --id_sep '${params.pangenome_id_sep}' \
+        --loci_json ${loci_json} \
+        --diagnostics_tsv ${diagnostics_tsv} \
+        --slices_tsv ${slices_tsv} \
+        --clinker_keys '${clinker_keys}' \
+        --clinker_enabled ${clinker_enabled} \
         --output island_synteny.html
     """
 }

@@ -1412,3 +1412,27 @@ far). This decision closes #135's investigation; it does not flip the pipeline d
 **Alternatives**: keep fast mode (29-69% of candidates contradicted by TBLASTN); add the qcov-15 floor (little extra effect); a stricter other-group E-value (worse at every threshold tested).
 **Rationale**: very-sensitive cut TBLASTN-contradicted candidates to 9-33% with controls unchanged, at ≤1.7× search cost. The UniProt index gives every protein its own UniProt/AlphaFold/xref links (100% on UniProt-sourced proteomes, 7-54% on BFD gene models by exact sequence).
 **Consequence**: every study's results change on rerun.
+
+
+## 2026-09-26 — Island locus view: page, ranking, carriers and N50 gaps
+
+**Context**: Spec `docs/superpowers/specs/2026-09-24-island-locus-view-design.md` left the page choice (open question 3) open and assumed N50 for every strain and a list of carrier strains, which the inputs do not provide.
+**Decision**: Locus view is the default view inside the existing `island_synteny.html`; the island presence view stays one click away (plan Ruling R1). Carriers are strains with every root member family on one contig within `len - 1 + k` ranks (R3). Strains without an N50 (ASSEMBLY_QUALITY_QC covers the ingroup only: 169 of 529) rank after strains with one, by locus-contig gene count (R4). States are computed for 200 candidate loci before ranking (R5).
+**Alternatives**: a separate locus page; compute N50 for all strains in ASSEMBLY_QUALITY_QC (a change to a module outside this spec); rank every locus (1301 loci, memory grows with column families).
+**Rationale**: keeps the current page and links working; uses only existing inputs; measured cost 1 min 41 s, 1.36 GB.
+
+
+## 2026-09-26 — Island locus view: DNA presence check runs between two locus passes
+
+**Context**: Spec section 4b puts `ISLAND_DNA_CHECK` between the locus computation and the page, and changes the row classes and the ranking; the clinker strain choice (spec section 8) uses the row classes too.
+**Decision**: `pangenome_island_loci.py` runs twice: pass 1 (`ISLAND_DNA_TARGETS`) writes the work lists for the drawn loci; `ISLAND_DNA_CHECK` runs blastn per batch of 50 loci; pass 2 (`ISLAND_LOCI`) recomputes the same loci, applies the calls, re-orders the drawn loci and then gives keys and clinker strains (plan Rulings R17, R18). The drawn set is chosen by the annotation-only ranking.
+**Alternatives**: apply the calls to `island_loci.json` in a separate script (the clinker strain choice needs the per-strain cell data, which the JSON does not hold); run blastn inside `ISLAND_LOCI` (the spec asks for a separate process); check all 200 candidate loci (about 4 times the blastn work).
+**Rationale**: one code path for the states, the page and the clinker picks; the extra pass costs about 2 min.
+
+
+## 2026-09-26 — Clinker panel: batching, slimming, failure handling
+
+**Context**: Spec section 8 asks for one ISLAND_CLINKER task per locus; one locus measured 56 s at 4 cores.
+**Decision**: `--pangenome_clinker_batch` loci per task (default 50; plan Ruling R10); slim pages by default (R16); a failed locus is skipped with a warning and the page says so (R15).
+**Alternatives**: one task per locus (50 two-minute SLURM jobs); fail the run on any clinker error.
+**Rationale**: the HPCC job-sizing rule (about 1 h per job); one bad locus must not cost the other figures. Headless Chromium drew identical figures for slimmed and full pages.

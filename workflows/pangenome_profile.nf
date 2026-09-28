@@ -59,6 +59,11 @@ include { SELECT_BACKGROUND_REPS; HMMPRESS_PFAM; FAMILY_PFAM_SCAN;
 include { REPORT_TABLES; REPORT_RENDER; DIAGNOSTICS }                      from '../modules/pangenome/report'
 include { ASSEMBLY_QUALITY_QC }                                            from '../modules/pangenome/assembly_quality_qc'
 include { ISLAND_SYNTENY }                                                 from '../modules/pangenome/island_synteny'
+include { ISLAND_LOCI }                                                    from '../modules/pangenome/island_loci'
+include { ISLAND_GBK_SLICE }                                               from '../modules/pangenome/island_gbk_slice'
+include { ISLAND_CLINKER }                                                 from '../modules/pangenome/island_clinker'
+include { ISLAND_DNA_TARGETS; ISLAND_DNA_CHECK }                           from '../modules/pangenome/island_dna_check'
+include { EMPTY_EVALUES_STUB as EMPTY_DNA_CALLS_STUB }                     from '../modules/empty_evalues_stub'
 include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
@@ -75,6 +80,7 @@ include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_FUNNEL_STUB }    from '../modules/e
 include { EMPTY_EVALUES_STUB as EMPTY_SIGNIFICANT_ISLANDS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_ISLAND_ENRICHMENT_STUB }   from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_DOMTBLOUT_STUB }           from '../modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_ISLAND_SLICES_STUB }       from '../modules/empty_evalues_stub'
 
 workflow PANGENOME_PROFILE {
     take:
@@ -399,6 +405,73 @@ workflow PANGENOME_PROFILE {
     // --- 9c. Island synteny (still gated -- genuinely needs FAMILY_PFAM_SCAN,
     // only computed inside the islands+Pfam branch) ------------------------
     if (params.pangenome_island_pfam_hmm) {
+        // Island locus view (docs/superpowers/specs/2026-09-24-island-locus-view-design.md).
+        // DNA presence check (spec section 4b): ISLAND_DNA_TARGETS writes the
+        // work lists (pass 1 of pangenome_island_loci.py), ISLAND_DNA_CHECK
+        // runs blastn on each, ISLAND_LOCI applies the calls (pass 2). The
+        // empty stub is always in dna_calls, so ISLAND_LOCI runs even when
+        // no locus needs a check.
+        EMPTY_DNA_CALLS_STUB()
+        if (Helpers.asBool(params.pangenome_locus_dna_check)) {
+            ISLAND_DNA_TARGETS(
+                REPORT_TABLES.out.islands_with_domains,
+                rescued_matrix,
+                FAMILY_POSITIONS.out.positions,
+                FREQUENCY_BINS.out.table,
+                ASSEMBLY_QUALITY_QC.out.table,
+                samplesheet,
+                FAMILY_PFAM_SCAN.out.domtblout,
+                GENE_POSITIONS.out.positions,
+                CLUSTER_TIER1.out.cluster_tsv,
+                rescue_positions,
+                tblastn_tsv_files,
+            )
+            ISLAND_DNA_CHECK(ISLAND_DNA_TARGETS.out.batches.flatten(), samplesheet, data_dir_abs)
+            dna_calls = ISLAND_DNA_CHECK.out.calls.mix(EMPTY_DNA_CALLS_STUB.out.evalues).collect()
+            dna_check = 'true'
+        }
+        else {
+            dna_calls = EMPTY_DNA_CALLS_STUB.out.evalues
+            dna_check = 'false'
+        }
+        ISLAND_LOCI(
+            REPORT_TABLES.out.islands_with_domains,
+            rescued_matrix,
+            FAMILY_POSITIONS.out.positions,
+            FREQUENCY_BINS.out.table,
+            ASSEMBLY_QUALITY_QC.out.table,
+            samplesheet,
+            FAMILY_PFAM_SCAN.out.domtblout,
+            GENE_POSITIONS.out.positions,
+            CLUSTER_TIER1.out.cluster_tsv,
+            dna_calls,
+            dna_check,
+        )
+        // Clinker synteny panel (spec section 8). ISLAND_CLINKER tasks take
+        // --pangenome_clinker_batch loci each (plan Ruling R10).
+        if (Helpers.asBool(params.pangenome_clinker)) {
+            ISLAND_GBK_SLICE(
+                ISLAND_LOCI.out.regions, samplesheet, data_dir_abs, gff3_dir_abs,
+                GENE_POSITIONS.out.positions, rescue_positions, CLUSTER_TIER1.out.cluster_tsv,
+            )
+            ISLAND_CLINKER(
+                ISLAND_GBK_SLICE.out.locus_dirs.flatten()
+                    .buffer(size: params.pangenome_clinker_batch as int, remainder: true)
+            )
+            clinker_keys = ISLAND_CLINKER.out.html.flatten()
+                .map { html -> html.baseName }
+                .collect()
+                .map { keys -> keys.sort().join(',') }
+                .ifEmpty('')
+            island_slices = ISLAND_GBK_SLICE.out.slices
+            clinker_enabled = 'true'
+        }
+        else {
+            EMPTY_ISLAND_SLICES_STUB()
+            island_slices = EMPTY_ISLAND_SLICES_STUB.out.evalues
+            clinker_keys = channel.value('')
+            clinker_enabled = 'false'
+        }
         ISLAND_SYNTENY(
             REPORT_TABLES.out.islands_with_domains,
             rescued_matrix,
@@ -409,6 +482,11 @@ workflow PANGENOME_PROFILE {
             GENE_POSITIONS.out.positions,
             CLUSTER_TIER1.out.cluster_tsv,
             rescue_positions,
+            ISLAND_LOCI.out.loci,
+            DIAGNOSTICS.out.tsv,
+            island_slices,
+            clinker_keys,
+            clinker_enabled,
         )
     }
 

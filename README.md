@@ -205,20 +205,20 @@ git clone https://github.com/stajichlab/NovInvenio.git
 cd NovInvenio
 
 # Build locally
-docker build -t ghcr.io/stajichlab/novinvenio:0.5.0 .
+docker build -t ghcr.io/stajichlab/novinvenio:0.7.0 .
 
 # Push to GitHub Container Registry (requires GHCR write access to stajichlab)
-docker push ghcr.io/stajichlab/novinvenio:0.5.0
+docker push ghcr.io/stajichlab/novinvenio:0.7.0
 ```
 
 Or pull a pre-built image directly:
 
 ```bash
 # Pull from GHCR (public images — no authentication needed)
-docker pull ghcr.io/stajichlab/novinvenio:0.5.0
+docker pull ghcr.io/stajichlab/novinvenio:0.7.0
 
 # Convert to a Singularity/Apptainer SIF for HPC environments
-singularity build novenio.sif docker://ghcr.io/stajichlab/novinvenio:0.5.0
+singularity build novenio.sif docker://ghcr.io/stajichlab/novinvenio:0.7.0
 ```
 
 ### Run with Docker
@@ -337,7 +337,7 @@ if a rationale beyond "not yet needed" gets recorded later).
 ```bash
 # Use a local build instead of the registry
 nextflow run stajichlab/NovInvenio -profile docker \
-    --container_version 0.5.0 \
+    --container_version 0.7.0 \
     --config /path/to/config.csv ...
 ```
 
@@ -387,7 +387,7 @@ need to bake it into the image.
 | `--outdir` | `results` | Root output directory |
 | `--hmm_mpi` | `false` | Run hmmsearch in MPI mode (requires MPI-enabled HMMER) |
 | `--hmm_mpi_tasks` | `null` | Number of MPI tasks; defaults to `max_cpus` when `--hmm_mpi true` |
-| `--container_version` | `0.5.0` | Docker/Singularity image tag (e.g. `0.5.0`, `latest`). See [Running with Docker / Singularity](#running-with-docker--singularity) |
+| `--container_version` | `0.7.0` | Docker/Singularity image tag (e.g. `0.7.0`, `latest`). See [Running with Docker / Singularity](#running-with-docker--singularity) |
 
 ## Config CSV format
 

@@ -116,6 +116,59 @@ def load_rescue_locations(path: str, families: set[str],
     return out
 
 
+def assembly_confound_triggered(path: str | None) -> bool:
+    """True when diagnostics.tsv has assembly_quality_confound = triggered."""
+    if not path or not Path(path).is_file() or Path(path).stat().st_size == 0:
+        return False
+    with open_maybe_compressed(path) as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            if row.get("diagnostic_id") == "assembly_quality_confound":
+                return row.get("status") == "triggered"
+    return False
+
+
+def add_locus_view(payload: dict, loci_json: str | None, diagnostics_tsv: str | None) -> None:
+    """Add `loci`, `locus_meta` and `assembly_confound` to the page payload.
+    Without --loci_json (or with an empty file) the payload has no `loci`
+    and the page shows the island view only, as before."""
+    payload["assembly_confound"] = assembly_confound_triggered(diagnostics_tsv)
+    if not loci_json or not Path(loci_json).is_file() or Path(loci_json).stat().st_size == 0:
+        return
+    data = json.loads(Path(loci_json).read_text())
+    payload["loci"] = data.pop("loci", [])
+    payload["locus_meta"] = data
+
+
+def add_clinker(payload: dict, slices_tsv: str | None, keys: str, enabled: bool) -> None:
+    """locus_meta.clinker = {enabled, keys}; each locus's clinker_strains gain
+    bp_start, bp_end, n_genes and the gap-split fields (n_blocks, gap_bp,
+    max_gap_bp, drawn_bp) from island_slices.tsv (spec section 8 C1); each
+    locus also gains clinker_max_gap_bp, the max max_gap_bp over its
+    strains, for later island pruning."""
+    if "loci" not in payload:
+        return
+    payload.setdefault("locus_meta", {})["clinker"] = {
+        "enabled": enabled, "keys": sorted(k for k in keys.split(",") if k)}
+    if not slices_tsv or not Path(slices_tsv).is_file() or Path(slices_tsv).stat().st_size == 0:
+        return
+    with open_maybe_compressed(slices_tsv) as fh:
+        by_key = {(r["locus_key"], r["strain"]): r for r in csv.DictReader(fh, delimiter="\t")}
+    for locus in payload["loci"]:
+        max_gap_bp = 0
+        for pick in locus.get("clinker_strains", []):
+            row = by_key.get((locus["key"], pick["strain"]))
+            if row:
+                pick["bp_start"] = int(row["bp_start"])
+                pick["bp_end"] = int(row["bp_end"])
+                pick["n_genes"] = int(row["n_genes"])
+                pick["n_blocks"] = int(row["n_blocks"])
+                pick["gap_bp"] = int(row["gap_bp"])
+                pick["max_gap_bp"] = int(row["max_gap_bp"])
+                pick["drawn_bp"] = int(row["drawn_bp"])
+                max_gap_bp = max(max_gap_bp, pick["max_gap_bp"])
+        locus["clinker_max_gap_bp"] = max_gap_bp
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--islands_with_domains", required=True)
@@ -153,6 +206,19 @@ def main() -> int:
                     "annotated protein. An empty file is treated as absent.")
     ap.add_argument("--id_sep", default="|",
                     help="Short-prefix separator in cluster member IDs (default '|').")
+    ap.add_argument("--loci_json", default=None,
+                    help="island_loci.json from bin/pangenome_island_loci.py; adds the "
+                    "locus view (default view of the page). An empty file is ignored.")
+    ap.add_argument("--diagnostics_tsv", default=None,
+                    help="diagnostics.tsv from bin/pangenome_diagnostics.py; when "
+                    "assembly_quality_confound is 'triggered' the page says so.")
+    ap.add_argument("--slices_tsv", default=None,
+                    help="island_slices.tsv from bin/pangenome_island_gbk_slice.py: bp "
+                    "range and gene count of each clinker strain's region.")
+    ap.add_argument("--clinker_keys", default="",
+                    help="comma list of locus keys (L001,...) that have clinker/<key>.html")
+    ap.add_argument("--clinker_enabled", default="false", choices=["true", "false"],
+                    help="whether the clinker step ran (--pangenome_clinker)")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
 
@@ -201,6 +267,9 @@ def main() -> int:
         family_domains=family_domains, species_of=species_of,
         gene_locations=gene_locations, rescue_locations=rescue_locations,
     )
+
+    add_locus_view(payload, args.loci_json, args.diagnostics_tsv)
+    add_clinker(payload, args.slices_tsv, args.clinker_keys, args.clinker_enabled == "true")
 
     # Escape `</` so a Pfam description or family ID cannot close the
     # <script> block early -- these strings come from HMM output and FASTA
