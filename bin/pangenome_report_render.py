@@ -421,6 +421,18 @@ def _neighborhood_section(rows: list[dict]) -> list[str]:
     return lines + [""]
 
 
+def _linked_pfam_domains(pfam_domains: str, pfam_urls: dict[str, str] | None) -> str:
+    """Comma-joined Pfam domain names -> markdown links to each domain's Pfam
+    page. A name with no URL ('-', or absent from `pfam_urls`) stays plain."""
+    if not pfam_domains or pfam_domains == "-":
+        return "-"
+    cells = []
+    for name in pfam_domains.split(","):
+        url = (pfam_urls or {}).get(name, "-")
+        cells.append(f"[{name}]({url})" if url and url != "-" else name)
+    return ", ".join(cells)
+
+
 def render_report_markdown(
     counts: dict[str, int],
     size_dist: dict[int, int],
@@ -437,6 +449,7 @@ def render_report_markdown(
     diagnostics_banner: str | None = None,
     islands_available: bool = True,
     neighborhood_rows: list[dict] | None = None,
+    pfam_urls: dict[str, str] | None = None,
 ) -> str:
     total_families = sum(counts.values())
     lines: list[str] = []
@@ -509,7 +522,7 @@ def render_report_markdown(
                 span = f"{(end - start) / 1000:.1f}" if start >= 0 and end >= 0 else "-"
                 lines.append(f"| {row.get('locus_id', '-')} | {row.get('island_size', '-')} | "
                              f"{span} | {row.get('n_strains', '-')} | "
-                             f"{row.get('pfam_domains', '-')} |")
+                             f"{_linked_pfam_domains(row.get('pfam_domains', '-'), pfam_urls)} |")
             lines.append("")
 
     if marker_rows:
@@ -626,9 +639,13 @@ def main() -> int:
         n_islands = len(islands_with_domains_rows)
 
     top_domains: list[dict] = []
+    # Every tested domain (not only the FDR-significant ones) has a row in
+    # the enrichment table, so this covers all names in the Top islands table.
+    pfam_urls: dict[str, str] = {}
     if args.island_pfam_enrichment:
         with open(args.island_pfam_enrichment, newline="") as fh:
             for row in csv.DictReader(fh, delimiter="\t"):
+                pfam_urls[row["domain"]] = row.get("pfam_url", "-")
                 if float(row["fdr_q"]) < args.fdr_threshold:
                     top_domains.append(row)
         top_domains.sort(key=lambda r: float(r["fisher_p"]))
@@ -684,6 +701,7 @@ def main() -> int:
         diagnostics_banner=diagnostics_banner,
         islands_available=islands_available,
         neighborhood_rows=neighborhood_rows,
+        pfam_urls=pfam_urls,
     )
     (out_dir / "report.md").write_text(markdown)
 
