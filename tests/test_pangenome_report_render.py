@@ -207,6 +207,30 @@ def test_accessory_islands_section_adds_top_islands_table_when_locus_present():
     assert "S1:contig1:100-400" in md
 
 
+def test_top_islands_table_links_pfam_domains_to_pfam_urls():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{
+            "locus_id": "S1:contig1:100-400", "island_size": "5",
+            "n_strains": "2", "pfam_domains": "SnoaL_2,NoAcc",
+        }],
+        pfam_urls={"SnoaL_2": "https://www.ebi.ac.uk/interpro/entry/pfam/PF12680/",
+                   "NoAcc": "-"},
+    )
+    assert "[SnoaL_2](https://www.ebi.ac.uk/interpro/entry/pfam/PF12680/), NoAcc |" in md
+
+
+def test_top_islands_table_leaves_pfam_domains_plain_without_urls():
+    md = render_report_markdown(
+        {}, {}, {}, [], 1, None, None, [], None,
+        islands_with_domains_rows=[{
+            "locus_id": "S1:contig1:100-400", "island_size": "5",
+            "n_strains": "2", "pfam_domains": "SnoaL_2",
+        }],
+    )
+    assert "| SnoaL_2 |" in md
+
+
 def test_accessory_islands_section_omits_top_islands_table_without_locus():
     md = render_report_markdown(
         {}, {}, {}, [], 1, None, None, [], None,
