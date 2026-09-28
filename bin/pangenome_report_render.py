@@ -317,6 +317,102 @@ def plot_island_size_distribution(size_dist: dict[int, int], out_dir: Path) -> N
     plt.close(fig)
 
 
+def _band_total(row: dict) -> int:
+    return sum(_as_int(row.get(band)) for band in BAND_ORDER)
+
+
+def read_samplesheet_groups(path: str) -> dict[str, tuple[str, str]]:
+    """{Short: (GROUP, Species)} from the pangenome samplesheet CSV."""
+    with open(path, newline="") as fh:
+        return {r["Short"]: (r.get("GROUP", ""), r.get("Species", ""))
+                for r in csv.DictReader(fh)}
+
+
+def order_genome_blocks(
+    per_strain_rows: list[dict],
+    samplesheet: dict[str, tuple[str, str]] | None,
+    ingroup_label: str,
+    outgroup_label: str,
+) -> list[tuple[str, list[dict]]]:
+    """Genomes for the per-genome class figure, as (block label, rows)
+    blocks: ingroup, then outgroup, then every other GROUP value or strain
+    missing from the samplesheet (one "other" block); one block per Species
+    inside ingroup/outgroup; largest total family count first in a block.
+    Without a samplesheet, one unlabelled block sorted by total."""
+    def by_total(rows):
+        return sorted(rows, key=lambda r: (-_band_total(r), r["Short"]))
+
+    if not samplesheet:
+        return [("", by_total(per_strain_rows))]
+    grouped: dict[tuple[int, str], list[dict]] = {}
+    for row in per_strain_rows:
+        group, species = samplesheet.get(row["Short"], ("", ""))
+        if group == ingroup_label:
+            key = (0, f"{species} ({group})")
+        elif group == outgroup_label:
+            key = (1, f"{species} ({group})")
+        else:
+            key = (2, "other")
+        grouped.setdefault(key, []).append(row)
+    return [(label, by_total(rows)) for (_, label), rows in sorted(grouped.items())]
+
+
+PER_GENOME_LABEL_MAX = 150
+"""Above this many genomes the per-genome figure drops its genome-name
+labels: they no longer fit at a readable size. Values stay in
+per_strain_summary.tsv."""
+
+
+def per_genome_figure_height(n_genomes: int) -> tuple[float, bool]:
+    """(figure height in inches, draw genome labels?) for the per-genome
+    class figure. Labelled rows get 0.15in each; above
+    PER_GENOME_LABEL_MAX the rows shrink to 0.04in, capped at 30in."""
+    if n_genomes <= PER_GENOME_LABEL_MAX:
+        return 1.5 + 0.15 * n_genomes, True
+    return min(30.0, 1.5 + 0.04 * n_genomes), False
+
+
+def plot_per_genome_class_composition(blocks: list[tuple[str, list[dict]]], out_dir: Path) -> None:
+    """One horizontal stacked bar per genome: family counts per frequency
+    band (after PPanGGOLiN's Fig 3, without the tree). Top to bottom in
+    `blocks` order; a divider and label mark each block."""
+    rows = [r for _, block in blocks for r in block]
+    height, show_labels = per_genome_figure_height(len(rows))
+    fig, ax = plt.subplots(figsize=(10, height))
+    y = np.arange(len(rows))
+    left = np.zeros(len(rows))
+    for band in BAND_ORDER:
+        values = np.array([_as_int(r.get(band)) for r in rows], dtype=float)
+        # Unlabelled (many-genome) rows touch: thin gaps between hundreds of
+        # bars alias into false stripes in the PNG.
+        ax.barh(y, values, left=left, height=0.85 if show_labels else 1.0,
+                color=BAND_COLORS[band], label=band, linewidth=0,
+                antialiased=show_labels)
+        left += values
+    if show_labels:
+        ax.set_yticks(y)
+        ax.set_yticklabels([r["Short"] for r in rows], fontsize=6)
+    else:
+        ax.set_yticks([])
+        ax.set_ylabel(f"{len(rows)} genomes (per-genome values in per_strain_summary.tsv)")
+    start = 0
+    for i, (label, block) in enumerate(blocks):
+        if i:
+            ax.axhline(start - 0.5, color="black", linewidth=0.8)
+        if label:
+            ax.text(1.005, start - 0.4, label, transform=ax.get_yaxis_transform(),
+                    va="top", ha="left", fontsize=8)
+        start += len(block)
+    ax.set_ylim(len(rows) - 0.5, -0.5)
+    ax.set_xlabel("Gene families")
+    ax.set_title("Gene families per genome by frequency class")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.04 * 20 / height),
+              ncol=len(BAND_ORDER), frameon=False)
+    fig.tight_layout()
+    _savefig_both(fig, out_dir, "per_genome_class_composition")
+    plt.close(fig)
+
+
 _ZERO_Q_FALLBACK_NEG_LOG_Q = 10.0
 """Fixed fallback for cap_zero_q_sentinel's all-zero-q edge case: chosen as
 a value clearly visible on a -log10(q) axis (an FDR q of 1e-10 would be an
@@ -450,6 +546,7 @@ def render_report_markdown(
     islands_available: bool = True,
     neighborhood_rows: list[dict] | None = None,
     pfam_urls: dict[str, str] | None = None,
+    per_genome_figure: bool = False,
 ) -> str:
     total_families = sum(counts.values())
     lines: list[str] = []
@@ -489,6 +586,9 @@ def render_report_markdown(
         if flagged:
             lines += [f"**Outlier strains (singleton-count modified z-score beyond threshold):** "
                       f"{', '.join(flagged)}", ""]
+    if per_genome_figure:
+        lines += ["![Gene families per genome by frequency class]"
+                  "(figures/per_genome_class_composition.png)", ""]
 
     if islands_available:
         lines += ["## Accessory islands", ""]
@@ -588,6 +688,12 @@ def main() -> int:
     )
     ap.add_argument("--marker_summary", default=None)
     ap.add_argument("--per_strain_summary", required=True)
+    ap.add_argument(
+        "--samplesheet", default=None,
+        help="Optional pangenome samplesheet CSV (GROUP,Species,...,Short). Orders the "
+        "per-genome class figure by GROUP, then Species; without it, by total only.")
+    ap.add_argument("--ingroup_label", default="IN")
+    ap.add_argument("--outgroup_label", default="OUT")
     ap.add_argument("--top_islands_min_strains", type=int, default=2,
                     help="Minimum carrying strains for an island to appear in the "
                          "report's 'Top islands' table (default 2: exclude "
@@ -670,6 +776,14 @@ def main() -> int:
     if classification_counts_dict:
         plot_classification_counts(classification_counts_dict, out_dir)
     plot_domain_enrichment(top_domains, out_dir)
+    # Older per_strain_summary.tsv files carry no per-band columns.
+    per_genome_figure = bool(per_strain_rows) and all(b in per_strain_rows[0] for b in BAND_ORDER)
+    if per_genome_figure:
+        samplesheet = read_samplesheet_groups(args.samplesheet) if args.samplesheet else None
+        plot_per_genome_class_composition(
+            order_genome_blocks(per_strain_rows, samplesheet,
+                                args.ingroup_label, args.outgroup_label),
+            out_dir)
 
     matrix = PresenceMatrix.from_tsv(args.presence_matrix)
     plot_presence_absence_matrix(matrix, frequency_table_rows, out_dir)
@@ -702,6 +816,7 @@ def main() -> int:
         islands_available=islands_available,
         neighborhood_rows=neighborhood_rows,
         pfam_urls=pfam_urls,
+        per_genome_figure=per_genome_figure,
     )
     (out_dir / "report.md").write_text(markdown)
 

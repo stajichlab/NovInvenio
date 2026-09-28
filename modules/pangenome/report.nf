@@ -80,6 +80,7 @@ process REPORT_RENDER {
     path(per_strain_summary)
     path(diagnostics_banner_md)
     path(module_neighborhood)   // View B1 (issue #182)
+    path(samplesheet)           // orders the per-genome class figure by GROUP, Species
 
     output:
     path("report/report.md"), emit: report
@@ -108,6 +109,9 @@ process REPORT_RENDER {
         --seed ${params.pangenome_accumulation_seed} \
         ${diagnostics_arg} \
         --module_neighborhood ${module_neighborhood} \
+        --samplesheet ${samplesheet} \
+        --ingroup_label '${params.pangenome_ingroup_label}' \
+        --outgroup_label '${params.pangenome_outgroup_label}' \
         --out_dir report
     """
 }

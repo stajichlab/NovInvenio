@@ -400,6 +400,7 @@ workflow PANGENOME_PROFILE {
         REPORT_TABLES.out.per_strain_summary,
         DIAGNOSTICS.out.banner_md,
         MODULE_NEIGHBORHOOD.out.table,
+        samplesheet,
     )
 
     // --- 9c. Island synteny (still gated -- genuinely needs FAMILY_PFAM_SCAN,
