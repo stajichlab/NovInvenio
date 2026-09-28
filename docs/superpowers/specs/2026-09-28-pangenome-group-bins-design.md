@@ -91,6 +91,8 @@ this change) and treat it as "outgroup not binned".
 | `pangenome_select_background_reps.py:27` | `shell`, `cloud` | none |
 | `pangenome_build_islands.py:90` | `core`, `soft_core` | none |
 | `pangenome_assembly_quality_qc.py:422` | `singleton` | set shrinks to true ingroup singletons: intended |
+| `pangenome_neighborhood.py:93` (MODULE_NEIGHBORHOOD) | not `core`/`soft_core` = accessory | none (new labels are still accessory) |
+| `pangenome_island_loci.py:114` -> `lib/island_locus.py:629` | tooltip text only | shows the new label (e.g. `outgroup_only`) |
 | `pangenome_report_tables.py` / `pangenome_report_render.py` | all | changed in this PR |
 
 Implementation must re-grep for any other reader of `bin` / `frequency_table`
