@@ -572,6 +572,72 @@ const btns = (el) => [...el.querySelectorAll('button')].map((b) => b.textContent
         legendItems.includes('absent, DNA absent'), legendItems);
 }
 
+// ------------------------------------- island synteny: clinker panel
+{
+  const off = boot(path.join(FX, 'island_synteny_loci.html')).window.document;
+  await sleep(60);
+  check('clinker panel: says the step was not run when disabled',
+        /not run/.test(off.getElementById('lv-clinker-note').textContent),
+        off.getElementById('lv-clinker-note').textContent);
+  check('clinker panel: no iframe when disabled', !off.querySelector('#lv-clinker-frame iframe'));
+
+  const dom = boot(path.join(FX, 'island_synteny_clinker.html'));
+  const w = dom.window, d = w.document;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.error)));
+  await sleep(60);
+  check('clinker panel: loads without error', errors.length === 0, errors.join('; '));
+  const frame = () => d.querySelector('#lv-clinker-frame iframe');
+  check('clinker panel: L001 loads clinker/L001.html',
+        frame() && frame().getAttribute('src') === 'clinker/L001.html',
+        frame() && frame().getAttribute('src'));
+  check('clinker panel: lists the strains shown with a reason',
+        /S1: locus exemplar/.test(d.getElementById('lv-clinker-list').textContent),
+        d.getElementById('lv-clinker-list').textContent);
+  check('clinker panel (C1): strain line shows the gap-split note when n_blocks > 1',
+        /4 blocks, 241.2 kb without genes not drawn/.test(d.getElementById('lv-clinker-list').textContent),
+        d.getElementById('lv-clinker-list').textContent);
+  const iframe = frame();
+  check('clinker panel (C3): iframe allows scrolling',
+        iframe && iframe.getAttribute('scrolling') === 'yes', iframe && iframe.outerHTML);
+
+  const strainLi = d.querySelector('#lv-clinker-list li');
+  check('clinker panel (C3): strain line is focusable', strainLi && strainLi.tabIndex === 0);
+  const tip = d.getElementById('tip');
+  strainLi.dispatchEvent(new w.MouseEvent('mouseenter', { bubbles: true, clientX: 5, clientY: 5 }));
+  check('clinker panel (C3): hover popup shows strain, reason and drawn bp',
+        tip.textContent.includes('S1') && tip.textContent.includes('locus exemplar') &&
+        tip.textContent.includes('drawn: 97462 bp'), tip.textContent);
+  strainLi.dispatchEvent(ev(w, 'mouseleave'));
+  check('clinker panel (C3): popup hides on mouseleave', tip.style.display === 'none');
+  strainLi.focus();
+  check('clinker panel (C3): popup shows on keyboard focus too', tip.textContent.includes('S1'));
+  strainLi.dispatchEvent(ev(w, 'blur'));
+  check('clinker panel (C3): popup hides on blur', tip.style.display === 'none');
+
+  [...d.querySelectorAll('#lv-list .isv-item')][1].dispatchEvent(ev(w, 'click'));
+  check('clinker panel: a locus without a file says so',
+        d.getElementById('lv-clinker-note').textContent === 'No synteny figure for this locus.',
+        d.getElementById('lv-clinker-note').textContent);
+  check('clinker panel: and shows no iframe', !frame());
+
+  // N3: NII's per-run sync only publishes the top N loci' clinker pages;
+  // window.CLINKER_PUBLISHED (injected into the staged page) says which
+  // keys made the cut. L001 is in clinker.keys but not in
+  // window.CLINKER_PUBLISHED here, so the panel must show a note pointing
+  // at the full folder instead of an iframe -- and never an iframe.
+  const pub = boot(path.join(FX, 'island_synteny_clinker_unpublished.html'));
+  const dp = pub.window.document;
+  await sleep(60);
+  check('clinker panel (N3): unpublished locus shows the not-published note',
+        dp.getElementById('lv-clinker-note').textContent ===
+          'Synteny figure not published on the site (top 0 loci only). ' +
+          'Full set: /bigdata/example/clinker/L001.html',
+        dp.getElementById('lv-clinker-note').textContent);
+  check('clinker panel (N3): unpublished locus shows no iframe',
+        !dp.querySelector('#lv-clinker-frame iframe'));
+}
+
 // ------------------------------- island synteny: no loci keeps the old page
 {
   const dom = boot(path.join(FX, 'island_synteny.html'));

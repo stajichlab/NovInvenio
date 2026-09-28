@@ -346,3 +346,99 @@ def test_row_at_slot_maps_through_header_offsets_to_the_right_data_row():
       console.log(JSON.stringify(slots.map(function (_, i) {{
         var r = locusRowAtSlot(slots, i); return r ? r.strains : null; }})));""")
     assert out == [None, ["S1", "S2"], None, ["S3"]]
+
+
+# ---- clinker panel (Part B) ----
+
+def test_clinker_panel_states():
+    out = run_node(["clinkerPanelState"], """
+      var on = {enabled: true, keys: ["L001"]};
+      console.log(JSON.stringify([
+        clinkerPanelState({key: "L001"}, on), clinkerPanelState({key: "L002"}, on),
+        clinkerPanelState({key: "L001"}, {enabled: false, keys: ["L001"]}),
+        clinkerPanelState({key: "../x"}, {enabled: true, keys: ["../x"]})]));""")
+    assert out == [{"mode": "ok", "src": "clinker/L001.html"}, {"mode": "missing", "src": ""},
+                   {"mode": "off", "src": ""}, {"mode": "missing", "src": ""}]
+
+
+# N3: NII's per-run sync publishes only the top N loci' clinker pages and
+# sets window.CLINKER_PUBLISHED to record which keys made the cut. Undefined
+# (no `window` global at all under plain node, or the property unset in
+# jsdom) must behave exactly like today (every key in `clinker.keys` gets
+# its iframe); a key present in CLINKER_PUBLISHED still does; one absent
+# from it switches to the new "not_published" mode instead of "ok".
+def test_clinker_panel_state_respects_clinker_published():
+    out = run_node(["clinkerPanelState"], """
+      global.window = {};
+      var on = {enabled: true, keys: ["L001", "L002"]};
+      var results = [];
+      results.push(clinkerPanelState({key: "L001"}, on));
+      window.CLINKER_PUBLISHED = ["L001"];
+      results.push(clinkerPanelState({key: "L001"}, on));
+      results.push(clinkerPanelState({key: "L002"}, on));
+      console.log(JSON.stringify(results));""")
+    assert out == [
+        {"mode": "ok", "src": "clinker/L001.html"},
+        {"mode": "ok", "src": "clinker/L001.html"},
+        {"mode": "not_published", "src": ""},
+    ]
+
+
+def test_clinker_reason_and_region_text():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText"], """
+      var a = {reason: "exemplar", row_class: "full", species: "", contig: "c1", rank_lo: 3, rank_hi: 9};
+      var b = {reason: "best_empty", row_class: "empty", species: "Sp two", contig: "c1",
+               bp_start: 100, bp_end: 900, n_genes: 12};
+      var c = {reason: "fill", row_class: "partial", species: "Sp one", contig: "c2", rank_lo: 1, rank_hi: 2};
+      console.log(JSON.stringify([clinkerReason(a), clinkerReason(b), clinkerReason(c),
+                                  clinkerRegionText(a), clinkerRegionText(b)]));""")
+    assert out == ["locus exemplar", "best-assembled empty site strain of Sp two",
+                   "more partial strains, best assembly first", "c1 gene ranks 3-9",
+                   "c1:100-900, 12 genes"]
+
+
+def test_clinker_panel_markup_is_below_the_grid():
+    page = ISLAND_SYNTENY_TEMPLATE
+    assert page.index('id="lv-grid"') < page.index('id="lv-clinker"')
+    assert "Synteny (clinker)" in page
+    assert "No synteny figure for this locus." in page
+
+
+# ---- clinker panel gap note + strain popup (Part B, C1/C3) ----
+
+def test_clinker_list_line_text_appends_the_gap_note_when_split():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText", "clinkerGapNote",
+                    "clinkerListLineText"], """
+      var whole = {strain: "S1", reason: "exemplar", row_class: "full", species: "",
+                   contig: "c1", bp_start: 1, bp_end: 9000, n_genes: 5, n_blocks: 1, gap_bp: 0};
+      var split = {strain: "S2", reason: "fill", row_class: "full", species: "",
+                   contig: "c1", bp_start: 1, bp_end: 338667, n_genes: 5, n_blocks: 4,
+                   gap_bp: 241208};
+      console.log(JSON.stringify([clinkerListLineText(whole), clinkerListLineText(split)]));""")
+    assert out[0] == "S1: locus exemplar; c1:1-9000, 5 genes"
+    assert out[1] == ("S2: more full locus strains, best assembly first; c1:1-338667, 5 genes; "
+                      "4 blocks, 241.2 kb without genes not drawn")
+
+
+def test_clinker_popup_lines_use_species_over_pick_species():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText", "clinkerGapNote",
+                    "clinkerPopupLines"], """
+      var pick = {strain: "S1", reason: "exemplar", row_class: "full", species: "stale",
+                  contig: "c1", bp_start: 100, bp_end: 900, n_genes: 12, n_blocks: 3,
+                  gap_bp: 5000, drawn_bp: 700};
+      console.log(JSON.stringify([clinkerPopupLines(pick, "Coccidioides immitis"),
+                                  clinkerPopupLines(pick, "")]));""")
+    with_species, without_species = out
+    assert with_species == ["S1", "Coccidioides immitis", "locus exemplar", "c1:100-900, 12 genes",
+                            "3 blocks", "3 blocks, 5.0 kb without genes not drawn",
+                            "drawn: 700 bp"]
+    assert without_species[:2] == ["S1", "stale"]
+
+
+def test_clinker_popup_lines_unknown_species_and_unsplit_region():
+    out = run_node(["locusClassLabel", "clinkerReason", "clinkerRegionText", "clinkerGapNote",
+                    "clinkerPopupLines"], """
+      var pick = {strain: "S1", reason: "exemplar", row_class: "full", species: "",
+                  contig: "c1", rank_lo: 0, rank_hi: 9, n_blocks: 1};
+      console.log(JSON.stringify(clinkerPopupLines(pick, "")));""")
+    assert out == ["S1", "Unknown species", "locus exemplar", "c1 gene ranks 0-9", "1 block"]

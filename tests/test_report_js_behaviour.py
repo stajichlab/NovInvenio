@@ -203,7 +203,9 @@ def _locus(key, locus_id, score, exemplar):
         "breakpoints": [{"b": 1, "indel": {"": 1}, "contig_break": 0},
                         {"b": 3, "indel": {"": 1}, "contig_break": 0}],
         "clinker_strains": [{"strain": exemplar, "reason": "exemplar", "row_class": "full",
-                             "species": "", "contig": "c1", "rank_lo": 0, "rank_hi": 5}],
+                             "species": "", "contig": "c1", "rank_lo": 0, "rank_hi": 5,
+                             "bp_start": 1, "bp_end": 338667, "n_genes": 5, "n_blocks": 4,
+                             "gap_bp": 241208, "max_gap_bp": 164235, "drawn_bp": 97462}],
     }
 
 
@@ -356,6 +358,24 @@ def fixture_dir(tmp_path_factory):
         '--family_positions', str(d / 'isv_positions.tsv'),
         '--loci_json', str(d / 'isv_loci.json'),
         '--project', 'demo', '--output', str(d / 'island_synteny_loci.html'))
+    run('pangenome_island_synteny.py',
+        '--islands_with_domains', str(d / 'isv_islands.tsv'),
+        '--presence_matrix', str(d / 'isv_matrix.tsv'),
+        '--family_positions', str(d / 'isv_positions.tsv'),
+        '--loci_json', str(d / 'isv_loci.json'),
+        '--clinker_enabled', 'true', '--clinker_keys', 'L001',
+        '--project', 'demo', '--output', str(d / 'island_synteny_clinker.html'))
+
+    # N3: same page, but with the script NII's per-run sync injects when a
+    # locus's clinker page wasn't published (top-N only). L001 is in
+    # clinker.keys (built above) but not in CLINKER_PUBLISHED, so the panel
+    # must show the note instead of an iframe.
+    clinker_page = (d / 'island_synteny_clinker.html').read_text()
+    unpublished = clinker_page.replace(
+        "</head>",
+        '<script>window.CLINKER_PUBLISHED=[];'
+        'window.CLINKER_FULL_DIR="/bigdata/example/clinker";</script></head>', 1)
+    (d / 'island_synteny_clinker_unpublished.html').write_text(unpublished)
 
     (d / 'isv_loci_name_sort.json').write_text(json.dumps(ISV_LOCI_NAME_SORT))
     run('pangenome_island_synteny.py',

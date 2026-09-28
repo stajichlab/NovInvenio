@@ -1428,3 +1428,11 @@ far). This decision closes #135's investigation; it does not flip the pipeline d
 **Decision**: `pangenome_island_loci.py` runs twice: pass 1 (`ISLAND_DNA_TARGETS`) writes the work lists for the drawn loci; `ISLAND_DNA_CHECK` runs blastn per batch of 50 loci; pass 2 (`ISLAND_LOCI`) recomputes the same loci, applies the calls, re-orders the drawn loci and then gives keys and clinker strains (plan Rulings R17, R18). The drawn set is chosen by the annotation-only ranking.
 **Alternatives**: apply the calls to `island_loci.json` in a separate script (the clinker strain choice needs the per-strain cell data, which the JSON does not hold); run blastn inside `ISLAND_LOCI` (the spec asks for a separate process); check all 200 candidate loci (about 4 times the blastn work).
 **Rationale**: one code path for the states, the page and the clinker picks; the extra pass costs about 2 min.
+
+
+## 2026-09-26 — Clinker panel: batching, slimming, failure handling
+
+**Context**: Spec section 8 asks for one ISLAND_CLINKER task per locus; one locus measured 56 s at 4 cores.
+**Decision**: `--pangenome_clinker_batch` loci per task (default 50; plan Ruling R10); slim pages by default (R16); a failed locus is skipped with a warning and the page says so (R15).
+**Alternatives**: one task per locus (50 two-minute SLURM jobs); fail the run on any clinker error.
+**Rationale**: the HPCC job-sizing rule (about 1 h per job); one bad locus must not cost the other figures. Headless Chromium drew identical figures for slimmed and full pages.

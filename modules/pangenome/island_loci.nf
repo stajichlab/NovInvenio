@@ -2,7 +2,8 @@
 // docs/superpowers/specs/2026-09-24-island-locus-view-design.md): groups
 // islands into loci, picks each locus's exemplar, computes every strain's
 // cell states, row class and the breakpoint track, and writes
-// island_loci.json for ISLAND_SYNTENY.
+// island_loci.json for ISLAND_SYNTENY. With --pangenome_clinker it also
+// writes island_regions.tsv (clinker strains and rank ranges, spec section 8).
 //
 // Streams family_positions three times, filtered each time (see
 // bin/pangenome_island_loci.py). Measured on the 529-strain Coccidioides run
@@ -38,8 +39,10 @@ process ISLAND_LOCI {
 
     output:
     path("island_loci.json"), emit: loci
+    path("island_regions.tsv"), emit: regions
 
     script:
+    def clinker_n = Helpers.asBool(params.pangenome_clinker) ? params.pangenome_clinker_max_strains : 0
     """
     pangenome_island_loci.py \
         --islands_with_domains ${islands_with_domains} \
@@ -71,6 +74,8 @@ process ISLAND_LOCI {
         --dna_min_id ${params.pangenome_locus_dna_min_id} \
         --dna_min_cov ${params.pangenome_locus_dna_min_cov} \
         --min_strains ${params.pangenome_top_islands_min_strains} \
+        --clinker_max_strains ${clinker_n} \
+        --regions_out island_regions.tsv \
         --project '${Helpers.projectName(params)}' \
         --output island_loci.json
     """

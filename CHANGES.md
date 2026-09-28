@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+### New: clinker synteny panel
+
+- **`lib/genbank_slice.py`**, **`bin/pangenome_island_gbk_slice.py`** (`ISLAND_GBK_SLICE`),
+  **`lib/clinker_html.py`**, **`bin/pangenome_island_clinker.py`** (`ISLAND_CLINKER`) -- for each drawn
+  locus, up to 12 strains' regions are written as GenBank files and drawn with gamcil/clinker 0.0.32
+  (PyPI; bioconda's `clinker` is an unrelated tool), grouped by tier-1 family. Embedded sequences are
+  removed (5.35 -> 1.01 MB per page). `island_synteny.html` shows the figure in a "Synteny (clinker)"
+  panel. Pages publish to `pangenome/clinker/<key>.html`.
+- New params: `--pangenome_clinker` (true), `--pangenome_clinker_max_strains` (12),
+  `--pangenome_clinker_slim` (true), `--pangenome_clinker_batch` (50),
+  `--pangenome_clinker_max_gap` (20000; 0 disables) -- splits a strain's region into several
+  GenBank/clinker blocks at gene-free gaps longer than this, instead of one unreadable track
+  spanning a huge, mostly-empty region (real Cocci evidence: a 338,667 bp region with a 164 kb
+  gap). Rescue (TBLASTN-only) entries never trigger a split or form a block of their own; each
+  attaches to the nearest resulting block.
+- `bin/pangenome_island_clinker.py` fails loudly (exit 2, a clear message) when the `--clinker`
+  executable cannot be found, instead of every locus quietly failing individually -- the
+  published container image has no clinker.
+- `bin/pangenome_island_clinker.py` passes clinker its `.gbk` files in clinker pick order
+  (exemplar first) plus `-ufo`/`--use_file_order`, so the drawn cluster order matches the
+  panel's own strain list, instead of clinker's default alignment-based ordering.
+- `lib/clinker_html.py`'s `inject_ui_fixes()`: the options sidebar starts collapsed (its own
+  toggle still works), the iframe scrolls instead of clipping a tall figure, a left margin keeps
+  labels from being clipped by the browser's default body margin, and (final review) clinker's
+  "hide locus coordinates" option is turned on by default plus a small script pans the drawing
+  right if a cluster/locus label is still clipped off the left edge.
+- The panel's iframe is scrollable (`width: 100%`, `height: 640px`, `min-height: 480px`); each
+  strain line in the panel's list gets a hover/keyboard-focus popup with the strain's species,
+  the reason it was chosen, its region, block count and drawn bp.
+- The image for `0.7.0` is built by CI on merge (`release-tag.yml` -> `docker-build.yml`) and
+  includes clinker 0.0.32; until it is published, container runs fail with the clinker-missing
+  error above.
+- Also adds N1 (`lib/clinker_html.py`'s `inject_ui_fixes()`): clinker's own default legend
+  position overlaps the figure on a long multi-block track; the legend is now hidden by default
+  (a "Show legend" checkbox is added to the sidebar, since clinker's own panel has none) and N3
+  (`lib/island_locus_template.py`): a locus not published on the site (see NII's
+  `--clinker_publish_top`) shows a note pointing at the full clinker folder instead of an iframe.
+
 ### Island locus view: five rankings replace the single informative ranking (2026-09-27, ranks-brief.md, user-approved)
 
 - **`lib/island_locus.py`**, **`bin/pangenome_island_loci.py`**, **`lib/island_locus_template.py`**,

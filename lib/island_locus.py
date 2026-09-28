@@ -610,6 +610,7 @@ def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Column
         "breakpoints": breakpoint_track(track_rows, len(fams)),
         "_cells": cells,
         "_pairs": pairs,
+        "_placement": placement,
         "_row_class": {s: v[0] for s, v in per_strain.items()},
         "_per_strain": per_strain,
     }
@@ -994,3 +995,86 @@ def rank_sort_key(ranks: dict, key: str, locus_id: str) -> tuple:
     strain count (carriers + losses) descending, then locus_id (ranks-brief.md
     "Ties inside a rank")."""
     return (-ranks[key], -(ranks["carriers"] + ranks["losses"]), locus_id)
+
+
+# ---- 8. clinker panel: strains and regions (spec section 8) --------------------
+DEFAULT_CLINKER_MAX_STRAINS = 12
+CLINKER_CLASSES = ("full", "partial", "empty", "model_difference")
+
+
+def strain_region(result: dict, strain: str, spans: ContigSpans, flank: int,
+                  k: int = DEFAULT_K) -> dict | None:
+    """The rank range to draw for one strain (spec section 8, Ruling R11).
+
+    On the contig of the strain's flank pair: from the lowest to the highest
+    in-place column copy within n_locus + 2k ranks of the pair, then `flank`
+    genes further on each side, clipped at the contig ends. The exemplar
+    without a flank pair uses its Placement block instead. None for any
+    other strain without a flank pair (it cannot be anchored)."""
+    cells = result["_cells"][strain]
+    pair = result["_pairs"].get(strain)
+    fams = result["families"]
+    if pair is not None:
+        contig, p_lo, p_hi = pair
+        w = result["n_locus"] + 2 * k
+        anchors = sorted((r, fams[ci]) for ci, c, r in cells.in_place_copies
+                         if c == contig and p_lo - w <= r <= p_hi + w)
+        lo, hi = anchors[0][0], anchors[-1][0]
+    elif strain == result["exemplar"]:
+        place = result["_placement"]
+        contig, lo, hi = place.contig, place.lo, place.hi
+        anchors = sorted((r, fams[ci]) for ci, c, r in cells.in_place_copies
+                         if c == contig and lo <= r <= hi)
+    else:
+        return None
+    cmin, cmax = spans.get((strain, contig), (lo, hi))
+    return {"contig": contig, "rank_lo": max(cmin, lo - flank), "rank_hi": min(cmax, hi + flank),
+            "anchors": anchors}
+
+
+def select_clinker_strains(result: dict, n50: dict[str, int], species_of: dict[str, str],
+                           spans: ContigSpans, flank: int, k: int = DEFAULT_K,
+                           max_strains: int = DEFAULT_CLINKER_MAX_STRAINS) -> list[dict]:
+    """Up to `max_strains` strains for the clinker figure, in spec order:
+    the exemplar; per row class (full, partial, empty, model difference)
+    and species the flank-intact strain with the best quality_key(); then
+    more full or partial strains by quality_key() until the cap.
+    Uninformative strains
+    are never chosen (the exemplar is kept even when its flanks are not
+    intact). Each pick carries its reason and its strain_region()."""
+    pairs = result["_pairs"]
+    row_cls = result["_row_class"]
+
+    def qkey(s):
+        contig = pairs[s][0] if s in pairs else result["exemplar_contig"]
+        cmin, cmax = spans.get((s, contig), (0, -1))
+        return quality_key(s, n50, cmax - cmin + 1)
+
+    picks: list[dict] = []
+    chosen: set[str] = set()
+
+    def add(strain, reason):
+        if len(picks) >= max_strains or strain in chosen:
+            return
+        region = strain_region(result, strain, spans, flank, k)
+        if region is None:
+            return
+        chosen.add(strain)
+        picks.append({"strain": strain, "reason": reason, "row_class": row_cls[strain],
+                      "species": species_of.get(strain, ""), **region})
+
+    add(result["exemplar"], "exemplar")
+    species = sorted({species_of.get(s, "") for s in pairs})
+    for cls in CLINKER_CLASSES:
+        for sp in species:
+            pool = [s for s in pairs if row_cls[s] == cls and species_of.get(s, "") == sp
+                    and s not in chosen]
+            if pool:
+                add(min(pool, key=qkey), "best_" + cls)
+    fill = sorted((s for s in pairs if row_cls[s] in ("full", "partial") and s not in chosen),
+                  key=qkey)
+    for s in fill:
+        if len(picks) >= max_strains:
+            break
+        add(s, "fill")
+    return picks

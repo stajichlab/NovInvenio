@@ -263,7 +263,7 @@ The grid shows presence and position states. It does not show the genes
 themselves. For each drawn locus, a clinker figure shows the real gene
 neighbourhoods of a few strains side by side, with links between similar genes.
 
-**Loci.** The loci the page draws (`--top_loci`, default 50).
+**Loci.** The loci the page draws (`--top_loci`, default 100).
 
 **Strains** (at most `--clinker_max_strains`, default 12), chosen in this order:
 1. The locus exemplar (section 2).
@@ -290,6 +290,37 @@ computed by the locus-view step. Output: one `.gbk` per (locus, strain). Each CD
 carries `/locus_tag` = the gene ID, `/translation` from the protein FASTA, and
 `/note="family=<tier-1 family>"`.
 
+**Gap-split blocks (changed 2026-09-27, real Cocci evidence, user-approved).**
+clinker draws every gene at its true bp position, on one scale for the whole
+region. A strain whose region has a long gene-free gap -- real example, locus
+L005, strain B3245: genes at 1..26528, 58376..60729, 105854..107065,
+271300..338667, a 164 kb gap between 107 kb and 271 kb in a 338,667 bp region
+-- becomes an unreadable track: almost the whole width is empty and the few
+genes are squeezed into slivers. `ISLAND_GBK_SLICE` now splits each
+(locus, strain) region's GENE entries, ordered by start, into blocks: a new
+block starts whenever `start(next gene) - end(previous gene) >
+--pangenome_clinker_max_gap` (default 20000 bp; 0 disables splitting).
+Rescue entries (TBLASTN hits with no gene model) never trigger a split and
+never form a block of their own -- each attaches to whichever resulting
+block's gene-only span is nearest it, so a rescue hit sitting inside an
+otherwise-huge gene-free gap can't wrongly suppress a real split, and one
+far from every gene can't produce a gene-less block clinker has nothing to
+draw for (review fix, final pass). Every block is written as its own
+GenBank record in the same `<strain>.gbk` file, named `b<N>` (never
+`<strain>_b<N>` -- that truncates identically for a long strain name; review
+fix round 1), its sequence and features covering only that block's span
+(features shifted to the block start). clinker 0.0.32 reads a multi-record
+file as one cluster (named after the file) with one locus per record --
+checked directly against clinker (`tests/test_clinker_render.py`) -- so this
+draws each gene-dense block to its own, readable scale instead of one
+gap-dominated track. `island_slices.tsv` gains `n_blocks`,
+`gap_bp` (sum of the skipped gaps that triggered a split), `max_gap_bp` (the
+largest one) and `drawn_bp` (sum of the blocks' spans); `bp_start`/`bp_end`
+stay the full region. The page's per-strain line and hover popup say
+"N blocks, X kb without genes not drawn" when a strain's region was split.
+Each locus also carries `clinker_max_gap_bp` (the max over its strains), for
+possible later use in island pruning.
+
 **Clinker.** New process `ISLAND_CLINKER`, one task per locus:
 `clinker <locus>/*.gbk -gf <locus>.groups.csv -p <locus>.html` with
 gamcil/clinker **0.0.32 from PyPI** (added to the pixi environment as a PyPI
@@ -312,10 +343,47 @@ with the page.
 **Switch.** `--pangenome_clinker true|false` (default true). With false, both
 processes are skipped and the panel says the step was not run.
 
+**Panel UI fixes (changed 2026-09-27, real Cocci evidence, user-approved).**
+Inspecting a real clinker 0.0.32 page in the panel's iframe found three
+problems: (1) clinker's `#div-floater` options/instructions sidebar starts
+open and, in a panel-sized iframe, covers most of the figure; (2) the page's
+`overflow: hidden` body clips a figure taller than the iframe instead of
+letting it scroll; (3) the browser's default body margin can clip the
+left-most locus labels in a narrow iframe. `lib/clinker_html.py`'s
+`inject_ui_fixes()` fixes all three (collapses the sidebar behind its own,
+still-working toggle button; sets `overflow: auto` and a left margin) and is
+applied both when the page is slimmed and when `--pangenome_clinker_slim
+false` (`--keep_sequences`) skips slimming. The panel's iframe is `width:
+100%`, `height: 640px` (`min-height: 480px`), scrolling enabled. Each strain
+line in the panel's list also gets a hover/keyboard-focus popup (the page's
+existing tooltip): full strain name, species (from the page's `SPECIES` map,
+not the possibly-stale per-pick `species` field), the reason it was chosen,
+its region, block count, the gap-split note when split, and drawn bp.
+
+**Cluster order (M7, final review).** `ISLAND_CLINKER` passes clinker its
+`.gbk` files in clinker pick order (the exemplar first, then the other
+`select_clinker_strains()` picks) via clinker's own `-ufo`/`--use_file_order`
+flag, instead of clinker's default alignment-based ordering, so the figure's
+cluster order matches the panel's own strain list. `ISLAND_GBK_SLICE` writes
+this order to each locus's `clinker_order.txt` (`island_regions.tsv`'s row
+order for that locus, captured before its own strain-major processing loop
+would otherwise lose it).
+
+**Label clipping fix (L, final review, verified).** clinker's default
+`alignLabels` config can put a long cluster/locus label at a negative x,
+clipping it off the left of the figure. `inject_ui_fixes()` also turns on
+clinker's own "hide locus coordinates" option (config + sidebar checkbox,
+checked by default) and inserts a small window-load script that pans the
+drawing right if the label group's bounding box still starts left of the
+SVG's own edge. Verified against a real clinker 0.0.32 page under headless
+Chromium: unfixed minimum label x -116.8 (clipped), fixed minimum label x 0.
+
 **Cost and limits.** clinker compares every pair of clusters, so cost grows with
 the square of the strain count; the cap keeps it at most 66 pairs per locus.
-Measured by the 2026-09-26 spike (below): about 30 s and 104 MB per locus, so
-50 loci are about 25 min of single-task CPU.
+Measured 2026-09-27 (Coccidioides, real `rescue_freqpol_immitis_in_posadasii_out`
+run, 5 loci): `ISLAND_GBK_SLICE` 53 slices in 18 s / 60 MB; clinker 5 of 5 loci
+in 5 min 42 s at 2 cpus / 124 MB peak RSS. 100 loci (the current
+`--top_loci` default) has not been measured.
 
 **Clinker spike (measured 2026-09-26, throwaway, `$SCRATCH/clinker_spike/`).**
 Run `rescue_freqpol_immitis_in_posadasii_out`. Island

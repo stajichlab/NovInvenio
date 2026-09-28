@@ -189,6 +189,14 @@ def print_help() {
                                        gene (default: 80).
       --pangenome_locus_dna_batch      Loci per ISLAND_DNA_CHECK task (default: 50).
       --pangenome_locus_candidates     Loci scored before ranking (default: 200).
+      --pangenome_clinker              Build the clinker synteny panel (default: true).
+      --pangenome_clinker_max_strains  Strains per clinker figure (default: 12).
+      --pangenome_clinker_slim         Remove embedded sequences from clinker pages
+                                       (default: true).
+      --pangenome_clinker_batch        Loci per ISLAND_CLINKER task (default: 50).
+      --pangenome_clinker_max_gap      Gene-free gap (bp) that splits a region into
+                                       several clinker loci of one cluster (default:
+                                       20000; 0 = no splitting).
       --help                           Show this message and exit.
 
     Note: --pangenome_project (or a derivable default) is required so that two
@@ -238,6 +246,20 @@ workflow {
         error "ERROR: --pangenome_locus_dna_min_id and --pangenome_locus_dna_min_cov are percents, 0-100 (got: ${params.pangenome_locus_dna_min_id}, ${params.pangenome_locus_dna_min_cov})"
     if (params.pangenome_cluster_backend !in ['mmseqs', 'diamond'])
         error "ERROR: --pangenome_cluster_backend must be mmseqs or diamond (got: ${params.pangenome_cluster_backend})"
+    def max_gap_str = params.pangenome_clinker_max_gap.toString()
+    if (!(max_gap_str ==~ /^[0-9]+$/))
+        error "ERROR: --pangenome_clinker_max_gap must be an integer >= 0 (got: ${params.pangenome_clinker_max_gap})"
+    // M6 (final review): pangenome_clinker_batch feeds a `.buffer(size: ...)`
+    // (workflows/pangenome_profile.nf's ISLAND_CLINKER call) that errors
+    // opaquely on anything but a positive integer; pangenome_clinker_max_strains
+    // feeds select_clinker_strains()'s max_strains, where 0 is a valid "draw
+    // no clinker figures" but negative is meaningless.
+    def clinker_batch_str = params.pangenome_clinker_batch.toString()
+    if (!(clinker_batch_str ==~ /^[0-9]+$/) || (clinker_batch_str as int) < 1)
+        error "ERROR: --pangenome_clinker_batch must be an integer >= 1 (got: ${params.pangenome_clinker_batch})"
+    def clinker_max_strains_str = params.pangenome_clinker_max_strains.toString()
+    if (!(clinker_max_strains_str ==~ /^[0-9]+$/))
+        error "ERROR: --pangenome_clinker_max_strains must be an integer >= 0 (got: ${params.pangenome_clinker_max_strains})"
     // Previously hard-blocked here: diamond's tier-1 branch had no equivalent
     // of mmseqs' restore_mmseqs_cluster_ids.py safety net, and family IDs are
     // load-bearing for every downstream table (bin/pangenome_build_presence_matrix.py's

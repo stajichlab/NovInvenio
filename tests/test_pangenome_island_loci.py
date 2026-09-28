@@ -176,3 +176,20 @@ def test_without_config_all_strains_are_one_unknown_species_group(tmp_path):
     (locus,) = json.loads(out.read_text())["loci"]
     assert list(locus["counts_by_species"]) == [""]
     assert all(set(bp["indel"]) <= {""} for bp in locus["breakpoints"])
+
+
+def test_regions_out_lists_clinker_strains_with_anchors(tmp_path):
+    import csv
+    run(tmp_path, "--regions_out", str(tmp_path / "regions.tsv"))
+    rows = list(csv.DictReader(open(tmp_path / "regions.tsv"), delimiter="\t"))
+    assert [(r["strain"], r["reason"]) for r in rows] == [
+        ("S2", "exemplar"), ("S1", "best_full"), ("S3", "best_empty")]
+    s3 = rows[2]
+    assert (s3["contig"], s3["rank_lo"], s3["rank_hi"]) == ("c1", "0", "9")
+    assert s3["anchors"].split(";")[0] == "0:F1"
+
+
+def test_clinker_max_strains_zero_selects_none(tmp_path):
+    data = run(tmp_path, "--clinker_max_strains", "0", "--regions_out", str(tmp_path / "r.tsv"))
+    assert data["loci"][0]["clinker_strains"] == []
+    assert (tmp_path / "r.tsv").read_text().count("\n") == 1
