@@ -17,7 +17,7 @@ from pangenome_matrix import PresenceMatrix, PRESENT, GENOME_ONLY, ABSENT
 
 def test_render_report_markdown_includes_key_sections():
     md = render_report_markdown(
-        counts={"core": 100, "soft_core": 10, "shell": 50, "cloud": 200, "singleton": 300},
+        counts={"ingroup": {"core": 100, "soft_core": 10, "shell": 50, "cloud": 200, "singleton": 300}},
         size_dist={2: 50, 3: 20, 10: 5},
         classification_counts_dict={"trans": 40, "unexplained_physical": 10},
         top_domains=[{"domain": "PF00001", "fisher_p": 1e-5, "fdr_q": 1e-4}],
@@ -38,7 +38,7 @@ def test_render_report_markdown_includes_key_sections():
 
 def test_render_report_markdown_handles_zero_enriched_domains():
     md = render_report_markdown(
-        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        counts={"ingroup": {"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}},
         size_dist={},
         classification_counts_dict={},
         top_domains=[],
@@ -57,7 +57,7 @@ def test_render_report_markdown_handles_zero_enriched_domains():
 
 def test_render_report_markdown_embeds_classification_figure_when_present():
     md = render_report_markdown(
-        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        counts={"ingroup": {"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}},
         size_dist={},
         classification_counts_dict={"trans": 5},
         top_domains=[],
@@ -87,7 +87,7 @@ def test_plot_classification_counts_with_non_empty_dict(tmp_path):
 
 def test_render_report_markdown_includes_marker_section_when_markers_present():
     md = render_report_markdown(
-        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        counts={"ingroup": {"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}},
         size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
         heaps_fit=None, core_decay=None, strain_family_counts=[],
         marker_rows=[{
@@ -102,7 +102,7 @@ def test_render_report_markdown_includes_marker_section_when_markers_present():
 
 def test_render_report_markdown_skips_marker_section_when_no_markers():
     md = render_report_markdown(
-        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        counts={"ingroup": {"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}},
         size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
         heaps_fit=None, core_decay=None, strain_family_counts=[], marker_rows=[],
     )
@@ -316,9 +316,9 @@ def test_top_islands_table_header_carries_units():
 
 def test_composition_total_names_the_unit():
     md = render_report_markdown(
-        {"core": 2}, {}, {}, [], 0, None, None, [], None,
+        {"ingroup": {"core": 2}}, {}, {}, [], 0, None, None, [], None,
     )
-    assert "Total gene families: 2" in md
+    assert "**Ingroup** (2 gene families)" in md
 
 
 def test_flagged_outlier_strains_line_present():
@@ -420,7 +420,7 @@ def test_render_report_markdown_omits_islands_and_domain_sections_when_unavailab
     # islands_available=True + empty-inputs behavior, covered by
     # test_render_report_markdown_handles_zero_enriched_domains).
     md = render_report_markdown(
-        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        counts={"ingroup": {"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}},
         size_dist={}, classification_counts_dict={"trans": 5}, top_domains=[],
         n_islands=0, heaps_fit=None, core_decay=None, strain_family_counts=[],
         islands_available=False,
@@ -437,7 +437,7 @@ def test_render_report_markdown_keeps_islands_sections_when_available_by_default
     # islands_available defaults to True -- every pre-existing call site
     # (with all args given) must render identically to before this change.
     md = render_report_markdown(
-        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        counts={"ingroup": {"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}},
         size_dist={}, classification_counts_dict={}, top_domains=[], n_islands=0,
         heaps_fit=None, core_decay=None, strain_family_counts=[],
     )
@@ -682,7 +682,7 @@ def test_plot_domain_enrichment_zero_q_bar_does_not_dwarf_others(tmp_path):
 
 def _md_with_neighborhood(rows):
     return render_report_markdown(
-        counts={"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0},
+        counts={"ingroup": {"core": 1, "soft_core": 0, "shell": 0, "cloud": 0, "singleton": 0}},
         size_dist={}, classification_counts_dict={"trans": 4}, top_domains=[],
         n_islands=0, heaps_fit=None, core_decay=None, strain_family_counts=[1],
         neighborhood_rows=rows,
@@ -822,3 +822,28 @@ def test_report_notes_outgroup_fallback():
     md = render_report_markdown({}, {}, {}, [], 0, None, None, [100],
                                 per_genome_figure=True, outgroup_fallback=True)
     assert "outgroup genomes use ingroup classes" in md
+
+
+def test_group_class_counts_both_groups():
+    rows = [{"bin": "core", "bin_out": "core"}, {"bin": "outgroup_only", "bin_out": "cloud"},
+            {"bin": "singleton", "bin_out": "ingroup_only"}]
+    assert pangenome_report_render.group_class_counts(rows) == {
+        "ingroup": {"core": 1, "outgroup_only": 1, "singleton": 1},
+        "outgroup": {"core": 1, "cloud": 1, "ingroup_only": 1},
+    }
+
+
+def test_group_class_counts_old_table_is_ingroup_only():
+    assert pangenome_report_render.group_class_counts([{"bin": "core"}]) == {"ingroup": {"core": 1}}
+
+
+def test_composition_section_per_group():
+    md = render_report_markdown(
+        {"ingroup": {"core": 8, "singleton": 2, "outgroup_only": 5},
+         "outgroup": {"core": 6, "cloud": 4, "ingroup_only": 3}},
+        {}, {}, [], 0, None, None, [])
+    assert "figures/group_composition.png" in md
+    assert "core_shell_cloud_pie" not in md
+    assert "- **core**: 8 (80.0%)" in md          # of the ingroup's 10 binned families
+    assert "- **outgroup_only**: 5" in md
+    assert "- **core**: 6 (60.0%)" in md

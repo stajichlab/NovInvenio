@@ -98,14 +98,38 @@ def plot_frequency_distribution(frequency_table_rows: list[dict], out_dir: Path)
     plt.close(fig)
 
 
-def plot_frequency_bins(counts: dict[str, int], out_dir: Path) -> None:
-    fig, ax = plt.subplots(figsize=(6, 6))
-    labels = [k for k in BAND_ORDER if counts.get(k, 0) > 0]
-    values = [counts[k] for k in labels]
-    ax.pie(values, labels=labels, autopct="%1.1f%%", colors=[BAND_COLORS[b] for b in labels])
-    ax.set_title("Pangenome composition")
+EXTRA_CLASSES = ["nonrep_only", "outgroup_only", "ingroup_only", "absent"]
+
+
+def group_class_counts(frequency_table_rows: list[dict]) -> dict[str, dict[str, int]]:
+    out: dict[str, dict[str, int]] = {"ingroup": {}}
+    for r in frequency_table_rows:
+        out["ingroup"][r["bin"]] = out["ingroup"].get(r["bin"], 0) + 1
+        b = r.get("bin_out", "-")
+        if b not in ("-", None, ""):
+            out.setdefault("outgroup", {})
+            out["outgroup"][b] = out["outgroup"].get(b, 0) + 1
+    return out
+
+
+def plot_group_composition(group_counts: dict[str, dict[str, int]], out_dir: Path) -> None:
+    """One horizontal stacked bar per binned group on a shared axis (spec
+    section 4); only core ... singleton are drawn."""
+    groups = list(group_counts)
+    fig, ax = plt.subplots(figsize=(9, 1.2 + 0.8 * len(groups)))
+    left = np.zeros(len(groups))
+    for band in BAND_ORDER:
+        vals = np.array([group_counts[g].get(band, 0) for g in groups], dtype=float)
+        ax.barh(range(len(groups)), vals, left=left, color=BAND_COLORS[band], label=band)
+        left += vals
+    ax.set_yticks(range(len(groups)))
+    ax.set_yticklabels(groups)
+    ax.invert_yaxis()
+    ax.set_xlabel("Gene families")
+    ax.set_title("Pangenome composition by group")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.35), ncol=len(BAND_ORDER), frameon=False)
     fig.tight_layout()
-    _savefig_both(fig, out_dir, "core_shell_cloud_pie")
+    _savefig_both(fig, out_dir, "group_composition")
     plt.close(fig)
 
 
@@ -552,7 +576,7 @@ def _linked_pfam_domains(pfam_domains: str, pfam_urls: dict[str, str] | None) ->
 
 
 def render_report_markdown(
-    counts: dict[str, int],
+    counts: dict[str, dict[str, int]],
     size_dist: dict[int, int],
     classification_counts_dict: dict[str, int],
     top_domains: list[dict],
@@ -571,7 +595,6 @@ def render_report_markdown(
     per_genome_figure: bool = False,
     outgroup_fallback: bool = False,
 ) -> str:
-    total_families = sum(counts.values())
     lines: list[str] = []
     if diagnostics_banner:
         # Issue #134: pipeline diagnostics land at the TOP of report.md,
@@ -580,12 +603,19 @@ def render_report_markdown(
         lines += [diagnostics_banner.rstrip("\n"), ""]
     lines += ["# Pangenome Island + Pfam Enrichment Report", ""]
     lines += ["## Pangenome composition", ""]
-    lines += [f"Total gene families: {total_families}", ""]
-    for label in BAND_ORDER:
-        if counts.get(label, 0):
-            pct = 100 * counts[label] / total_families if total_families else 0
-            lines.append(f"- **{label}**: {counts[label]} ({pct:.1f}%)")
-    lines += ["", "![Composition](figures/core_shell_cloud_pie.png)", ""]
+    for group, gc in counts.items():
+        binned = sum(gc.get(b, 0) for b in BAND_ORDER)
+        lines += [f"**{group.capitalize()}** ({binned} gene families)", ""]
+        for label in BAND_ORDER:
+            if gc.get(label, 0):
+                pct = 100 * gc[label] / binned if binned else 0
+                lines.append(f"- **{label}**: {gc[label]} ({pct:.1f}%)")
+        extra = [f"- **{label}**: {gc[label]}" for label in EXTRA_CLASSES if gc.get(label, 0)]
+        if extra:
+            lines += ["", "Not in this group's pangenome:"] + extra
+        lines.append("")
+    if counts:
+        lines += ["![Composition](figures/group_composition.png)", ""]
     lines += ["![Frequency distribution](figures/frequency_distribution.png)", ""]
 
     if heaps_fit is not None:
@@ -742,9 +772,7 @@ def main() -> int:
 
     with open(args.frequency_table, newline="") as fh:
         frequency_table_rows = list(csv.DictReader(fh, delimiter="\t"))
-    counts: dict[str, int] = {}
-    for row in frequency_table_rows:
-        counts[row["bin"]] = counts.get(row["bin"], 0) + 1
+    counts = group_class_counts(frequency_table_rows)
 
     size_dist: dict[int, int] = {}
     if args.island_size_distribution:
@@ -796,7 +824,7 @@ def main() -> int:
                 marker_rows.append(row)
 
     plot_frequency_distribution(frequency_table_rows, out_dir)
-    plot_frequency_bins(counts, out_dir)
+    plot_group_composition(counts, out_dir)
     if size_dist:
         plot_island_size_distribution(size_dist, out_dir)
     if classification_counts_dict:
