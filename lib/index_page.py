@@ -191,7 +191,7 @@ def render_project_page(
         + (f'  <footer>{html.escape(footer)}</footer>\n' if footer else '')
     )
     return _page(f'{project} — NovInvenio reports', body,
-                 nav_html=breadcrumb_nav_html(study=False))
+                 nav_html=breadcrumb_nav_html(run=False))
 
 
 def render_alignment_viewer_page() -> str:
