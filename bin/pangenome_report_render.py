@@ -298,10 +298,14 @@ def plot_classification_counts(classification_counts_dict: dict[str, int], out_d
 
 
 def plot_island_size_distribution(size_dist: dict[int, int], out_dir: Path) -> None:
-    fig, ax = plt.subplots(figsize=(8, 5))
     sizes = sorted(size_dist)
     counts = [size_dist[s] for s in sizes]
+    # One categorical tick per distinct size; real runs have 50-75 of them,
+    # so widen the figure with the bar count and rotate the labels to keep
+    # them from overlapping.
+    fig, ax = plt.subplots(figsize=(max(8.0, 0.15 * len(sizes)), 5))
     ax.bar([str(s) for s in sizes], counts)
+    ax.tick_params(axis="x", rotation=90, labelsize=8)
     ax.set_xlabel("Island size (genes)")
     ax.set_ylabel("Number of islands")
     ax.set_title("Accessory island size distribution")
