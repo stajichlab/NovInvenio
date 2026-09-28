@@ -63,7 +63,11 @@ BAND_ORDER = ["core", "soft_core", "shell", "cloud", "singleton"]
 BAND_COLORS = {
     "core": "#2c7fb8", "soft_core": "#7fcdbb", "shell": "#fed976",
     "cloud": "#fd8d3c", "singleton": "#bdbdbd",
+    "nonrep_only": "#9e9ac8", "outgroup_only": "#636363",
 }
+GENOME_SEGMENTS = BAND_ORDER + ["nonrep_only", "outgroup_only"]
+"""Per-genome figure segments: the five bands plus the #212 classes a genome
+can carry that are outside its group's bands."""
 
 
 def _savefig_both(fig, out_dir: Path, name: str) -> None:
@@ -318,7 +322,7 @@ def plot_island_size_distribution(size_dist: dict[int, int], out_dir: Path) -> N
 
 
 def _band_total(row: dict) -> int:
-    return sum(_as_int(row.get(band)) for band in BAND_ORDER)
+    return sum(_as_int(row.get(band)) for band in GENOME_SEGMENTS)
 
 
 def read_samplesheet_groups(path: str) -> dict[str, tuple[str, str]]:
@@ -375,26 +379,39 @@ def per_genome_figure_height(n_genomes: int) -> tuple[float, bool]:
 def plot_per_genome_class_composition(blocks: list[tuple[str, list[dict]]], out_dir: Path) -> None:
     """One horizontal stacked bar per genome: family counts per frequency
     band (after PPanGGOLiN's Fig 3, without the tree). Top to bottom in
-    `blocks` order; a divider and label mark each block."""
+    `blocks` order; a divider and label mark each block. Segments with no
+    families in any genome are not drawn (older per_strain_summary.tsv files
+    have no nonrep_only/outgroup_only columns). Non-representative genomes
+    (`is_representative == "N"`) get a dagger after the name, or a tick at
+    the left edge when names are not drawn."""
     rows = [r for _, block in blocks for r in block]
     height, show_labels = per_genome_figure_height(len(rows))
     fig, ax = plt.subplots(figsize=(10, height))
     y = np.arange(len(rows))
     left = np.zeros(len(rows))
-    for band in BAND_ORDER:
+    drawn = []
+    for band in GENOME_SEGMENTS:
         values = np.array([_as_int(r.get(band)) for r in rows], dtype=float)
+        if not values.any():
+            continue
+        drawn.append(band)
         # Unlabelled (many-genome) rows touch: thin gaps between hundreds of
         # bars alias into false stripes in the PNG.
         ax.barh(y, values, left=left, height=0.85 if show_labels else 1.0,
                 color=BAND_COLORS[band], label=band, linewidth=0,
                 antialiased=show_labels)
         left += values
+    nonrep = [r.get("is_representative", "Y") == "N" for r in rows]
     if show_labels:
         ax.set_yticks(y)
-        ax.set_yticklabels([r["Short"] for r in rows], fontsize=6)
+        ax.set_yticklabels([r["Short"] + (" †" if n else "") for r, n in zip(rows, nonrep)], fontsize=6)
     else:
         ax.set_yticks([])
         ax.set_ylabel(f"{len(rows)} genomes (per-genome values in per_strain_summary.tsv)")
+        ys = [i for i, n in enumerate(nonrep) if n]
+        if ys:
+            ax.scatter([0] * len(ys), ys, marker="|", s=12, color="black",
+                       transform=ax.get_yaxis_transform(), clip_on=False, zorder=3)
     start = 0
     for i, (label, block) in enumerate(blocks):
         if i:
@@ -406,8 +423,13 @@ def plot_per_genome_class_composition(blocks: list[tuple[str, list[dict]]], out_
     ax.set_ylim(len(rows) - 0.5, -0.5)
     ax.set_xlabel("Gene families")
     ax.set_title("Gene families per genome by frequency class")
+    if any(nonrep):
+        # Marker-less legend entry: explains the dagger / tick without extra
+        # figure space (short figures have none to spare).
+        mark = "†" if show_labels else "left-edge tick"
+        ax.plot([], [], " ", label=f"{mark}: non-representative (dereplicated near-duplicate)")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.04 * 20 / height),
-              ncol=len(BAND_ORDER), frameon=False)
+              ncol=max(1, len(drawn)), frameon=False)
     fig.tight_layout()
     _savefig_both(fig, out_dir, "per_genome_class_composition")
     plt.close(fig)
@@ -547,6 +569,7 @@ def render_report_markdown(
     neighborhood_rows: list[dict] | None = None,
     pfam_urls: dict[str, str] | None = None,
     per_genome_figure: bool = False,
+    outgroup_fallback: bool = False,
 ) -> str:
     total_families = sum(counts.values())
     lines: list[str] = []
@@ -589,6 +612,9 @@ def render_report_markdown(
     if per_genome_figure:
         lines += ["![Gene families per genome by frequency class]"
                   "(figures/per_genome_class_composition.png)", ""]
+        if outgroup_fallback:
+            lines += ["*The outgroup has too few representative genomes to bin on its own; "
+                      "outgroup genomes use ingroup classes.*", ""]
 
     if islands_available:
         lines += ["## Accessory islands", ""]
@@ -817,6 +843,8 @@ def main() -> int:
         neighborhood_rows=neighborhood_rows,
         pfam_urls=pfam_urls,
         per_genome_figure=per_genome_figure,
+        outgroup_fallback=any(r.get("group") == args.outgroup_label and r.get("bins_from") == "in"
+                              for r in per_strain_rows),
     )
     (out_dir / "report.md").write_text(markdown)
 

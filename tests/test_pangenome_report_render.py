@@ -799,3 +799,26 @@ def test_main_writes_per_genome_figure_with_samplesheet(tmp_path, monkeypatch):
     pangenome_report_render.main()
     assert (out_dir / "figures" / "per_genome_class_composition.png").exists()
     assert "per_genome_class_composition.png" in (out_dir / "report.md").read_text()
+
+
+def test_per_genome_figure_marks_non_representatives(tmp_path, monkeypatch):
+    labels = []
+    real = pangenome_report_render.plt.Axes.set_yticklabels
+    monkeypatch.setattr(pangenome_report_render.plt.Axes, "set_yticklabels",
+                        lambda self, l, **k: (labels.extend(l), real(self, l, **k))[1])
+    blocks = [("Sp a (IN)", [
+        dict(_strain("a", core=5), is_representative="Y"),
+        dict(_strain("b", core=5, nonrep_only=2), is_representative="N")])]
+    plot_per_genome_class_composition(blocks, tmp_path)
+    assert labels == ["a", "b †"]
+
+
+def test_band_total_includes_new_segments():
+    assert pangenome_report_render._band_total(
+        {"core": "1", "nonrep_only": "2", "outgroup_only": "3"}) == 6
+
+
+def test_report_notes_outgroup_fallback():
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [100],
+                                per_genome_figure=True, outgroup_fallback=True)
+    assert "outgroup genomes use ingroup classes" in md
