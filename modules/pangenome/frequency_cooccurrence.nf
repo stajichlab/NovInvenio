@@ -20,6 +20,8 @@ process FREQUENCY_BINS {
     pangenome_frequency_bins.py \
         --matrix ${matrix} --config ${samplesheet} \
         --ingroup_label '${params.pangenome_ingroup_label}' \
+        --outgroup_label '${params.pangenome_outgroup_label}' \
+        --outgroup_min_bin_strains ${params.pangenome_outgroup_min_bin_strains} \
         ${inventory_arg} \
         --core_cutoff ${params.pangenome_core_cutoff} \
         --softcore_cutoff ${params.pangenome_softcore_cutoff} \

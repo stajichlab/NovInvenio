@@ -78,6 +78,8 @@ def print_help() {
                                        (default: <pangenome_data_dir>/gff3).
       --pangenome_ingroup_label        GROUP value treated as ingroup (default: IN).
       --pangenome_outgroup_label       GROUP value treated as outgroup (default: OUT).
+      --pangenome_outgroup_min_bin_strains  Bin the outgroup (frequency_table *_out columns) only with at
+                                       least this many representative strains (default: 3).
       --pangenome_cluster_backend      mmseqs (default) or diamond (fully validated,
                                        including a real ARI=0.94 concordance benchmark
                                        vs mmseqs -- see docs/adr/0003; mmseqs finds ~13%

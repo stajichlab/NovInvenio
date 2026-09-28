@@ -86,3 +86,21 @@ def test_resolve_group_strains_empty_inventory_stub_means_no_dereplication(tmp_p
     stub.write_text("")
     g = resolve_group_strains(m, cfg, str(stub), "IN", "OUT")
     assert g == GroupStrains(["i1", "i2"], [], ["o1"], [])
+
+
+import subprocess
+
+
+def test_cli_writes_out_columns(tmp_path):
+    (tmp_path / "m.tsv").write_text(
+        "family\ti1\ti2\ti3\to1\to2\to3\nfA\tpresent\tpresent\tpresent\tpresent\tabsent\tpresent\n")
+    cfg = _config(tmp_path, [("IN", "i1"), ("IN", "i2"), ("IN", "i3"),
+                             ("OUT", "o1"), ("OUT", "o2"), ("OUT", "o3")])
+    out = tmp_path / "ft.tsv"
+    subprocess.run([sys.executable, str(Path(__file__).parent.parent / "bin" / "pangenome_frequency_bins.py"),
+                    "--matrix", str(tmp_path / "m.tsv"), "--config", cfg,
+                    "--outgroup_label", "OUT", "--outgroup_min_bin_strains", "3",
+                    "--output", str(out)], check=True)
+    lines = out.read_text().splitlines()
+    assert lines[0] == "family\tfrequency\tstrain_count\tbin\tfrequency_out\tstrain_count_out\tbin_out"
+    assert lines[1] == "fA\t1.0000\t3\tcore\t0.6667\t2\tshell"

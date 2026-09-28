@@ -19,7 +19,8 @@ replaces a hardcoded literal `"IN"` (NEXTFLOW_MIGRATION_NOTES.md section E).
 
 Usage:
   pangenome_frequency_bins.py --matrix presence_matrix.rescued.tsv --config config.csv \\
-      [--inventory strain_inventory.tsv] --output frequency_table.tsv
+      [--inventory strain_inventory.tsv] [--outgroup_label OUT --outgroup_min_bin_strains 3] \\
+      --output frequency_table.tsv
 """
 from __future__ import annotations
 
@@ -148,58 +149,6 @@ def resolve_group_strains(
     return GroupStrains(in_reps, in_nonreps, out_reps, out_nonreps)
 
 
-def compute_frequency_table(
-    matrix: PresenceMatrix,
-    core_cutoff: float = 0.95,
-    softcore_cutoff: float = 0.90,
-    shell_cutoff: float = 0.15,
-    strains: list[str] | None = None,
-) -> list[dict]:
-    """`strains` restricts both the numerator and the denominator of every
-    frequency to that subset (ingroup-only, optionally dereplicated) instead
-    of always using `matrix.strains` -- the same pattern as
-    pangenome_cooccurrence.py's `find_cooccurring_pairs`. Defaults to
-    `matrix.strains` for backward compatibility with callers whose matrix is
-    already exactly the right set."""
-    strains = matrix.strains if strains is None else strains
-    n = len(strains)
-    rows = []
-    for fam in matrix.families:
-        count = sum(1 for s in strains if matrix.is_present(fam, s))
-        freq = count / n if n else 0.0
-        rows.append({
-            "family": fam,
-            "frequency": freq,
-            "strain_count": count,
-            "bin": assign_bin(freq, count, core_cutoff, softcore_cutoff, shell_cutoff),
-        })
-    return rows
-
-
-def resolve_strains(
-    matrix: PresenceMatrix, config_path: str, inventory_path: str | None, ingroup_label: str,
-) -> list[str]:
-    """Ingroup strains from the samplesheet, intersected with the matrix's
-    own columns and (when given) with the inventory's representative
-    strains."""
-    from config_parser import parse_config  # noqa: E402
-
-    samples = parse_config(config_path)
-    strains = [s.short for s in samples if s.group == ingroup_label]
-    if inventory_path:
-        reps = set(read_representative_shorts(inventory_path))
-        strains = [s for s in strains if s in reps]
-    in_matrix = set(matrix.strains)
-    missing = [s for s in strains if s not in in_matrix]
-    if missing:
-        print(
-            f"WARNING: {len(missing)} ingroup strains are absent from the matrix "
-            f"columns and are ignored (first few: {missing[:5]})",
-            file=sys.stderr,
-        )
-    return [s for s in strains if s in in_matrix]
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--matrix", required=True)
@@ -207,6 +156,10 @@ def main() -> None:
                     help="samplesheet CSV -- its ingroup strains are the frequency denominator")
     ap.add_argument("--ingroup_label", default="IN",
                     help="samplesheet GROUP value identifying ingroup strains (default: IN)")
+    ap.add_argument("--outgroup_label", default="OUT",
+                    help="samplesheet GROUP value identifying outgroup strains (default: OUT)")
+    ap.add_argument("--outgroup_min_bin_strains", type=int, default=3,
+                    help="bin the outgroup only with at least this many representatives (default: 3)")
     ap.add_argument("--inventory",
                     help="strain_inventory.tsv from pangenome_dereplicate_strains.py; when "
                          "given, only is_representative == 1 strains are counted")
@@ -217,26 +170,29 @@ def main() -> None:
     args = ap.parse_args()
 
     matrix = PresenceMatrix.from_tsv(args.matrix)
-    strains = resolve_strains(matrix, args.config, args.inventory, args.ingroup_label)
-    if not strains:
+    groups = resolve_group_strains(matrix, args.config, args.inventory,
+                                   args.ingroup_label, args.outgroup_label)
+    if not groups.in_reps:
         print("ERROR: no ingroup strains left to bin over (check --config/--inventory "
               "against the matrix's columns)", file=sys.stderr)
         sys.exit(1)
-    print(
-        f"Binning over {len(strains)} ingroup strains"
-        f"{' (dereplicated)' if args.inventory else ''}",
-        file=sys.stderr,
-    )
+    binned_out = len(groups.out_reps) >= args.outgroup_min_bin_strains
+    print(f"Binning over {len(groups.in_reps)} ingroup representatives "
+          f"({len(groups.in_nonreps)} non-representatives); outgroup: "
+          f"{len(groups.out_reps)} representatives, "
+          f"{'binned' if binned_out else 'not binned'}", file=sys.stderr)
 
-    table = compute_frequency_table(
-        matrix, args.core_cutoff, args.softcore_cutoff, args.shell_cutoff,
-        strains=strains,
+    table = compute_group_frequency_table(
+        matrix, groups, args.outgroup_min_bin_strains,
+        args.core_cutoff, args.softcore_cutoff, args.shell_cutoff,
     )
     with open(args.output, "w") as fh:
-        fh.write("family\tfrequency\tstrain_count\tbin\n")
+        fh.write("family\tfrequency\tstrain_count\tbin\tfrequency_out\tstrain_count_out\tbin_out\n")
         for row in table:
-            fh.write(f"{row['family']}\t{row['frequency']:.4f}\t{row['strain_count']}\t{row['bin']}\n")
-
+            f_out = "-" if row["frequency_out"] is None else f"{row['frequency_out']:.4f}"
+            c_out = "-" if row["strain_count_out"] is None else str(row["strain_count_out"])
+            fh.write(f"{row['family']}\t{row['frequency']:.4f}\t{row['strain_count']}\t{row['bin']}\t"
+                     f"{f_out}\t{c_out}\t{row['bin_out']}\n")
 
 if __name__ == "__main__":
     main()
