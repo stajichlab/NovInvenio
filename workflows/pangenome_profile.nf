@@ -423,7 +423,7 @@ workflow PANGENOME_PROFILE {
                 FREQUENCY_BINS.out.table,
                 ASSEMBLY_QUALITY_QC.out.table,
                 samplesheet,
-                FAMILY_PFAM_SCAN.out.domtblout,
+                pfam_domtblout_ch,         // merged table; the per-chunk channel ran these once per chunk
                 GENE_POSITIONS.out.positions,
                 CLUSTER_TIER1.out.cluster_tsv,
                 rescue_positions,
@@ -444,7 +444,7 @@ workflow PANGENOME_PROFILE {
             FREQUENCY_BINS.out.table,
             ASSEMBLY_QUALITY_QC.out.table,
             samplesheet,
-            FAMILY_PFAM_SCAN.out.domtblout,
+            pfam_domtblout_ch,         // merged table; the per-chunk channel ran these once per chunk
             GENE_POSITIONS.out.positions,
             CLUSTER_TIER1.out.cluster_tsv,
             dna_calls,
@@ -479,7 +479,7 @@ workflow PANGENOME_PROFILE {
             REPORT_TABLES.out.islands_with_domains,
             rescued_matrix,
             FAMILY_POSITIONS.out.positions,
-            FAMILY_PFAM_SCAN.out.domtblout,
+            pfam_domtblout_ch,         // merged table; the per-chunk channel ran these once per chunk
             samplesheet,
             DIAGNOSTICS.out.banner_html,
             GENE_POSITIONS.out.positions,
