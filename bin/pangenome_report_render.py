@@ -742,6 +742,7 @@ def render_report_markdown(
     pfam_urls: dict[str, str] | None = None,
     per_genome_figure: bool = False,
     outgroup_fallback: str = "",
+    overlap_section: str = "",
 ) -> str:
     lines: list[str] = []
     if diagnostics_banner:
@@ -796,6 +797,22 @@ def render_report_markdown(
         elif outgroup_fallback == "no_out_columns":
             lines += ["*This run's frequency table predates per-group bins (no outgroup "
                       "columns); outgroup genomes use ingroup classes.*", ""]
+
+    if overlap_section:
+        lines += ["## Ingroup vs outgroup content", ""]
+        if overlap_section == "ok":
+            lines += ["Each gene family's class in the ingroup against its class in the outgroup "
+                      "(counts; colour is log-scaled).", "",
+                      "![Class overlap](figures/group_class_overlap_heatmap.png)", "",
+                      "Families in both groups, split by ingroup class, and families found in one group only.", "",
+                      "![Shared and group-specific families](figures/group_class_overlap_shared.png)", "",
+                      "Every non-empty group-class combination, largest first.", "",
+                      "![Class intersections](figures/group_class_overlap_upset.png)", "",
+                      "Counts: `report_tables/group_class_overlap.tsv`.", ""]
+        elif overlap_section == "no_out_columns":
+            lines += ["*Not shown: this run's frequency table predates per-group bins.*", ""]
+        else:
+            lines += ["*Not shown: the outgroup is not binned (too few representative genomes).*", ""]
 
     if islands_available:
         lines += ["## Accessory islands", ""]
@@ -913,6 +930,9 @@ def main() -> int:
         help="Optional pangenome_diagnostics.py diagnostics_banner.md file "
         "(issue #134) -- prepended to report.md, before any results.",
     )
+    ap.add_argument("--group_class_overlap", default=None,
+                    help="report_tables/group_class_overlap.tsv (#212 PR 2); omitted -> no "
+                    "'Ingroup vs outgroup content' section, empty -> section with the skip reason.")
     ap.add_argument("--module_neighborhood", default=None,
                     help="module_neighborhood.tsv (View B1, issue #182); optional")
     ap.add_argument("--out_dir", required=True)
@@ -989,6 +1009,21 @@ def main() -> int:
             order_genome_blocks(per_strain_rows, samplesheet,
                                 args.ingroup_label, args.outgroup_label),
             out_dir)
+    overlap_cells = read_group_class_overlap(args.group_class_overlap)
+    if overlap_cells is not None:
+        ss = read_samplesheet_groups(args.samplesheet) if args.samplesheet else None
+        in_lab = group_axis_label(ss, args.ingroup_label, "Ingroup")
+        out_lab = group_axis_label(ss, args.outgroup_label, "Outgroup")
+        plot_group_class_overlap_heatmap(overlap_cells, in_lab, out_lab, out_dir)
+        plot_group_class_overlap_shared(overlap_cells, in_lab, out_lab, out_dir)
+        plot_group_class_overlap_upset(overlap_cells, in_lab, out_lab, out_dir)
+        overlap_section = "ok"
+    elif args.group_class_overlap is None:
+        overlap_section = ""
+    elif frequency_table_rows and "bin_out" not in frequency_table_rows[0]:
+        overlap_section = "no_out_columns"
+    else:
+        overlap_section = "not_binned"
 
     matrix = PresenceMatrix.from_tsv(args.presence_matrix)
     plot_presence_absence_matrix(matrix, frequency_table_rows, out_dir)
@@ -1024,6 +1059,7 @@ def main() -> int:
         per_genome_figure=per_genome_figure,
         outgroup_fallback=outgroup_fallback_reason(frequency_table_rows, per_strain_rows,
                                                    args.outgroup_label),
+        overlap_section=overlap_section,
     )
     (out_dir / "report.md").write_text(markdown)
 

@@ -925,3 +925,16 @@ def test_shared_and_upset_write_files(tmp_path):
     pangenome_report_render.plot_group_class_overlap_upset(cells, "A (IN)", "B (OUT)", tmp_path)
     for name in ("group_class_overlap_shared", "group_class_overlap_upset"):
         assert (tmp_path / "figures" / f"{name}.png").stat().st_size > 0
+
+
+def test_overlap_section_ok_and_skip():
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [], overlap_section="ok")
+    assert "## Ingroup vs outgroup content" in md
+    for name in ("group_class_overlap_heatmap", "group_class_overlap_shared", "group_class_overlap_upset"):
+        assert f"figures/{name}.png" in md
+    assert "report_tables/group_class_overlap.tsv" in md
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [], overlap_section="not_binned")
+    assert "## Ingroup vs outgroup content" in md and "not binned" in md
+    assert "group_class_overlap_heatmap" not in md
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [])
+    assert "Ingroup vs outgroup content" not in md
