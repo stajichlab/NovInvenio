@@ -8,6 +8,8 @@ from pangenome_report_tables import (
     add_island_locus,
     add_outlier_flags,
     add_group_outlier_flags,
+    group_class_overlap,
+    overlap_side,
     read_representatives,
     annotate_islands_with_domains,
     island_size_distribution,
@@ -468,3 +470,28 @@ def test_read_representatives_empty_stub_is_none(tmp_path):
     stub.write_text("")
     assert read_representatives(str(stub)) is None
     assert read_representatives(None) is None
+
+
+def test_overlap_side_collapses_other_group_labels():
+    assert overlap_side("outgroup_only") == "absent"
+    assert overlap_side("ingroup_only") == "absent"
+    assert overlap_side("absent") == "absent"
+    assert overlap_side("nonrep_only") == "nonrep_only"
+    assert overlap_side("core") == "core"
+
+
+def test_group_class_overlap_counts_all_49_cells():
+    rows = [{"bin": "core", "bin_out": "core"}, {"bin": "core", "bin_out": "ingroup_only"},
+            {"bin": "outgroup_only", "bin_out": "cloud"}, {"bin": "nonrep_only", "bin_out": "nonrep_only"}]
+    cells = group_class_overlap(rows)
+    assert len(cells) == 49
+    d = {(a, b): n for a, b, n in cells}
+    assert d[("core", "core")] == 1 and d[("core", "absent")] == 1
+    assert d[("absent", "cloud")] == 1 and d[("nonrep_only", "nonrep_only")] == 1
+    assert sum(d.values()) == 4
+    assert cells[0][:2] == ("core", "core") and cells[-1][:2] == ("absent", "absent")
+
+
+def test_group_class_overlap_skip_rule():
+    assert group_class_overlap([{"bin": "core"}]) is None
+    assert group_class_overlap([{"bin": "core", "bin_out": "-"}]) is None

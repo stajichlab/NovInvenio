@@ -403,6 +403,7 @@ workflow PANGENOME_PROFILE {
         DIAGNOSTICS.out.banner_md,
         MODULE_NEIGHBORHOOD.out.table,
         samplesheet,
+        REPORT_TABLES.out.group_class_overlap,
     )
 
     // --- 9c. Island synteny (still gated -- genuinely needs FAMILY_PFAM_SCAN,

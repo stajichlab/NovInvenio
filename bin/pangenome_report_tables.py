@@ -182,6 +182,30 @@ PER_STRAIN_FIELDS = ["Short", "group", "is_representative", "bins_from", "n_fami
 _COUNTED = ("core", "soft_core", "shell", "cloud", "singleton", "nonrep_only", "outgroup_only")
 
 
+OVERLAP_CLASSES = ["core", "soft_core", "shell", "cloud", "singleton", "nonrep_only", "absent"]
+
+
+def overlap_side(label: str) -> str:
+    """Collapse one group's class for the overlap table (PR 2 spec): the
+    other-group-only labels and `absent` all mean 'not in this group'."""
+    return "absent" if label in ("outgroup_only", "ingroup_only", "absent") else label
+
+
+def group_class_overlap(frequency_rows: list[dict]) -> list[tuple[str, str, int]] | None:
+    """(ingroup value, outgroup value, n_families) for all 49 cells in
+    OVERLAP_CLASSES row-major order; None when the outgroup is not binned
+    (no `bin_out` column, or every value is `-`)."""
+    if not frequency_rows or "bin_out" not in frequency_rows[0]:
+        return None
+    if all(r["bin_out"] == "-" for r in frequency_rows):
+        return None
+    counts: dict[tuple[str, str], int] = {}
+    for r in frequency_rows:
+        key = (overlap_side(r["bin"]), overlap_side(r["bin_out"]))
+        counts[key] = counts.get(key, 0) + 1
+    return [(a, b, counts.get((a, b), 0)) for a in OVERLAP_CLASSES for b in OVERLAP_CLASSES]
+
+
 def read_strain_groups(samplesheet_path: str) -> dict[str, str]:
     from config_parser import parse_config  # noqa: E402
     return {s.short: s.group for s in parse_config(samplesheet_path)}
@@ -382,10 +406,11 @@ def main() -> int:
     family_bin: dict[str, str] = {}
     family_bin_out: dict[str, str] = {}
     with open(args.frequency_table, newline="") as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
-            family_bin[row["family"]] = row["bin"]
-            if row.get("bin_out", "-") != "-":
-                family_bin_out[row["family"]] = row["bin_out"]
+        freq_rows = list(csv.DictReader(fh, delimiter="\t"))
+    for row in freq_rows:
+        family_bin[row["family"]] = row["bin"]
+        if row.get("bin_out", "-") != "-":
+            family_bin_out[row["family"]] = row["bin_out"]
     strain_rows = per_strain_summary(
         args.presence_matrix, family_bin, family_bin_out or None,
         strain_group=read_strain_groups(args.samplesheet) if args.samplesheet else None,
@@ -397,6 +422,13 @@ def main() -> int:
         writer.writeheader()
         for row in sorted(strain_rows, key=lambda r: r["n_families"]):
             writer.writerow(row)
+
+    overlap = group_class_overlap(freq_rows)
+    with open(out_dir / "group_class_overlap.tsv", "w") as out:
+        if overlap is not None:
+            out.write("ingroup_class\toutgroup_class\tn_families\n")
+            for a, b, n in overlap:
+                out.write(f"{a}\t{b}\t{n}\n")
 
     islands_note = f"({len(annotated)} islands)" if islands_available else "(empty -- no --significant_islands)"
     print(f"pangenome_report_tables: wrote islands_with_domains.tsv "

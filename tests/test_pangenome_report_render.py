@@ -866,3 +866,116 @@ def test_composition_section_per_group():
     assert "- **core**: 8 (80.0%)" in md          # of the ingroup's 10 binned families
     assert "- **outgroup_only**: 5" in md
     assert "- **core**: 6 (60.0%)" in md
+
+
+def test_read_group_class_overlap(tmp_path):
+    p = tmp_path / "o.tsv"
+    p.write_text("ingroup_class\toutgroup_class\tn_families\ncore\tcore\t5\ncore\tabsent\t0\n")
+    assert pangenome_report_render.read_group_class_overlap(str(p)) == {("core", "core"): 5, ("core", "absent"): 0}
+    (tmp_path / "e.tsv").write_text("")
+    assert pangenome_report_render.read_group_class_overlap(str(tmp_path / "e.tsv")) is None
+    assert pangenome_report_render.read_group_class_overlap(None) is None
+
+
+def test_group_axis_label_single_vs_multi_species():
+    ss = {"a": ("IN", "Sp one"), "b": ("IN", "Sp one"), "c": ("OUT", "Sp two"), "d": ("OUT", "Sp three")}
+    f = pangenome_report_render.group_axis_label
+    assert f(ss, "IN", "Ingroup") == "Sp one (IN)"
+    assert f(ss, "OUT", "Outgroup") == "Outgroup (OUT)"
+    assert f(None, "IN", "Ingroup") == "Ingroup (IN)"
+
+
+def test_heatmap_writes_files_and_handles_zero_cells(tmp_path):
+    import warnings
+    C = pangenome_report_render.OVERLAP_CLASSES
+    cells = {(a, b): 0 for a in C for b in C}
+    cells[("core", "core")] = 10
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        pangenome_report_render.plot_group_class_overlap_heatmap(cells, "Sp one (IN)", "Sp two (OUT)", tmp_path)
+    assert (tmp_path / "figures" / "group_class_overlap_heatmap.png").stat().st_size > 0
+    assert (tmp_path / "figures_pdf" / "group_class_overlap_heatmap.pdf").exists()
+
+
+def _cells(**kw):
+    C = pangenome_report_render.OVERLAP_CLASSES
+    d = {(a, b): 0 for a in C for b in C}
+    for k, v in kw.items():
+        a, b = k.split("__")
+        d[(a, b)] = v
+    return d
+
+
+def test_overlap_intersections_pairs_and_singles():
+    cells = _cells(core__core=5, core__absent=3, absent__cloud=7, absent__absent=0)
+    assert pangenome_report_render.overlap_intersections(cells) == [
+        (None, "cloud", 7), ("core", "core", 5), ("core", None, 3)]
+
+
+def test_shared_split_totals():
+    cells = _cells(core__core=5, shell__cloud=2, core__absent=3, absent__cloud=7, nonrep_only__absent=1)
+    s = pangenome_report_render.shared_split(cells)
+    assert s == {"shared": {"core": 5, "shell": 2}, "ingroup_only": {"core": 3, "nonrep_only": 1},
+                 "outgroup_only": {"cloud": 7}}
+
+
+def test_shared_and_upset_write_files(tmp_path):
+    cells = _cells(core__core=5, core__absent=3, absent__cloud=7, nonrep_only__nonrep_only=1)
+    pangenome_report_render.plot_group_class_overlap_shared(cells, "A (IN)", "B (OUT)", tmp_path)
+    pangenome_report_render.plot_group_class_overlap_upset(cells, "A (IN)", "B (OUT)", tmp_path)
+    for name in ("group_class_overlap_shared", "group_class_overlap_upset"):
+        assert (tmp_path / "figures" / f"{name}.png").stat().st_size > 0
+
+
+def test_overlap_section_ok_and_skip():
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [], overlap_section="ok")
+    assert "## Ingroup vs outgroup content" in md
+    for name in ("group_class_overlap_heatmap", "group_class_overlap_shared", "group_class_overlap_upset"):
+        assert f"figures/{name}.png" in md
+    assert "`group_class_overlap.tsv` table" in md
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [], overlap_section="not_binned")
+    assert "## Ingroup vs outgroup content" in md and "not binned" in md
+    assert "group_class_overlap_heatmap" not in md
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [])
+    assert "Ingroup vs outgroup content" not in md
+
+
+def test_group_axis_label_ignores_empty_species():
+    ss = {"a": ("IN", ""), "b": ("IN", " "), "c": ("OUT", "Sp two "), "d": ("OUT", "Sp two")}
+    f = pangenome_report_render.group_axis_label
+    assert f(ss, "IN", "Ingroup") == "Ingroup (IN)"
+    assert f(ss, "OUT", "Outgroup") == "Sp two (OUT)"
+
+
+def test_overlap_pointer_names_table_without_pipeline_path():
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [], overlap_section="ok")
+    assert "report_tables/" not in md
+    assert "group_class_overlap.tsv" in md
+
+
+def _render_main_for_overlap(tmp_path, monkeypatch, freq_header, freq_row):
+    (tmp_path / "ft.tsv").write_text(freq_header + "\n" + freq_row + "\n")
+    (tmp_path / "pm.tsv").write_text("family\ts1\ts2\nfamA\tpresent\tpresent\n")
+    (tmp_path / "cc.tsv").write_text("classification\tcount\n")
+    (tmp_path / "ps.tsv").write_text("Short\tn_families\tis_outlier\ns1\t1\tN\n")
+    (tmp_path / "ov.tsv").write_text("")
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", [
+        "pangenome_report_render.py", "--frequency_table", str(tmp_path / "ft.tsv"),
+        "--presence_matrix", str(tmp_path / "pm.tsv"), "--classification_counts", str(tmp_path / "cc.tsv"),
+        "--per_strain_summary", str(tmp_path / "ps.tsv"), "--group_class_overlap", str(tmp_path / "ov.tsv"),
+        "--n_permutations", "1", "--out_dir", str(out_dir)])
+    pangenome_report_render.main()
+    return (out_dir / "report.md").read_text()
+
+
+def test_main_overlap_skip_reason_old_table(tmp_path, monkeypatch):
+    md = _render_main_for_overlap(tmp_path, monkeypatch, "family\tfrequency\tbin", "famA\t1.0\tcore")
+    assert "predates per-group bins" in md.split("## Ingroup vs outgroup content")[1]
+
+
+def test_main_overlap_skip_reason_not_binned(tmp_path, monkeypatch):
+    md = _render_main_for_overlap(tmp_path, monkeypatch,
+                                  "family\tfrequency\tstrain_count\tbin\tfrequency_out\tstrain_count_out\tbin_out",
+                                  "famA\t1.0\t2\tcore\t-\t-\t-")
+    assert "outgroup is not binned" in md

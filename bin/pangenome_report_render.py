@@ -125,6 +125,141 @@ def outgroup_fallback_reason(frequency_table_rows: list[dict], per_strain_rows: 
     return "too_few"
 
 
+OVERLAP_CLASSES = ["core", "soft_core", "shell", "cloud", "singleton", "nonrep_only", "absent"]
+
+
+def read_group_class_overlap(path: str | None) -> dict[tuple[str, str], int] | None:
+    if not path or Path(path).stat().st_size == 0:
+        return None
+    with open(path, newline="") as fh:
+        return {(r["ingroup_class"], r["outgroup_class"]): int(r["n_families"])
+                for r in csv.DictReader(fh, delimiter="\t")}
+
+
+def group_axis_label(samplesheet, label: str, fallback: str) -> str:
+    """'<Species> (<GROUP>)' when every samplesheet strain of the group has
+    one Species, else '<fallback> (<GROUP>)'."""
+    species = {sp.strip() for grp, sp in (samplesheet or {}).values()
+               if grp.strip() == label and sp.strip()}
+    name = species.pop() if len(species) == 1 else fallback
+    return f"{name} ({label})"
+
+
+def plot_group_class_overlap_heatmap(cells, in_label: str, out_label: str, out_dir: Path) -> None:
+    n = len(OVERLAP_CLASSES)
+    grid = np.array([[cells.get((a, b), 0) for b in OVERLAP_CLASSES] for a in OVERLAP_CLASSES], dtype=float)
+    shown = np.ma.masked_where(grid == 0, np.log10(grid + 1))
+    fig, ax = plt.subplots(figsize=(8, 6.5))
+    im = ax.imshow(shown, cmap="Blues")
+    for i in range(n):
+        for j in range(n):
+            if grid[i, j]:
+                dark = shown[i, j] > 0.6 * shown.max()
+                ax.text(j, i, f"{int(grid[i, j])}", ha="center", va="center", fontsize=7,
+                        color="white" if dark else "black")
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(OVERLAP_CLASSES, rotation=45, ha="right")
+    ax.set_yticks(range(n))
+    ax.set_yticklabels(OVERLAP_CLASSES)
+    ax.set_xlabel(out_label)
+    ax.set_ylabel(in_label)
+    ax.set_title("Gene families by class in each group")
+    fig.colorbar(im, ax=ax, label="log10(families + 1)")
+    fig.tight_layout()
+    _savefig_both(fig, out_dir, "group_class_overlap_heatmap")
+    plt.close(fig)
+
+
+def overlap_intersections(cells):
+    order = {c: i for i, c in enumerate(OVERLAP_CLASSES)}
+    out = []
+    for (a, b), n in cells.items():
+        if n and (a, b) != ("absent", "absent"):
+            out.append((None if a == "absent" else a, None if b == "absent" else b, n))
+    return sorted(out, key=lambda t: (-t[2], order.get(t[0] or "absent"), order.get(t[1] or "absent")))
+
+
+def shared_split(cells):
+    out = {"shared": {}, "ingroup_only": {}, "outgroup_only": {}}
+    for (a, b), n in cells.items():
+        if not n or (a, b) == ("absent", "absent"):
+            continue
+        if a != "absent" and b != "absent":
+            key, cls = "shared", a
+        elif b == "absent":
+            key, cls = "ingroup_only", a
+        else:
+            key, cls = "outgroup_only", b
+        out[key][cls] = out[key].get(cls, 0) + n
+    return out
+
+
+def plot_group_class_overlap_shared(cells, in_label: str, out_label: str, out_dir: Path) -> None:
+    """Spec 2c: shared (by ingroup class), ingroup only, outgroup only."""
+    split = shared_split(cells)
+    rows = [("shared", f"shared (classes: {in_label})"), ("ingroup_only", f"only {in_label}"),
+            ("outgroup_only", f"only {out_label}")]
+    fig, ax = plt.subplots(figsize=(9, 3.2))
+    for i, (key, _) in enumerate(rows):
+        left = 0
+        for cls in OVERLAP_CLASSES[:-1]:
+            v = split[key].get(cls, 0)
+            if v:
+                ax.barh(i, v, left=left, color=BAND_COLORS[cls],
+                        label=cls if cls not in ax.get_legend_handles_labels()[1] else None)
+                left += v
+        ax.text(left, i, f" {left}", va="center", fontsize=8)
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels([r[1] for r in rows])
+    ax.invert_yaxis()
+    ax.set_xlabel("Gene families")
+    ax.set_title("Shared and group-specific gene families")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=3, frameon=False)
+    fig.tight_layout()
+    _savefig_both(fig, out_dir, "group_class_overlap_shared")
+    plt.close(fig)
+
+
+def plot_group_class_overlap_upset(cells, in_label: str, out_label: str, out_dir: Path) -> None:
+    """Spec 2b: intersection sizes over a dot matrix of the 12 group-class
+    sets (6 per group
+    `absent` is not a set)."""
+    inter = overlap_intersections(cells)
+    sets = [("IN", c) for c in OVERLAP_CLASSES[:-1]] + [("OUT", c) for c in OVERLAP_CLASSES[:-1]]
+    set_names = [f"{in_label if g == 'IN' else out_label}: {c}" for g, c in sets]
+    fig = plt.figure(figsize=(max(8, 0.28 * len(inter) + 6), 7))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 4], height_ratios=[2, 1.6], hspace=0.05, wspace=0.02,
+                          left=0.22, right=0.98)
+    ax_bar = fig.add_subplot(gs[0, 1])
+    # Not sharey with ax_set: a shared axis leaks ax_set's tick labels into the dot panel.
+    ax_dot = fig.add_subplot(gs[1, 1], sharex=ax_bar)
+    ax_set = fig.add_subplot(gs[1, 0])
+    x = np.arange(len(inter))
+    ax_bar.bar(x, [n for _, _, n in inter], color="#444444")
+    ax_bar.set_ylabel("Families")
+    ax_bar.tick_params(axis="x", bottom=False, labelbottom=False)
+    ax_bar.set_title("Gene families by group-class intersection")
+    ys = {s: i for i, s in enumerate(sets)}
+    ax_dot.scatter(np.repeat(x, len(sets)), np.tile(range(len(sets)), len(x)), s=10, color="#dddddd")
+    for xi, (a, b, _) in enumerate(inter):
+        members = [ys[("IN", a)]] if a else []
+        members += [ys[("OUT", b)]] if b else []
+        ax_dot.plot([xi] * len(members), members, "-o", color="#222222", markersize=4)
+    ax_dot.set_yticks([])
+    ax_dot.set_ylim(len(sets) - 0.5, -0.5)
+    ax_dot.set_xticks([])
+    size = [sum(n for (a, b), n in cells.items() if (g == "IN" and a == c) or (g == "OUT" and b == c))
+            for g, c in sets]
+    ax_set.barh(range(len(sets)), size, color=[BAND_COLORS[c] for _, c in sets])
+    ax_set.invert_xaxis()
+    ax_set.set_ylim(len(sets) - 0.5, -0.5)
+    ax_set.set_yticks(range(len(sets)))
+    ax_set.set_yticklabels(set_names, fontsize=7)
+    ax_set.set_xlabel("Set size")
+    _savefig_both(fig, out_dir, "group_class_overlap_upset")
+    plt.close(fig)
+
+
 def plot_group_composition(group_counts: dict[str, dict[str, int]], out_dir: Path) -> None:
     """One horizontal stacked bar per binned group on a shared axis (spec
     section 4); only core ... singleton are drawn."""
@@ -610,6 +745,7 @@ def render_report_markdown(
     pfam_urls: dict[str, str] | None = None,
     per_genome_figure: bool = False,
     outgroup_fallback: str = "",
+    overlap_section: str = "",
 ) -> str:
     lines: list[str] = []
     if diagnostics_banner:
@@ -664,6 +800,22 @@ def render_report_markdown(
         elif outgroup_fallback == "no_out_columns":
             lines += ["*This run's frequency table predates per-group bins (no outgroup "
                       "columns); outgroup genomes use ingroup classes.*", ""]
+
+    if overlap_section:
+        lines += ["## Ingroup vs outgroup content", ""]
+        if overlap_section == "ok":
+            lines += ["Each gene family's class in the ingroup against its class in the outgroup "
+                      "(counts; colour is log-scaled).", "",
+                      "![Class overlap](figures/group_class_overlap_heatmap.png)", "",
+                      "Families in both groups, split by ingroup class, and families found in one group only.", "",
+                      "![Shared and group-specific families](figures/group_class_overlap_shared.png)", "",
+                      "Every non-empty group-class combination, largest first.", "",
+                      "![Class intersections](figures/group_class_overlap_upset.png)", "",
+                      "Counts: the run's `group_class_overlap.tsv` table.", ""]
+        elif overlap_section == "no_out_columns":
+            lines += ["*Not shown: this run's frequency table predates per-group bins.*", ""]
+        else:
+            lines += ["*Not shown: the outgroup is not binned (too few representative genomes).*", ""]
 
     if islands_available:
         lines += ["## Accessory islands", ""]
@@ -781,6 +933,9 @@ def main() -> int:
         help="Optional pangenome_diagnostics.py diagnostics_banner.md file "
         "(issue #134) -- prepended to report.md, before any results.",
     )
+    ap.add_argument("--group_class_overlap", default=None,
+                    help="report_tables/group_class_overlap.tsv (#212 PR 2); omitted -> no "
+                    "'Ingroup vs outgroup content' section, empty -> section with the skip reason.")
     ap.add_argument("--module_neighborhood", default=None,
                     help="module_neighborhood.tsv (View B1, issue #182); optional")
     ap.add_argument("--out_dir", required=True)
@@ -857,6 +1012,21 @@ def main() -> int:
             order_genome_blocks(per_strain_rows, samplesheet,
                                 args.ingroup_label, args.outgroup_label),
             out_dir)
+    overlap_cells = read_group_class_overlap(args.group_class_overlap)
+    if overlap_cells is not None:
+        ss = read_samplesheet_groups(args.samplesheet) if args.samplesheet else None
+        in_lab = group_axis_label(ss, args.ingroup_label, "Ingroup")
+        out_lab = group_axis_label(ss, args.outgroup_label, "Outgroup")
+        plot_group_class_overlap_heatmap(overlap_cells, in_lab, out_lab, out_dir)
+        plot_group_class_overlap_shared(overlap_cells, in_lab, out_lab, out_dir)
+        plot_group_class_overlap_upset(overlap_cells, in_lab, out_lab, out_dir)
+        overlap_section = "ok"
+    elif args.group_class_overlap is None:
+        overlap_section = ""
+    elif frequency_table_rows and "bin_out" not in frequency_table_rows[0]:
+        overlap_section = "no_out_columns"
+    else:
+        overlap_section = "not_binned"
 
     matrix = PresenceMatrix.from_tsv(args.presence_matrix)
     plot_presence_absence_matrix(matrix, frequency_table_rows, out_dir)
@@ -892,6 +1062,7 @@ def main() -> int:
         per_genome_figure=per_genome_figure,
         outgroup_fallback=outgroup_fallback_reason(frequency_table_rows, per_strain_rows,
                                                    args.outgroup_label),
+        overlap_section=overlap_section,
     )
     (out_dir / "report.md").write_text(markdown)
 
