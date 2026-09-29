@@ -932,9 +932,50 @@ def test_overlap_section_ok_and_skip():
     assert "## Ingroup vs outgroup content" in md
     for name in ("group_class_overlap_heatmap", "group_class_overlap_shared", "group_class_overlap_upset"):
         assert f"figures/{name}.png" in md
-    assert "report_tables/group_class_overlap.tsv" in md
+    assert "`group_class_overlap.tsv` table" in md
     md = render_report_markdown({}, {}, {}, [], 0, None, None, [], overlap_section="not_binned")
     assert "## Ingroup vs outgroup content" in md and "not binned" in md
     assert "group_class_overlap_heatmap" not in md
     md = render_report_markdown({}, {}, {}, [], 0, None, None, [])
     assert "Ingroup vs outgroup content" not in md
+
+
+def test_group_axis_label_ignores_empty_species():
+    ss = {"a": ("IN", ""), "b": ("IN", " "), "c": ("OUT", "Sp two "), "d": ("OUT", "Sp two")}
+    f = pangenome_report_render.group_axis_label
+    assert f(ss, "IN", "Ingroup") == "Ingroup (IN)"
+    assert f(ss, "OUT", "Outgroup") == "Sp two (OUT)"
+
+
+def test_overlap_pointer_names_table_without_pipeline_path():
+    md = render_report_markdown({}, {}, {}, [], 0, None, None, [], overlap_section="ok")
+    assert "report_tables/" not in md
+    assert "group_class_overlap.tsv" in md
+
+
+def _render_main_for_overlap(tmp_path, monkeypatch, freq_header, freq_row):
+    (tmp_path / "ft.tsv").write_text(freq_header + "\n" + freq_row + "\n")
+    (tmp_path / "pm.tsv").write_text("family\ts1\ts2\nfamA\tpresent\tpresent\n")
+    (tmp_path / "cc.tsv").write_text("classification\tcount\n")
+    (tmp_path / "ps.tsv").write_text("Short\tn_families\tis_outlier\ns1\t1\tN\n")
+    (tmp_path / "ov.tsv").write_text("")
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", [
+        "pangenome_report_render.py", "--frequency_table", str(tmp_path / "ft.tsv"),
+        "--presence_matrix", str(tmp_path / "pm.tsv"), "--classification_counts", str(tmp_path / "cc.tsv"),
+        "--per_strain_summary", str(tmp_path / "ps.tsv"), "--group_class_overlap", str(tmp_path / "ov.tsv"),
+        "--n_permutations", "1", "--out_dir", str(out_dir)])
+    pangenome_report_render.main()
+    return (out_dir / "report.md").read_text()
+
+
+def test_main_overlap_skip_reason_old_table(tmp_path, monkeypatch):
+    md = _render_main_for_overlap(tmp_path, monkeypatch, "family\tfrequency\tbin", "famA\t1.0\tcore")
+    assert "predates per-group bins" in md.split("## Ingroup vs outgroup content")[1]
+
+
+def test_main_overlap_skip_reason_not_binned(tmp_path, monkeypatch):
+    md = _render_main_for_overlap(tmp_path, monkeypatch,
+                                  "family\tfrequency\tstrain_count\tbin\tfrequency_out\tstrain_count_out\tbin_out",
+                                  "famA\t1.0\t2\tcore\t-\t-\t-")
+    assert "outgroup is not binned" in md

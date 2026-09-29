@@ -26,8 +26,9 @@ For the overlap, each side's class is collapsed to 7 values:
 | absent | `outgroup_only`, `absent` | `ingroup_only`, `absent` |
 
 Every family falls into exactly one (ingroup value, outgroup value) cell. The
-cell (absent, absent) is always 0 for families in the matrix, but it is kept so
-the grid is complete.
+cell (absent, absent) holds families present only in strains of a third `GROUP`
+value (e.g. NEAR_INGROUP); it is 0 when every matrix strain is IN or OUT. The
+heatmap shows it; the UpSet and the three-way bar leave it out.
 
 **Skip rule:** no overlap output (table, figures, report section) when the
 table has no `bin_out` column or every `bin_out` is `-` (outgroup not binned,
@@ -121,7 +122,7 @@ New section "Ingroup vs outgroup content", after "Per-strain summary":
 
 - one sentence per figure saying what it shows;
 - the three figures in the order heatmap, three-way bar, UpSet;
-- a line pointing to `report_tables/group_class_overlap.tsv`;
+- a line naming the run's `group_class_overlap.tsv` table (no pipeline path: the site archives it as `archive/group_class_overlap.tsv.gz`);
 - when skipped, one line with the reason (no outgroup columns / outgroup not
   binned).
 

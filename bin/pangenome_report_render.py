@@ -139,7 +139,8 @@ def read_group_class_overlap(path: str | None) -> dict[tuple[str, str], int] | N
 def group_axis_label(samplesheet, label: str, fallback: str) -> str:
     """'<Species> (<GROUP>)' when every samplesheet strain of the group has
     one Species, else '<fallback> (<GROUP>)'."""
-    species = {sp for grp, sp in (samplesheet or {}).values() if grp == label}
+    species = {sp.strip() for grp, sp in (samplesheet or {}).values()
+               if grp.strip() == label and sp.strip()}
     name = species.pop() if len(species) == 1 else fallback
     return f"{name} ({label})"
 
@@ -810,7 +811,7 @@ def render_report_markdown(
                       "![Shared and group-specific families](figures/group_class_overlap_shared.png)", "",
                       "Every non-empty group-class combination, largest first.", "",
                       "![Class intersections](figures/group_class_overlap_upset.png)", "",
-                      "Counts: `report_tables/group_class_overlap.tsv`.", ""]
+                      "Counts: the run's `group_class_overlap.tsv` table.", ""]
         elif overlap_section == "no_out_columns":
             lines += ["*Not shown: this run's frequency table predates per-group bins.*", ""]
         else:
