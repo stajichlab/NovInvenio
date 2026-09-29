@@ -125,6 +125,50 @@ def outgroup_fallback_reason(frequency_table_rows: list[dict], per_strain_rows: 
     return "too_few"
 
 
+OVERLAP_CLASSES = ["core", "soft_core", "shell", "cloud", "singleton", "nonrep_only", "absent"]
+
+
+def read_group_class_overlap(path: str | None) -> dict[tuple[str, str], int] | None:
+    if not path or Path(path).stat().st_size == 0:
+        return None
+    with open(path, newline="") as fh:
+        return {(r["ingroup_class"], r["outgroup_class"]): int(r["n_families"])
+                for r in csv.DictReader(fh, delimiter="\t")}
+
+
+def group_axis_label(samplesheet, label: str, fallback: str) -> str:
+    """'<Species> (<GROUP>)' when every samplesheet strain of the group has
+    one Species, else '<fallback> (<GROUP>)'."""
+    species = {sp for grp, sp in (samplesheet or {}).values() if grp == label}
+    name = species.pop() if len(species) == 1 else fallback
+    return f"{name} ({label})"
+
+
+def plot_group_class_overlap_heatmap(cells, in_label: str, out_label: str, out_dir: Path) -> None:
+    n = len(OVERLAP_CLASSES)
+    grid = np.array([[cells.get((a, b), 0) for b in OVERLAP_CLASSES] for a in OVERLAP_CLASSES], dtype=float)
+    shown = np.ma.masked_where(grid == 0, np.log10(grid + 1))
+    fig, ax = plt.subplots(figsize=(8, 6.5))
+    im = ax.imshow(shown, cmap="Blues")
+    for i in range(n):
+        for j in range(n):
+            if grid[i, j]:
+                dark = shown[i, j] > 0.6 * shown.max()
+                ax.text(j, i, f"{int(grid[i, j])}", ha="center", va="center", fontsize=7,
+                        color="white" if dark else "black")
+    ax.set_xticks(range(n))
+    ax.set_xticklabels(OVERLAP_CLASSES, rotation=45, ha="right")
+    ax.set_yticks(range(n))
+    ax.set_yticklabels(OVERLAP_CLASSES)
+    ax.set_xlabel(out_label)
+    ax.set_ylabel(in_label)
+    ax.set_title("Gene families by class in each group")
+    fig.colorbar(im, ax=ax, label="log10(families + 1)")
+    fig.tight_layout()
+    _savefig_both(fig, out_dir, "group_class_overlap_heatmap")
+    plt.close(fig)
+
+
 def plot_group_composition(group_counts: dict[str, dict[str, int]], out_dir: Path) -> None:
     """One horizontal stacked bar per binned group on a shared axis (spec
     section 4); only core ... singleton are drawn."""

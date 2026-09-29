@@ -866,3 +866,32 @@ def test_composition_section_per_group():
     assert "- **core**: 8 (80.0%)" in md          # of the ingroup's 10 binned families
     assert "- **outgroup_only**: 5" in md
     assert "- **core**: 6 (60.0%)" in md
+
+
+def test_read_group_class_overlap(tmp_path):
+    p = tmp_path / "o.tsv"
+    p.write_text("ingroup_class\toutgroup_class\tn_families\ncore\tcore\t5\ncore\tabsent\t0\n")
+    assert pangenome_report_render.read_group_class_overlap(str(p)) == {("core", "core"): 5, ("core", "absent"): 0}
+    (tmp_path / "e.tsv").write_text("")
+    assert pangenome_report_render.read_group_class_overlap(str(tmp_path / "e.tsv")) is None
+    assert pangenome_report_render.read_group_class_overlap(None) is None
+
+
+def test_group_axis_label_single_vs_multi_species():
+    ss = {"a": ("IN", "Sp one"), "b": ("IN", "Sp one"), "c": ("OUT", "Sp two"), "d": ("OUT", "Sp three")}
+    f = pangenome_report_render.group_axis_label
+    assert f(ss, "IN", "Ingroup") == "Sp one (IN)"
+    assert f(ss, "OUT", "Outgroup") == "Outgroup (OUT)"
+    assert f(None, "IN", "Ingroup") == "Ingroup (IN)"
+
+
+def test_heatmap_writes_files_and_handles_zero_cells(tmp_path):
+    import warnings
+    C = pangenome_report_render.OVERLAP_CLASSES
+    cells = {(a, b): 0 for a in C for b in C}
+    cells[("core", "core")] = 10
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        pangenome_report_render.plot_group_class_overlap_heatmap(cells, "Sp one (IN)", "Sp two (OUT)", tmp_path)
+    assert (tmp_path / "figures" / "group_class_overlap_heatmap.png").stat().st_size > 0
+    assert (tmp_path / "figures_pdf" / "group_class_overlap_heatmap.pdf").exists()
