@@ -44,6 +44,7 @@ process REPORT_TABLES {
     path("classification_counts.tsv"), emit: classification_counts
     path("marker_summary.tsv"), emit: marker_summary
     path("per_strain_summary.tsv"), emit: per_strain_summary
+    path("group_class_overlap.tsv"), emit: group_class_overlap   // 0 bytes when the outgroup is not binned (#212 PR 2)
 
     script:
     def islands_arg     = (significant_islands.size() > 0)     ? "--significant_islands ${significant_islands}"         : ''
@@ -87,6 +88,7 @@ process REPORT_RENDER {
     path(diagnostics_banner_md)
     path(module_neighborhood)   // View B1 (issue #182)
     path(samplesheet)           // orders the per-genome class figure by GROUP, Species
+    path(group_class_overlap)   // REPORT_TABLES; may be 0 bytes (#212 PR 2)
 
     output:
     path("report/report.md"), emit: report
@@ -118,6 +120,7 @@ process REPORT_RENDER {
         --samplesheet ${samplesheet} \
         --ingroup_label '${params.pangenome_ingroup_label}' \
         --outgroup_label '${params.pangenome_outgroup_label}' \
+        --group_class_overlap ${group_class_overlap} \
         --out_dir report
     """
 }
