@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### New: ingroup vs outgroup content figures (#212, PR 2)
+
+- **`report_tables/group_class_overlap.tsv`** (REPORT_TABLES): families counted by
+  (ingroup class, outgroup class), 49 cells over core / soft_core / shell / cloud / singleton /
+  nonrep_only / absent. 0 bytes when the outgroup is not binned.
+- **Report section "Ingroup vs outgroup content"** with three figures:
+  `group_class_overlap_heatmap` (class x class counts), `group_class_overlap_shared`
+  (shared / ingroup-only / outgroup-only bars) and `group_class_overlap_upset` (every non-empty
+  group-class intersection, matplotlib only). Axis labels use the group's species when it has one.
+  REPORT_RENDER takes the table as a new input (`--group_class_overlap`).
+
 ### Changed: per-group frequency bins; `singleton` fix (#212)
 
 - **`frequency_table.tsv`**: `bin` is still the ingroup class, but a family counted in no

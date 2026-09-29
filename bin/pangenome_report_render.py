@@ -213,7 +213,7 @@ def plot_group_class_overlap_shared(cells, in_label: str, out_label: str, out_di
     ax.invert_yaxis()
     ax.set_xlabel("Gene families")
     ax.set_title("Shared and group-specific gene families")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=6, frameon=False)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=3, frameon=False)
     fig.tight_layout()
     _savefig_both(fig, out_dir, "group_class_overlap_shared")
     plt.close(fig)
@@ -226,11 +226,13 @@ def plot_group_class_overlap_upset(cells, in_label: str, out_label: str, out_dir
     inter = overlap_intersections(cells)
     sets = [("IN", c) for c in OVERLAP_CLASSES[:-1]] + [("OUT", c) for c in OVERLAP_CLASSES[:-1]]
     set_names = [f"{in_label if g == 'IN' else out_label}: {c}" for g, c in sets]
-    fig = plt.figure(figsize=(max(8, 0.28 * len(inter) + 4), 7))
-    gs = fig.add_gridspec(2, 2, width_ratios=[1, 4], height_ratios=[2, 1.6], hspace=0.05, wspace=0.02)
+    fig = plt.figure(figsize=(max(8, 0.28 * len(inter) + 6), 7))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 4], height_ratios=[2, 1.6], hspace=0.05, wspace=0.02,
+                          left=0.22, right=0.98)
     ax_bar = fig.add_subplot(gs[0, 1])
+    # Not sharey with ax_set: a shared axis leaks ax_set's tick labels into the dot panel.
     ax_dot = fig.add_subplot(gs[1, 1], sharex=ax_bar)
-    ax_set = fig.add_subplot(gs[1, 0], sharey=ax_dot)
+    ax_set = fig.add_subplot(gs[1, 0])
     x = np.arange(len(inter))
     ax_bar.bar(x, [n for _, _, n in inter], color="#444444")
     ax_bar.set_ylabel("Families")
@@ -242,14 +244,14 @@ def plot_group_class_overlap_upset(cells, in_label: str, out_label: str, out_dir
         members = [ys[("IN", a)]] if a else []
         members += [ys[("OUT", b)]] if b else []
         ax_dot.plot([xi] * len(members), members, "-o", color="#222222", markersize=4)
-    ax_dot.set_yticks(range(len(sets)))
-    ax_dot.set_yticklabels([])
-    ax_dot.invert_yaxis()
+    ax_dot.set_yticks([])
+    ax_dot.set_ylim(len(sets) - 0.5, -0.5)
     ax_dot.set_xticks([])
     size = [sum(n for (a, b), n in cells.items() if (g == "IN" and a == c) or (g == "OUT" and b == c))
             for g, c in sets]
     ax_set.barh(range(len(sets)), size, color=[BAND_COLORS[c] for _, c in sets])
     ax_set.invert_xaxis()
+    ax_set.set_ylim(len(sets) - 0.5, -0.5)
     ax_set.set_yticks(range(len(sets)))
     ax_set.set_yticklabels(set_names, fontsize=7)
     ax_set.set_xlabel("Set size")
