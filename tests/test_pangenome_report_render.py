@@ -895,3 +895,33 @@ def test_heatmap_writes_files_and_handles_zero_cells(tmp_path):
         pangenome_report_render.plot_group_class_overlap_heatmap(cells, "Sp one (IN)", "Sp two (OUT)", tmp_path)
     assert (tmp_path / "figures" / "group_class_overlap_heatmap.png").stat().st_size > 0
     assert (tmp_path / "figures_pdf" / "group_class_overlap_heatmap.pdf").exists()
+
+
+def _cells(**kw):
+    C = pangenome_report_render.OVERLAP_CLASSES
+    d = {(a, b): 0 for a in C for b in C}
+    for k, v in kw.items():
+        a, b = k.split("__")
+        d[(a, b)] = v
+    return d
+
+
+def test_overlap_intersections_pairs_and_singles():
+    cells = _cells(core__core=5, core__absent=3, absent__cloud=7, absent__absent=0)
+    assert pangenome_report_render.overlap_intersections(cells) == [
+        (None, "cloud", 7), ("core", "core", 5), ("core", None, 3)]
+
+
+def test_shared_split_totals():
+    cells = _cells(core__core=5, shell__cloud=2, core__absent=3, absent__cloud=7, nonrep_only__absent=1)
+    s = pangenome_report_render.shared_split(cells)
+    assert s == {"shared": {"core": 5, "shell": 2}, "ingroup_only": {"core": 3, "nonrep_only": 1},
+                 "outgroup_only": {"cloud": 7}}
+
+
+def test_shared_and_upset_write_files(tmp_path):
+    cells = _cells(core__core=5, core__absent=3, absent__cloud=7, nonrep_only__nonrep_only=1)
+    pangenome_report_render.plot_group_class_overlap_shared(cells, "A (IN)", "B (OUT)", tmp_path)
+    pangenome_report_render.plot_group_class_overlap_upset(cells, "A (IN)", "B (OUT)", tmp_path)
+    for name in ("group_class_overlap_shared", "group_class_overlap_upset"):
+        assert (tmp_path / "figures" / f"{name}.png").stat().st_size > 0

@@ -169,6 +169,94 @@ def plot_group_class_overlap_heatmap(cells, in_label: str, out_label: str, out_d
     plt.close(fig)
 
 
+def overlap_intersections(cells):
+    order = {c: i for i, c in enumerate(OVERLAP_CLASSES)}
+    out = []
+    for (a, b), n in cells.items():
+        if n and (a, b) != ("absent", "absent"):
+            out.append((None if a == "absent" else a, None if b == "absent" else b, n))
+    return sorted(out, key=lambda t: (-t[2], order.get(t[0] or "absent"), order.get(t[1] or "absent")))
+
+
+def shared_split(cells):
+    out = {"shared": {}, "ingroup_only": {}, "outgroup_only": {}}
+    for (a, b), n in cells.items():
+        if not n or (a, b) == ("absent", "absent"):
+            continue
+        if a != "absent" and b != "absent":
+            key, cls = "shared", a
+        elif b == "absent":
+            key, cls = "ingroup_only", a
+        else:
+            key, cls = "outgroup_only", b
+        out[key][cls] = out[key].get(cls, 0) + n
+    return out
+
+
+def plot_group_class_overlap_shared(cells, in_label: str, out_label: str, out_dir: Path) -> None:
+    """Spec 2c: shared (by ingroup class), ingroup only, outgroup only."""
+    split = shared_split(cells)
+    rows = [("shared", f"shared (classes: {in_label})"), ("ingroup_only", f"only {in_label}"),
+            ("outgroup_only", f"only {out_label}")]
+    fig, ax = plt.subplots(figsize=(9, 3.2))
+    for i, (key, _) in enumerate(rows):
+        left = 0
+        for cls in OVERLAP_CLASSES[:-1]:
+            v = split[key].get(cls, 0)
+            if v:
+                ax.barh(i, v, left=left, color=BAND_COLORS[cls],
+                        label=cls if cls not in ax.get_legend_handles_labels()[1] else None)
+                left += v
+        ax.text(left, i, f" {left}", va="center", fontsize=8)
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels([r[1] for r in rows])
+    ax.invert_yaxis()
+    ax.set_xlabel("Gene families")
+    ax.set_title("Shared and group-specific gene families")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=6, frameon=False)
+    fig.tight_layout()
+    _savefig_both(fig, out_dir, "group_class_overlap_shared")
+    plt.close(fig)
+
+
+def plot_group_class_overlap_upset(cells, in_label: str, out_label: str, out_dir: Path) -> None:
+    """Spec 2b: intersection sizes over a dot matrix of the 12 group-class
+    sets (6 per group
+    `absent` is not a set)."""
+    inter = overlap_intersections(cells)
+    sets = [("IN", c) for c in OVERLAP_CLASSES[:-1]] + [("OUT", c) for c in OVERLAP_CLASSES[:-1]]
+    set_names = [f"{in_label if g == 'IN' else out_label}: {c}" for g, c in sets]
+    fig = plt.figure(figsize=(max(8, 0.28 * len(inter) + 4), 7))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 4], height_ratios=[2, 1.6], hspace=0.05, wspace=0.02)
+    ax_bar = fig.add_subplot(gs[0, 1])
+    ax_dot = fig.add_subplot(gs[1, 1], sharex=ax_bar)
+    ax_set = fig.add_subplot(gs[1, 0], sharey=ax_dot)
+    x = np.arange(len(inter))
+    ax_bar.bar(x, [n for _, _, n in inter], color="#444444")
+    ax_bar.set_ylabel("Families")
+    ax_bar.tick_params(axis="x", bottom=False, labelbottom=False)
+    ax_bar.set_title("Gene families by group-class intersection")
+    ys = {s: i for i, s in enumerate(sets)}
+    ax_dot.scatter(np.repeat(x, len(sets)), np.tile(range(len(sets)), len(x)), s=10, color="#dddddd")
+    for xi, (a, b, _) in enumerate(inter):
+        members = [ys[("IN", a)]] if a else []
+        members += [ys[("OUT", b)]] if b else []
+        ax_dot.plot([xi] * len(members), members, "-o", color="#222222", markersize=4)
+    ax_dot.set_yticks(range(len(sets)))
+    ax_dot.set_yticklabels([])
+    ax_dot.invert_yaxis()
+    ax_dot.set_xticks([])
+    size = [sum(n for (a, b), n in cells.items() if (g == "IN" and a == c) or (g == "OUT" and b == c))
+            for g, c in sets]
+    ax_set.barh(range(len(sets)), size, color=[BAND_COLORS[c] for _, c in sets])
+    ax_set.invert_xaxis()
+    ax_set.set_yticks(range(len(sets)))
+    ax_set.set_yticklabels(set_names, fontsize=7)
+    ax_set.set_xlabel("Set size")
+    _savefig_both(fig, out_dir, "group_class_overlap_upset")
+    plt.close(fig)
+
+
 def plot_group_composition(group_counts: dict[str, dict[str, int]], out_dir: Path) -> None:
     """One horizontal stacked bar per binned group on a shared axis (spec
     section 4); only core ... singleton are drawn."""
