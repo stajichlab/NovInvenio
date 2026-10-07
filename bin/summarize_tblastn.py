@@ -13,6 +13,7 @@ Output TSV columns: protein_id, <SHORT1>, <SHORT2>, ...
   Value 0 = no hit.
 """
 import argparse
+import gzip
 import os
 import sys
 from collections import defaultdict
@@ -55,6 +56,65 @@ def parse_tblastn_hits(tsv_path, evalue_cutoff):
     return reps_with_hits
 
 
+def parse_tblastn_spans(tsv_path, evalue_cutoff):
+    """Return {rep_id: (best_evalue, [(qstart, qend), ...])} for hits at or below the cutoff.
+
+    Uses columns 3 (evalue), 7 (qstart) and 8 (qend) of the tblastn -outfmt 6 in
+    modules/tblastn.nf. Rows too short to carry them are skipped.
+    """
+    out = {}
+    with open(tsv_path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split('\t')
+            if len(parts) < 8:
+                continue
+            try:
+                ev, qs, qe = float(parts[2]), int(parts[6]), int(parts[7])
+            except ValueError:
+                continue
+            if ev > evalue_cutoff:
+                continue
+            best, spans = out.get(parts[0], (ev, []))
+            spans.append((min(qs, qe), max(qs, qe)))
+            out[parts[0]] = (min(best, ev), spans)
+    return out
+
+
+def union_length(spans):
+    """Residues covered by the union of inclusive (start, end) spans."""
+    total, cur_s, cur_e = 0, None, None
+    for s, e in sorted(spans):
+        if cur_e is None or s > cur_e + 1:
+            if cur_e is not None:
+                total += cur_e - cur_s + 1
+            cur_s, cur_e = s, e
+        else:
+            cur_e = max(cur_e, e)
+    if cur_e is not None:
+        total += cur_e - cur_s + 1
+    return total
+
+
+def fasta_lengths(path):
+    """Return {id: residue count} for a FASTA file (id = first header word)."""
+    lengths, cur = {}, None
+    with open(path) as fh:
+        for line in fh:
+            if line.startswith('>'):
+                cur = line[1:].split()[0]
+                lengths[cur] = 0
+            elif cur is not None:
+                lengths[cur] += len(line.strip().rstrip('*'))
+    return lengths
+
+
+COVERAGE_COLUMNS = ['protein_id', 'rep_id', 'genome', 'n_hsps', 'best_evalue',
+                    'query_span_cov', 'span_start', 'span_end']
+
+
 def genome_short(tsv_path):
     """Extract <SHORT> from a filename like <SHORT>.tblastn.tsv."""
     basename = os.path.basename(tsv_path)
@@ -76,7 +136,15 @@ def main():
                     help='E-value cutoff for counting a TBLASTN hit (default: 1e-5)')
     ap.add_argument('--output', required=True,
                     help='Output TSV: protein_id × outgroup genome hit matrix')
+    ap.add_argument('--output-coverage', dest='output_coverage', default=None,
+                    help='Optional gzip TSV (issue #208): per (protein, genome) with a hit, '
+                         'the fraction of the representative covered by the union of HSP '
+                         'query spans. Needs --query_fasta. The presence summary is unchanged.')
+    ap.add_argument('--query_fasta', default=None,
+                    help='Representative protein FASTA (query lengths for --output-coverage)')
     args = ap.parse_args()
+    if args.output_coverage and not args.query_fasta:
+        sys.exit('ERROR: --output-coverage needs --query_fasta')
 
     member_to_rep = parse_cluster_tsv(args.cluster_tsv)
     # All proteins appearing as members (covers reps too, since reps are their own members)
@@ -112,6 +180,23 @@ def main():
                 # If member is not in the cluster map (shouldn't happen), still record
                 else:
                     protein_hit.setdefault(member, {g: 0 for g in genome_ids})[gid] = 1
+
+    if args.output_coverage:
+        qlen = fasta_lengths(args.query_fasta)
+        with gzip.open(args.output_coverage, 'wt') as cov:
+            cov.write('\t'.join(COVERAGE_COLUMNS) + '\n')
+            for tsv in args.hits:
+                gid = genome_short(tsv)
+                for rep, (best, spans) in sorted(parse_tblastn_spans(tsv, args.evalue).items()):
+                    length = qlen.get(rep)
+                    if not length:
+                        continue
+                    frac = min(union_length(spans) / length, 1.0)
+                    start = min(s for s, _ in spans)
+                    end = max(e for _, e in spans)
+                    for member in sorted(rep_to_members.get(rep, [rep])):
+                        cov.write(f'{member}\t{rep}\t{gid}\t{len(spans)}\t{best:g}\t'
+                                  f'{frac:.6f}\t{start}\t{end}\n')
 
     with open(args.output, 'w') as fout:
         fout.write('protein_id\t' + '\t'.join(genome_ids) + '\n')
