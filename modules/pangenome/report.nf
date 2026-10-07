@@ -10,12 +10,11 @@
 // presence_matrix/frequency_table, all computed regardless of the
 // islands+Pfam branch, so gating the whole report behind that branch meant
 // most runs never got a report at all (see workflows/pangenome_profile.nf's
-// header comment and issue #135). `significant_islands`/
-// `island_pfam_enrichment`/`domtblout` are still genuinely islands+Pfam-only
-// -- on a run where that branch didn't execute, the caller feeds these an
-// empty (0-byte) stub file (workflows/pangenome_profile.nf's
-// EMPTY_SIGNIFICANT_ISLANDS_STUB/EMPTY_ISLAND_ENRICHMENT_STUB/
-// EMPTY_DOMTBLOUT_STUB, same convention as EMPTY_RESCUE_TSV_STUB etc.), and
+// header comment and issue #135). `island_pfam_enrichment`/`domtblout` are
+// still genuinely Pfam-only (islands are always built since #193) -- on a run
+// with no --pangenome_island_pfam_hmm, the caller feeds these an empty
+// (0-byte) stub file (workflows/pangenome_profile.nf's
+// EMPTY_ISLAND_ENRICHMENT_STUB/EMPTY_DOMTBLOUT_STUB, same convention as EMPTY_RESCUE_TSV_STUB etc.), and
 // the `*_arg` conditionals below (`.size() > 0`, same pattern as
 // DIAGNOSTICS's `funnel_arg`) omit the corresponding CLI flag entirely so
 // pangenome_report_tables.py/pangenome_report_render.py treat it as "not
@@ -27,12 +26,12 @@ process REPORT_TABLES {
     publishDir { "${params.outdir}/${Helpers.projectName(params)}/pangenome/report_tables" }, mode: 'copy'
 
     input:
-    path(significant_islands)
-    path(island_pfam_enrichment)
+    path(significant_islands, stageAs: 'significant_islands.tsv')
+    path(island_pfam_enrichment, stageAs: 'island_pfam_enrichment.tsv')   // 0-byte stub without a Pfam HMM; own name avoids the #203 stub collision
     path(pair_classification)
     path(presence_matrix)
     path(frequency_table)
-    path(domtblout)
+    path(domtblout, stageAs: 'pfam.domtblout')   // 0-byte stub without a Pfam HMM (#203)
     path(cluster_tsv)
     path(gene_positions)
     path(samplesheet)

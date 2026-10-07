@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed: islands without a Pfam HMM; REPORT_TABLES stub collision (#193, #203)
+
+- **`BUILD_ISLANDS` and `MARKER_HMMSEARCH` run on every pangenome run.** They were inside the
+  `--pangenome_island_pfam_hmm` block, so a run without the HMM got no islands. Only the
+  Pfam-dependent steps stay gated: `HMMPRESS_PFAM`, `FAMILY_PFAM_SCAN`, `MERGE_PFAM_DOMTBLOUT`,
+  `DOMAIN_ENRICHMENT`, `MODULE_DOMAINS`, `PFAM2GO`, and the locus view / `ISLAND_SYNTENY`.
+  `REPORT_TABLES` now always receives the real islands table.
+  `EMPTY_SIGNIFICANT_ISLANDS_STUB` is removed.
+- **`REPORT_TABLES` inputs stage under unique names** (`significant_islands.tsv`,
+  `island_pfam_enrichment.tsv`, `pfam.domtblout`). Without the HMM, two inputs were both
+  `empty_evalues.tsv` and Nextflow stopped with an input file name collision.
+
 ### New: ingroup vs outgroup content figures (#212, PR 2)
 
 - **`report_tables/group_class_overlap.tsv`** (REPORT_TABLES): families counted by

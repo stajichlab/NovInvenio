@@ -73,11 +73,10 @@ include { EMPTY_EVALUES_STUB as EMPTY_SPECIES_TREE_STUB }     from '../modules/e
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_TSV_STUB }       from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_FUNNEL_STUB }    from '../modules/empty_evalues_stub'
 // Issue #135: REPORT_TABLES/REPORT_RENDER now run unconditionally (not just
-// when --pangenome_island_pfam_hmm is set) -- these three feed it
-// empty (0-byte) stubs for the genuinely islands+Pfam-only inputs
-// (significant_islands/island_pfam_enrichment/domtblout) on a run where that
-// branch never executes. See modules/pangenome/report.nf's module docstring.
-include { EMPTY_EVALUES_STUB as EMPTY_SIGNIFICANT_ISLANDS_STUB } from '../modules/empty_evalues_stub'
+// when --pangenome_island_pfam_hmm is set) -- these two feed it
+// empty (0-byte) stubs for the genuinely Pfam-only inputs
+// (island_pfam_enrichment/domtblout) on a run where that branch never
+// executes. Islands are always built (issue #193). See modules/pangenome/report.nf's module docstring.
 include { EMPTY_EVALUES_STUB as EMPTY_ISLAND_ENRICHMENT_STUB }   from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_DOMTBLOUT_STUB }           from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_ISLAND_SLICES_STUB }       from '../modules/empty_evalues_stub'
@@ -262,53 +261,54 @@ workflow PANGENOME_PROFILE {
     // CONCAT_PROTEOMES.out.fasta is a single-emission channel; `.first()` turns
     // it into a value reused for every marker task rather than being consumed
     // by only the first one.
-    if (params.pangenome_island_pfam_hmm) {
-        def marker_names_list = params.pangenome_marker_names ? params.pangenome_marker_names.split(',')*.trim() as List : []
-        def marker_hmm_paths_list = params.pangenome_marker_hmm_paths ? params.pangenome_marker_hmm_paths.split(',') as List : []
-        if (marker_names_list.size() != marker_hmm_paths_list.size()) {
-            error "ERROR: --pangenome_marker_names and --pangenome_marker_hmm_paths must have " +
-                  "the same number of comma-separated entries (got ${marker_names_list.size()} names, " +
-                  "${marker_hmm_paths_list.size()} paths)"
-        }
-        // Fail fast at parse time (not deep inside a later process, e.g. a
-        // broken output filename or a malformed --marker_tblout CLI arg): a
-        // natural-but-wrong list like 'captain, sm_backbone' (space after
-        // the comma) would otherwise produce a marker literally named
-        // " sm_backbone". Names are trimmed above; validate what remains is
-        // a well-formed identifier.
-        def invalid_marker_names = marker_names_list.findAll { !(it ==~ /^\w+$/) }
-        if (invalid_marker_names) {
-            error "ERROR: --pangenome_marker_names entries must be non-empty and contain only " +
-                  "word characters (letters, digits, underscore) -- invalid: ${invalid_marker_names}"
-        }
+    def marker_names_list = params.pangenome_marker_names ? params.pangenome_marker_names.split(',')*.trim() as List : []
+    def marker_hmm_paths_list = params.pangenome_marker_hmm_paths ? params.pangenome_marker_hmm_paths.split(',') as List : []
+    if (marker_names_list.size() != marker_hmm_paths_list.size()) {
+        error "ERROR: --pangenome_marker_names and --pangenome_marker_hmm_paths must have " +
+              "the same number of comma-separated entries (got ${marker_names_list.size()} names, " +
+              "${marker_hmm_paths_list.size()} paths)"
+    }
+    // Fail fast at parse time (not deep inside a later process, e.g. a
+    // broken output filename or a malformed --marker_tblout CLI arg): a
+    // natural-but-wrong list like 'captain, sm_backbone' (space after
+    // the comma) would otherwise produce a marker literally named
+    // " sm_backbone". Names are trimmed above; validate what remains is
+    // a well-formed identifier.
+    def invalid_marker_names = marker_names_list.findAll { !(it ==~ /^\w+$/) }
+    if (invalid_marker_names) {
+        error "ERROR: --pangenome_marker_names entries must be non-empty and contain only " +
+              "word characters (letters, digits, underscore) -- invalid: ${invalid_marker_names}"
+    }
 
-        if (marker_names_list) {
-            marker_input_ch = Channel.fromList(
-                [marker_names_list, marker_hmm_paths_list.collect { file(it) }].transpose()
-            )
-            MARKER_HMMSEARCH(marker_input_ch, CONCAT_PROTEOMES.out.fasta.first())
-            // .toList() (NOT .collect(), which flattens [[n,p],[n,p]] to
-            // [n,p,n,p] by default) keeps each [name, tblout] pair intact as one
-            // list-of-pairs value; .collect{it[0]}/.collect{it[1]} then split
-            // that into the two PARALLEL lists BUILD_ISLANDS's val+path inputs
-            // expect (see Task 4).
-            marker_pairs_ch = MARKER_HMMSEARCH.out.result.toList()
-            marker_names_ch = marker_pairs_ch.map { pairs -> pairs.collect { it[0] } }
-            marker_tblout_files_ch = marker_pairs_ch.map { pairs -> pairs.collect { it[1] } }
-        } else {
-            marker_names_ch = Channel.value([])
-            marker_tblout_files_ch = Channel.value([])
-        }
-
-        BUILD_ISLANDS(
-            FAMILY_POSITIONS.out.positions,
-            FREQUENCY_BINS.out.table,
-            PAIR_CLASSIFICATION.out.classification,
-            CLUSTER_TIER1.out.cluster_tsv,
-            marker_names_ch,
-            marker_tblout_files_ch,
+    if (marker_names_list) {
+        marker_input_ch = Channel.fromList(
+            [marker_names_list, marker_hmm_paths_list.collect { file(it) }].transpose()
         )
+        MARKER_HMMSEARCH(marker_input_ch, CONCAT_PROTEOMES.out.fasta.first())
+        // .toList() (NOT .collect(), which flattens [[n,p],[n,p]] to
+        // [n,p,n,p] by default) keeps each [name, tblout] pair intact as one
+        // list-of-pairs value; .collect{it[0]}/.collect{it[1]} then split
+        // that into the two PARALLEL lists BUILD_ISLANDS's val+path inputs
+        // expect (see Task 4).
+        marker_pairs_ch = MARKER_HMMSEARCH.out.result.toList()
+        marker_names_ch = marker_pairs_ch.map { pairs -> pairs.collect { it[0] } }
+        marker_tblout_files_ch = marker_pairs_ch.map { pairs -> pairs.collect { it[1] } }
+    } else {
+        marker_names_ch = Channel.value([])
+        marker_tblout_files_ch = Channel.value([])
+    }
 
+    BUILD_ISLANDS(
+        FAMILY_POSITIONS.out.positions,
+        FREQUENCY_BINS.out.table,
+        PAIR_CLASSIFICATION.out.classification,
+        CLUSTER_TIER1.out.cluster_tsv,
+        marker_names_ch,
+        marker_tblout_files_ch,
+    )
+
+    // Pfam-dependent steps only (issue #193): BUILD_ISLANDS above does not use Pfam output.
+    if (params.pangenome_island_pfam_hmm) {
         SELECT_BACKGROUND_REPS(CLUSTER_TIER1.out.rep_fasta, FREQUENCY_BINS.out.table)
 
         // Scatter the Pfam scan across chunks of the background set (issue
@@ -341,18 +341,16 @@ workflow PANGENOME_PROFILE {
             enrichment_for_report = DOMAIN_ENRICHMENT.out.enrichment
         }
 
-        significant_islands_ch = BUILD_ISLANDS.out.islands
         pfam_domtblout_ch      = pfam_domtblout
     }
     else {
         // Issue #135: REPORT_TABLES/REPORT_RENDER now run unconditionally
         // below (outside this if-block) -- on a run with no
-        // --pangenome_island_pfam_hmm, these three islands+Pfam-only inputs
-        // never got computed, so feed them the same empty-stub convention
+        // --pangenome_island_pfam_hmm, these two Pfam-only inputs never got
+        // computed, so feed them the same empty-stub convention
         // rescue_funnel/tblastn_tsv_files/etc. already use above. See
-        // modules/pangenome/report.nf's module docstring.
-        EMPTY_SIGNIFICANT_ISLANDS_STUB()
-        significant_islands_ch = EMPTY_SIGNIFICANT_ISLANDS_STUB.out.evalues
+        // modules/pangenome/report.nf's module docstring. Islands themselves
+        // (BUILD_ISLANDS) are always built (issue #193).
         EMPTY_ISLAND_ENRICHMENT_STUB()
         enrichment_for_report = EMPTY_ISLAND_ENRICHMENT_STUB.out.evalues
         EMPTY_DOMTBLOUT_STUB()
@@ -370,7 +368,7 @@ workflow PANGENOME_PROFILE {
     // the full mechanism (empty-stub inputs for the genuinely
     // islands+Pfam-only pieces on a run where that branch didn't execute).
     REPORT_TABLES(
-        significant_islands_ch,
+        BUILD_ISLANDS.out.islands,
         enrichment_for_report,
         PAIR_CLASSIFICATION.out.classification,
         rescued_matrix,
