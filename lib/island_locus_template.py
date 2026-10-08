@@ -122,11 +122,11 @@ LOCUS_VIEW_JS = r"""
   }
   function locusClassLabel(cls) {
     var labels = { full: "full locus", partial: "partial", empty: "empty site",
-      model_difference: "model difference", uninformative: "uninformative" };
+      model_difference: "model difference", variable_gap: "variable-gene gap", uninformative: "uninformative" };
     return labels[cls] || cls;
   }
   function locusSortedRows(rows, speciesMap) {
-    var order = ["full", "partial", "empty", "model_difference", "uninformative"];
+    var order = ["full", "partial", "empty", "model_difference", "variable_gap", "uninformative"];
     return rows.slice().sort(function (a, b) {
       var ca = order.indexOf(a.row_class), cb = order.indexOf(b.row_class);
       if (ca !== cb) return ca - cb;
@@ -144,6 +144,7 @@ LOCUS_VIEW_JS = r"""
     var text = locus.size + " families in largest island · " + locus.n_variants + " island variants · " +
       "empty " + emptyCount + " · full " + c.full + " · partial " + c.partial;
     if (c.model_difference !== undefined) text += " · model difference " + c.model_difference;
+    if (c.variable_gap !== undefined) text += " · variable-gene gap " + c.variable_gap;
     text += " · uninformative " + c.uninformative;
     if (dnaOn && locus.dna.unchecked > 0) text += " · empty site, not checked " + locus.dna.unchecked;
     return text;
@@ -161,8 +162,11 @@ LOCUS_VIEW_JS = r"""
       return opening + " blastn (megablast) of the exemplar's locus DNA " +
         "against the strain's DNA from its left to its right flank gene; a gene is DNA present at >= " +
         params.dna_min_id + "% identity over >= " + params.dna_min_cov + "% of its length. " +
-        "Hatched grey = absent, DNA present (model difference, not a deletion); " +
-        "dark = DNA absent (confirmed).";
+        "Hatched grey = absent, DNA present (not a deletion); " +
+        "dark = DNA absent (confirmed). A strain with such a gap is a model difference when at least one " +
+        "gapped gene is in place in >= " + Math.round((params.model_diff_min_frac || 0) * 100) +
+        "% of strains, and a variable-gene gap when every gapped gene is rarer (an accessory gene this " +
+        "annotation lacks; a deletion or a gene-model difference cannot be told apart).";
     }
     return "Empty site is not DNA-confirmed (the DNA presence check did not run), so it can " +
       "be a gene-model or annotation difference.";
@@ -641,6 +645,7 @@ LOCUS_VIEW_JS = r"""
         locus.min_column_strains + " strains and are not used to classify strains. Classifying on every column instead would give: full " +
         locus.counts_all_columns.full + ", partial " + locus.counts_all_columns.partial + ", empty site " + locus.counts_all_columns.empty +
         (locus.counts_all_columns.model_difference !== undefined ? ", model difference " + locus.counts_all_columns.model_difference : "") +
+        (locus.counts_all_columns.variable_gap !== undefined ? ", variable-gene gap " + locus.counts_all_columns.variable_gap : "") +
         ", uninformative " + locus.counts_all_columns.uninformative + ". " : "") +
       "A locus groups the islands that overlap at one place: the largest island plus smaller islands whose genes it contains " +
       "(\"island variants\"). \"Carrier strains\" have a gene of the locus in place. " +
@@ -654,6 +659,7 @@ LOCUS_VIEW_JS = r"""
       "Rows: strains with identical states, grouped by row class, then species. " +
       "Full " + c.full + ", partial " + c.partial + ", empty site " + emptyCount +
       (c.model_difference !== undefined ? ", model difference " + c.model_difference : "") +
+      (c.variable_gap !== undefined ? ", variable-gene gap " + c.variable_gap : "") +
       ", uninformative " + c.uninformative +
       (dnaOn && locus.dna.unchecked > 0 ? ", empty site, not checked " + locus.dna.unchecked : "") +
       " strains. " + locusDnaNote(LPARAMS, locus.dna);

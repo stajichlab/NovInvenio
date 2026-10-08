@@ -29,7 +29,7 @@ from island_locus import (  # noqa: E402
     select_clinker_strains,
 )
 from island_locus import (  # noqa: E402
-    DEFAULT_DNA_MIN_COV, DEFAULT_DNA_MIN_ID, apply_dna_calls, dna_checked_strains, dna_query,
+    DEFAULT_DNA_MIN_COV, DEFAULT_DNA_MIN_ID, DEFAULT_MODEL_DIFF_MIN_FRAC, apply_dna_calls, dna_checked_strains, dna_query,
     dna_target, rescue_hit_spans,
 )
 from pangenome_matrix import PresenceMatrix  # noqa: E402
@@ -196,7 +196,8 @@ def build(args) -> dict:
     if dna_on:
         calls = read_dna_calls(args.dna_calls)
         for r in results:
-            apply_dna_calls(r, calls.get(r["locus_id"], {}), species_of, args.empty_frac)
+            apply_dna_calls(r, calls.get(r["locus_id"], {}), species_of, args.empty_frac,
+                           args.model_diff_min_frac)
         results.sort(key=lambda r: rank_key(r, args.rank_by))
 
     # Five rankings (ranks-brief.md, spec 4b/6 "Ranking", changed 2026-09-27):
@@ -253,6 +254,7 @@ def build(args) -> dict:
         "project": args.project,
         "locus_params": {"flank": args.flank, "flank_min": args.flank_min, "k": args.k,
                          "empty_frac": args.empty_frac, "min_column_strains": args.min_column_strains,
+                         "model_diff_min_frac": args.model_diff_min_frac,
                          "containment": args.containment,
                          "rank_by": "presence" if args.rank_by == "informative" else args.rank_by,
                          "top_loci": args.top_loci, "per_rank": args.per_rank,
@@ -468,6 +470,11 @@ def parse_args(argv=None):
                     help="A locus column is used to classify strains only if its gene is in place in "
                          "at least this many strains (default 2). Exemplar-only columns are drawn "
                          "but not classified on. 1 gives the pre-2026-10-08 classes.")
+    ap.add_argument("--model_diff_min_frac", type=float, default=DEFAULT_MODEL_DIFF_MIN_FRAC,
+                    help="With the DNA check: a strain whose only gaps are DNA-present columns is a "
+                         "'model difference' if at least one of those genes is in place in this "
+                         "fraction of strains (default 0.5), else a 'variable-gene gap'. 0 gives "
+                         "the earlier single class.")
     ap.add_argument("--containment", type=float, default=DEFAULT_CONTAINMENT)
     ap.add_argument("--rank_by",
                     choices=["presence", "within", "species", "whole_dna", "whole_annot",
