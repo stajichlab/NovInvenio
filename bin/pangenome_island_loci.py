@@ -24,7 +24,7 @@ from config_parser import OUTGROUP_ROLES, parse_config  # noqa: E402
 from island_locus import (  # noqa: E402
     DEFAULT_CONTAINMENT, DEFAULT_EMPTY_FRAC, DEFAULT_FIXED_DIFF, DEFAULT_FLANK,
     DEFAULT_FLANK_MIN, DEFAULT_K, DEFAULT_POLY_MAX_FRAC, DEFAULT_POLY_MIN_FRAC,
-    DEFAULT_POLY_MIN_STRAINS, candidate_loci, carrier_placements, choose_exemplar, compute_locus,
+    DEFAULT_MIN_COLUMN_STRAINS, DEFAULT_POLY_MIN_STRAINS, candidate_loci, carrier_placements, choose_exemplar, compute_locus,
     group_loci, locus_columns, locus_payload, locus_ranks, rank_key, rank_sort_key,
     select_clinker_strains,
 )
@@ -121,6 +121,7 @@ def build(args) -> dict:
     cands = candidate_loci(loci, len(strains), args.rank_by, args.candidates, args.min_strains)
     n50 = read_n50(args.assembly_quality)
     species_of = ({s.short: s.species for s in parse_config(args.config)} if args.config else {})
+    reference_strains = [s.strip() for s in args.island_reference_strains.split(",") if s.strip()]
     # Outgroup strains are not preferred as the exemplar that names a locus's coordinates and labels.
     outgroup_shorts = (frozenset(s.short for s in parse_config(args.config)
                                  if s.group in OUTGROUP_ROLES) if args.config else frozenset())
@@ -131,7 +132,8 @@ def build(args) -> dict:
     n_unplaced = 0
     for loc in cands:
         places = carrier_placements(loc.members, scan1.positions, strains, scan1.spans, args.k)
-        pick = choose_exemplar(places, n50, args.flank, args.flank_min, outgroup_shorts)
+        pick = choose_exemplar(places, n50, args.flank, args.flank_min, outgroup_shorts,
+                               reference_strains)
         if pick is None:
             n_unplaced += 1
             continue
@@ -153,7 +155,8 @@ def build(args) -> dict:
     scan3 = scan_family_positions(args.family_positions, families=col_fams)
     matrix = PresenceMatrix.from_tsv(args.presence_matrix, families=col_fams)
     results = [compute_locus(loc, place, tier, cols, strains, scan3.positions, scan1.spans,
-                             matrix, species_of, args.k, args.empty_frac)
+                             matrix, species_of, args.k, args.empty_frac,
+                             args.min_column_strains)
                for loc, place, tier, cols in with_cols]
     results.sort(key=lambda r: rank_key(r, args.rank_by))
 
@@ -249,7 +252,8 @@ def build(args) -> dict:
     return {
         "project": args.project,
         "locus_params": {"flank": args.flank, "flank_min": args.flank_min, "k": args.k,
-                         "empty_frac": args.empty_frac, "containment": args.containment,
+                         "empty_frac": args.empty_frac, "min_column_strains": args.min_column_strains,
+                         "containment": args.containment,
                          "rank_by": "presence" if args.rank_by == "informative" else args.rank_by,
                          "top_loci": args.top_loci, "per_rank": args.per_rank,
                          "candidates": args.candidates, "min_strains": args.min_strains,
@@ -457,6 +461,13 @@ def parse_args(argv=None):
     ap.add_argument("--flank_min", type=int, default=DEFAULT_FLANK_MIN)
     ap.add_argument("--k", type=int, default=DEFAULT_K)
     ap.add_argument("--empty_frac", type=float, default=DEFAULT_EMPTY_FRAC)
+    ap.add_argument("--island_reference_strains", default="",
+                    help="Comma-separated Short IDs in order of preference: the exemplar of a "
+                         "locus is the first listed carrier within the best flank tier.")
+    ap.add_argument("--min_column_strains", type=int, default=DEFAULT_MIN_COLUMN_STRAINS,
+                    help="A locus column is used to classify strains only if its gene is in place in "
+                         "at least this many strains (default 2). Exemplar-only columns are drawn "
+                         "but not classified on. 1 gives the pre-2026-10-08 classes.")
     ap.add_argument("--containment", type=float, default=DEFAULT_CONTAINMENT)
     ap.add_argument("--rank_by",
                     choices=["presence", "within", "species", "whole_dna", "whole_annot",

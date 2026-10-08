@@ -442,3 +442,12 @@ def test_clinker_popup_lines_unknown_species_and_unsplit_region():
                   contig: "c1", rank_lo: 0, rank_hi: 9, n_blocks: 1};
       console.log(JSON.stringify(clinkerPopupLines(pick, "")));""")
     assert out == ["S1", "Unknown species", "locus exemplar", "c1 gene ranks 0-9", "1 block"]
+
+
+def test_template_greys_unclassified_columns_and_explains_them():
+    from island_locus_template import LOCUS_VIEW_JS
+    assert "function isExcluded(" in LOCUS_VIEW_JS
+    assert "(isFlank(locus, i) || isExcluded(locus, i)) ? P.secondary : P.primary" in LOCUS_VIEW_JS
+    assert "Not used to classify strains" in LOCUS_VIEW_JS
+    assert "Classifying on every column instead would give" in LOCUS_VIEW_JS
+    assert "counts_all_columns" in LOCUS_VIEW_JS

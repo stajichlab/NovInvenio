@@ -377,6 +377,12 @@ LOCUS_VIEW_JS = r"""
   function lcolX(i) { return L_GUTTER + i * L_CELL_W; }
   function lTotalWidth(locus) { return lcolX(locus.families.length) + 8; }
   function isFlank(locus, i) { return i < locus.n_left || i >= locus.n_left + locus.n_locus; }
+  // A locus column whose gene is in place in fewer strains than the threshold is drawn but not
+  // used to classify strains (payload locus_mask; see lib/island_locus.informative_columns).
+  function isExcluded(locus, i) {
+    if (!locus.locus_mask || isFlank(locus, i)) return false;
+    return locus.locus_mask[i - locus.n_left] === 0;
+  }
 
   function locusHaystack(locus) {
     return (locus.key + " " + locus.locus_id + " " + locus.exemplar + " " + locus.families.join(" ") + " " +
@@ -529,7 +535,7 @@ LOCUS_VIEW_JS = r"""
       lhctx.save();
       lhctx.translate(x + L_CELL_W / 2, glyphY - 6);
       lhctx.rotate(-LABEL_ANGLE);
-      lhctx.fillStyle = isFlank(locus, i) ? P.secondary : P.primary;
+      lhctx.fillStyle = (isFlank(locus, i) || isExcluded(locus, i)) ? P.secondary : P.primary;
       lhctx.font = colLabelIsRep(locus, i) ? LABEL_FONT_REP : LABEL_FONT;
       lhctx.textAlign = "left";
       lhctx.textBaseline = "middle";
@@ -631,6 +637,11 @@ LOCUS_VIEW_JS = r"""
     var dnaOn = LPARAMS.dna_check === true && locus.dna;
     var emptyCount = dnaOn ? locus.dna.empty_confirmed : c.empty;
     document.getElementById("lv-note").textContent =
+      (locus.n_excluded_columns ? locus.n_excluded_columns + " of " + locus.n_locus + " locus columns (grey labels) are in place in fewer than " +
+        locus.min_column_strains + " strains and are not used to classify strains. Classifying on every column instead would give: full " +
+        locus.counts_all_columns.full + ", partial " + locus.counts_all_columns.partial + ", empty site " + locus.counts_all_columns.empty +
+        (locus.counts_all_columns.model_difference !== undefined ? ", model difference " + locus.counts_all_columns.model_difference : "") +
+        ", uninformative " + locus.counts_all_columns.uninformative + ". " : "") +
       "A locus groups the islands that overlap at one place: the largest island plus smaller islands whose genes it contains " +
       "(\"island variants\"). \"Carrier strains\" have a gene of the locus in place. " +
       "Exemplar " + locus.exemplar + ": carries the locus's largest variant with at least " +
@@ -675,6 +686,14 @@ LOCUS_VIEW_JS = r"""
       tipEl.appendChild(el("div", null, "Gene in " + locus.exemplar + "; family representative: " + locus.families[ci]));
     }
     tipEl.appendChild(el("div", null, "Column " + (ci + 1) + " of " + locus.families.length + ", " + role));
+    if (locus.column_strains) {
+      var ns = locus.column_strains[ci];
+      tipEl.appendChild(el("div", null, "Gene in place in " + ns + (ns === 1 ? " strain" : " strains")));
+    }
+    if (isExcluded(locus, ci)) {
+      tipEl.appendChild(el("div", null, "Not used to classify strains: in place in fewer than " +
+        locus.min_column_strains + " strains (usually the exemplar's own gene model)."));
+    }
     tipEl.appendChild(el("div", null, "Frequency bin: " + ((locus.family_bins && locus.family_bins[ci]) || "unknown")));
     appendLocation({ family_locations: locus.family_locations, example_strain: locus.exemplar }, ci);
     tipEl.appendChild(el("div", null, classLabel((locus.family_classes && locus.family_classes[ci]) || "unannotated")));

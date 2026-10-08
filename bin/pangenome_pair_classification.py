@@ -140,6 +140,20 @@ def has_captain_evidence(
     return False
 
 
+def restrict_to_representatives(gene_position: dict, representatives: set[str]) -> dict:
+    """Keep only the strains in `representatives`.
+
+    Near-identical strains (Mash dereplication groups) are not independent observations of
+    a gene arrangement. `n_co_carrying` and `linkage_fraction` count strains, so counting
+    every clone lets a group of near-duplicates meet `min_co_carrying` and set the linkage
+    fraction alone. Decision 2026-10-08: use representatives for this evidence. All strains
+    are still used to build and draw islands. A near-identical strain can still carry an
+    island at a different position; that variation is not evidence here (see
+    paper/OPEN_ISSUES_FOR_PAPER.md, G13).
+    """
+    return {s: pos for s, pos in gene_position.items() if s in representatives}
+
+
 def classify_pair(
     family_a: str,
     family_b: str,
@@ -207,6 +221,15 @@ def main() -> None:
                          "q column is written by COOCCURRENCE and is over the pairs that got the "
                          "exact stratified test, so the correction is conditional on the first "
                          "FDR screen.")
+    ap.add_argument("--inventory", default=None,
+                    help="strain_inventory.tsv (Short, is_representative). A missing or empty "
+                         "file means every strain is its own representative.")
+    ap.add_argument("--evidence_strains", choices=["representatives", "all"],
+                    default="representatives",
+                    help="Which strains' positions supply n_co_carrying and linkage_fraction. "
+                         "'representatives' (default): one strain per dereplication group, "
+                         "outgroup representatives included. 'all': every strain in "
+                         "family_positions (the behaviour before 2026-10-08).")
     ap.add_argument("--id_sep", default="|",
                     help="Short-prefix separator in clustering-input FASTA headers "
                          "(default: '|'); must match --pangenome_id_sep used "
@@ -216,6 +239,17 @@ def main() -> None:
 
     print("Loading family positions...", file=sys.stderr)
     gene_position = load_family_positions(args.family_positions)
+    n_loaded = len(gene_position)
+    if args.evidence_strains == "representatives":
+        if args.inventory and Path(args.inventory).is_file() and Path(args.inventory).stat().st_size > 0:
+            from pangenome_strain_inventory import read_representative_shorts  # noqa: E402
+            gene_position = restrict_to_representatives(
+                gene_position, set(read_representative_shorts(args.inventory)))
+        else:
+            print("pair_classification: no strain inventory; every strain counts as a "
+                  "representative", file=sys.stderr)
+    print(f"pair_classification: linkage evidence from {len(gene_position)} of {n_loaded} "
+          f"strains ({args.evidence_strains})", file=sys.stderr)
     print("Loading cluster membership...", file=sys.stderr)
     member_to_rep = read_cluster_tsv(args.cluster_tsv)
     print("Loading captain-gene evidence...", file=sys.stderr)
