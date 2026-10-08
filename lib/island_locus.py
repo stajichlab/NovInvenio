@@ -497,7 +497,7 @@ def breakpoint_track(strain_rows: list[tuple[str, str, str]], n_cols: int) -> li
 
 # Display order of row classes. "model_difference" occurs only with the DNA
 # presence check (section 6b, spec section 4b).
-ROW_ORDER = ("full", "partial", "empty", "model_difference", "uninformative")
+ROW_ORDER = ("full", "partial", "empty", "model_difference", "variable_gap", "uninformative")
 
 
 def collapse_rows(per_strain: dict[str, tuple[str, str]],
@@ -566,6 +566,7 @@ def rank_key(result: dict, rank_by: str) -> tuple:
 
 # ---- 6. one locus, all strains -------------------------------------------------
 DEFAULT_MIN_COLUMN_STRAINS = 2
+DEFAULT_MODEL_DIFF_MIN_FRAC = 0.5  # a DNA-present column is a "model difference" only if its gene is in place in >= this fraction of strains
 
 
 def informative_columns(support: list[int], n_left: int, n_locus: int,
@@ -854,11 +855,15 @@ def gene_coverage(hsps, gene: tuple[int, int], min_id: float = DEFAULT_DNA_MIN_I
 
 
 def row_class_dna(codes, n_left: int, n_locus: int, intact: bool,
-                  empty_frac: float = DEFAULT_EMPTY_FRAC) -> str:
+                  empty_frac: float = DEFAULT_EMPTY_FRAC, common=None) -> str:
     """Row class of a DNA-checked strain (spec 4b): empty site = >= empty_frac
     of the locus columns DNA absent; full = all in place; model difference =
     every column in place or DNA present, at least one DNA present; anything
-    else is partial (Ruling R21)."""
+    else is partial (Ruling R21). `common` (one bool per locus column, or None)
+    marks the columns whose gene is in place in many strains. When given, a
+    strain whose DNA-present columns are all rare ones is "variable_gap"
+    (a rare gene lacking in this annotation), not "model_difference"
+    (2026-10-08)."""
     if not intact:
         return "uninformative"
     block = codes[n_left:n_left + n_locus]
@@ -867,12 +872,15 @@ def row_class_dna(codes, n_left: int, n_locus: int, intact: bool,
     if all(c in IN_PLACE_CODES for c in block):
         return "full"
     if all(c in IN_PLACE_CODES or c == DNA_PRESENT for c in block):
+        if common is not None and not any(c == DNA_PRESENT and common[i] for i, c in enumerate(block)):
+            return "variable_gap"
         return "model_difference"
     return "partial"
 
 
 def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: dict[str, str],
-                    empty_frac: float = DEFAULT_EMPTY_FRAC) -> None:
+                    empty_frac: float = DEFAULT_EMPTY_FRAC,
+                    model_diff_min_frac: float = DEFAULT_MODEL_DIFF_MIN_FRAC) -> None:
     """Apply one locus's DNA calls in place (spec 4b).
 
     `calls` = {strain: {column: "present" | "absent" | "unchecked"}}. In a
@@ -886,6 +894,12 @@ def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: 
     {checked, unchecked, empty_confirmed, empty_to_model_difference}."""
     nl, nb = result["n_left"], result["n_locus"]
     mask = result.get("locus_mask") or [1] * nb
+    support = result.get("column_strains")
+    common = None
+    if support and model_diff_min_frac > 0 and result["_cells"]:
+        floor = model_diff_min_frac * len(result["_cells"])
+        common = [support[nl + i] >= floor for i in range(nb)]
+    common_f = [c for c, m in zip(common, mask) if m] if common else None
     need = set(dna_checked_strains(result))
     per_strain: dict[str, tuple[str, str]] = {}
     details: dict[str, list] = {}
@@ -905,8 +919,8 @@ def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: 
                 if nl <= ci < nl + nb and codes[ci] in DNA_CHECKED_CODES and v in ("present", "absent"):
                     codes[ci] = DNA_PRESENT if v == "present" else DNA_ABSENT
             codes_f, nb_f = _classify_block(codes, nl, nb, mask)
-            new_cls = row_class_dna(codes_f, nl, nb_f, True, empty_frac)
-            cls_all = row_class_dna(codes, nl, nb, True, empty_frac)
+            new_cls = row_class_dna(codes_f, nl, nb_f, True, empty_frac, common_f)
+            cls_all = row_class_dna(codes, nl, nb, True, empty_frac, common)
             summary["checked"] += 1
             summary["empty_confirmed"] += new_cls == "empty"
             summary["empty_to_model_difference"] += cls == "empty" and new_cls == "model_difference"
@@ -958,7 +972,7 @@ def locus_species_stats(per_strain: dict[str, tuple[str, str]], species_of: dict
     for s, (cls, codes) in per_strain.items():
         if cls == "uninformative":
             continue
-        if cls in ("full", "model_difference"):
+        if cls in ("full", "model_difference", "variable_gap"):
             is_carrier = True
         elif cls == "empty":
             is_carrier = False
@@ -983,7 +997,7 @@ def score_whole_annot(empty_n: int, full: int) -> int:
     return -1
 
 
-def score_whole_dna(empty_n: int, full: int, model_difference: int) -> int:
+def score_whole_dna(empty_n: int, full: int, model_difference: int) -> int:  # pass model_difference + variable_gap
     """Rank B: like A, but the "full-locus-like" side also counts model
     difference strains (annotated carriers plus a gene-model difference)."""
     return score_whole_annot(empty_n, full + model_difference)
@@ -1049,7 +1063,7 @@ def locus_ranks(result: dict, species_of: dict[str, str], dna_on: bool, n_specie
     counts = result["counts"]
     empty_n = result["dna"]["empty_confirmed"] if dna_on and "dna" in result else counts["empty"]
     full = counts["full"]
-    model_difference = counts.get("model_difference", 0)
+    model_difference = counts.get("model_difference", 0) + counts.get("variable_gap", 0)
     missing_code = DNA_ABSENT if dna_on else ABSENT
     stats = locus_species_stats(result["_per_strain"], species_of, nl, nb, missing_code)
     within_score, within_species = score_within(stats["by_species"], poly_min_strains,
@@ -1075,7 +1089,7 @@ def rank_sort_key(ranks: dict, key: str, locus_id: str) -> tuple:
 
 # ---- 8. clinker panel: strains and regions (spec section 8) --------------------
 DEFAULT_CLINKER_MAX_STRAINS = 12
-CLINKER_CLASSES = ("full", "partial", "empty", "model_difference")
+CLINKER_CLASSES = ("full", "partial", "empty", "model_difference", "variable_gap")
 
 
 def strain_region(result: dict, strain: str, spans: ContigSpans, flank: int,

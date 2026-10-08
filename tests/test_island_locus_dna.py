@@ -158,9 +158,10 @@ def test_row_class_dna():
 
 def test_dna_present_turns_an_empty_site_into_a_model_difference():
     res, _, _ = fixture()
-    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}, "PART": {2: "absent"}}, SPECIES)
+    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}, "PART": {2: "absent"}}, SPECIES,
+                    model_diff_min_frac=0)
     assert res["counts"] == {"full": 1, "partial": 1, "empty": 0, "model_difference": 1,
-                             "uninformative": 1}
+                             "variable_gap": 0, "uninformative": 1}
     assert res["_row_class"]["EMPTY"] == "model_difference"
     assert [(r["row_class"], r["codes"]) for r in res["rows"]] == [
         ("full", "1111"), ("partial", "1171"), ("model_difference", "1661"),
@@ -172,7 +173,8 @@ def test_dna_present_turns_an_empty_site_into_a_model_difference():
 
 def test_breakpoints_count_only_in_place_to_dna_absent():
     res, _, _ = fixture()
-    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}, "PART": {2: "absent"}}, SPECIES)
+    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}, "PART": {2: "absent"}}, SPECIES,
+                    model_diff_min_frac=0)
     assert res["breakpoints"] == [
         {"b": 2, "indel": {"sp1": 1}, "contig_break": 1},
         {"b": 3, "indel": {"sp1": 1}, "contig_break": 0},
@@ -217,13 +219,13 @@ def test_dna_check_with_shared_columns_only():
     assert res["locus_mask"] == [1, 0]
     assert res["_row_class"] == {"EMPTY": "empty", "FRAG": "uninformative", "FULL": "full", "PART": "full"}
     assert dna_checked_strains(res) == ["EMPTY"]            # PART is now a full locus, so it needs no DNA check
-    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}}, SPECIES)
+    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}}, SPECIES, model_diff_min_frac=0)
     assert res["_row_class"]["EMPTY"] == "model_difference"
     assert res["counts"] == {"full": 2, "partial": 0, "empty": 0, "model_difference": 1,
-                             "uninformative": 1}
+                             "variable_gap": 0, "uninformative": 1}
     # the comparison counts keep the old, all-columns rule
     assert res["counts_all_columns"] == {"full": 1, "partial": 1, "empty": 0, "model_difference": 1,
-                                         "uninformative": 1}
+                                         "variable_gap": 0, "uninformative": 1}
 
 
 def test_private_column_dna_does_not_change_a_strains_class_under_the_default():
@@ -231,3 +233,39 @@ def test_private_column_dna_does_not_change_a_strains_class_under_the_default():
     apply_dna_calls(res, {"EMPTY": {1: "absent", 2: "present"}}, SPECIES)
     # Informative column A: DNA absent, so the site is empty; B's DNA being present is not used.
     assert res["_row_class"]["EMPTY"] == "empty"
+
+
+def test_row_class_dna_variable_gap_when_every_gapped_gene_is_rare():
+    assert row_class_dna("1661", 1, 2, True, common=[False, False]) == "variable_gap"
+    assert row_class_dna("1661", 1, 2, True, common=[True, False]) == "model_difference"
+    assert row_class_dna("1611", 1, 2, True, common=[False, True]) == "variable_gap"
+    # a gapped gene that is common counts only where the DNA is present, not where the strain has it
+    assert row_class_dna("1161", 1, 2, True, common=[True, False]) == "variable_gap"
+    # no common list: the earlier single class
+    assert row_class_dna("1661", 1, 2, True) == "model_difference"
+    # the other classes are unchanged
+    assert row_class_dna("1771", 1, 2, True, common=[False, False]) == "empty"
+    assert row_class_dna("1671", 1, 2, True, common=[False, False]) == "partial"
+
+
+def test_apply_dna_calls_splits_model_difference_by_column_support():
+    # Columns A (in place in FULL, EMPTY? no: FULL, PART) and B (FULL only) of 4 strains.
+    res, _, _ = fixture(min_column_strains=1)
+    n = len(res["_cells"])
+    support = res["column_strains"]
+    nl = res["n_left"]
+    # threshold between the two columns' supports: A common, B rare
+    frac = (support[nl] + support[nl + 1]) / 2 / n
+    assert support[nl] > support[nl + 1]
+    both_present = {"EMPTY": {1: "present", 2: "present"}}
+    apply_dna_calls(res, both_present, SPECIES, model_diff_min_frac=frac)
+    assert res["_row_class"]["EMPTY"] == "model_difference"      # column A is common and gapped
+    res2, _, _ = fixture(min_column_strains=1)
+    apply_dna_calls(res2, {"PART": {2: "present"}}, SPECIES, model_diff_min_frac=frac)
+    assert res2["_row_class"]["PART"] == "variable_gap"          # only rare column B is gapped
+    assert res2["counts"]["variable_gap"] == 1
+    assert res2["counts_by_species"][SPECIES["PART"]]["variable_gap"] == 1
+    # carriers: a variable-gene gap is a carrier of the locus, like a model difference
+    from island_locus import locus_species_stats
+    st = locus_species_stats(res2["_per_strain"], SPECIES, nl, res2["n_locus"], "7")
+    assert st["losses"] == 1 and st["carriers"] == 2   # FULL and PART carry; EMPTY loses; FRAG excluded

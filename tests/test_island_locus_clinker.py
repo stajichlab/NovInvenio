@@ -97,7 +97,7 @@ def test_a_model_difference_strain_is_chosen_after_the_empty_sites():
     # Spec section 8 item 2 with section 4b: model difference is a row class.
     res, spans, species = build({"A1": ("c1", FULL, "sp"), "D1": ("c1", EMPTY, "sp"),
                                  "D2": ("c1", EMPTY, "sp")})
-    apply_dna_calls(res, {"D1": {2: "present", 3: "present"}}, species)
+    apply_dna_calls(res, {"D1": {2: "present", 3: "present"}}, species, model_diff_min_frac=0)
     picks = select_clinker_strains(res, {}, species, spans, flank=5)
     assert [(p["strain"], p["reason"], p["row_class"]) for p in picks] == [
         ("A1", "exemplar", "full"), ("D2", "best_empty", "empty"),

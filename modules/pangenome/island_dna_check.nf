@@ -71,6 +71,7 @@ process ISLAND_DNA_TARGETS {
         --k ${params.pangenome_locus_k} \
         --empty_frac ${params.pangenome_locus_empty_frac} \
         --min_column_strains ${params.pangenome_locus_min_column_strains} \
+        --model_diff_min_frac ${params.pangenome_locus_model_diff_min_frac} \
         --island_reference_strains '${params.pangenome_island_reference_strains}' \
         --containment ${params.pangenome_locus_containment} \
         --rank_by ${params.pangenome_locus_rank} \
