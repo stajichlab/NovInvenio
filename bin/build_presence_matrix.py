@@ -147,6 +147,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config
+from other_evidence import STATUS_KEPT, build_other_evidence
 
 DEFAULT_EVALUE = 1e-5
 # Filter-2 rescue floor, ON by default (issue #128). Mirrors nextflow.config's
@@ -266,6 +267,11 @@ def main():
                          'query-group presence cells have no qualifying hit with qcov >= '
                          '--other-coverage-floor-qcov (issue #159). Header only when the '
                          'floor is off. Never affects presence or candidate calls.')
+    ap.add_argument('--output-other-evidence', default=None, dest='output_other_evidence',
+                    help='Optional gzip TSV (issue #208): one row per (query protein, '
+                         'other-group proteome) cell with a hit, including hits that filter '
+                         '2 or 3 removed, with the paralog E-value. Evidence only; does not '
+                         'affect candidate calling.')
     ap.add_argument('--output-matrix',     required=True)
     ap.add_argument('--output-candidates', required=True)
     ap.add_argument('--output-evalues', default=None, dest='output_evalues',
@@ -320,6 +326,9 @@ def main():
         # Filter 1: flat significance floor (no longer per-query paralog-derived).
         ing = ing[ing['evalue'] < args.default_evalue]
 
+    ing_f1 = ing.copy()                       # evidence record (issue #208): hits before filters 2-3
+    hit_status = pd.Series(STATUS_KEPT, index=ing_f1.index, dtype=object)
+
     if not ing.empty:
         # Filter 2: disqualify if the query's paralog beats it. The key is the target
         # proteome ('proteome' scope) or the individual target protein ('target' scope).
@@ -350,6 +359,7 @@ def main():
             rescued |= pd.Series(delta, index=ing.index) < args.paralog_rescue_delta
         disqualified &= ~rescued
         n_filter2 = int(disqualified.sum())
+        hit_status.loc[disqualified[disqualified].index] = 'paralog_filtered'
         ing = ing[~disqualified]
     else:
         n_filter2 = 0
@@ -375,6 +385,7 @@ def main():
         rejected = ing.loc[floor_hit].reindex(columns=REJECTION_COLUMNS)
         cell_cols = ['query_proteome', 'query_id', 'target_proteome']
         cells_before = set(map(tuple, ing.loc[judged, cell_cols].to_numpy()))
+        hit_status.loc[floor_hit[floor_hit].index] = 'coverage_floor'
         ing = ing[~floor_hit]
         cells_after = set(map(tuple, ing.loc[ing['target_proteome'].isin(other_ids),
                                              cell_cols].to_numpy()))
@@ -437,6 +448,11 @@ def main():
         ):
             hit_evalue[(qp, pid, tp)] = ev
             hit_target[(qp, pid, tp)] = tid
+
+    if args.output_other_evidence:
+        evidence = build_other_evidence(ing_f1, hit_status, other_ids, paralog_of, best_ev,
+                                        args.paralog_competition_scope)
+        evidence.to_csv(args.output_other_evidence, sep='\t', index=False, compression='gzip')
 
     # Build the full matrix (always emit the id columns + one column per proteome,
     # so an empty result still writes a well-formed header).

@@ -29,6 +29,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from clusters import build_families, read_cluster_tsv
 from config_parser import INGROUP_ROLES, OUTGROUP_ROLES, parse_config
+from other_evidence import (NOVELTY_COLUMNS, candidate_signal, load_protein_evidence,
+                            load_tblastn_coverage)
 
 
 def load_groups(config_csv, header=None):
@@ -94,6 +96,13 @@ def main():
                     help='Min fraction of ingroup proteomes that must contain a hit (default: 0.75)')
     ap.add_argument('--output_dir', default='.',
                     help='Directory for novelties.<SHORT>.tsv output files (default: .)')
+    ap.add_argument('--other_evidence',
+                    help='presence_matrix.other_evidence.tsv.gz (issue #208); adds the other_protein_* columns')
+    ap.add_argument('--tblastn_coverage',
+                    help='tblastn_summary.coverage.tsv.gz (issue #208); adds the other_tblastn_* columns')
+    ap.add_argument('--other_signal_qcov', type=float, default=50.0,
+                    help='Percent query coverage at which an other-group signal is "broad" '
+                         '(default: 50, the observed median, not a validated cutoff)')
     ap.add_argument('--skip_tblastn_filter', action='store_true',
                     help='Do not exclude proteins with TBLASTN outgroup hits (hits still reported in tblastn_outgroup_hits column)')
     args = ap.parse_args()
@@ -102,6 +111,9 @@ def main():
         sys.exit('--ingroup_min must be in (0, 1]')
 
     tblastn = load_tblastn_summary(args.tblastn_summary)
+    prot_ev = load_protein_evidence(args.other_evidence) if args.other_evidence else None
+    tb_cov = load_tblastn_coverage(args.tblastn_coverage) if args.tblastn_coverage else None
+    with_signal = prot_ev is not None or tb_cov is not None
 
     families = {}
     if args.cluster_tsv and os.path.exists(args.cluster_tsv):
@@ -136,7 +148,8 @@ def main():
     annotation_cols = [c for c in header if c not in presence_cols]
     # Reorder: annotation first, then ingroup presence, then outgroup presence
     out_fields = (annotation_cols + ['family_id', 'family_size', 'family_members']
-                  + ingroup_ids + outgroup_ids + ['tblastn_outgroup_hits'])
+                  + ingroup_ids + outgroup_ids + ['tblastn_outgroup_hits']
+                  + (NOVELTY_COLUMNS if with_signal else []))
 
     counts: dict[str, tuple[int, int]] = {}
 
@@ -172,6 +185,12 @@ def main():
                     continue
 
                 row['tblastn_outgroup_hits'] = ','.join(sorted(tblastn_hit_genomes))
+
+                if with_signal:
+                    row.update(candidate_signal(
+                        None if prot_ev is None else prot_ev.get(pid, []),
+                        None if tb_cov is None else tb_cov.get(pid, []),
+                        args.other_signal_qcov))
 
                 rep = member_to_rep.get(pid)
                 if rep:

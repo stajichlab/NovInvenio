@@ -34,7 +34,7 @@ workflow VALIDATE {
     tblastn_tsv_ch = TBLASTN.out.tsv.map { meta, tsv -> tsv }.collect()
 
     // Summarise TBLASTN hits — expand rep-level hits to cluster members
-    SUMMARIZE_TBLASTN(tblastn_tsv_ch, cluster_tsv, summary_name)
+    SUMMARIZE_TBLASTN(tblastn_tsv_ch, cluster_tsv, summary_name, representatives_fa)
 
     // Per-genome alignment shards for the report's TBLASTN alignment popup
     // (docs/-only feature — see CLAUDE.md's report constraints and issue #72).
@@ -43,6 +43,7 @@ workflow VALIDATE {
     emit:
     tblastn_hits    = TBLASTN.out.tsv
     summary         = SUMMARIZE_TBLASTN.out.tsv
+    coverage        = SUMMARIZE_TBLASTN.out.coverage      // issue #208
     alignments      = BUILD_ALIGNMENT_SHARDS.out.dir
 }
 
@@ -55,9 +56,11 @@ process SUMMARIZE_TBLASTN {
     path(tblastn_tsvs)
     path(cluster_tsv)
     val(output_name)
+    path(query_fasta)
 
     output:
     path("${output_name}"), emit: tsv
+    path("${output_name.replaceAll(/\.tsv$/, '')}.coverage.tsv.gz"), emit: coverage
 
     script:
     """
@@ -65,6 +68,8 @@ process SUMMARIZE_TBLASTN {
         --hits ${tblastn_tsvs} \
         --cluster_tsv ${cluster_tsv} \
         --evalue ${params.evalue} \
+        --query_fasta ${query_fasta} \
+        --output-coverage ${output_name.replaceAll(/\.tsv$/, '')}.coverage.tsv.gz \
         --output ${output_name}
     """
 }

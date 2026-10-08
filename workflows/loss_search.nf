@@ -96,5 +96,6 @@ workflow LOSS_SEARCH {
     // evidence UI yet, matching MAKE_LOSSES_REPORT's existing scope) -- emitted anyway
     // since BUILD_PRESENCE_MATRIX always produces it now.
     targets     = BUILD_PRESENCE_MATRIX.out.targets
+    other_evidence = BUILD_PRESENCE_MATRIX.out.other_evidence   // issue #208
     self_hits   = PARSE_SELF_HITS.out.tsv    // [meta, self_hits_tsv] — one per outgroup proteome
 }

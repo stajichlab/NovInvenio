@@ -36,6 +36,8 @@ workflow REPORT {
                               //   outside --cluster_tool pairwise or when the config has no
                               //   NEAR_INGROUP/BROAD_OUTGROUP rows.
     context_evalues          // path: context_presence.evalues.tsv sidecar for context_matrix
+    other_evidence           // path: presence_matrix.other_evidence.tsv.gz (issue #208); 0-byte stub = not measured
+    tblastn_coverage         // path: tblastn_summary.coverage.tsv.gz (issue #208); 0-byte stub = not measured
     query_lowcov             // path: presence_matrix.query_lowcov.tsv (issue #159) -- report-only
                               //   count of query-group cells resting only on narrow hits.
                               //   Header-only without --other_coverage_floor_qcov; empty
@@ -54,7 +56,7 @@ workflow REPORT {
     // results/ copy: offline, file://-safe, never carries the TBLASTN
     // alignment popup (issue #74's ALIGNMENT_POPUP_JS).
     MAKE_REPORT(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
-               evalues, targets, descriptions, context_matrix, context_evalues, query_lowcov, config_csv, data_dir)
+               evalues, targets, descriptions, context_matrix, context_evalues, query_lowcov, other_evidence, tblastn_coverage, config_csv, data_dir)
     MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv, data_dir)
     MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
 
@@ -64,7 +66,7 @@ workflow REPORT {
     // column at all (MAKE_CORE_REPORT never takes a tblastn_summary input), so
     // it never diverges between the two copies and is reused as-is.
     MAKE_REPORT_ONLINE(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
-                       evalues, targets, descriptions, context_matrix, context_evalues, query_lowcov, config_csv, data_dir)
+                       evalues, targets, descriptions, context_matrix, context_evalues, query_lowcov, other_evidence, tblastn_coverage, config_csv, data_dir)
     MAKE_LOSSES_REPORT_ONLINE(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
 
     // Publication-quality PDF summary (static figures) alongside the interactive HTML.
@@ -151,6 +153,8 @@ process MAKE_REPORT {
     path(context_matrix, stageAs: 'context_matrix.tsv')
     path(context_evalues, stageAs: 'context_evalues.tsv')
     path(query_lowcov, stageAs: 'query_lowcov.tsv')
+    path(other_evidence, stageAs: 'other_evidence.in.tsv.gz')
+    path(tblastn_coverage, stageAs: 'tblastn_coverage.in.tsv.gz')
     path(config_csv)
     val(data_dir)
 
@@ -176,6 +180,9 @@ process MAKE_REPORT {
         --context_matrix ${context_matrix} \
         --context_evalues ${context_evalues} \
         --query_lowcov ${query_lowcov} \
+        --other_evidence ${other_evidence} \
+        --tblastn_coverage ${tblastn_coverage} \
+        --other_signal_qcov ${params.other_signal_qcov} \
         --project ${Helpers.projectName(params)} \
         --ingroup_min_frac ${params.ingroup_min_frac} \
         --sequences ${params.report_sequences} \
@@ -205,6 +212,8 @@ process MAKE_REPORT_ONLINE {
     path(context_matrix, stageAs: 'context_matrix.tsv')
     path(context_evalues, stageAs: 'context_evalues.tsv')
     path(query_lowcov, stageAs: 'query_lowcov.tsv')
+    path(other_evidence, stageAs: 'other_evidence.in.tsv.gz')
+    path(tblastn_coverage, stageAs: 'tblastn_coverage.in.tsv.gz')
     path(config_csv)
     val(data_dir)
 
@@ -226,6 +235,9 @@ process MAKE_REPORT_ONLINE {
         --context_matrix ${context_matrix} \
         --context_evalues ${context_evalues} \
         --query_lowcov ${query_lowcov} \
+        --other_evidence ${other_evidence} \
+        --tblastn_coverage ${tblastn_coverage} \
+        --other_signal_qcov ${params.other_signal_qcov} \
         --project ${Helpers.projectName(params)} \
         --ingroup_min_frac ${params.ingroup_min_frac} \
         --sequences ${params.report_sequences} \
