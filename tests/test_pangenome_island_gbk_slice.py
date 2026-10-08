@@ -255,3 +255,48 @@ def test_gzipped_genome_and_proteins_are_read(tmp_path):
     assert main(args) == 0
     rec = SeqIO.read(str(tmp_path / "gbk" / "L001" / "S1.gbk"), "genbank")
     assert len([f for f in rec.features if f.type == "CDS"]) == 3
+
+
+# --- UniProt FASTA + NCBI GFF3 dialect (issue #187's third dialect) --------------------
+# Proteins are UniProt IDs with GN=<locus tag>. The GFF3 CDS rows carry GenBank protein_id=
+# values and locus_tag=, so neither protein_id= nor Parent= matches the UniProt ID. The
+# slicer must use the same GN= <-> locus_tag= join as bin/pangenome_build_gene_positions.py,
+# or the strain's tracks are drawn empty (seen on Af293 and the two reference outgroups).
+UNIPROT_GFF = """##gff-version 3
+c1\tGenbank\tCDS\t10\t40\t.\t+\t0\tID=cds-GB1.1;Parent=rna-LT1;locus_tag=LT1;protein_id=GB1.1
+c1\tGenbank\tCDS\t60\t99\t.\t-\t0\tID=cds-GB2.1;Parent=rna-LT2;locus_tag=LT2;protein_id=GB2.1
+c1\tGenbank\tCDS\t120\t150\t.\t+\t0\tID=cds-GB3.1;Parent=rna-LT3;locus_tag=LT3;protein_id=GB3.1
+"""
+UNIPROT_PEP = (">tr|U1|U1_X Prot one OS=Asp OX=1 GN=LT1 PE=3 SV=1\nMKV*\n"
+               ">tr|U2|U2_X Prot two OS=Asp OX=1 GN=LT2 PE=3 SV=1\nMRR\n"
+               ">tr|U3|U3_X Prot three OS=Asp OX=1 GN=LT3 PE=3 SV=1\nMQQ\n")
+
+
+def uniprot_fixture(d: Path) -> list[str]:
+    args = fixture(d)
+    (d / "data" / "pep" / "S1.pep.fa").write_text(UNIPROT_PEP)
+    (d / "data" / "gff3" / "S1.gff3").write_text(UNIPROT_GFF)
+    (d / "gene_positions.tsv").write_text("Short\tprotein_id\tcontig\tstart\tend\n"
+                                          "S1\ttr|U1|U1_X\tc1\t10\t40\nS1\ttr|U2|U2_X\tc1\t60\t99\n"
+                                          "S1\ttr|U3|U3_X\tc1\t120\t150\n")
+    (d / "cluster.tsv").write_text("famA\tS1|tr|U1|U1_X\nfamB\tS1|tr|U2|U2_X\nfamC\tS1|tr|U3|U3_X\n")
+    return args
+
+
+def test_uniprot_ids_resolve_cds_through_gn_locus_tag_join(tmp_path):
+    assert main(uniprot_fixture(tmp_path)) == 0
+    (row,) = list(csv.DictReader(open(tmp_path / "gbk" / "island_slices.tsv"), delimiter="\t"))
+    assert (row["n_genes"], row["n_missing"]) == ("3", "0")      # was 0 genes, 3 missing
+    rec = SeqIO.read(str(tmp_path / "gbk" / "L001" / "S1.gbk"), "genbank")
+    cds = [f for f in rec.features if f.type == "CDS"]
+    assert [int(f.location.start) + 1 for f in cds] == [1, 51, 111]   # slice starts at bp 10
+    assert cds[1].location.strand == -1                          # strand taken from the GFF3
+    assert cds[0].qualifiers["translation"][0] == "MKV"
+
+
+def test_unresolvable_ids_are_reported_loudly(tmp_path, capsys):
+    args = uniprot_fixture(tmp_path)
+    (tmp_path / "data" / "gff3" / "S1.gff3").write_text("##gff-version 3\n")   # no CDS rows at all
+    main(args)
+    err = capsys.readouterr().err
+    assert "no CDS rows in the GFF3" in err and "S1" in err
