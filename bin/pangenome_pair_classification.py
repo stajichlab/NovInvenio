@@ -180,7 +180,7 @@ def classify_pair(
 
 # Columns from pangenome_cooccurrence.py passed through unchanged when present
 # (design decision Q4 outgroup-frequency polarity). Older inputs lack them.
-PASSTHROUGH_COLUMNS = ["asymmetry_a", "direction_a_freq"]
+PASSTHROUGH_COLUMNS = ["asymmetry_a", "direction_a_freq", "permutation_q"]
 
 
 def passthrough_columns(idx: dict[str, int]) -> list[str]:
@@ -201,6 +201,12 @@ def main() -> None:
     ap.add_argument("--min_co_carrying", type=int, default=DEFAULT_MIN_CO_CARRYING)
     ap.add_argument("--perm_alpha", type=float, default=DEFAULT_PERM_ALPHA)
     ap.add_argument("--min_clades", type=int, default=DEFAULT_MIN_CLADES)
+    ap.add_argument("--perm_correction", choices=["none", "bh"], default="none",
+                    help="'none' (default): `trans` needs permutation_p < --perm_alpha. 'bh': it "
+                         "needs the Benjamini-Hochberg permutation_q < --perm_alpha instead. The "
+                         "q column is written by COOCCURRENCE and is over the pairs that got the "
+                         "exact stratified test, so the correction is conditional on the first "
+                         "FDR screen.")
     ap.add_argument("--id_sep", default="|",
                     help="Short-prefix separator in clustering-input FASTA headers "
                          "(default: '|'); must match --pangenome_id_sep used "
@@ -233,7 +239,13 @@ def main() -> None:
         for line in fh:
             parts = line.rstrip("\n").split("\t")
             family_a, family_b = parts[idx["family_a"]], parts[idx["family_b"]]
-            permutation_p = float(parts[idx["permutation_p"]])
+            if args.perm_correction == "bh":
+                if "permutation_q" not in idx:
+                    sys.exit("ERROR: --perm_correction bh needs a permutation_q column; this "
+                             "co-occurrence table has none. Rerun COOCCURRENCE.")
+                permutation_p = float(parts[idx["permutation_q"]])   # the gating statistic
+            else:
+                permutation_p = float(parts[idx["permutation_p"]])
             clade_composition = ast.literal_eval(parts[idx["clade_composition"]])
             classification, frac = classify_pair(
                 family_a, family_b, permutation_p, clade_composition,
