@@ -231,7 +231,8 @@ def quality_key(strain: str, n50: dict[str, int], contig_genes: int) -> tuple:
 def choose_exemplar(placements: list[Placement], n50: dict[str, int],
                     flank: int = DEFAULT_FLANK,
                     flank_min: int = DEFAULT_FLANK_MIN,
-                    outgroup: frozenset | set = frozenset()) -> tuple[Placement, str] | None:
+                    outgroup: frozenset | set = frozenset(),
+                    preferred: list[str] | tuple = ()) -> tuple[Placement, str] | None:
     """(exemplar, tier). Tier "full": >= `flank` genes on both sides.
     "short_flanks": >= `flank_min` on both sides. "contig_end": the strain(s)
     with the most flank genes in total. None when no strain carries it.
@@ -240,12 +241,17 @@ def choose_exemplar(placements: list[Placement], n50: dict[str, int],
     preferred to any outgroup carrier, whatever their assembly quality: the
     exemplar names the locus's coordinates and column labels, and the page is
     about the ingroup. An outgroup strain is chosen only when it is the sole carrier
-    in the best available tier."""
+    in the best available tier.
+
+    `preferred` (ordered) lists reference strains: within a tier, the first listed carrier wins
+    over any other, whatever its quality. The tier is still chosen first, so a reference strain
+    with short flanks does not displace a strain with full flanks."""
     if not placements:
         return None
+    pref = {s: i for i, s in enumerate(preferred)}
 
     def best(pool):
-        return min(pool, key=lambda p: (p.strain in outgroup,
+        return min(pool, key=lambda p: (pref.get(p.strain, len(pref)), p.strain in outgroup,
                                         quality_key(p.strain, n50, p.contig_genes)))
 
     tier = [p for p in placements if p.left_avail >= flank and p.right_avail >= flank]
@@ -559,10 +565,35 @@ def rank_key(result: dict, rank_by: str) -> tuple:
 
 
 # ---- 6. one locus, all strains -------------------------------------------------
+DEFAULT_MIN_COLUMN_STRAINS = 2
+
+
+def informative_columns(support: list[int], n_left: int, n_locus: int,
+                        min_strains: int) -> list[int]:
+    """1 for each locus column in place in at least `min_strains` strains, else 0.
+
+    A column in place in a single strain (usually the exemplar's own gene model that no
+    other strain annotates) carries no information about variation among the other strains,
+    but it turns each of them into "model difference" or "partial" for that column. Such
+    columns are drawn but not used to classify strains. If no locus column reaches the
+    threshold, every column is used (a locus with no shared gene still needs a class).
+    """
+    block = support[n_left:n_left + n_locus]
+    mask = [1 if s >= min_strains else 0 for s in block]
+    return mask if any(mask) else [1] * len(block)
+
+
+def _classify_block(seq, n_left: int, n_locus: int, mask: list[int]):
+    """(seq with the uninformative locus columns removed, new n_locus)."""
+    kept = [seq[n_left + i] for i in range(n_locus) if mask[i]]
+    return list(seq[:n_left]) + kept + list(seq[n_left + n_locus:]), len(kept)
+
+
 def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Columns,
                   strains: list[str], positions: Positions, spans: ContigSpans,
                   matrix, species_of: dict[str, str], k: int = DEFAULT_K,
-                  empty_frac: float = DEFAULT_EMPTY_FRAC) -> dict:
+                  empty_frac: float = DEFAULT_EMPTY_FRAC,
+                  min_column_strains: int = DEFAULT_MIN_COLUMN_STRAINS) -> dict:
     """Every strain's cells, row class and flank pair for one locus, plus the
     collapsed rows, counts and breakpoint track. `matrix` has
     .call(family, strain) -> "present" | "genome_only" | "absent" (a
@@ -578,6 +609,9 @@ def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Column
     by_species: dict[str, dict[str, int]] = {}
     track_rows = []
     n_carriers = 0
+    counts_all = {c: 0 for c in ROW_CLASSES}
+    row_class_all: dict[str, str] = {}
+    # Pass 1: every strain's cells, so column support (strains with the column in place) is known.
     for s in strains:
         calls = {f: matrix.call(f, s) for f in set(fams)}
         genome_only = frozenset(f for f, c in calls.items() if c == "genome_only")
@@ -587,14 +621,24 @@ def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Column
         in_place = {(c, r) for _, c, r in sc.in_place_copies}
         pair = flank_pair(positions, s, list(columns.left), list(columns.right), n_locus, k,
                           in_place=in_place)
-        cls = row_class(sc.base, n_left, n_locus, pair is not None, empty_frac)
-        codes = "".join(sc.codes)
-        per_strain[s] = (cls, codes)
-        details[s] = sc.detail
         cells[s] = sc
+        details[s] = sc.detail
         if pair is not None:
             pairs[s] = pair
+    support = [sum(1 for sc in cells.values() if sc.base[j] == IN_PLACE) for j in range(len(fams))]
+    mask = informative_columns(support, n_left, n_locus, min_column_strains)
+    # Pass 2: classify on the informative columns; the all-columns class is kept for comparison.
+    for s in strains:
+        sc = cells[s]
+        intact = s in pairs
+        base_f, n_locus_f = _classify_block(sc.base, n_left, n_locus, mask)
+        cls = row_class(base_f, n_left, n_locus_f, intact, empty_frac)
+        cls_all = row_class(sc.base, n_left, n_locus, intact, empty_frac)
+        codes = "".join(sc.codes)
+        per_strain[s] = (cls, codes)
+        row_class_all[s] = cls_all
         counts[cls] += 1
+        counts_all[cls_all] += 1
         sp = species_of.get(s, "")
         by_species.setdefault(sp, {c: 0 for c in ROW_CLASSES})[cls] += 1
         track_rows.append((sp, cls, codes))
@@ -613,6 +657,11 @@ def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Column
         "n_locus": n_locus,
         "n_right": len(columns.right),
         "counts": counts,
+        "counts_all_columns": counts_all,
+        "locus_mask": mask,
+        "column_strains": support,
+        "n_excluded_columns": mask.count(0),
+        "min_column_strains": min_column_strains,
         "counts_by_species": dict(sorted(by_species.items())),
         "n_carriers": n_carriers,
         "informative_score": informative_score(counts),
@@ -622,6 +671,7 @@ def compute_locus(locus: Locus, placement: Placement, tier: str, columns: Column
         "_pairs": pairs,
         "_placement": placement,
         "_row_class": {s: v[0] for s, v in per_strain.items()},
+        "_row_class_all": row_class_all,
         "_per_strain": per_strain,
     }
 
@@ -671,10 +721,15 @@ _DNA_TRACK = str.maketrans({ABSENT: ELSEWHERE, DNA_PRESENT: ELSEWHERE, DNA_ABSEN
 
 def dna_checked_strains(result: dict) -> list[str]:
     """Strains the DNA check covers for one computed locus (spec 4b): flank
-    intact, with at least one locus column not in place. Sorted."""
+    intact, with at least one CLASSIFYING locus column not in place. Columns that
+    are not used to classify strains (locus_mask 0, see informative_columns) do not
+    trigger a check: a strain whose only gap is an exemplar-private column is already a
+    full locus. Sorted."""
     nl, nb = result["n_left"], result["n_locus"]
+    mask = result.get("locus_mask") or [1] * nb
     return sorted(s for s in result["_pairs"]
-                  if any(c not in IN_PLACE_CODES for c in result["_cells"][s].codes[nl:nl + nb]))
+                  if any(c not in IN_PLACE_CODES and m
+                         for c, m in zip(result["_cells"][s].codes[nl:nl + nb], mask)))
 
 
 def copy_bp(positions: Positions, gene_locs: dict, strain: str, family: str,
@@ -830,22 +885,28 @@ def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: 
     only DNA-confirmed empty-site strains (Ruling R22). Adds `dna` =
     {checked, unchecked, empty_confirmed, empty_to_model_difference}."""
     nl, nb = result["n_left"], result["n_locus"]
+    mask = result.get("locus_mask") or [1] * nb
     need = set(dna_checked_strains(result))
     per_strain: dict[str, tuple[str, str]] = {}
     details: dict[str, list] = {}
     counts = {c: 0 for c in ROW_ORDER}
+    counts_all = {c: 0 for c in ROW_ORDER}
+    row_class_all: dict[str, str] = {}
     by_species: dict[str, dict[str, int]] = {}
     track = []
     summary = {"checked": 0, "unchecked": 0, "empty_confirmed": 0, "empty_to_model_difference": 0}
     for s, sc in result["_cells"].items():
         cls = result["_row_class"][s]
+        cls_all = result.get("_row_class_all", result["_row_class"]).get(s, cls)
         codes = list(sc.codes)
         col_calls = calls.get(s, {}) if s in need else {}
         if any(v in ("present", "absent") for v in col_calls.values()):
             for ci, v in col_calls.items():
                 if nl <= ci < nl + nb and codes[ci] in DNA_CHECKED_CODES and v in ("present", "absent"):
                     codes[ci] = DNA_PRESENT if v == "present" else DNA_ABSENT
-            new_cls = row_class_dna(codes, nl, nb, True, empty_frac)
+            codes_f, nb_f = _classify_block(codes, nl, nb, mask)
+            new_cls = row_class_dna(codes_f, nl, nb_f, True, empty_frac)
+            cls_all = row_class_dna(codes, nl, nb, True, empty_frac)
             summary["checked"] += 1
             summary["empty_confirmed"] += new_cls == "empty"
             summary["empty_to_model_difference"] += cls == "empty" and new_cls == "model_difference"
@@ -856,10 +917,14 @@ def apply_dna_calls(result: dict, calls: dict[str, dict[int, str]], species_of: 
         per_strain[s] = (cls, code_str)
         details[s] = sc.detail
         counts[cls] += 1
+        counts_all[cls_all] += 1
+        row_class_all[s] = cls_all
         sp = species_of.get(s, "")
         by_species.setdefault(sp, {c: 0 for c in ROW_ORDER})[cls] += 1
         track.append((sp, cls, code_str.translate(_DNA_TRACK)))
     result["counts"] = counts
+    result["counts_all_columns"] = counts_all
+    result["_row_class_all"] = row_class_all
     result["counts_by_species"] = dict(sorted(by_species.items()))
     result["rows"] = collapse_rows(per_strain, details)
     result["breakpoints"] = breakpoint_track(track, len(result["families"]))

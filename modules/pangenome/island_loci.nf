@@ -61,6 +61,8 @@ process ISLAND_LOCI {
         --flank_min ${params.pangenome_locus_flank_min} \
         --k ${params.pangenome_locus_k} \
         --empty_frac ${params.pangenome_locus_empty_frac} \
+        --min_column_strains ${params.pangenome_locus_min_column_strains} \
+        --island_reference_strains '${params.pangenome_island_reference_strains}' \
         --containment ${params.pangenome_locus_containment} \
         --rank_by ${params.pangenome_locus_rank} \
         --top_loci ${params.pangenome_top_loci} \

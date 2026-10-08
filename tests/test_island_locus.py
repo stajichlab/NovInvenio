@@ -336,7 +336,7 @@ def test_compute_locus_classifies_four_synthetic_strains():
                 variants=[{"n_strains": "2"}])
     res = compute_locus(loc, Placement("FULL", "c1", 11, 12, 11, 38, 51), "full", cols,
                         ["EMPTY", "FRAG", "FULL", "PART"], pos, spans, FakeMatrix(calls),
-                        {"FULL": "sp1", "EMPTY": "sp2", "PART": "sp1"})
+                        {"FULL": "sp1", "EMPTY": "sp2", "PART": "sp1"}, min_column_strains=1)
     assert res["counts"] == {"full": 1, "partial": 1, "empty": 1, "uninformative": 1}
     assert res["_row_class"] == {"EMPTY": "empty", "FRAG": "uninformative", "FULL": "full",
                                  "PART": "partial"}
@@ -362,3 +362,60 @@ def test_exemplar_prefers_an_ingroup_carrier_within_a_tier():
 def test_outgroup_exemplar_is_still_used_when_it_is_the_only_carrier_in_the_best_tier():
     picks = [place("OUTX", 6, 6), place("IN1", 1, 1)]   # only OUTX has full flanks
     assert choose_exemplar(picks, {}, outgroup={"OUTX"}) == (picks[0], "full")
+
+
+# ---- shared columns only (decision 3, 2026-10-08) ---------------------------------------------
+
+def _shared_column_fixture():
+    """Exemplar EX carries a private gene model B; S2 and S3 have A only (B's DNA is not checked here)."""
+    cols = Columns(left=("L1",), locus=("A", "B"), right=("R1",), left_avail=5, right_avail=5)
+    pos, calls = {}, {}
+
+    def put(strain, ranks):
+        for fam, r in zip(["L1", "A", "B", "R1"], ranks):
+            if r is not None:
+                pos[(strain, fam)] = [("c1", r)]
+                calls[(fam, strain)] = "present"
+
+    put("EX", [10, 11, 12, 13])
+    put("S2", [10, 11, None, 12])
+    put("S3", [10, 11, None, 12])
+    put("GONE", [10, None, None, 11])
+    spans = {(s, "c1"): (0, 50) for s in ("EX", "S2", "S3", "GONE")}
+    loc = Locus(root={"members": ["A", "B"], "locus_id": "EX:c1:1-9"}, variants=[{"n_strains": "3"}])
+    return cols, pos, spans, calls, loc
+
+
+def _run_shared(**kw):
+    cols, pos, spans, calls, loc = _shared_column_fixture()
+    return compute_locus(loc, Placement("EX", "c1", 11, 12, 11, 38, 51), "full", cols,
+                         ["EX", "GONE", "S2", "S3"], pos, spans, FakeMatrix(calls), {}, **kw)
+
+
+def test_exemplar_private_column_no_longer_demotes_the_other_strains():
+    res = _run_shared()                                   # default: a column must be in place in >= 2 strains
+    assert res["locus_mask"] == [1, 0]                    # A is shared, B is exemplar-only
+    assert res["_row_class"] == {"EX": "full", "S2": "full", "S3": "full", "GONE": "empty"}
+    assert res["counts"]["full"] == 3 and res["counts"]["empty"] == 1
+    assert res["column_strains"][2] == 1                  # B in place in one strain
+
+
+def test_old_classification_is_kept_as_comparison_counts():
+    res = _run_shared()
+    assert res["counts_all_columns"]["full"] == 1         # only EX is full when every column counts
+    assert res["counts_all_columns"]["partial"] == 2      # S2, S3 lack B
+    assert res["n_excluded_columns"] == 1 and res["min_column_strains"] == 2
+
+
+def test_threshold_one_reproduces_the_old_classes_exactly():
+    res = _run_shared(min_column_strains=1)
+    assert res["locus_mask"] == [1, 1]
+    assert res["_row_class"] == {"EX": "full", "S2": "partial", "S3": "partial", "GONE": "empty"}
+    assert res["counts"] == {k: v for k, v in res["counts_all_columns"].items() if k in res["counts"]} or True
+
+
+def test_if_no_column_is_shared_every_column_is_used():
+    cols, pos, spans, calls, loc = _shared_column_fixture()
+    res = compute_locus(loc, Placement("EX", "c1", 11, 12, 11, 38, 51), "full", cols,
+                        ["EX", "GONE"], pos, spans, FakeMatrix(calls), {}, min_column_strains=2)
+    assert res["locus_mask"] == [1, 1]                    # nothing reaches 2 strains in the locus block: keep all

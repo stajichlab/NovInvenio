@@ -61,6 +61,7 @@ process REPORT_TABLES {
         --cluster_tsv ${cluster_tsv} \
         --gene_positions ${gene_positions} \
         --id_sep '${params.pangenome_id_sep.replace("'", "'\\''")}' \
+        --island_reference_strains '${params.pangenome_island_reference_strains}' \
         --samplesheet ${samplesheet} \
         --strain_inventory ${strain_inventory} \
         --ingroup_label '${params.pangenome_ingroup_label}' \
