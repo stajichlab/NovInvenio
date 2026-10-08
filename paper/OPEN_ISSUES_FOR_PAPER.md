@@ -29,7 +29,7 @@ maintainer's choice because it changes results.
 | G1 | The `trans` call uses an uncorrected p-value. `permutation_p` is an exact within-clade hypergeometric test run only on BH-FDR survivors, and `trans` needs `permutation_p < 0.05`. In full_v070 60% of the 564,245 `trans` pairs have 0.01 <= p < 0.05 (review figure). The value is written with 4 decimals, so p below 5e-5 prints as 0.0000 | The main statistical claim for trans modules | **decision**: write full precision, add a BH q over the tested set, and gate `trans` on it. Two reviewers agree |
 | G2 | The TaxonGroup column mixes label schemes (252 Barber, 10 DAPC, 31 Mash in full_v070). The null shuffles within these strata and `unknown` counts as a clade | Stratification depth is not what the text implies | open; enforce one scheme or record it |
 | G3 | Denominators differ between steps. Bins and co-occurrence use ingroup representatives; pair classification, islands and the accumulation curve use every strain, including near-duplicates and the outgroup | Counts in one table cannot be compared to another | open; see also G13 |
-| G4 | The openness rule is `is_open = gamma < 1` for pangenome size P = k N^gamma. Under that model almost any sublinear curve is "open" | The openness verdict says nothing | open; use gamma > 0 or fit the new-genes exponent; fit on ingroup representatives only |
+| G4 | The openness rule is `is_open = gamma < 1` for pangenome size P = k N^gamma. Under that model almost any sublinear curve is "open" | The openness verdict says nothing | rule fixed to gamma > 0 in PR #226 (the verdict is still weak: any growing curve has gamma > 0); fitting on ingroup representatives only is open |
 | G5 | "Accessory" has three definitions (not core; not core or soft core; shell plus cloud) | Methods must use one | open |
 | G6 | Pfam is scanned only on shell plus cloud representatives, so island tables miss domains of singleton, outgroup-only and non-representative members | Domain enrichment | open |
 | G7 | Islands are deduplicated on the exact member set, so one locus can appear as several islands; "62% single-strain islands" is partly this | Island counts | open; merge by overlap (the locus view already groups by containment) |
@@ -45,10 +45,10 @@ maintainer's choice because it changes results.
 
 | ID | Issue | Status |
 |---|---|---|
-| V1 | Columns were labelled by the mmseqs representative (a median of 6 different strains per drawn locus; IDs not stable between runs) | fixed in PR #221 (display strain's own gene IDs; representative kept as the key) |
+| V1 | Columns were labelled by the mmseqs representative (a median of 6 different strains per drawn locus; IDs not stable between runs) | fixed in PR #221 (display strain's own gene IDs; representative kept as the key). Not done: a user-chosen reference strain, and labels in clinker and the island tables |
 | V2 | "Model difference" is 56% of locus cells in isl45_v1 (reviewer), because every gene between the block ends in the exemplar, including exemplar-private models, becomes a column | **decision**: down-weight private and rescue-only columns in row classes |
-| V3 | 13 of 100 drawn loci use an outgroup genome as exemplar | open; prefer ingroup carriers |
-| V4 | Exemplar rescue columns show no coordinate because `rescue_locations` is not passed | open |
+| V3 | 13 of 100 drawn loci use an outgroup genome as exemplar | fixed in PR #221 (ingroup preferred within a tier) |
+| V4 | Exemplar rescue columns show no coordinate because `rescue_locations` is not passed | fixed in PR #221 |
 | V5 | Sidebar IDs, titles, "families" and "variants" were undefined or used a different strain's coordinates | fixed in PR #221 |
 | V6 | No Starship, biosynthetic-cluster or mobile-element markers in the views; no gene name or product; no per-strain table download | open; see the paper plan |
 
@@ -56,3 +56,14 @@ maintainer's choice because it changes results.
 
 - A merge into a stacked branch is not a merge into `main` (PR #217 into #216's branch). Retargeted as PR #223.
 - A bin-script edit does not change a Nextflow task hash, so a cached result can be reused from an older script version. Check the process command text or add a version argument.
+
+## E. Pull requests (2026-10-08)
+
+| PR | Content |
+|---|---|
+| #221 | Island and locus views: uniform labels, clearer sidebar, ingroup exemplars, rescue coordinates |
+| #222 | Clinker slices draw genes for UniProt-ID proteomes |
+| #223 | Losses signal and novelty_discovery singleton evidence (retarget of #217 to `main`) |
+| #224 | Pairwise: `--evalue` reaches filter 1; report definitions; stale docs (depends on #223) |
+| #225 | This folder |
+| #226 | Pangenome report: openness rule, definitions, wording |
