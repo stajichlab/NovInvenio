@@ -384,12 +384,19 @@ def accumulation_curve(matrix: PresenceMatrix, n_permutations: int = 20, seed: i
 
 
 def fit_heaps_law(pan_mean: np.ndarray) -> dict:
-    """Fit Heaps' law n = kappa * N^gamma to the pangenome accumulation
-    curve via log-log linear regression. gamma < 1 conventionally indicates
-    an OPEN pangenome (new families keep appearing as more genomes are
-    added); gamma >= 1 indicates a closed one. This is the fitted openness
-    statistic Afumigatus's own report never computed -- it only asserted
-    openness from the curve's visual shape.
+    """Fit Heaps' law P = kappa * N^gamma to the pangenome accumulation
+    curve (P = pangenome size after N strains) via log-log linear regression.
+
+    gamma is the growth exponent. gamma near 0 means the curve is flat (a closed
+    pangenome: new strains add almost no new families). gamma = 1 means every
+    strain adds the same number of new families (the most open case). In the
+    new-families form n_new = kappa * N^(-alpha), alpha = 1 - gamma, and the
+    pangenome is open when alpha < 1, that is when gamma > 0. The rule here is
+    therefore `gamma > 0`. (Earlier code used `gamma < 1`, which calls the
+    most open curves "closed" and calls a flat curve "open".) Because any
+    growing curve has gamma > 0, the verdict is weak by itself: read gamma and
+    its R^2, and note that the curve counts every strain in the matrix,
+    including near-duplicates and the outgroup.
 
     Below 3 strains, np.polyfit's log-log linear regression degenerates
     (2 points fit a line trivially with a meaningless/undefined R^2, 1 point
@@ -409,7 +416,7 @@ def fit_heaps_law(pan_mean: np.ndarray) -> dict:
     ss_tot = np.sum((log_pan - log_pan.mean()) ** 2)
     r_squared = float(1 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
     return {"kappa": float(kappa), "gamma": float(gamma), "r_squared": r_squared,
-            "is_open": bool(gamma < 1), "fit_ok": True}
+            "is_open": bool(gamma > 0), "fit_ok": True}
 
 
 def fit_core_decay(core_mean: np.ndarray) -> dict:
@@ -753,7 +760,24 @@ def render_report_markdown(
         # before any results -- a reader must see them before the first
         # figure, not scroll past them or find them only in stderr.
         lines += [diagnostics_banner.rstrip("\n"), ""]
-    lines += ["# Pangenome Island + Pfam Enrichment Report", ""]
+    lines += ["# Pangenome report", ""]
+    lines += ["## Definitions", "",
+              "- **Gene family**: a cluster of proteins from all strains at the tier-1 clustering "
+              "identity and coverage. A family is *present* in a strain when a member protein is "
+              "annotated there, or (with rescue on) when a TBLASTN hit marks it `genome_only`.",
+              "- **Frequency class** (computed separately for each group, over that group's "
+              "representative strains): `singleton` = one representative strain; otherwise by the "
+              "fraction of representatives: `core` >= 0.95, `soft_core` >= 0.90, `shell` >= 0.15, "
+              "`cloud` below 0.15 (defaults; the run parameters set them). A family in no "
+              "representative gets `nonrep_only` (only in near-identical strains that were "
+              "dereplicated away), `outgroup_only` or `ingroup_only` (only in the other group), or "
+              "`absent`.",
+              "- **Representative strain**: one strain kept per group of near-identical strains "
+              "(Mash dereplication). Counts of \"strains\" that include non-representatives are "
+              "said so.",
+              "- **Accessory island**: a run of consecutive non-core genes in one strain that "
+              "contains at least one significantly co-occurring pair that is also physically "
+              "linked. The islands are not tested as units.", ""]
     lines += ["## Pangenome composition", ""]
     for group, gc in counts.items():
         binned = sum(gc.get(b, 0) for b in BAND_ORDER)
@@ -775,7 +799,9 @@ def render_report_markdown(
         openness = "open" if heaps_fit["is_open"] else "closed"
         lines += [f"Heaps' law fit: κ={heaps_fit['kappa']:.1f}, γ={heaps_fit['gamma']:.3f} "
                   f"(R²={heaps_fit['r_squared']:.3f}) -- pangenome is **{openness}** "
-                  f"(γ {'<' if heaps_fit['is_open'] else '>='} 1).", ""]
+                  f"(γ {'>' if heaps_fit['is_open'] else '<='} 0; γ = 1 would mean every new strain "
+                  "adds the same number of new families). The curve counts every strain in the "
+                  "presence matrix, including near-identical strains and the outgroup.", ""]
         if core_decay is not None and core_decay["fit_ok"]:
             lines += [f"Extrapolated asymptotic core-genome size: {core_decay['core_inf']:.0f} families.", ""]
         lines += ["![Accumulation curve](figures/accumulation_curve.png)", ""]
@@ -819,9 +845,10 @@ def render_report_markdown(
 
     if islands_available:
         lines += ["## Accessory islands", ""]
-        lines += [f"{n_islands} statistically significant accessory islands found "
+        lines += [f"{n_islands} accessory islands found "
                   "(built from adjacency of non-core genes, gated by containing "
-                  "at least one FDR-significant physically-linked pair).", ""]
+                  "at least one FDR-significant physically-linked pair). The islands themselves are not "
+                  "tested as units.", ""]
         if size_dist:
             lines += ["![Island sizes](figures/island_size_distribution.png)", ""]
 
@@ -841,7 +868,7 @@ def render_report_markdown(
                     note = (f"*{n_excluded} islands present in fewer than "
                             f"{top_islands_min_strains} strains excluded.*")
                 lines += [note, ""]
-            lines += ["| Locus (strain:contig:start-end) | Families (#) | Span (kb) | "
+            lines += ["| Locus (strain:contig:start-end) | Genes in island (#) | Span (kb) | "
                       "Strains (#) | Pfam domains |",
                       "|---|---|---|---|---|"]
             for row in top_islands[:20]:

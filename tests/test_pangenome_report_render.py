@@ -26,7 +26,7 @@ def test_render_report_markdown_includes_key_sections():
         core_decay={"core_inf": 90.0, "tau": 20.0, "fit_ok": True},
         strain_family_counts=[8000, 8100, 8050],
     )
-    assert "# Pangenome Island + Pfam Enrichment Report" in md
+    assert "# Pangenome report" in md
     assert "## Pangenome composition" in md
     assert "## Accessory islands" in md
     assert "## Pfam domain enrichment" in md
@@ -309,7 +309,7 @@ def test_top_islands_table_header_carries_units():
         }],
     )
     assert "| Locus (strain:contig:start-end) |" in md
-    assert "Families (#)" in md
+    assert "Genes in island (#)" in md
     assert "Span (kb)" in md
     assert "Strains (#)" in md
 
@@ -402,13 +402,13 @@ def test_render_report_markdown_prepends_diagnostics_banner_when_given():
         diagnostics_banner="## Pipeline diagnostics\n\n- **rescue_redundancy** [OK]: fine\n",
     )
     assert md.startswith("## Pipeline diagnostics")
-    assert md.index("## Pipeline diagnostics") < md.index("# Pangenome Island + Pfam Enrichment Report")
+    assert md.index("## Pipeline diagnostics") < md.index("# Pangenome report")
 
 
 def test_render_report_markdown_omits_diagnostics_banner_when_absent():
     md = render_report_markdown({}, {}, {}, [], 0, None, None, [])
     assert "Pipeline diagnostics" not in md
-    assert md.startswith("# Pangenome Island + Pfam Enrichment Report")
+    assert md.startswith("# Pangenome report")
 
 
 def test_render_report_markdown_omits_islands_and_domain_sections_when_unavailable():
@@ -486,7 +486,7 @@ def test_main_renders_core_report_without_islands_args(tmp_path, monkeypatch):
     pangenome_report_render.main()
 
     report_md = (out_dir / "report.md").read_text()
-    assert "# Pangenome Island + Pfam Enrichment Report" in report_md
+    assert "# Pangenome report" in report_md
     assert "## Pangenome composition" in report_md
     assert "## Pangenome openness" in report_md
     assert "## Pair classification breakdown" in report_md
@@ -979,3 +979,33 @@ def test_main_overlap_skip_reason_not_binned(tmp_path, monkeypatch):
                                   "family\tfrequency\tstrain_count\tbin\tfrequency_out\tstrain_count_out\tbin_out",
                                   "famA\t1.0\t2\tcore\t-\t-\t-")
     assert "outgroup is not binned" in md
+
+
+# --- review fixes (2026-10-07): openness rule and in-report definitions ----------------
+
+def test_openness_rule_is_gamma_above_zero_not_below_one():
+    # P = kappa * N^gamma. gamma = 1: every strain adds the same number of families
+    # (the most open case; the old rule `gamma < 1` called it closed). A flat curve
+    # (gamma = 0) is closed; the old rule called it open.
+    n = np.arange(1, 31, dtype=float)
+    assert fit_heaps_law(100 * n)["is_open"] is True
+    assert fit_heaps_law(np.full(30, 1000.0))["is_open"] is False
+    assert fit_heaps_law(1000 - 500 / n)["is_open"] is True      # saturating but still growing
+
+
+def test_report_defines_the_classes_and_what_an_island_is():
+    md = render_report_markdown(
+        counts={"ingroup": {"core": 100, "soft_core": 10, "shell": 50, "cloud": 200, "singleton": 300}},
+        size_dist={2: 50},
+        classification_counts_dict={"trans": 40},
+        top_domains=[],
+        n_islands=75,
+        heaps_fit={"kappa": 500.0, "gamma": 0.4, "r_squared": 0.95, "is_open": True},
+        core_decay={"core_inf": 90.0, "tau": 20.0, "fit_ok": True},
+        strain_family_counts=[8000, 8100, 8050],
+    )
+    assert "## Definitions" in md
+    assert "`core` >= 0.95" in md and "`nonrep_only`" in md and "Representative strain" in md
+    assert "not tested as units" in md                      # island section and definition
+    assert "statistically significant accessory islands" not in md
+    assert "γ > 0" in md                                     # openness text states its rule
