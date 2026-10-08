@@ -14,6 +14,7 @@ process PAIR_CLASSIFICATION {
     path(family_positions)
     path(cluster_tsv)
     path(captain_tblout)   // may be an empty stub file when no captain-gene marker is used
+    path(strain_inventory, stageAs: 'strain_inventory.tsv')   // 0-byte stub when dereplication is off
 
     output:
     path("pair_classification.tsv.zst"), emit: classification
@@ -31,6 +32,8 @@ process PAIR_CLASSIFICATION {
         --min_co_carrying ${params.pangenome_pair_class_min_co_carrying} \
         --perm_alpha ${params.pangenome_pair_class_perm_alpha} \
         --min_clades ${params.pangenome_pair_class_min_clades} \
+        --inventory ${strain_inventory} \
+        --evidence_strains ${params.pangenome_pair_class_evidence_strains} \
         --id_sep '${params.pangenome_id_sep}' \
         --output pair_classification.tsv.zst
     """

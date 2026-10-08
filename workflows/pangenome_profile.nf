@@ -242,6 +242,7 @@ workflow PANGENOME_PROFILE {
         FAMILY_POSITIONS.out.positions,
         CLUSTER_TIER1.out.cluster_tsv,
         captain_tblout,
+        strain_inventory,
     )
 
     // --- 8b. Leiden trans-module detection (chained co-occurring families) ---
