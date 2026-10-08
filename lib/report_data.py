@@ -13,6 +13,8 @@ from pathlib import Path
 
 from clusters import FamilyIndex
 from config_parser import INGROUP_ROLES, OUTGROUP_ROLES  # noqa: F401 (re-exported)
+from other_evidence import (load_protein_evidence, load_tblastn_coverage,
+                            other_evidence_payload)
 from gff3_genes import (  # noqa: F401 (gene_id_from_protein_id re-exported for
     gene_id_from_protein_id,                              # backward compatibility --
     load_gff3_index,                                       # see gff3_genes.py's
@@ -105,6 +107,12 @@ ROW_FIELDS = [
     'urev',      # uniprot_reviewed as int (1 Swiss-Prot, 0 TrEMBL), -1 when no match
     'pubs',      # index into payload['pub_sets'], or -1 -- uniprot_pubs,
                  # "PMID;DOI;scope;title|..." (title is the last ;-field), interned
+    'oe',        # other-group evidence (issue #208) for novelty rows, else null:
+                 # {'c': max query coverage in percent or null, 'p': per-proteome protein
+                 # hit rows [other, target, evalue, bits, qcov, status, paralog_id,
+                 # paralog_evalue, delta], 't': per-genome TBLASTN rows [genome, span_cov,
+                 # start, end, n_hsps, evalue]}. The page derives the none / domain_only /
+                 # broad class from 'c' and a user-set threshold. Null = not measured.
 ]
 
 class _StringTable:
@@ -421,6 +429,9 @@ def build_payload(
     context_matrix_path=None,
     context_evalues_path=None,
     query_lowcov_path=None,
+    other_evidence_path=None,
+    tblastn_coverage_path=None,
+    other_signal_qcov=50.0,
     ingroup_min_frac=0.75,
     project='NovInvenio',
     sequences='novelties',
@@ -499,6 +510,9 @@ def build_payload(
     target_lookup = read_targets(targets_path)
     descriptions_lookup = read_descriptions(descriptions_path)
     lowcov_qcov, lowcov_lookup = read_query_lowcov(query_lowcov_path)
+    other_ev = load_protein_evidence(other_evidence_path) if other_evidence_path else None
+    other_cov = load_tblastn_coverage(tblastn_coverage_path) if tblastn_coverage_path else None
+    has_other_evidence = other_ev is not None or other_cov is not None
     referenced_target_ids: set[str] = set()
     gff3_paths = gff3_paths or {}
     gff3_cache: dict[str, dict] = {}
@@ -651,6 +665,9 @@ def build_payload(
             (row.get('uniprot_match_species', '') or '') if row.get('uniprot_match') == 'seq_other' else '',
             int(row['uniprot_reviewed']) if (row.get('uniprot_reviewed') or '') != '' else -1,
             pub_sets.intern(row.get('uniprot_pubs', '') or ''),
+            (other_evidence_payload(None if other_ev is None else other_ev.get(pid, []),
+                                    None if other_cov is None else other_cov.get(pid, []))
+             if is_nov and has_other_evidence else None),
         ])
 
     return {
@@ -678,6 +695,8 @@ def build_payload(
         'has_targets': bool(target_lookup),
         'has_context': bool(context_shorts),
         'has_lowcov': bool(lowcov_lookup),
+        'has_other_evidence': has_other_evidence,
+        'other_signal_qcov': other_signal_qcov,
         'lowcov_qcov': lowcov_qcov,
         'protein_names': {
             tid: {'gene_name': descriptions_lookup[tid][0], 'description': descriptions_lookup[tid][1]}

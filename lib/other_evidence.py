@@ -160,3 +160,23 @@ def candidate_signal(protein_rows, tblastn_rows, threshold):
         return out
     out['other_signal_class'] = signal_class(max(qcovs) if qcovs else None, threshold, has_hit)
     return out
+
+
+def other_evidence_payload(protein_rows, tblastn_rows):
+    """Per-row report payload ('oe', issue #208). Either input None = that sidecar not supplied.
+
+    {'c': max query coverage in percent or None, 'p': [...], 't': [...]}; see
+    lib/report_data.py ROW_FIELDS['oe'] for the row layouts.
+    """
+    protein_rows = protein_rows or []
+    tblastn_rows = tblastn_rows or []
+    cs = [_num(r.get('max_qcov')) for r in protein_rows]
+    cs += [None if _num(r.get('query_span_cov')) is None else _num(r['query_span_cov']) * 100
+           for r in tblastn_rows]
+    cs = [c for c in cs if c is not None]
+    p = [[r['other_proteome'], r['best_target_id'], _num(r['best_evalue']), _num(r['best_bitscore']),
+          _num(r['best_qcov']), r['status'], r['paralog_id'], _num(r['paralog_evalue']),
+          _num(r['paralog_delta'])] for r in protein_rows]
+    t = [[r['genome'], _num(r['query_span_cov']), int(r['span_start']), int(r['span_end']),
+          int(r['n_hsps']), _num(r['best_evalue'])] for r in tblastn_rows]
+    return {'c': max(cs) if cs else None, 'p': p, 't': t}

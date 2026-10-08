@@ -78,6 +78,15 @@ def main():
                          'row, ingroup presence cells resting only on hits below the '
                          'coverage floor. Report-only. Missing/empty/header-only means not '
                          'computed (floor off, or --cluster_tool other than pairwise).')
+    ap.add_argument('--other_evidence',
+                    help='presence_matrix.other_evidence.tsv.gz (optional; issue #208) -- other-group '
+                         'hit evidence incl. filter-removed hits. Missing/0 bytes = not measured.')
+    ap.add_argument('--tblastn_coverage',
+                    help='tblastn_summary.coverage.tsv.gz (optional; issue #208). Missing/0 bytes = not measured.')
+    ap.add_argument('--other_signal_qcov', type=float, default=50.0,
+                    help='Initial coverage threshold (percent) for the Outgroup signal class '
+                         '(default: 50, the observed median, not a validated cutoff). The page '
+                         'lets the viewer change it.')
     ap.add_argument('--project', default=None,
                     help='Project name shown in the report title (default: matrix parent dir)')
     ap.add_argument('--ingroup_min_frac', type=float, default=0.75,
@@ -132,6 +141,9 @@ def main():
         context_matrix_path=args.context_matrix,
         context_evalues_path=args.context_evalues,
         query_lowcov_path=args.query_lowcov,
+        other_evidence_path=args.other_evidence,
+        tblastn_coverage_path=args.tblastn_coverage,
+        other_signal_qcov=args.other_signal_qcov,
         ingroup_min_frac=args.ingroup_min_frac,
         project=project,
         sequences=args.sequences,

@@ -401,6 +401,8 @@ workflow NOVINVENIO {
         context_matrix,
         context_evalues,
         novelty_query_lowcov,
+        novelty_other_evidence,
+        novelty_tblastn_cov,
         loss_annotated_matrix,
         loss_tblastn_summary,
         loss_cand_cluster_tsv,

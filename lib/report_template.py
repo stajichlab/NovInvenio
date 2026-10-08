@@ -208,6 +208,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--page);
   }
   .chip:hover { border-color: var(--series-1); }
+  .osig { display: inline-block; padding: 1px 7px; border: 1px solid var(--border); border-radius: 999px;
+          font-size: 11px; cursor: pointer; background: var(--page); }
+  .osig.osig-none { color: var(--muted); }
+  .osig.osig-domain_only { border-color: var(--series-2); color: var(--text-primary); }
+  .osig.osig-broad { border-color: var(--series-1); color: var(--text-primary); font-weight: 600; }
+  table.oe { border-collapse: collapse; font-size: 11px; margin-top: 4px; width: 100%; }
+  table.oe th, table.oe td { border-bottom: 1px solid var(--border); padding: 2px 5px; text-align: left; }
   a.pfam-link { color: var(--series-1); text-decoration: none; }
   a.pfam-link:hover { text-decoration: underline; }
   .links { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -365,6 +372,16 @@ HTML_TEMPLATE = r"""<!doctype html>
     <label class="check"><input type="checkbox" id="f-nov" checked> Novelty candidates only</label>
     <label class="check"><input type="checkbox" id="f-pfam"> Has Pfam</label>
     <label class="check"><input type="checkbox" id="f-notb"> No TBLASTN hit</label>
+    <span id="f-osig-wrap" class="hidden">
+      <select id="f-osig" aria-label="Outgroup signal class">
+        <option value="">Outgroup signal: any</option>
+        <option value="none">none (no outgroup hit)</option>
+        <option value="domain_only">domain_only (hit covers &lt; threshold)</option>
+        <option value="broad">broad (hit covers &ge; threshold)</option>
+      </select>
+      <label class="num-range" aria-label="Outgroup signal coverage threshold (percent)">threshold %
+        <input type="number" id="f-oq" min="0" max="100" step="5" style="width:4.5em"></label>
+    </span>
     <label class="check hidden" id="f-concordant-wrap"><input type="checkbox" id="f-concordant"> Concordant (both methods)</label>
     <label class="num-range" aria-label="Protein length range (aa)">Length (aa)
       <input type="number" id="f-minlen" min="0" placeholder="min" style="width:5em">–<input type="number" id="f-maxlen" min="0" placeholder="max" style="width:5em">
@@ -580,6 +597,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     novOnly: true,
     pfamOnly: false,
     noTb: false,
+    osig: "",
+    oq: null,
     concordantOnly: false,
     category: "",
     minLen: null,
@@ -633,6 +652,24 @@ HTML_TEMPLATE = r"""<!doctype html>
     };
   }
 
+  // ---- outgroup signal (issue #208) ---------------------------------------
+  // The page classifies from the per-row coverage C so the viewer can move the threshold.
+  // The default only sets the initial view; it is the observed median, not a validated cutoff.
+  function oeOf(i) { return DATA.has_other_evidence ? ROWS[i][F.oe] : null; }
+  function osigClass(i) {
+    var oe = oeOf(i);
+    if (!oe) return "";
+    if (!oe.p.length && !oe.t.length) return "none";
+    if (oe.c == null) return "";
+    return oe.c >= state.oq ? "broad" : "domain_only";
+  }
+  function osigRank(i) {   // none, then ascending coverage: weakest outgroup signal first
+    var oe = oeOf(i);
+    if (!oe) return 1e9;
+    if (!oe.p.length && !oe.t.length) return -1;
+    return oe.c == null ? 1e8 : oe.c;
+  }
+
   // ---- filtering & sorting -----------------------------------------------
   function applyFilters() {
     var q = state.search.trim().toLowerCase();
@@ -652,6 +689,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       if (state.fsrc && row[F.fsrc] !== fsrcIdx) continue;
       if (state.pfamOnly && !hasPfam[i]) continue;
       if (state.noTb && tbN[i] > 0) continue;
+      if (state.osig && osigClass(i) !== state.osig) continue;
       // Concordant = called novel by both search methods (support has a "+").
       if (state.concordantOnly && String(row[F.support] || "").indexOf("+") === -1) continue;
       if (state.category && row[F.category] !== state.category) continue;
@@ -695,6 +733,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         };
       }
     }
+    else if (s === "osig") cmp = function (a, b) { return (osigRank(a) - osigRank(b)) || (inN[b] - inN[a]) || cmpId(a, b); };
     else if (s === "lowcov") cmp = function (a, b) {
       // Most low-coverage ingroup cells first (issue #159); rows not computed go last.
       var la = ROWS[a][F.lowcov], lb = ROWS[b][F.lowcov];
@@ -995,6 +1034,46 @@ HTML_TEMPLATE = r"""<!doctype html>
       detailEl.appendChild(field("Novelty category", catText));
     }
 
+    // Outgroup signal (issue #208) -- evidence only, never part of the novelty call.
+    var oeRow = oeOf(ri);
+    if (oeRow) {
+      var oc = osigClass(ri);
+      var box = el("div");
+      box.appendChild(el("div", "field-value",
+        oc + (oeRow.c == null ? "" : " — best outgroup query coverage " + Math.round(oeRow.c) +
+        "% (threshold " + state.oq + "%)")));
+      if (oeRow.p.length) {
+        var tp = el("table", "oe");
+        var hp = el("tr");
+        ["Outgroup", "Best target", "E-value", "Bits", "qcov %", "Status", "Paralog", "Paralog E", "Δlog10"]
+          .forEach(function (h) { hp.appendChild(el("th", null, h)); });
+        tp.appendChild(hp);
+        oeRow.p.forEach(function (x) {
+          var tr = el("tr");
+          [x[0], x[1], x[2] == null ? "" : fmtEvalue(x[2]), x[3] == null ? "" : x[3], x[4] == null ? "" : Math.round(x[4]),
+           x[5], x[6] || "", x[7] == null ? "" : fmtEvalue(x[7]), x[8] == null ? "" : Math.round(x[8] * 10) / 10]
+            .forEach(function (v) { tr.appendChild(el("td", null, String(v))); });
+          tp.appendChild(tr);
+        });
+        box.appendChild(tp);
+      }
+      if (oeRow.t.length) {
+        var tt = el("table", "oe");
+        var ht = el("tr");
+        ["Genome (TBLASTN)", "Query span", "Coverage %", "HSPs", "E-value"]
+          .forEach(function (h) { ht.appendChild(el("th", null, h)); });
+        tt.appendChild(ht);
+        oeRow.t.forEach(function (x) {
+          var tr = el("tr");
+          [x[0], x[2] + "–" + x[3], x[1] == null ? "" : Math.round(x[1] * 100), x[4], x[5] == null ? "" : fmtEvalue(x[5])]
+            .forEach(function (v) { tr.appendChild(el("td", null, String(v))); });
+          tt.appendChild(tr);
+        });
+        box.appendChild(tt);
+      }
+      detailEl.appendChild(field("Outgroup signal", box));
+    }
+
     // Ingroup coverage (issue #159) -- report-only, never part of the novelty call.
     if (DATA.has_lowcov && row[F.lowcov] != null) {
       var qc = DATA.lowcov_qcov;
@@ -1220,6 +1299,21 @@ HTML_TEMPLATE = r"""<!doctype html>
     TBL_COLS.splice(tbCol + 1, 0, {
       label: "Low-cov ingroup (qcov<" + DATA.lowcov_qcov + "%)", cls: "num", sortKey: "lowcov",
       get: function (r) { var v = ROWS[r][F.lowcov]; return v == null ? "" : String(v); }
+    });
+  }
+  if (DATA.has_other_evidence) {
+    var tbCol2 = TBL_COLS.map(function (c) { return c.label; }).indexOf("TBLASTN");
+    TBL_COLS.splice(tbCol2 + 1, 0, {
+      label: "Outgroup signal", sortKey: "osig",
+      get: function (r) { return osigClass(r); },
+      render: function (td, r) {
+        var c = osigClass(r);
+        if (!c) return;
+        var oe = oeOf(r);
+        var tag = el("span", "osig osig-" + c, c);
+        tag.title = oe.c == null ? "no coverage measured" : "best outgroup query coverage " + Math.round(oe.c) + "%";
+        td.appendChild(tag);
+      }
     });
   }
   // Per-proteome presence columns keep the table a true twin of the heatmap. Context
@@ -1504,6 +1598,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     state.novOnly = true; state.pfamOnly = false; state.noTb = false;
     state.concordantOnly = false; state.category = ""; state.minLen = null; state.maxLen = null;
     state.sort = "ingroup";
+    state.osig = "";
     document.getElementById("f-search").value = "";
     document.getElementById("f-src").value = "";
     document.getElementById("f-fsrc").value = "";
@@ -1516,8 +1611,23 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("f-minlen").value = "";
     document.getElementById("f-maxlen").value = "";
     document.getElementById("f-sort").value = "ingroup";
+    if (DATA.has_other_evidence) { document.getElementById("f-osig").value = ""; }
     refresh(true);
   });
+
+  // Outgroup signal controls (issue #208): only when the run measured other-group evidence.
+  if (DATA.has_other_evidence) {
+    state.oq = DATA.other_signal_qcov;
+    document.getElementById("f-oq").value = state.oq;
+    document.getElementById("f-osig-wrap").classList.remove("hidden");
+    document.getElementById("f-sort").appendChild(new Option("Sort: weakest outgroup signal first", "osig"));
+    document.getElementById("f-osig").addEventListener("change", function (e) { state.osig = e.target.value; refresh(true); });
+    document.getElementById("f-oq").addEventListener("input", function (e) {
+      var v = Number(e.target.value);
+      state.oq = isNaN(v) ? DATA.other_signal_qcov : v;
+      refresh(false);
+    });
+  }
 
   // The low-coverage sort only exists when the run computed the counts (issue #159).
   if (DATA.has_lowcov) {
