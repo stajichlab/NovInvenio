@@ -22,6 +22,8 @@ from Bio.SeqRecord import SeqRecord
 
 _PROTEIN_ID_RE = re.compile(r"(?:^|;)protein_id=([^;\n]+)")
 _PARENT_RE = re.compile(r"(?:^|;)Parent=([^;\n]+)")
+_LOCUS_TAG_RE = re.compile(r"(?:^|;)locus_tag=([^;\n]+)")
+_GN_RE = re.compile(r"\sGN=(\S+)")
 _UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]")
 
 
@@ -160,6 +162,47 @@ def cds_exons(gff3_lines, contigs: set[str], ids: set[str]) -> dict[str, tuple[i
                 continue
             entry = out.setdefault(pid, [-1 if f[6] == "-" else 1, []])
             entry[1].append((int(f[3]), int(f[4])))
+    return {pid: (strand, sorted(ex)) for pid, (strand, ex) in out.items()}
+
+
+def gene_name_to_protein(fasta_headers) -> dict[str, str]:
+    """{GN value: protein ID} from UniProt-style FASTA header lines (`>id ... GN=<name> ...`).
+
+    Same rule as bin/pangenome_build_gene_positions.py::load_protein_gene_names: a GN value
+    that appears on more than one protein is dropped, because only 1:1 names are safe to join.
+    """
+    seen: dict[str, str] = {}
+    dup: set[str] = set()
+    for header in fasta_headers:
+        m = _GN_RE.search(header)
+        if not m:
+            continue
+        gn, pid = m.group(1), header.lstrip(">").split()[0]
+        if gn in seen:
+            dup.add(gn)
+        else:
+            seen[gn] = pid
+    return {gn: pid for gn, pid in seen.items() if gn not in dup}
+
+
+def cds_exons_by_locus_tag(gff3_lines, contigs: set[str],
+                           tag_to_pid: dict[str, str]) -> dict[str, tuple[int, list]]:
+    """Like cds_exons(), for proteins that protein_id=/Parent= cannot resolve: join a CDS
+    row's `locus_tag=` to the protein through the FASTA's `GN=` (UniProt FASTA + NCBI GFF3,
+    issue #187's third dialect). `tag_to_pid` is gene_name_to_protein()'s result."""
+    out: dict[str, list] = {}
+    for line in gff3_lines:
+        if line.startswith("#") or not line.strip():
+            continue
+        f = line.rstrip("\n").split("\t")
+        if len(f) < 9 or f[2] != "CDS" or f[0] not in contigs:
+            continue
+        m = _LOCUS_TAG_RE.search(f[8])
+        pid = tag_to_pid.get(m.group(1)) if m else None
+        if pid is None:
+            continue
+        entry = out.setdefault(pid, [-1 if f[6] == "-" else 1, []])
+        entry[1].append((int(f[3]), int(f[4])))
     return {pid: (strand, sorted(ex)) for pid, (strand, ex) in out.items()}
 
 

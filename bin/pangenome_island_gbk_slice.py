@@ -28,7 +28,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from Bio import SeqIO  # noqa: E402
 from compressed_io import open_maybe_compressed  # noqa: E402
 from config_parser import parse_config  # noqa: E402
-from genbank_slice import build_record, cds_exons, rank_entries, safe_name, split_blocks  # noqa: E402
+from genbank_slice import (  # noqa: E402
+    build_record, cds_exons, cds_exons_by_locus_tag, gene_name_to_protein, rank_entries,
+    safe_name, split_blocks,
+)
 
 DNA_SUBDIRS = ["dna", "genome", "scaffolds"]
 PEP_SUBDIRS = ["pep", "proteins"]
@@ -186,10 +189,28 @@ def main(argv=None) -> int:
         pids = {e[1] for i in idxs for e in region_entries[i] if e[1]}
         with open_maybe_compressed(str(dna)) as fh:
             seqs = {rec.id: str(rec.seq) for rec in SeqIO.parse(fh, "fasta") if rec.id in contigs}
+        gn_headers: list[str] = []
+        prots = {}
         with open_maybe_compressed(str(pep)) as fh:
-            prots = {rec.id: str(rec.seq) for rec in SeqIO.parse(fh, "fasta") if rec.id in pids}
+            for rec in SeqIO.parse(fh, "fasta"):
+                if rec.id in pids:
+                    prots[rec.id] = str(rec.seq)
+                if " GN=" in rec.description:
+                    gn_headers.append(">" + rec.description)
         with open_maybe_compressed(str(gff)) as fh:
             exons = cds_exons(fh, contigs, pids)
+        if len(exons) < len(pids) and gn_headers:
+            # UniProt FASTA + NCBI GFF3: protein_id=/Parent= do not name the UniProt ID, so
+            # join locus_tag= to the FASTA's GN= (same rule as GENE_POSITIONS, #187).
+            tag_to_pid = {tag: pid for tag, pid in gene_name_to_protein(gn_headers).items()
+                          if pid in pids and pid not in exons}
+            if tag_to_pid:
+                with open_maybe_compressed(str(gff)) as fh:
+                    exons.update(cds_exons_by_locus_tag(fh, contigs, tag_to_pid))
+        if len(exons) < len(pids):
+            print(f"WARNING: {strain}: {len(pids) - len(exons)} of {len(pids)} annotated genes in "
+                  f"the drawn regions have no CDS rows in the GFF3 ({gff.name}) and are not drawn "
+                  f"(checked protein_id=, Parent= and the GN=/locus_tag= join).", file=sys.stderr)
         for i in idxs:
             r = regions[i]
             ents = region_entries[i]
