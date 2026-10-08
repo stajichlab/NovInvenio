@@ -79,3 +79,80 @@ def build_other_evidence(hits, status, other_ids, paralog_of, best_ev, scope):
             'paralog_delta': _delta(best['evalue'], pev),
         })
     return pd.DataFrame(rows, columns=EVIDENCE_COLUMNS)
+
+
+# --- per-candidate summary (bin/make_novelties.py) --------------------------
+
+NOVELTY_COLUMNS = ['other_protein_max_qcov', 'other_protein_n_filtered',
+                   'other_protein_min_paralog_evalue', 'other_tblastn_max_cov',
+                   'other_tblastn_n_genomes', 'other_signal_class']
+
+
+def _num(x):
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return None if math.isnan(v) else v
+
+
+def load_protein_evidence(path):
+    """Return {protein_id: [row dict, ...]} from a *.other_evidence.tsv(.gz); {} if missing/empty."""
+    import csv
+    import gzip
+    import os
+    if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
+        return {}
+    opener = gzip.open if str(path).endswith('.gz') else open
+    out = {}
+    with opener(path, 'rt', newline='') as fh:
+        for row in csv.DictReader(fh, delimiter='\t'):
+            out.setdefault(row['protein_id'], []).append(row)
+    return out
+
+
+def load_tblastn_coverage(path):
+    """Return {protein_id: [row dict, ...]} from tblastn_summary.coverage.tsv(.gz)."""
+    return load_protein_evidence(path)
+
+
+def signal_class(c, threshold, has_hit):
+    """'none' (no hit), 'domain_only' (C < T), 'broad' (C >= T); '' when a hit has no coverage."""
+    if not has_hit:
+        return 'none'
+    if c is None:
+        return ''
+    return 'broad' if c >= threshold else 'domain_only'
+
+
+def candidate_signal(protein_rows, tblastn_rows, threshold):
+    """Per-candidate NOVELTY_COLUMNS values (strings) from its evidence rows.
+
+    protein_rows / tblastn_rows may be None when that sidecar was not supplied ("not
+    measured": its columns stay blank). C = max(protein max_qcov, tblastn coverage x 100)
+    over the evidence that exists.
+    """
+    out = {k: '' for k in NOVELTY_COLUMNS}
+    qcovs, has_hit = [], False
+    if protein_rows is not None:
+        qs = [_num(r.get('max_qcov')) for r in protein_rows]
+        qs = [q for q in qs if q is not None]
+        out['other_protein_max_qcov'] = f'{max(qs):g}' if qs else ''
+        filtered = [r for r in protein_rows if r.get('status') != STATUS_KEPT]
+        out['other_protein_n_filtered'] = str(len(filtered))
+        pe = [_num(r.get('paralog_evalue')) for r in filtered]
+        pe = [p for p in pe if p is not None]
+        out['other_protein_min_paralog_evalue'] = f'{min(pe):g}' if pe else ''
+        qcovs += qs
+        has_hit |= bool(protein_rows)
+    if tblastn_rows is not None:
+        cs = [_num(r.get('query_span_cov')) for r in tblastn_rows]
+        cs = [c for c in cs if c is not None]
+        out['other_tblastn_max_cov'] = f'{max(cs):.3f}' if cs else ''
+        out['other_tblastn_n_genomes'] = str(len({r['genome'] for r in tblastn_rows}))
+        qcovs += [c * 100 for c in cs]
+        has_hit |= bool(tblastn_rows)
+    if protein_rows is None and tblastn_rows is None:
+        return out
+    out['other_signal_class'] = signal_class(max(qcovs) if qcovs else None, threshold, has_hit)
+    return out
