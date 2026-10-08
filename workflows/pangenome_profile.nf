@@ -446,6 +446,7 @@ workflow PANGENOME_PROFILE {
             pfam_domtblout_ch,         // merged table; the per-chunk channel ran these once per chunk
             GENE_POSITIONS.out.positions,
             CLUSTER_TIER1.out.cluster_tsv,
+            rescue_positions,
             dna_calls,
             dna_check,
         )

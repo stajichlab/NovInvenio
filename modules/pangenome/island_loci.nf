@@ -34,6 +34,7 @@ process ISLAND_LOCI {
     path(domtblout)
     path(gene_positions)
     path(cluster_tsv)
+    path(rescue_positions, stageAs: 'rescue_positions.tsv')   // 0 bytes when rescue is off
     path(dna_calls)
     val(dna_check)
 
@@ -69,6 +70,7 @@ process ISLAND_LOCI {
         --poly_max_frac ${params.pangenome_locus_poly_max_frac} \
         --fixed_diff ${params.pangenome_locus_fixed_diff} \
         --candidates ${params.pangenome_locus_candidates} \
+        --rescue_positions ${rescue_positions} \
         --dna_check ${dna_check} \
         --dna_calls ${dna_calls} \
         --dna_min_id ${params.pangenome_locus_dna_min_id} \

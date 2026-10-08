@@ -350,3 +350,15 @@ def test_compute_locus_classifies_four_synthetic_strains():
         {"b": 3, "indel": {"sp1": 1, "sp2": 1}, "contig_break": 0},
     ]
     assert res["informative_score"] == -1
+
+
+def test_exemplar_prefers_an_ingroup_carrier_within_a_tier():
+    picks = [place("OUTX", 6, 6), place("IN1", 6, 6)]
+    n50 = {"OUTX": 9_000_000, "IN1": 1_000}          # the outgroup assembly is far better
+    assert choose_exemplar(picks, n50)[0].strain == "OUTX"                      # unchanged default
+    assert choose_exemplar(picks, n50, outgroup={"OUTX"})[0].strain == "IN1"
+
+
+def test_outgroup_exemplar_is_still_used_when_it_is_the_only_carrier_in_the_best_tier():
+    picks = [place("OUTX", 6, 6), place("IN1", 1, 1)]   # only OUTX has full flanks
+    assert choose_exemplar(picks, {}, outgroup={"OUTX"}) == (picks[0], "full")

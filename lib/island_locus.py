@@ -230,15 +230,23 @@ def quality_key(strain: str, n50: dict[str, int], contig_genes: int) -> tuple:
 
 def choose_exemplar(placements: list[Placement], n50: dict[str, int],
                     flank: int = DEFAULT_FLANK,
-                    flank_min: int = DEFAULT_FLANK_MIN) -> tuple[Placement, str] | None:
+                    flank_min: int = DEFAULT_FLANK_MIN,
+                    outgroup: frozenset | set = frozenset()) -> tuple[Placement, str] | None:
     """(exemplar, tier). Tier "full": >= `flank` genes on both sides.
     "short_flanks": >= `flank_min` on both sides. "contig_end": the strain(s)
-    with the most flank genes in total. None when no strain carries it."""
+    with the most flank genes in total. None when no strain carries it.
+
+    `outgroup` names outgroup strains. Within a tier, an ingroup carrier is
+    preferred to any outgroup carrier, whatever their assembly quality: the
+    exemplar names the locus's coordinates and column labels, and the page is
+    about the ingroup. An outgroup strain is chosen only when it is the sole carrier
+    in the best available tier."""
     if not placements:
         return None
 
     def best(pool):
-        return min(pool, key=lambda p: quality_key(p.strain, n50, p.contig_genes))
+        return min(pool, key=lambda p: (p.strain in outgroup,
+                                        quality_key(p.strain, n50, p.contig_genes)))
 
     tier = [p for p in placements if p.left_avail >= flank and p.right_avail >= flank]
     if tier:
