@@ -41,16 +41,16 @@ LOCUS_VIEW_HTML = r"""
     <div class="isv-explorer">
       <aside class="isv-sidebar">
         <div class="isv-sidebar-controls">
-          <input type="search" id="lv-search" placeholder="Search locus, strain or family ID…" aria-label="Search loci">
+          <input type="search" id="lv-search" placeholder="Search locus key, exemplar strain or gene ID…" aria-label="Search loci">
           <select id="lv-sort" aria-label="Sort loci by">
             <option value="presence" title="min(strains that lack island DNA, strains that carry it)">Presence/absence (DNA)</option>
             <option value="within" title="loss frequency 5-95% within one species">Within-species polymorphic</option>
             <option value="species" id="lv-sort-species" title="loss frequency differs between species by &gt;= 0.95">Species-specific</option>
             <option value="whole_dna" title="confirmed empty site vs full + model difference">Whole-island deletion</option>
             <option value="whole_annot" title="confirmed empty site vs full locus only">Whole-island deletion, annotated carriers</option>
-            <option value="strains">Sort: strains with the locus</option>
-            <option value="size">Sort: size (families)</option>
-            <option value="name">Sort: locus ID</option>
+            <option value="strains">Sort: carrier strains (most first)</option>
+            <option value="size">Sort: largest island (families)</option>
+            <option value="name">Sort: locus key (L001…)</option>
           </select>
           <span class="count" id="lv-count" role="status" aria-live="polite"></span>
         </div>
@@ -141,7 +141,7 @@ LOCUS_VIEW_JS = r"""
     var c = locus.counts;
     var dnaOn = params && params.dna_check === true && locus.dna;
     var emptyCount = dnaOn ? locus.dna.empty_confirmed : c.empty;
-    var text = locus.size + " families · " + locus.n_variants + " variants · " +
+    var text = locus.size + " families in largest island · " + locus.n_variants + " island variants · " +
       "empty " + emptyCount + " · full " + c.full + " · partial " + c.partial;
     if (c.model_difference !== undefined) text += " · model difference " + c.model_difference;
     text += " · uninformative " + c.uninformative;
@@ -186,7 +186,7 @@ LOCUS_VIEW_JS = r"""
     var cmp;
     if (key === "strains") cmp = function (a, b) { return loci[b].n_carriers - loci[a].n_carriers || a - b; };
     else if (key === "size") cmp = function (a, b) { return loci[b].size - loci[a].size || a - b; };
-    else if (key === "name") cmp = function (a, b) { return loci[a].locus_id < loci[b].locus_id ? -1 : loci[a].locus_id > loci[b].locus_id ? 1 : 0; };
+    else if (key === "name") cmp = function (a, b) { return (loci[a].key || loci[a].locus_id) < (loci[b].key || loci[b].locus_id) ? -1 : (loci[a].key || loci[a].locus_id) > (loci[b].key || loci[b].locus_id) ? 1 : 0; };
     else if (locusIsRankKey(key)) cmp = function (a, b) {
       // Sorting uses locus.ranks[key] descending; loci with -1 go last
       // (ranks-brief.md "Page"). Ties keep the payload's presence order.
@@ -249,7 +249,7 @@ LOCUS_VIEW_JS = r"""
   }
   function locusTitle(locus) {
     var span = locus.exemplar_span;
-    return locus.exemplar + ":" + locus.exemplar_contig +
+    return locus.key + " · " + locus.exemplar + ":" + locus.exemplar_contig +
       (span ? ":" + span.start + "-" + span.end : "");
   }
   function locusTierText(tier, params) {
@@ -379,7 +379,8 @@ LOCUS_VIEW_JS = r"""
   function isFlank(locus, i) { return i < locus.n_left || i >= locus.n_left + locus.n_locus; }
 
   function locusHaystack(locus) {
-    return (locus.locus_id + " " + locus.exemplar + " " + locus.families.join(" ")).toLowerCase();
+    return (locus.key + " " + locus.locus_id + " " + locus.exemplar + " " + locus.families.join(" ") + " " +
+            (locus.family_labels ? locus.family_labels.join(" ") : "")).toLowerCase();
   }
   function applyLocusFilter() {
     var q = lstate.search.trim().toLowerCase();
@@ -403,7 +404,9 @@ LOCUS_VIEW_JS = r"""
       btn.setAttribute("role", "option");
       btn.setAttribute("aria-selected", idx === lstate.selected ? "true" : "false");
       if (idx === lstate.selected) btn.classList.add("sel");
-      btn.appendChild(el("div", "isv-item-id", locus.locus_id));
+      // Same coordinate system as the page title: the exemplar's, not the root island's
+      // first strain (locus.locus_id), which names a different strain for about half the loci.
+      btn.appendChild(el("div", "isv-item-id", locusTitle(locus)));
       btn.appendChild(el("div", "isv-item-stats", locusSidebarStats(locus, LPARAMS)));
       var rankNote = locusRankNote(locus, lstate.sort);
       if (rankNote) btn.appendChild(el("div", "isv-item-stats", rankNote));
@@ -507,7 +510,7 @@ LOCUS_VIEW_JS = r"""
     var P = palette();
     lhctx.font = LABEL_FONT;
     var maxW = 0;
-    locus.families.forEach(function (f) { maxW = Math.max(maxW, Math.min(LABEL_MAX_W, lhctx.measureText(f).width)); });
+    locus.families.forEach(function (f, i) { maxW = Math.max(maxW, Math.min(LABEL_MAX_W, lhctx.measureText(colLabel(locus, i)).width)); });
     var H = Math.ceil(maxW * Math.sin(LABEL_ANGLE)) + GLYPH_H + 32;
     var W = totalW + Math.ceil(maxW * Math.cos(LABEL_ANGLE)) + 12;
     var glyphY = H - GLYPH_H - 10;
@@ -527,10 +530,10 @@ LOCUS_VIEW_JS = r"""
       lhctx.translate(x + L_CELL_W / 2, glyphY - 6);
       lhctx.rotate(-LABEL_ANGLE);
       lhctx.fillStyle = isFlank(locus, i) ? P.secondary : P.primary;
-      lhctx.font = LABEL_FONT;
+      lhctx.font = colLabelIsRep(locus, i) ? LABEL_FONT_REP : LABEL_FONT;
       lhctx.textAlign = "left";
       lhctx.textBaseline = "middle";
-      lhctx.fillText(ellipsize(lhctx, fam, LABEL_MAX_W), 0, 0);
+      lhctx.fillText(ellipsize(lhctx, colLabel(locus, i), LABEL_MAX_W), 0, 0);
       lhctx.restore();
     });
     lhctx.font = ROW_LABEL_FONT;
@@ -628,10 +631,14 @@ LOCUS_VIEW_JS = r"""
     var dnaOn = LPARAMS.dna_check === true && locus.dna;
     var emptyCount = dnaOn ? locus.dna.empty_confirmed : c.empty;
     document.getElementById("lv-note").textContent =
+      "A locus groups the islands that overlap at one place: the largest island plus smaller islands whose genes it contains " +
+      "(\"island variants\"). \"Carrier strains\" have a gene of the locus in place. " +
       "Exemplar " + locus.exemplar + ": carries the locus's largest variant with at least " +
       LPARAMS.flank + " genes on both sides (else " + LPARAMS.flank_min + "), ties by N50 then name. " +
       locus.n_left + " + " + locus.n_locus + " + " + locus.n_right +
-      " columns (flank + locus + flank) in the exemplar's gene order. A cell is in place when " +
+      " columns (flank + locus + flank) in the exemplar's gene order. Column labels are the exemplar's own gene IDs; " +
+      "an italic label is a family the exemplar has no annotated gene for, shown by a representative from another strain. " +
+      "A cell is in place when " +
       "the strain has another column's gene within k = " + LPARAMS.k + " genes on the same contig. " +
       "Rows: strains with identical states, grouped by row class, then species. " +
       "Full " + c.full + ", partial " + c.partial + ", empty site " + emptyCount +
@@ -660,7 +667,13 @@ LOCUS_VIEW_JS = r"""
   function appendLocusColumn(locus, ci) {
     var role = ci < locus.n_left ? "left flank (anchor)"
       : (ci >= locus.n_left + locus.n_locus ? "right flank (anchor)" : "locus gene");
-    tipEl.appendChild(el("div", "tip-id", locus.families[ci]));
+    tipEl.appendChild(el("div", "tip-id", colLabel(locus, ci)));
+    if (colLabelIsRep(locus, ci)) {
+      tipEl.appendChild(el("div", null, "No annotated gene in " + locus.exemplar +
+        "; label is the family's representative from another strain."));
+    } else if (locus.family_labels && locus.family_labels[ci] !== locus.families[ci]) {
+      tipEl.appendChild(el("div", null, "Gene in " + locus.exemplar + "; family representative: " + locus.families[ci]));
+    }
     tipEl.appendChild(el("div", null, "Column " + (ci + 1) + " of " + locus.families.length + ", " + role));
     tipEl.appendChild(el("div", null, "Frequency bin: " + ((locus.family_bins && locus.family_bins[ci]) || "unknown")));
     appendLocation({ family_locations: locus.family_locations, example_strain: locus.exemplar }, ci);
@@ -694,7 +707,7 @@ LOCUS_VIEW_JS = r"""
     }
     var ci = lColAt(lGrid, e.clientX, locus);
     if (ci >= 0) {
-      tipEl.appendChild(el("div", "tip-id", locus.families[ci]));
+      tipEl.appendChild(el("div", "tip-id", colLabel(locus, ci)));
       cellReasonLines(locus, row, ci, LPARAMS.k).forEach(function (line) {
         tipEl.appendChild(el("div", null, line));
       });

@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from compressed_io import open_maybe_compressed  # noqa: E402
-from config_parser import parse_config  # noqa: E402
+from config_parser import OUTGROUP_ROLES, parse_config  # noqa: E402
 from island_locus import (  # noqa: E402
     DEFAULT_CONTAINMENT, DEFAULT_EMPTY_FRAC, DEFAULT_FIXED_DIFF, DEFAULT_FLANK,
     DEFAULT_FLANK_MIN, DEFAULT_K, DEFAULT_POLY_MAX_FRAC, DEFAULT_POLY_MIN_FRAC,
@@ -121,6 +121,9 @@ def build(args) -> dict:
     cands = candidate_loci(loci, len(strains), args.rank_by, args.candidates, args.min_strains)
     n50 = read_n50(args.assembly_quality)
     species_of = ({s.short: s.species for s in parse_config(args.config)} if args.config else {})
+    # Outgroup strains are not preferred as the exemplar that names a locus's coordinates and labels.
+    outgroup_shorts = (frozenset(s.short for s in parse_config(args.config)
+                                 if s.group in OUTGROUP_ROLES) if args.config else frozenset())
 
     members = {f for loc in cands for f in loc.members}
     scan1 = scan_family_positions(args.family_positions, families=members, spans=True)
@@ -128,7 +131,7 @@ def build(args) -> dict:
     n_unplaced = 0
     for loc in cands:
         places = carrier_placements(loc.members, scan1.positions, strains, scan1.spans, args.k)
-        pick = choose_exemplar(places, n50, args.flank, args.flank_min)
+        pick = choose_exemplar(places, n50, args.flank, args.flank_min, outgroup_shorts)
         if pick is None:
             n_unplaced += 1
             continue
@@ -212,6 +215,9 @@ def build(args) -> dict:
         gene_locs = load_gene_locations(args.cluster_tsv, args.gene_positions,
                                         {f for r in drawn for f in r["families"]},
                                         {r["exemplar"] for r in drawn}, args.id_sep)
+    # TBLASTN rescue hits give an exemplar column with no annotated gene a coordinate.
+    rescue_locs = load_rescue_locations(
+        args.rescue_positions, {(r["exemplar"], f) for r in drawn for f in r["families"]})
     out_loci = []
     regions = []
     for i, r in enumerate(drawn):
@@ -227,7 +233,7 @@ def build(args) -> dict:
         locs = span = None
         if gene_locs is not None:
             locs = column_locations(r["families"], r["exemplar"], r["exemplar_contig"], -1, -1,
-                                    gene_locs)
+                                    gene_locs, rescue_locs)
             block = [x for x in locs[r["n_left"]:r["n_left"] + r["n_locus"]]
                      if x and not x.get("rescued")]
             if block:
@@ -314,6 +320,29 @@ def choose_drawn(results: list[dict], ranks_by_id: dict[str, dict], top_loci: in
 
 DNA_TARGET_COLUMNS = ["locus_id", "role", "strain", "contig", "start", "end", "genes"]
 DNA_CALL_COLUMNS = ["locus_id", "strain", "col", "status", "coverage"]
+
+
+def load_rescue_locations(rescue_positions: str | None,
+                          wanted: set[tuple[str, str]]) -> dict[tuple[str, str], list[tuple]]:
+    """{(strain, family): [(contig, start), ...]} from rescue_positions.tsv for the `wanted`
+    pairs, in the shape lib/island_synteny.column_locations() takes as `rescue_locations`.
+    A missing, empty or malformed file gives no locations (the column then reads "No annotated
+    gene in <exemplar>", with no coordinate)."""
+    out: dict[tuple[str, str], list[tuple]] = {}
+    if not (rescue_positions and Path(rescue_positions).is_file()
+            and Path(rescue_positions).stat().st_size > 0):
+        return out
+    with open_maybe_compressed(rescue_positions) as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            key = (row.get("Short"), row.get("family"))
+            if key not in wanted:
+                continue
+            try:
+                hit = (row["contig"], int(row["start"]))
+            except (KeyError, ValueError):
+                continue
+            out.setdefault(key, []).append(hit)
+    return out
 
 
 def load_rescue_spans(rescue_positions: str | None, tblastn_paths: list[str] | None,

@@ -193,3 +193,20 @@ def test_clinker_max_strains_zero_selects_none(tmp_path):
     data = run(tmp_path, "--clinker_max_strains", "0", "--regions_out", str(tmp_path / "r.tsv"))
     assert data["loci"][0]["clinker_strains"] == []
     assert (tmp_path / "r.tsv").read_text().count("\n") == 1
+
+
+def test_load_rescue_locations_reads_wanted_pairs_only(tmp_path):
+    from pangenome_island_loci import load_rescue_locations
+    f = tmp_path / "rescue_positions.tsv"
+    f.write_text("Short\tfamily\tcontig\tstart\nS1\tfamA\tc1\t500\nS1\tfamA\tc2\t90\nS2\tfamA\tc1\t7\nS1\tfamB\tc1\tx\n")
+    out = load_rescue_locations(str(f), {("S1", "famA"), ("S1", "famB")})
+    assert out == {("S1", "famA"): [("c1", 500), ("c2", 90)]}        # S2 not wanted; bad start skipped
+
+
+def test_load_rescue_locations_tolerates_missing_and_empty_files(tmp_path):
+    from pangenome_island_loci import load_rescue_locations
+    empty = tmp_path / "e.tsv"
+    empty.write_text("")
+    assert load_rescue_locations(None, {("S1", "f")}) == {}
+    assert load_rescue_locations(str(tmp_path / "nope.tsv"), {("S1", "f")}) == {}
+    assert load_rescue_locations(str(empty), {("S1", "f")}) == {}
