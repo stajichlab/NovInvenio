@@ -248,3 +248,48 @@ def test_end_to_end_with_annotated_matrix_columns(tmp_path):
     assert float(summary['recall']) == 1.0
     assert float(summary['fp_rate']) == 0.5
 
+
+
+# --- defects found in the 2026-10-07 review (Phase 2 status) -------------------------
+
+def test_recall_all_counts_unresolved_positives_as_misses():
+    results = [
+        {'control_id': 'P1', 'class': 'positive', 'actual_call': 'novel', 'outcome': 'hit'},
+        {'control_id': 'P2', 'class': 'positive', 'actual_call': 'unresolved', 'outcome': 'unresolved'},
+        {'control_id': 'N1', 'class': 'negative', 'actual_call': 'not_novel', 'outcome': 'tn'},
+        {'control_id': 'N2', 'class': 'negative', 'actual_call': 'unresolved', 'outcome': 'unresolved'},
+    ]
+    s = sc.summarize(results)
+    assert s['recall'] == 1.0                 # resolved only: 1/1 (unchanged, kept for callers)
+    assert s['recall_all'] == 0.5             # 1 hit of 2 positives, unresolved counted as a miss
+    assert s['n_positive_unresolved'] == 1 and s['n_negative_unresolved'] == 1
+    assert s['fp_rate'] == 0.0
+
+
+def test_recall_all_is_none_without_positives():
+    s = sc.summarize([{'control_id': 'N1', 'class': 'negative', 'actual_call': 'not_novel', 'outcome': 'tn'}])
+    assert s['recall_all'] is None
+
+
+def test_fasta_anchor_resolves_only_below_the_evalue_threshold(tmp_path):
+    dom = tmp_path / 'anchor.domtblout'
+    row = lambda q, e: ' '.join(['t', '-', '-', q, '-', '100', e] + ['-'] * 16)  # noqa: E731
+    dom.write_text(row('pB1', '3.0') + "\n")
+    assert sc.best_family_from_domtblout(str(dom)) == 'pB1'                       # legacy: no threshold
+    assert sc.best_family_from_domtblout(str(dom), max_evalue=1e-5) is None       # junk hit rejected
+    dom.write_text(row('pB1', '1e-8') + "\n")
+    assert sc.best_family_from_domtblout(str(dom), max_evalue=1e-5) == 'pB1'
+
+
+def test_fasta_anchor_tie_is_deterministic(tmp_path):
+    dom = tmp_path / 'anchor.domtblout'
+    row = lambda q, e: ' '.join(['t', '-', '-', q, '-', '100', e] + ['-'] * 16)  # noqa: E731
+    dom.write_text(row('pZ', '1e-30') + "\n" + row('pA', '1e-30') + "\n")
+    assert sc.best_family_from_domtblout(str(dom)) == 'pA'
+
+
+def test_summary_records_the_thresholds_used(tmp_path):
+    _setup(tmp_path, CONTROLS)
+    _, summary = _run(tmp_path, '--ingroup-min-frac', '0.5', '--other-max-frac', '0.25')
+    assert float(summary['ingroup_min_frac']) == 0.5
+    assert float(summary['other_max_frac']) == 0.25
