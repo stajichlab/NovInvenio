@@ -187,7 +187,8 @@ workflow NOVELTY_SCREEN {
     SUMMARIZE_TBLASTN(
         TBLASTN.out.tsv.map { meta, tsv -> tsv }.collect().ifEmpty([]),
         cluster_tsv,
-        'screen_tblastn_summary.tsv'
+        'screen_tblastn_summary.tsv',
+        family_reps
     )
 
     NOVELTY_SCREEN_CLASSIFY(

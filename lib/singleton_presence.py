@@ -136,7 +136,8 @@ def _rescued(ev, paralog_ev, rescue_evalue, rescue_delta):
 def score_singleton_hits(hits, singleton_ids, paralog_of,
                          default_evalue, competition_scope='proteome',
                          rescue_evalue=DEFAULT_RESCUE_EVALUE, rescue_delta=None,
-                         coverage_floor_qcov=None, floor_shorts=None, stats=None):
+                         coverage_floor_qcov=None, floor_shorts=None, stats=None,
+                         evidence_out=None):
     """Filter a singleton search's hits down to qualifying presence calls.
 
     hits: iterable of (query_id, target_id, evalue, proteome_short[, qcov]) tuples -- covers
@@ -157,6 +158,11 @@ def score_singleton_hits(hits, singleton_ids, paralog_of,
 
     stats: optional dict, filled with 'filter2_rejected' and 'floor_rejected' hit counts
     so callers can log the two mechanisms separately.
+
+    evidence_out: optional list (issue #208). Every singleton hit that passes filter 1 is
+    appended as (query_id, target_id, evalue, proteome_short, qcov, status, paralog_id,
+    paralog_evalue) with status 'kept', 'paralog_filtered' or 'coverage_floor'. Evidence
+    only: it never changes the returned presence.
 
     Returns (presence, evalue):
       presence[proteome_short] = set of singleton_ids present
@@ -183,12 +189,17 @@ def score_singleton_hits(hits, singleton_ids, paralog_of,
             continue
 
         paralog_id = paralog_of.get(query_id)
+        paralog_ev = None
         if paralog_id:
             key = (paralog_id, short if competition_scope == 'proteome' else target_id)
             paralog_ev = best_ev.get(key)
             if (paralog_ev is not None and paralog_ev < ev
                     and not _rescued(ev, paralog_ev, rescue_evalue, rescue_delta)):
                 n_filter2 += 1
+                if evidence_out is not None:
+                    evidence_out.append((query_id, target_id, ev, short,
+                                         hit[4] if len(hit) > 4 else None,
+                                         'paralog_filtered', paralog_id, paralog_ev))
                 continue  # disqualified: the paralog explains this hit better
 
         if coverage_floor_qcov and (floor_shorts is None or short in floor_shorts):
@@ -201,8 +212,15 @@ def score_singleton_hits(hits, singleton_ids, paralog_of,
                     'the floor.')
             if qcov < coverage_floor_qcov:
                 n_floor += 1
+                if evidence_out is not None:
+                    evidence_out.append((query_id, target_id, ev, short, qcov,
+                                         'coverage_floor', paralog_id, paralog_ev))
                 continue
 
+        if evidence_out is not None:
+            evidence_out.append((query_id, target_id, ev, short,
+                                 hit[4] if len(hit) > 4 else None,
+                                 'kept', paralog_id, paralog_ev))
         presence[short].add(query_id)
         prev = evalue.get((short, query_id))
         if prev is None or ev < prev:

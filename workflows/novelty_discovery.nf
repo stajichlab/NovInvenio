@@ -277,6 +277,7 @@ process NOVELTY_PRESENCE_MATRIX {
     path("presence_matrix.tsv"), emit: matrix
     path("candidates.txt"),      emit: candidates
     path("presence_matrix.evalues.tsv"), emit: evalues
+    path("presence_matrix.other_evidence.tsv.gz"), emit: other_evidence   // issue #208
 
     script:
     // singleton_hits/paralog_cutoffs are [] when there were no singletons / no paralogs
@@ -308,7 +309,8 @@ process NOVELTY_PRESENCE_MATRIX {
         ${params.other_coverage_floor_qcov ? "--other-coverage-floor-qcov ${params.other_coverage_floor_qcov}" : ''} \
         --output-matrix presence_matrix.tsv \
         --output-candidates candidates.txt \
-        --output-evalues presence_matrix.evalues.tsv
+        --output-evalues presence_matrix.evalues.tsv \
+        --output-other-evidence presence_matrix.other_evidence.tsv.gz
     """
 }
 
@@ -446,7 +448,8 @@ workflow NOVELTY_DISCOVERY {
     SUMMARIZE_TBLASTN(
         TBLASTN.out.tsv.map { meta, tsv -> tsv }.collect(),
         MMSEQS_FAMILY_CLUSTER.out.cluster_tsv,
-        'tblastn_summary.tsv'
+        'tblastn_summary.tsv',
+        family_reps_fa
     )
 
     emit:
@@ -458,6 +461,8 @@ workflow NOVELTY_DISCOVERY {
     // follow-up if that evidence is wanted too). Keyed by protein_id/source_proteome, not
     // row order, so NOVELTY_SCREEN carrying rows forward doesn't need to touch this.
     evalues            = NOVELTY_PRESENCE_MATRIX.out.evalues
+    other_evidence     = NOVELTY_PRESENCE_MATRIX.out.other_evidence   // issue #208
+    tblastn_coverage   = SUMMARIZE_TBLASTN.out.coverage                // issue #208
     summary            = SUMMARIZE_TBLASTN.out.tsv
     // Family clustering + reps + the concatenated seed group, for the family-as-cluster
     // path (ADR-0002 Q7): main.nf feeds these to PROFILE_CANDIDATE_CLUSTERS instead of

@@ -180,3 +180,32 @@ def other_evidence_payload(protein_rows, tblastn_rows):
     t = [[r['genome'], _num(r['query_span_cov']), int(r['span_start']), int(r['span_end']),
           int(r['n_hsps']), _num(r['best_evalue'])] for r in tblastn_rows]
     return {'c': max(cs) if cs else None, 'p': p, 't': t}
+
+
+def evidence_from_records(records, protein_to_proteome, other_shorts, bitscores=None):
+    """EVIDENCE_COLUMNS DataFrame from lib/singleton_presence.score_singleton_hits' evidence_out.
+
+    records: (query_id, target_id, evalue, short, qcov, status, paralog_id, paralog_evalue).
+    Only cells in other_shorts are written. Singleton hit files carry no bit score, so
+    best_bitscore is blank.
+    """
+    cells = {}
+    for rec in records:
+        if rec[3] in other_shorts:
+            cells.setdefault((rec[0], rec[3]), []).append(rec)
+    rows = []
+    for (qid, short), g in sorted(cells.items()):
+        best = min(g, key=lambda r: r[2])
+        qs = [r[4] for r in g if r[4] is not None]
+        pev = best[7]
+        rows.append({
+            'protein_id': qid, 'source_proteome': protein_to_proteome.get(qid, ''),
+            'other_proteome': short, 'evidence': 'protein',
+            'best_target_id': best[1], 'best_evalue': best[2], 'best_bitscore': '',
+            'best_qcov': '' if best[4] is None else best[4],
+            'max_qcov': max(qs) if qs else '', 'n_hits': len(g),
+            'status': STATUS_KEPT if any(r[5] == STATUS_KEPT for r in g) else best[5],
+            'paralog_id': best[6] or '', 'paralog_evalue': '' if pev is None else pev,
+            'paralog_delta': _delta(best[2], pev),
+        })
+    return pd.DataFrame(rows, columns=EVIDENCE_COLUMNS)

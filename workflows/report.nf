@@ -44,6 +44,8 @@ workflow REPORT {
                               //   stub outside --cluster_tool pairwise.
     loss_annotated_matrix    // path: loss_presence_matrix.function.tsv
     loss_tblastn_summary     // path: loss_tblastn_summary.tsv
+    loss_other_evidence      // path: loss_presence_matrix.other_evidence.tsv.gz (issue #208); 0-byte stub = not measured
+    loss_tblastn_coverage    // path: loss_tblastn_summary.coverage.tsv.gz (issue #208); 0-byte stub = not measured
     loss_cluster_tsv         // path: loss mmseqs *_cluster.tsv
     config_csv               // path: analysis CSV
     data_dir                  // val: absolute path to --data_dir -- report-only, used to
@@ -58,7 +60,7 @@ workflow REPORT {
     MAKE_REPORT(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
                evalues, targets, descriptions, context_matrix, context_evalues, query_lowcov, other_evidence, tblastn_coverage, config_csv, data_dir)
     MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv, data_dir)
-    MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
+    MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_other_evidence, loss_tblastn_coverage, loss_cluster_tsv, config_csv, data_dir)
 
     // docs/ copy: fetch-capable (GitHub Pages), regenerated (not copied) with
     // --online so it includes the alignment popup wired to its own
@@ -67,7 +69,7 @@ workflow REPORT {
     // it never diverges between the two copies and is reused as-is.
     MAKE_REPORT_ONLINE(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
                        evalues, targets, descriptions, context_matrix, context_evalues, query_lowcov, other_evidence, tblastn_coverage, config_csv, data_dir)
-    MAKE_LOSSES_REPORT_ONLINE(loss_annotated_matrix, loss_tblastn_summary, loss_cluster_tsv, config_csv, data_dir)
+    MAKE_LOSSES_REPORT_ONLINE(loss_annotated_matrix, loss_tblastn_summary, loss_other_evidence, loss_tblastn_coverage, loss_cluster_tsv, config_csv, data_dir)
 
     // Publication-quality PDF summary (static figures) alongside the interactive HTML.
     MAKE_PDF_REPORT(annotated_matrix, tblastn_summary, cluster_tsv,
@@ -282,6 +284,8 @@ process MAKE_LOSSES_REPORT {
     input:
     path(loss_annotated_matrix)
     path(loss_tblastn_summary)
+    path(loss_other_evidence, stageAs: 'loss_other_evidence.in.tsv.gz')
+    path(loss_tblastn_coverage, stageAs: 'loss_tblastn_coverage.in.tsv.gz')
     path(loss_cluster_tsv)
     path(config_csv)
     val(data_dir)
@@ -295,6 +299,9 @@ process MAKE_LOSSES_REPORT {
         --matrix ${loss_annotated_matrix} \
         --config ${config_csv} \
         --tblastn_summary ${loss_tblastn_summary} \
+        --other_evidence ${loss_other_evidence} \
+        --tblastn_coverage ${loss_tblastn_coverage} \
+        --other_signal_qcov ${params.other_signal_qcov} \
         --cluster_tsv ${loss_cluster_tsv} \
         --data_dir ${data_dir} \
         --project ${Helpers.projectName(params)} \
@@ -312,6 +319,8 @@ process MAKE_LOSSES_REPORT_ONLINE {
     input:
     path(loss_annotated_matrix)
     path(loss_tblastn_summary)
+    path(loss_other_evidence, stageAs: 'loss_other_evidence.in.tsv.gz')
+    path(loss_tblastn_coverage, stageAs: 'loss_tblastn_coverage.in.tsv.gz')
     path(loss_cluster_tsv)
     path(config_csv)
     val(data_dir)
@@ -325,6 +334,9 @@ process MAKE_LOSSES_REPORT_ONLINE {
         --matrix ${loss_annotated_matrix} \
         --config ${config_csv} \
         --tblastn_summary ${loss_tblastn_summary} \
+        --other_evidence ${loss_other_evidence} \
+        --tblastn_coverage ${loss_tblastn_coverage} \
+        --other_signal_qcov ${params.other_signal_qcov} \
         --cluster_tsv ${loss_cluster_tsv} \
         --data_dir ${data_dir} \
         --project ${Helpers.projectName(params)} \
