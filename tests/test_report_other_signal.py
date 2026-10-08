@@ -69,3 +69,29 @@ def test_no_sidecars_means_not_measured(run_dir, samples):
     assert p['has_other_evidence'] is False
     oe = p['fields'].index('oe')
     assert all(r[oe] is None for r in p['rows'])
+
+
+# --- losses direction ---------------------------------------------------------
+from report_data import build_losses_payload  # noqa: E402
+from test_report_data import losses_run_dir, losses_rows_by_id  # noqa: E402,F401
+
+
+def test_losses_payload_carries_ingroup_evidence(losses_run_dir, samples):
+    ev = _gz(losses_run_dir / 'lev.tsv.gz', EV_HEAD +
+             'loss1\tSpom\tNcra\tprotein\tt1\t1e-10\t60\t30\t30\t1\tparalog_filtered\tp1\t1e-90\t80\n')
+    cov = _gz(losses_run_dir / 'lcov.tsv.gz', COV_HEAD + 'loss1b\tloss1b\tAfum\t1\t1e-8\t0.700000\t1\t70\n')
+    p = build_losses_payload(losses_run_dir / 'losses_matrix.tsv', samples,
+                             other_evidence_path=ev, tblastn_coverage_path=cov, other_signal_qcov=40)
+    oe = p['fields'].index('oe')
+    rows = losses_rows_by_id(p)
+    assert rows['loss1'][oe]['c'] == 30
+    assert rows['loss1'][oe]['p'][0][0] == 'Ncra'
+    assert rows['loss1b'][oe]['c'] == 70.0
+    assert p['has_other_evidence'] is True and p['other_signal_qcov'] == 40
+
+
+def test_losses_payload_without_sidecars_is_not_measured(losses_run_dir, samples):
+    p = build_losses_payload(losses_run_dir / 'losses_matrix.tsv', samples)
+    oe = p['fields'].index('oe')
+    assert p['has_other_evidence'] is False
+    assert all(r[oe] is None for r in p['rows'])

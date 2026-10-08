@@ -43,6 +43,14 @@ def main():
                     help='loss_tblastn_summary.tsv — TBLASTN of loss candidates against '
                          'ingroup genomic DNA (optional; the ingroup-TBLASTN column is '
                          'omitted without it)')
+    ap.add_argument('--other_evidence',
+                    help='loss_presence_matrix.other_evidence.tsv.gz (optional; issue #208): '
+                         'ingroup hit evidence for each outgroup protein. 0 bytes = not measured.')
+    ap.add_argument('--tblastn_coverage',
+                    help='loss_tblastn_summary.coverage.tsv.gz (optional; issue #208). 0 bytes = not measured.')
+    ap.add_argument('--other_signal_qcov', type=float, default=50.0,
+                    help='Initial coverage threshold (percent) for the Ingroup signal class '
+                         '(default: 50, not validated). The page lets the viewer change it.')
     ap.add_argument('--cluster_tsv',
                     help='loss mmseqs easy-cluster *_cluster.tsv (rep -> member), used to '
                          'group candidates into gene families across outgroup species (optional)')
@@ -90,6 +98,9 @@ def main():
         project=project,
         gff3_paths=resolve_gff3_paths(samples, args.data_dir),
         online=args.online,
+        other_evidence_path=args.other_evidence,
+        tblastn_coverage_path=args.tblastn_coverage,
+        other_signal_qcov=args.other_signal_qcov,
     )
 
     payload_json = json.dumps(payload, separators=(',', ':'))

@@ -19,6 +19,8 @@ from report_common import (
     BREADCRUMB_NAV_CSS,
     DOWNLOAD_JS,
     EL_HELPER_JS,
+    OTHER_SIGNAL_CSS,
+    OTHER_SIGNAL_JS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
     FOOTER_CSS,
@@ -46,7 +48,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
      skin owns the colour instead of this page hardcoding a light/dark pair. */
   /*__ALIGNMENT_CSS__*/
 """ + FOOTER_CSS + r"""
-</style>
+""" + OTHER_SIGNAL_CSS + r"""</style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
@@ -93,6 +95,16 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     <label class="check" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
       <input type="checkbox" id="f-notb"> No ingroup TBLASTN hit
     </label>
+    <span id="f-osig-wrap" class="hidden">
+      <select id="f-osig" aria-label="Ingroup signal class">
+        <option value="">Ingroup signal: any</option>
+        <option value="none">none (no ingroup hit)</option>
+        <option value="domain_only">domain_only (hit covers &lt; threshold)</option>
+        <option value="broad">broad (hit covers &ge; threshold)</option>
+      </select>
+      <label class="num-range" style="display:inline-flex;align-items:center;gap:4px;font-size:13px" aria-label="Ingroup signal coverage threshold (percent)">threshold %
+        <input type="number" id="f-oq" min="0" max="100" step="5" style="width:4.5em;padding:2px 4px"></label>
+    </span>
     <label class="num-range" style="display:inline-flex;align-items:center;gap:4px;font-size:13px" aria-label="Protein length range (aa)">Length (aa)
       <input type="number" id="f-minlen" min="0" placeholder="min" style="width:5em;padding:2px 4px">–<input type="number" id="f-maxlen" min="0" placeholder="max" style="width:5em;padding:2px 4px">
     </label>
@@ -150,7 +162,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   var N_IN = DATA.n_ingroup != null ? DATA.n_ingroup :
     PROTEOMES.filter(function (p) { return p.group === "IN"; }).length;
 
-""" + EL_HELPER_JS + LINKOUT_HELPERS_JS + EXTERNAL_LINKS_JS + DOWNLOAD_JS + r"""
+""" + EL_HELPER_JS + OTHER_SIGNAL_JS + LINKOUT_HELPERS_JS + EXTERNAL_LINKS_JS + DOWNLOAD_JS + r"""
 
   function familyLabel(fam) {
     return fam.rep + " (" + fam.size + " in " + fam.species.length +
@@ -209,12 +221,18 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     fsrc: "",
     family: -1,
     noTb: false,
+    osig: "",
+    oq: null,
     minLen: null,
     maxLen: null,
     sort: "priority",
     selected: -1
   };
   var view = [];
+
+  // Ingroup signal (issue #208): classified on the page from the row's coverage C so the
+  // viewer can move the threshold. Evidence only; never part of the loss call.
+  function osigClass(i) { return DATA.has_other_evidence ? oeClass(ROWS[i][F.oe], state.oq) : ""; }
 
   function applyFilters() {
     var q = state.search.trim().toLowerCase();
@@ -229,6 +247,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       if (srcIdx >= 0 && row[F.src] !== srcIdx) continue;
       if (state.fsrc && row[F.fsrc] !== fsrcIdx) continue;
       if (state.noTb && row[F.tb_hit]) continue;
+      if (state.osig && osigClass(i) !== state.osig) continue;
       if (state.minLen != null && lenN[i] < state.minLen) continue;
       if (state.maxLen != null && lenN[i] > state.maxLen) continue;
       if (terms.length) {
@@ -252,6 +271,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     else if (s === "frac") cmp = function (a, b) { return (ROWS[b][F.frac] - ROWS[a][F.frac]) || cmpId(a, b); };
     else if (s === "breadth") cmp = function (a, b) { return (ROWS[b][F.out_breadth] - ROWS[a][F.out_breadth]) || cmpId(a, b); };
     else if (s === "len") cmp = function (a, b) { return (lenN[a] - lenN[b]) || cmpId(a, b); };
+    else if (s === "osig") cmp = function (a, b) { return (oeRank(ROWS[a][F.oe]) - oeRank(ROWS[b][F.oe])) || cmpId(a, b); };
     else if (s === "simpfam" || s === "simgo") {
       if (state.selected < 0) {
         cmp = function (a, b) {
@@ -348,6 +368,21 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       render: function (td, r) { td.appendChild(pfamLinksInline(ROWS[r][F.pfam_n], ROWS[r][F.pfam_a])); }
     }
   ];
+  if (DATA.has_other_evidence) {
+    var tbIdx = TBL_COLS.map(function (c) { return c.label; }).indexOf("Ingroup TBLASTN");
+    TBL_COLS.splice(tbIdx + 1, 0, {
+      label: "Ingroup signal", sortKey: "osig",
+      get: function (r) { return osigClass(r); },
+      render: function (td, r) {
+        var c = osigClass(r);
+        if (!c) return;
+        var oe = ROWS[r][F.oe];
+        var tag = el("span", "osig osig-" + c, c);
+        tag.title = oe.c == null ? "no coverage measured" : "best ingroup query coverage " + Math.round(oe.c) + "%";
+        td.appendChild(tag);
+      }
+    });
+  }
 
   var TBL_PAGE = 300;
   var tblShown = TBL_PAGE;
@@ -544,6 +579,9 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       seq: "",
       proteome: row[F.src] >= 0 ? PROTEOMES[row[F.src]] : null
     })));
+    if (DATA.has_other_evidence && row[F.oe]) {
+      detailEl.appendChild(field("Ingroup signal", oeDetailNode(row[F.oe], state.oq, "ingroup")));
+    }
     var pubsNode = row[F.pubs] >= 0 ? publicationsNode(DATA.pub_sets[row[F.pubs]]) : null;
     if (pubsNode) detailEl.appendChild(field("Publications (outgroup protein)", pubsNode));
   }
@@ -647,7 +685,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
   });
   document.getElementById("f-reset").addEventListener("click", function () {
     state.search = ""; state.src = ""; state.fsrc = ""; state.family = -1;
-    state.noTb = false; state.minLen = null; state.maxLen = null; state.sort = "priority";
+    state.noTb = false; state.osig = ""; state.minLen = null; state.maxLen = null; state.sort = "priority";
     document.getElementById("f-search").value = "";
     document.getElementById("f-src").value = "";
     document.getElementById("f-fsrc").value = "";
@@ -656,12 +694,26 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("f-minlen").value = "";
     document.getElementById("f-maxlen").value = "";
     document.getElementById("f-sort").value = "priority";
+    if (DATA.has_other_evidence) { document.getElementById("f-osig").value = ""; }
     refresh(true);
   });
 
 """ + SKIN_PICKER_JS + r"""
 
   // ---- init ---------------------------------------------------------------
+  if (DATA.has_other_evidence) {
+    state.oq = DATA.other_signal_qcov;
+    document.getElementById("f-oq").value = state.oq;
+    document.getElementById("f-osig-wrap").classList.remove("hidden");
+    document.getElementById("f-sort").appendChild(new Option("Sort: weakest ingroup signal first", "osig"));
+    document.getElementById("f-osig").addEventListener("change", function (e) { state.osig = e.target.value; refresh(true); });
+    document.getElementById("f-oq").addEventListener("input", function (e) {
+      var v = Number(e.target.value);
+      state.oq = isNaN(v) ? DATA.other_signal_qcov : v;
+      refresh(false);
+      if (state.selected >= 0) renderDetail();
+    });
+  }
   document.getElementById("title").textContent = DATA.project + " — candidate gene losses";
   var inNames = PROTEOMES.filter(function (p) { return p.group === "IN"; })
     .map(function (p) { return p.species; }).join(", ");

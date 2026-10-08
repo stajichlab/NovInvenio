@@ -27,7 +27,8 @@ include { EMPTY_EVALUES_STUB } from './modules/empty_evalues_stub'
 // stub (issue #44) -- both are the same trivial "touch an empty file" process.
 include { EMPTY_EVALUES_STUB as EMPTY_CONTEXT_MATRIX_STUB  } from './modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_OTHER_EVIDENCE_STUB  } from './modules/empty_evalues_stub'   // issue #208
-include { EMPTY_EVALUES_STUB as EMPTY_TBLASTN_COV_STUB     } from './modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_LOSS_OTHER_EVIDENCE_STUB } from './modules/empty_evalues_stub'   // issue #208
+include { EMPTY_EVALUES_STUB as EMPTY_LOSS_TBLASTN_COV_STUB    } from './modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CONTEXT_EVALUES_STUB } from './modules/empty_evalues_stub'
 
 // Original novelty_discovery/novelty_screen GROUP labels (issues #24-#29), renamed for
@@ -248,8 +249,7 @@ workflow NOVINVENIO {
         novelty_targets      = EMPTY_EVALUES_STUB.out.evalues
         novelty_descriptions = EMPTY_EVALUES_STUB.out.evalues
         novelty_query_lowcov = EMPTY_EVALUES_STUB.out.evalues   // pairwise-only (issue #159)
-        EMPTY_OTHER_EVIDENCE_STUB()      // issue #208: pairwise-only evidence
-        novelty_other_evidence = EMPTY_OTHER_EVIDENCE_STUB.out.evalues
+        novelty_other_evidence = NOVELTY_DISCOVERY.out.other_evidence   // issue #208 (phase-1 singleton path)
         // novelty_discovery already has its own NEAR_INGROUP/BROAD_OUTGROUP screen
         // (NOVELTY_SCREEN) -- the pairwise-only context search (issue #48) doesn't apply.
         EMPTY_CONTEXT_MATRIX_STUB()
@@ -285,8 +285,7 @@ workflow NOVINVENIO {
         // evidence the final report surfaces is a report-rendering decision left to #28
         // alongside the novelty_category column.
         novelty_tblastn_summary = NOVELTY_DISCOVERY.out.summary
-        EMPTY_TBLASTN_COV_STUB()
-        novelty_tblastn_cov = EMPTY_TBLASTN_COV_STUB.out.evalues
+        novelty_tblastn_cov = NOVELTY_DISCOVERY.out.tblastn_coverage
     }
     else {
         SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
@@ -345,6 +344,8 @@ workflow NOVINVENIO {
                             'OUT', params.outgroup_min_frac, params.loss_ingroup_max_frac, 'loss_')
         loss_matrix     = PROFILE_LOSS_SEARCH.out.matrix
         loss_candidates = PROFILE_LOSS_SEARCH.out.candidates
+        EMPTY_LOSS_OTHER_EVIDENCE_STUB()      // issue #208: family-HMM presence has no per-hit evidence
+        loss_other_evidence = EMPTY_LOSS_OTHER_EVIDENCE_STUB.out.evalues
 
         LOSS_PROFILE_CANDIDATE_CLUSTERS(
             PROFILE_LOSS_SEARCH.out.candidates,
@@ -368,12 +369,17 @@ workflow NOVINVENIO {
         loss_annotated_matrix   = EMPTY_LOSS_STUB.out.matrix
         loss_tblastn_summary    = EMPTY_LOSS_STUB.out.tblastn_summary
         loss_cand_cluster_tsv   = EMPTY_LOSS_STUB.out.cluster_tsv
+        EMPTY_LOSS_OTHER_EVIDENCE_STUB()
+        loss_other_evidence     = EMPTY_LOSS_OTHER_EVIDENCE_STUB.out.evalues
+        EMPTY_LOSS_TBLASTN_COV_STUB()
+        loss_tblastn_cov        = EMPTY_LOSS_TBLASTN_COV_STUB.out.evalues
     }
     else {
         // See workflows/loss_search.nf for why this needs its own search direction.
         LOSS_SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
         loss_matrix     = LOSS_SEARCH.out.matrix
         loss_candidates = LOSS_SEARCH.out.candidates
+        loss_other_evidence = LOSS_SEARCH.out.other_evidence   // issue #208
 
         LOSS_CLUSTER(LOSS_SEARCH.out.candidates, outgroup_prot_ch, file(params.config), 'loss_candidates.fa', 'loss_clusters')
         loss_cand_fa          = LOSS_CLUSTER.out.candidates_fa
@@ -387,6 +393,7 @@ workflow NOVINVENIO {
         LOSS_ANNOTATE(loss_cand_fa, loss_matrix, pfam_abs, sprot_abs, morgs_abs, 'loss_', uniprot_xref_files)
         loss_annotated_matrix = LOSS_ANNOTATE.out.annotated_matrix
         loss_tblastn_summary  = LOSS_VALIDATE.out.summary
+        loss_tblastn_cov      = LOSS_VALIDATE.out.coverage     // issue #208
     }
 
     REPORT(
@@ -405,6 +412,8 @@ workflow NOVINVENIO {
         novelty_tblastn_cov,
         loss_annotated_matrix,
         loss_tblastn_summary,
+        loss_other_evidence,
+        loss_tblastn_cov,
         loss_cand_cluster_tsv,
         file(params.config),
         data_dir_abs

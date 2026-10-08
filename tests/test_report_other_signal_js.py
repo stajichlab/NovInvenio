@@ -48,3 +48,26 @@ def test_signal_controls_filter_and_reclassify(tmp_path):
     r = subprocess.run(['node', str(DRIVER), str(tmp_path / 'novelties.html'), _jsdom()],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.skipif(shutil.which('node') is None or _jsdom() is None, reason='node + jsdom not available')
+def test_losses_signal_controls_filter_and_reclassify(tmp_path):
+    from test_report_data import LOSSES_MATRIX
+    (tmp_path / 'config.csv').write_text(CONFIG)
+    (tmp_path / 'm.tsv').write_text(LOSSES_MATRIX)
+    with gzip.open(tmp_path / 'ev.tsv.gz', 'wt') as fh:
+        fh.write('protein_id\tsource_proteome\tother_proteome\tevidence\tbest_target_id\tbest_evalue\t'
+                 'best_bitscore\tbest_qcov\tmax_qcov\tn_hits\tstatus\tparalog_id\tparalog_evalue\tparalog_delta\n')
+        fh.write('loss1\tSpom\tNcra\tprotein\tt1\t1e-10\t60\t30\t30\t1\tparalog_filtered\tp1\t1e-90\t80\n')
+    with gzip.open(tmp_path / 'cov.tsv.gz', 'wt') as fh:
+        fh.write('protein_id\trep_id\tgenome\tn_hsps\tbest_evalue\tquery_span_cov\tspan_start\tspan_end\n')
+        fh.write('loss1b\tloss1b\tAfum\t1\t1e-8\t0.700000\t1\t70\n')
+    subprocess.run([sys.executable, str(REPO / 'bin' / 'make_losses_report.py'),
+                    '--config', str(tmp_path / 'config.csv'), '--matrix', str(tmp_path / 'm.tsv'),
+                    '--other_evidence', str(tmp_path / 'ev.tsv.gz'),
+                    '--tblastn_coverage', str(tmp_path / 'cov.tsv.gz'),
+                    '--output', str(tmp_path / 'losses.html')],
+                   check=True, capture_output=True, text=True)
+    r = subprocess.run(['node', str(DRIVER), str(tmp_path / 'losses.html'), _jsdom()],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr

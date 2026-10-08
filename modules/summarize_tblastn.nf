@@ -12,9 +12,11 @@ process SUMMARIZE_TBLASTN {
     path(tblastn_tsvs)
     path(cluster_tsv)
     val(summary_name)
+    path(query_fasta)
 
     output:
     path("${summary_name}"), emit: tsv
+    path("${summary_name.replaceAll(/\.tsv$/, '')}.coverage.tsv.gz"), emit: coverage   // issue #208
 
     script:
     // Guard on tblastn_tsvs actually having entries: zero genomes is always a real
@@ -31,9 +33,11 @@ process SUMMARIZE_TBLASTN {
             --hits ${tblastn_tsvs} \
             --cluster_tsv ${cluster_tsv} \
             --evalue ${params.evalue} \
+            --query_fasta ${query_fasta} \
+            --output-coverage ${summary_name.replaceAll(/\.tsv$/, '')}.coverage.tsv.gz \
             --output ${summary_name}
     else
-        touch ${summary_name}
+        touch ${summary_name} ${summary_name.replaceAll(/\.tsv$/, '')}.coverage.tsv.gz
     fi
     """
 }
