@@ -170,11 +170,15 @@ def resolve_protein_anchor(protein_id, member_to_rep):
     return member_to_rep.get(protein_id)
 
 
-def best_family_from_domtblout(path):
+def best_family_from_domtblout(path, max_evalue=None):
     """Best (lowest full-seq E-value) family rep in an hmmsearch --domtblout, or None.
 
     Column 4 (0-indexed 3) is the query = family HMM name = family representative id
     (hmmbuild -n <rep>). Column 7 (idx 6) is the full-sequence E-value.
+
+    max_evalue: when given, a best hit above it does not resolve the anchor (a junk hit
+    must not pin a control to an unrelated family). Ties on E-value go to the
+    alphabetically first family id, so the result does not depend on file order.
     """
     best_rep, best_e = None, None
     with open(path) as fh:
@@ -189,12 +193,15 @@ def best_family_from_domtblout(path):
                 full_e = float(f[6])
             except ValueError:
                 continue
-            if best_e is None or full_e < best_e:
+            if (best_e is None or full_e < best_e
+                    or (full_e == best_e and query < best_rep)):
                 best_rep, best_e = query, full_e
+    if max_evalue is not None and best_e is not None and best_e > max_evalue:
+        return None
     return best_rep
 
 
-def resolve_fasta_anchor(fasta_path, profiles_hmm, cpus=1):
+def resolve_fasta_anchor(fasta_path, profiles_hmm, cpus=1, max_evalue=None):
     """hmmsearch the family HMM db against a sequence anchor → its best family rep."""
     if not profiles_hmm:
         return None
@@ -205,7 +212,7 @@ def resolve_fasta_anchor(fasta_path, profiles_hmm, cpus=1):
             ['hmmsearch', '--cpu', str(cpus), '--domtblout', dom, profiles_hmm, fasta_path],
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
-        return best_family_from_domtblout(dom)
+        return best_family_from_domtblout(dom, max_evalue)
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
     finally:
@@ -226,7 +233,8 @@ def load_busco_map(path):
 
 
 # ---------------------------------------------------------------------------- scoring
-def resolve_anchor(row, member_to_rep, busco_map, controls_dir, profiles_hmm, cpus):
+def resolve_anchor(row, member_to_rep, busco_map, controls_dir, profiles_hmm, cpus,
+                   fasta_max_evalue=None):
     """Resolve a control row's anchor to a family rep (or None). Returns (rep, note)."""
     atype = (row.get('anchor_type') or '').strip()
     anchor = (row.get('anchor') or '').strip()
@@ -243,7 +251,7 @@ def resolve_anchor(row, member_to_rep, busco_map, controls_dir, profiles_hmm, cp
         fpath = anchor if Path(anchor).is_absolute() else str(controls_dir / anchor)
         if not Path(fpath).exists():
             return None, f'fasta anchor not found: {fpath}'
-        rep = resolve_fasta_anchor(fpath, profiles_hmm, cpus)
+        rep = resolve_fasta_anchor(fpath, profiles_hmm, cpus, fasta_max_evalue)
         return rep, ('' if rep else 'no family hmmsearch hit (or hmmsearch unavailable)')
     return None, f'unknown anchor_type: {atype!r}'
 
@@ -265,7 +273,8 @@ def build_cluster_membership_presence(rep_to_members, protein_to_proteome, prote
 
 def score_controls(controls, matrix, member_to_rep, rep_to_members, samples,
                    ingroup_min_frac, other_max_frac, busco_map, controls_dir,
-                   profiles_hmm, cpus, presence_mode='hmm', protein_to_proteome=None):
+                   profiles_hmm, cpus, presence_mode='hmm', protein_to_proteome=None,
+                   fasta_max_evalue=None):
     proteome_cols = proteome_columns(matrix, samples)
     # Coarse banding (see config_parser.INGROUP_ROLES/OUTGROUP_ROLES): must match
     # profile_to_matrix.py's/build_presence_matrix.py's keep-rule groups exactly, or
@@ -284,7 +293,7 @@ def score_controls(controls, matrix, member_to_rep, rep_to_members, samples,
         cls = (row.get('class') or '').strip().lower()
         expected = (row.get('expected_call') or '').strip().lower()
         rep, note = resolve_anchor(row, member_to_rep, busco_map, controls_dir,
-                                   profiles_hmm, cpus)
+                                   profiles_hmm, cpus, fasta_max_evalue)
 
         actual = 'unresolved'
         if rep is not None:
@@ -333,12 +342,20 @@ def summarize(results):
     fps = sum(1 for r in neg_res if r['outcome'] == 'fp')
     recall = (hits / len(pos_res)) if pos_res else None
     fp_rate = (fps / len(neg_res)) if neg_res else None
+    # recall over RESOLVED positives is conditional on the swept parameters: a setting
+    # that drops a positive's family (below the family-size floor, oversized, ...) makes it
+    # unresolved and so improves `recall`. recall_all counts an unresolved positive as a
+    # miss, so the two can be read together.
+    recall_all = (hits / len(pos)) if pos else None
     return {
         'n_controls': len(results),
         'n_positive': len(pos),
         'n_positive_resolved': len(pos_res),
         'positive_hits': hits,
         'recall': recall,
+        'recall_all': recall_all,
+        'n_positive_unresolved': len(pos) - len(pos_res),
+        'n_negative_unresolved': len(neg) - len(neg_res),
         'n_negative': len(neg),
         'n_negative_resolved': len(neg_res),
         'negative_fp': fps,
@@ -366,6 +383,9 @@ def main():
     ap.add_argument('--ingroup-min-frac', type=float, default=0.75, dest='ingroup_min_frac')
     ap.add_argument('--other-max-frac', type=float, default=0.0, dest='other_max_frac')
     ap.add_argument('--cpus', type=int, default=1, help='hmmsearch --cpu for fasta anchors')
+    ap.add_argument('--fasta-max-evalue', type=float, default=1e-5, dest='fasta_max_evalue',
+                    help='fasta anchors resolve only to a family whose best full-sequence '
+                         'E-value is at most this (default 1e-5)')
     ap.add_argument('--presence-mode', choices=['hmm', 'cluster_membership'],
                     default='hmm', dest='presence_mode',
                     help="'hmm' (default): read presence from --matrix (unchanged "
@@ -402,6 +422,7 @@ def main():
         args.ingroup_min_frac, args.other_max_frac, busco_map, controls_dir,
         args.profiles, args.cpus, presence_mode=args.presence_mode,
         protein_to_proteome=protein_to_proteome,
+        fasta_max_evalue=args.fasta_max_evalue,
     )
 
     fields = ['control_id', 'class', 'expected_call', 'anchor_type',
@@ -413,6 +434,10 @@ def main():
 
     summary = summarize(results)
     summary['n_placeholder_skipped'] = n_skipped
+    # The novelty predicate thresholds are CLI values, not read from the run's params.
+    # Record them so a mismatch with the run's --ingroup_min_frac / other_max_frac shows.
+    summary['ingroup_min_frac'] = args.ingroup_min_frac
+    summary['other_max_frac'] = args.other_max_frac
     summary_path = args.summary or (str(Path(args.output).with_suffix('')) + '.summary.tsv')
     with open(summary_path, 'w', newline='') as fh:
         w = csv.writer(fh, delimiter='\t', lineterminator='\n')
@@ -427,6 +452,13 @@ def main():
     print(f"recall (positives): "
           f"{'n/a' if recall is None else f'{recall:.3f}'} "
           f"({summary['positive_hits']}/{summary['n_positive_resolved']})", file=sys.stderr)
+    if summary['n_positive_unresolved']:
+        print(f"WARNING: {summary['n_positive_unresolved']} positive control(s) unresolved; "
+              f"recall over all positives (unresolved = miss) is "
+              f"{summary['recall_all']:.3f}", file=sys.stderr)
+    print(f"novelty predicate: ingroup_min_frac {args.ingroup_min_frac:g}, other_max_frac "
+          f"{args.other_max_frac:g} (CLI values; they must match the run's params)",
+          file=sys.stderr)
     print(f"fp-rate (negatives): "
           f"{'n/a' if fp_rate is None else f'{fp_rate:.3f}'} "
           f"({summary['negative_fp']}/{summary['n_negative_resolved']})", file=sys.stderr)

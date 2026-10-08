@@ -2,7 +2,7 @@
 
 Hand-curated positive/negative controls for validating the family-profile pathway
 (`docs/adr/0002-family-profile-search-pathway.md`, Q8). One file per clade:
-`<clade>.controls.csv`. Consumed by `bin/score_controls.py` (Phase 2 — not yet built;
+`<clade>.controls.csv`. Consumed by `bin/score_controls.py` (built, issue #5;
 see `todo/cross-method-support-column.md`).
 
 ## Purpose

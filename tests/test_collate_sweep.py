@@ -182,3 +182,62 @@ def test_end_to_end_writes_scored_table(tmp_path):
     assert '--hmm_presence_min_residues' in r.stderr
     # No BUSCO_OUTGROUP_TABLES in this fixture → presence_recovery unmeasured → noted.
     assert 'presence_recovery was not measured' in r.stderr
+
+
+# --- defects found in the 2026-10-07 review (Phase 2 status) -------------------------
+
+def test_row_with_unmeasured_gate_metric_is_unscored_and_never_chosen(tmp_path):
+    # recall/fp are measured for the first row only. The second row has a higher composite
+    # on the measured metrics, but blank recall/fp must not turn into recall 0 / fp 1.0
+    # and then silently lose (or win) -- it is "unscored" and cannot be chosen.
+    rows = _score(tmp_path, [
+        [0.3, 0.5, '1e-3', 0.5, 0, 500, 100, 0.95, 0.99, 0.75, 0.0, 3],
+        [0.3, 0.5, '1e-3', 0.3, 100, 500, 100, 0.95, 0.995, '', '', 3],
+    ])
+    assert rows[1]['unscored'] == 1 and rows[1]['admissible'] == 0
+    assert rows[0]['unscored'] == 0
+    chosen, _ = cs.select_knee(rows)
+    assert chosen is rows[0]
+
+
+def test_fallback_pool_excludes_failed_runs(tmp_path):
+    p = tmp_path / 'm.tsv'
+    p.write_text(HEADER.rstrip('\n') + '\trun_ok\n'
+                 "0.3\t0.8\t1e-3\t0.5\t0\t500\t100\t0.95\t0.99\t\t\t3\t0\n"      # failed run, best-looking numbers
+                 "0.3\t0.8\t1e-3\t0.3\t100\t500\t100\t0.6\t0.5\t\t\t3\t1\n")  # ran, fails gates
+    rows, available = cs.read_metrics(p)
+    cs.score_points(rows, 0.9, 0.9, 0.05, available)
+    chosen, fallback = cs.select_knee(rows)
+    assert fallback and chosen['run_ok'] == 1
+
+
+def test_no_chosen_point_when_every_point_failed(tmp_path):
+    p = tmp_path / 'm.tsv'
+    p.write_text(HEADER.rstrip('\n') + '\trun_ok\n'
+                 "0.3\t0.8\t1e-3\t0.5\t0\t0\t0\t0\t0\t\t\t0\t0\n")
+    rows, available = cs.read_metrics(p)
+    cs.score_points(rows, 0.9, 0.9, 0.05, available)
+    chosen, fallback = cs.select_knee(rows)
+    assert chosen is None and fallback
+
+
+def test_blank_n_novelties_is_not_treated_as_zero_in_the_tie_break(tmp_path):
+    rows = _score(tmp_path, [
+        [0.3, 0.5, '1e-3', 0.5, 0, 500, '', 0.95, '', 1.0, 0.0, 3],     # blank novelties
+        [0.2, 0.5, '1e-3', 0.5, 0, 900, 400, 0.95, '', 1.0, 0.0, 9],
+    ])
+    chosen, _ = cs.select_knee(rows)
+    assert chosen['n_novelties'] == 400
+
+
+def test_shipped_default_params_match_nextflow_config():
+    assert cs.DEFAULT_PARAMS['hmm_cov'] == 0.3 and cs.DEFAULT_PARAMS['hmm_residues'] == 100
+
+
+def test_tie_tolerance_groups_near_top_composites(tmp_path):
+    rows = _score(tmp_path, [
+        [0.3, 0.5, '1e-3', 0.5, 0, 500, 300, 0.95, '', 1.0, 0.0, 3],   # composite 1.95
+        [0.2, 0.5, '1e-3', 0.5, 0, 700, 100, 0.945, '', 1.0, 0.0, 3],  # composite 1.945
+    ])
+    assert cs.select_knee(rows)[0]['n_novelties'] == 300                 # exact: best composite
+    assert cs.select_knee(rows, tie_tolerance=0.01)[0]['n_novelties'] == 100   # near-top: fewer novelties

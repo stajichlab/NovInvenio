@@ -15,7 +15,7 @@ an evidence-backed one.
 Input: a wide TSV (`--metrics`) with one row per grid point and columns:
   min_seq_id, cov, hmm_evalue, hmm_cov, hmm_residues, n_families, n_novelties,
   busco_recovery, presence_recovery, recall, fp_rate, tblastn_removed
-(any missing numeric cell is treated as the worst value for ranking).
+(see "Missing cells" below).
 
 Knee selection is a transparent, documented rule — not a black box:
   1. Admissible = busco_recovery >= --min-busco-recovery AND
@@ -29,6 +29,15 @@ Knee selection is a transparent, documented rule — not a black box:
      n_novelties without buying recall/recovery, so ties break to FEWER novelties (then
      the shipped default params). Pick that point's parameters as the recommended default.
 If no point is admissible, fall back to the best composite overall and flag it.
+
+Missing cells (changed 2026-10-07, Phase 2 review): a gate metric (presence_recovery,
+recall, fp_rate) that is blank in SOME rows but measured in others marks the blank rows
+`unscored`. An unscored row is never admissible and never chosen, and its composite is left
+blank. Earlier versions turned the blank into recall 0 / fp_rate 1.0, so a point that was
+simply never scored lost against, or was ranked beside, measured points (this decided the
+`chosen` row in the pezizo5 all-8 sweep). A blank n_novelties is also unscored. Rows with
+run_ok = 0 are never chosen, even by the no-admissible fallback; if every row failed there
+is no recommendation.
 
 NOTE: presence_recovery, recall, and fp_rate are each left blank when their optional
 input is missing (BUSCO_OUTGROUP_TABLES, or a controls CSV) rather than genuinely
@@ -62,7 +71,7 @@ METRICS = {
 }
 # Shipped default (nextflow.config) — the tie-break anchor when scores are equal.
 DEFAULT_PARAMS = {'min_seq_id': 0.3, 'cov': 0.8, 'hmm_evalue': 1e-3,
-                  'hmm_cov': 0.5, 'hmm_residues': 100}
+                  'hmm_cov': 0.3, 'hmm_residues': 100}   # nextflow.config (hmm_presence_cov 0.5 -> 0.3 in cd297ba)
 
 
 def _num(value, fallback):
@@ -86,11 +95,15 @@ def read_metrics(path):
             point = {}
             for c in PARAM_COLS:
                 point[c] = _num(raw.get(c), None)
+            blank = set()
             for m, (_hib, worst) in METRICS.items():
                 cell = raw.get(m)
-                if cell not in (None, ''):
+                if cell in (None, ''):
+                    blank.add(m)
+                else:
                     available.add(m)
                 point[m] = _num(cell, worst)
+            point['_blank'] = blank
             rows.append(point)
     return rows, available
 
@@ -106,7 +119,16 @@ def score_points(rows, min_busco_recovery, min_presence_recovery, max_fp, availa
     check_presence_recovery = 'presence_recovery' in available_metrics
     check_recall = 'recall' in available_metrics
     check_fp = 'fp_rate' in available_metrics
+    gate_metrics = [m for m, on in (('presence_recovery', check_presence_recovery),
+                                    ('recall', check_recall), ('fp_rate', check_fp)) if on]
     for p in rows:
+        # A blank gate metric (measured elsewhere) or a blank n_novelties: not scored.
+        p['unscored'] = int(any(m in p['_blank'] for m in gate_metrics)
+                            or 'n_novelties' in p['_blank'])
+        if p['unscored']:
+            p['admissible'] = 0
+            p['composite'] = None
+            continue
         admissible = p['run_ok'] >= 1 and p['busco_recovery'] >= min_busco_recovery
         if check_fp:
             admissible = admissible and p['fp_rate'] <= max_fp
@@ -125,21 +147,31 @@ def _params_match_default(p):
     return all(p.get(c) == DEFAULT_PARAMS[c] for c in PARAM_COLS)
 
 
-def select_knee(rows):
-    """Return (chosen_point, used_fallback). Ranking rule documented in the module docstring."""
+def select_knee(rows, tie_tolerance=0.0):
+    """Return (chosen_point, used_fallback). Ranking rule documented in the module docstring.
+
+    tie_tolerance: composites within this distance of the best are treated as tied and
+    broken by fewer novelties (the "knee"). 0 (default) means exact ties only.
+    chosen_point is None when no grid point both ran (run_ok) and was scored.
+    """
     if not rows:
         return None, False
     admissible = [p for p in rows if p['admissible']]
-    pool = admissible or rows
+    # The fallback never includes failed runs or unscored rows.
+    pool = admissible or [p for p in rows if p['run_ok'] >= 1 and not p.get('unscored')]
     used_fallback = not admissible
-    # Best composite; tie-break: fewer novelties (the knee), then shipped-default params,
-    # then higher recall — all deterministic.
+    if not pool:
+        return None, True
+    top = max(p['composite'] for p in pool)
+    near = [p for p in pool if p['composite'] >= top - tie_tolerance]
+    # Within the near-top group: fewer novelties (the knee), then shipped-default params,
+    # then higher composite, then higher recall -- all deterministic.
     chosen = min(
-        pool,
+        near,
         key=lambda p: (
-            -p['composite'],
             p['n_novelties'],
             0 if _params_match_default(p) else 1,
+            -p['composite'],
             -p['recall'],
         ),
     )
@@ -160,6 +192,9 @@ def main():
                          '(no BUSCO_OUTGROUP_TABLES in the sweep run)')
     ap.add_argument('--max-fp', type=float, default=0.05, dest='max_fp',
                     help='max control false-novelty rate to be admissible (default 0.05)')
+    ap.add_argument('--tie-tolerance', type=float, default=0.0, dest='tie_tolerance',
+                    help='composites within this distance of the best are tied and broken '
+                         'by fewer novelties (default 0 = exact ties only)')
     ap.add_argument('--output', required=True, help='scored sweep table TSV (sorted best-first)')
     args = ap.parse_args()
 
@@ -184,20 +219,34 @@ def main():
               'controls CSV before trusting this recommendation.', file=sys.stderr)
     score_points(rows, args.min_busco_recovery, args.min_presence_recovery, args.max_fp,
                 available_metrics)
-    chosen, used_fallback = select_knee(rows)
+    n_unscored = sum(p['unscored'] for p in rows)
+    if n_unscored:
+        print(f'WARNING: {n_unscored} of {len(rows)} grid point(s) are unscored (a gate metric '
+              'measured elsewhere is blank, or n_novelties is blank); they are never chosen. '
+              'Score every point before trusting a recommendation.', file=sys.stderr)
+    print(f'gates: busco_recovery >= {args.min_busco_recovery}, presence_recovery >= '
+          f'{args.min_presence_recovery}, fp_rate <= {args.max_fp}, '
+          f'tie_tolerance {args.tie_tolerance}', file=sys.stderr)
+    chosen, used_fallback = select_knee(rows, args.tie_tolerance)
 
-    # Sort best-first: admissible first, then composite, then fewer novelties.
-    ordered = sorted(rows, key=lambda p: (-p['admissible'], -p['composite'], p['n_novelties']))
+    # Sort best-first: admissible first, then composite, then fewer novelties; unscored last.
+    ordered = sorted(rows, key=lambda p: (p['unscored'], -p['admissible'],
+                                          -(p['composite'] if p['composite'] is not None else 0),
+                                          p['n_novelties']))
     for p in ordered:
         p['chosen'] = int(p is chosen)
 
-    cols = list(PARAM_COLS) + list(METRICS) + ['composite', 'admissible', 'chosen']
+    cols = list(PARAM_COLS) + list(METRICS) + ['composite', 'admissible', 'unscored', 'chosen']
     with open(args.output, 'w', newline='') as fh:
         w = csv.DictWriter(fh, fieldnames=cols, delimiter='\t', lineterminator='\n')
         w.writeheader()
         for p in ordered:
-            w.writerow({c: p.get(c, '') for c in cols})
+            w.writerow({c: ('' if p.get(c) is None else p.get(c, '')) for c in cols})
 
+    if chosen is None:
+        print('WARNING: no grid point both completed (run_ok) and was scored; '
+              'no recommendation.', file=sys.stderr)
+        return
     if used_fallback:
         gates = ['run_ok', f'busco_recovery >= {args.min_busco_recovery}']
         if 'presence_recovery' in available_metrics:
