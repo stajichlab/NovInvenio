@@ -351,6 +351,13 @@ BASE_PAGE_CSS = r"""
 # helper (or plain textContent), never innerHTML -- see CLAUDE.md's report
 # constraints. Protein IDs and annotation text come from FASTA headers and
 # SwissProt/Pfam text and are not sanitised upstream.
+# "How to read this page" panel shared by the novelty, core and losses reports.
+HOW_TO_READ_CSS = r"""
+  details.how { margin: 10px 0; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+  details.how summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+  details.how ul { margin: 8px 0 2px 18px; padding: 0; font-size: 13px; line-height: 1.5; }
+"""
+
 # Other-group signal (issue #208), shared by novelties.html ("Outgroup signal") and
 # losses.html ("Ingroup signal"). Needs EL_HELPER_JS. `oe` is a row's payload object
 # {c, p, t} (lib/report_data.py ROW_FIELDS 'oe'); null = not measured.

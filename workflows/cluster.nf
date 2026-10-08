@@ -1,8 +1,6 @@
 nextflow.enable.dsl=2
 
 include { MMSEQS_CLUSTER } from '../modules/mmseqs_cluster'
-include { HMMBUILD       } from '../modules/hmmbuild'
-include { HMMSEARCH      } from '../modules/hmmsearch'
 
 workflow CLUSTER {
     take:

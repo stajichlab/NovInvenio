@@ -37,6 +37,7 @@ process BUILD_PRESENCE_MATRIX {
         --paralog-cutoffs ${paralog_cutoffs} \
         --config ${config_csv} \
         --ingroup-min-frac ${min_frac} \
+        --default-evalue ${params.evalue} \
         --query-group ${query_group} \
         --other-max-frac ${other_max_frac} \
         --paralog-competition-scope ${params.paralog_competition_scope} \

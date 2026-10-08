@@ -18,6 +18,7 @@ from report_common import (
     BREADCRUMB_NAV_CSS,
     DOWNLOAD_JS,
     EL_HELPER_JS,
+    HOW_TO_READ_CSS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
     FOOTER_CSS,
@@ -41,7 +42,7 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 """ + FAVICON_LINK_HTML + r"""
 <style>
 """ + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + FOOTER_CSS + r"""
-</style>
+""" + HOW_TO_READ_CSS + r"""</style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
@@ -78,6 +79,15 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       </div>
     </div>
   </section>
+
+  <details class="how">
+    <summary>How to read this page</summary>
+    <ul>
+      <li><b>Core protein.</b> An ingroup-sourced protein with a qualifying hit in at least the stated fraction of all sampled proteomes (ingroup plus outgroup). The threshold is shown as "k of N" in the summary note.</li>
+      <li><b>Qualifying hit.</b> Passes the E-value cutoff and the paralog-competition filter, as on the novelty page. A protein with no surviving hit at all is not in the matrix.</li>
+      <li><b>Counts</b> are proteins. The same gene is counted once per ingroup proteome that carries it. Core rows are not clustered into gene families.</li>
+    </ul>
+  </details>
 
   <div class="filters" role="group" aria-label="Filter core genes">
     <input type="search" id="f-search" placeholder="Search ID, gene, product, Pfam…" aria-label="Search proteins">
@@ -490,12 +500,20 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
     var nIn = PROTEOMES.filter(function (p) { return p.group === "IN"; }).length;
 
     document.getElementById("summary-note").textContent =
-      "Proteins present in ≥ " + Math.round(DATA.core_min_frac * 100) +
-      "% of every sampled proteome (ingroup + outgroup) — the conserved backbone, " +
-      "for contrast against the novelty candidates.";
+      "Ingroup-sourced proteins present in at least " + Math.round(DATA.core_min_frac * 100) +
+      "% of all sampled proteomes (ingroup + outgroup), that is at least " +
+      Math.ceil(DATA.core_min_frac * PROTEOMES.length - 1e-9) + " of " + PROTEOMES.length +
+      " (a small panel makes this stricter than it sounds; 12 proteomes at 95% need all 12). " +
+      "Counts are proteins: the same gene is counted once per ingroup proteome that carries it. " +
+      "The conserved backbone, for contrast against the novelty candidates.";
     document.getElementById("t-total").textContent = nRows.toLocaleString();
-    document.getElementById("t-in").textContent = nIn + (nIn === 1 ? " species" : " species");
-    document.getElementById("t-fam").textContent = FAMILIES.length.toLocaleString();
+    document.getElementById("t-in").textContent = nIn + " species";
+    // Core rows are not clustered into families; FAMILIES holds the NOVELTY candidates'
+    // clusters, so count only the families that a displayed core row actually belongs to.
+    var famUsed = {};
+    for (var j = 0; j < nRows; j++) { if (ROWS[j][F.fam] >= 0) famUsed[ROWS[j][F.fam]] = 1; }
+    var nFamUsed = Object.keys(famUsed).length;
+    document.getElementById("t-fam").textContent = nFamUsed ? nFamUsed.toLocaleString() : "not clustered";
     document.getElementById("t-annot").textContent =
       nRows ? Math.round((annot / nRows) * 100) + "%" : "—";
   }
