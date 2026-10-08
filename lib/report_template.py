@@ -23,6 +23,8 @@ between the three reports.
 from report_common import (
     BREADCRUMB_NAV_CSS,
     EL_HELPER_JS,
+    OTHER_SIGNAL_CSS,
+    OTHER_SIGNAL_JS,
     EXTERNAL_LINKS_JS,
     FAVICON_LINK_HTML,
     FOOTER_CSS,
@@ -208,13 +210,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--page);
   }
   .chip:hover { border-color: var(--series-1); }
-  .osig { display: inline-block; padding: 1px 7px; border: 1px solid var(--border); border-radius: 999px;
-          font-size: 11px; cursor: pointer; background: var(--page); }
-  .osig.osig-none { color: var(--muted); }
-  .osig.osig-domain_only { border-color: var(--series-2); color: var(--text-primary); }
-  .osig.osig-broad { border-color: var(--series-1); color: var(--text-primary); font-weight: 600; }
-  table.oe { border-collapse: collapse; font-size: 11px; margin-top: 4px; width: 100%; }
-  table.oe th, table.oe td { border-bottom: 1px solid var(--border); padding: 2px 5px; text-align: left; }
+""" + OTHER_SIGNAL_CSS + r"""
   a.pfam-link { color: var(--series-1); text-decoration: none; }
   a.pfam-link:hover { text-decoration: underline; }
   .links { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -656,19 +652,8 @@ HTML_TEMPLATE = r"""<!doctype html>
   // The page classifies from the per-row coverage C so the viewer can move the threshold.
   // The default only sets the initial view; it is the observed median, not a validated cutoff.
   function oeOf(i) { return DATA.has_other_evidence ? ROWS[i][F.oe] : null; }
-  function osigClass(i) {
-    var oe = oeOf(i);
-    if (!oe) return "";
-    if (!oe.p.length && !oe.t.length) return "none";
-    if (oe.c == null) return "";
-    return oe.c >= state.oq ? "broad" : "domain_only";
-  }
-  function osigRank(i) {   // none, then ascending coverage: weakest outgroup signal first
-    var oe = oeOf(i);
-    if (!oe) return 1e9;
-    if (!oe.p.length && !oe.t.length) return -1;
-    return oe.c == null ? 1e8 : oe.c;
-  }
+  function osigClass(i) { return oeClass(oeOf(i), state.oq); }
+  function osigRank(i) { return oeRank(oeOf(i)); }   // none, then ascending coverage
 
   // ---- filtering & sorting -----------------------------------------------
   function applyFilters() {
@@ -927,7 +912,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   // ---- tooltip ------------------------------------------------------------
   var tipEl = document.getElementById("tip");
 
-""" + EL_HELPER_JS + r"""
+""" + EL_HELPER_JS + OTHER_SIGNAL_JS + r"""
 
   function showTip(ri, ci, x, y) {
     var row = ROWS[ri];
@@ -1036,43 +1021,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     // Outgroup signal (issue #208) -- evidence only, never part of the novelty call.
     var oeRow = oeOf(ri);
-    if (oeRow) {
-      var oc = osigClass(ri);
-      var box = el("div");
-      box.appendChild(el("div", "field-value",
-        oc + (oeRow.c == null ? "" : " — best outgroup query coverage " + Math.round(oeRow.c) +
-        "% (threshold " + state.oq + "%)")));
-      if (oeRow.p.length) {
-        var tp = el("table", "oe");
-        var hp = el("tr");
-        ["Outgroup", "Best target", "E-value", "Bits", "qcov %", "Status", "Paralog", "Paralog E", "Δlog10"]
-          .forEach(function (h) { hp.appendChild(el("th", null, h)); });
-        tp.appendChild(hp);
-        oeRow.p.forEach(function (x) {
-          var tr = el("tr");
-          [x[0], x[1], x[2] == null ? "" : fmtEvalue(x[2]), x[3] == null ? "" : x[3], x[4] == null ? "" : Math.round(x[4]),
-           x[5], x[6] || "", x[7] == null ? "" : fmtEvalue(x[7]), x[8] == null ? "" : Math.round(x[8] * 10) / 10]
-            .forEach(function (v) { tr.appendChild(el("td", null, String(v))); });
-          tp.appendChild(tr);
-        });
-        box.appendChild(tp);
-      }
-      if (oeRow.t.length) {
-        var tt = el("table", "oe");
-        var ht = el("tr");
-        ["Genome (TBLASTN)", "Query span", "Coverage %", "HSPs", "E-value"]
-          .forEach(function (h) { ht.appendChild(el("th", null, h)); });
-        tt.appendChild(ht);
-        oeRow.t.forEach(function (x) {
-          var tr = el("tr");
-          [x[0], x[2] + "–" + x[3], x[1] == null ? "" : Math.round(x[1] * 100), x[4], x[5] == null ? "" : fmtEvalue(x[5])]
-            .forEach(function (v) { tr.appendChild(el("td", null, String(v))); });
-          tt.appendChild(tr);
-        });
-        box.appendChild(tt);
-      }
-      detailEl.appendChild(field("Outgroup signal", box));
-    }
+    if (oeRow) detailEl.appendChild(field("Outgroup signal", oeDetailNode(oeRow, state.oq, "outgroup")));
 
     // Ingroup coverage (issue #159) -- report-only, never part of the novelty call.
     if (DATA.has_lowcov && row[F.lowcov] != null) {

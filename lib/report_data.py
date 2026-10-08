@@ -903,6 +903,8 @@ LOSSES_ROW_FIELDS = [
     'urev',      # uniprot_reviewed as int (1 Swiss-Prot, 0 TrEMBL), -1 when no match
     'pubs',      # index into payload['pub_sets'], or -1 -- uniprot_pubs,
                  # "PMID;DOI;scope;title|..." (title is the last ;-field), interned
+    'oe',        # other-group (ingroup) evidence for this outgroup protein (issue #208);
+                 # same layout as ROW_FIELDS' 'oe'. Null = not measured.
 ]
 
 
@@ -916,6 +918,9 @@ def build_losses_payload(
     project='NovInvenio',
     gff3_paths=None,
     online=False,
+    other_evidence_path=None,
+    tblastn_coverage_path=None,
+    other_signal_qcov=50.0,
 ) -> dict:
     """Build the embedded payload for the LOSSES (candidate gene-loss) report.
 
@@ -986,6 +991,9 @@ def build_losses_payload(
         )
 
     tb_genomes, tb_hits = read_tblastn_summary(tblastn_path)
+    other_ev = load_protein_evidence(other_evidence_path) if other_evidence_path else None
+    other_cov = load_tblastn_coverage(tblastn_coverage_path) if tblastn_coverage_path else None
+    has_other_evidence = other_ev is not None or other_cov is not None
 
     # Pass 1: keep only rows that clear the loss predicate, and accumulate each
     # gene family's outgroup breadth / ingroup retention across its members.
@@ -1069,6 +1077,9 @@ def build_losses_payload(
             (row.get('uniprot_match_species', '') or '') if row.get('uniprot_match') == 'seq_other' else '',
             int(row['uniprot_reviewed']) if (row.get('uniprot_reviewed') or '') != '' else -1,
             pub_sets.intern(row.get('uniprot_pubs', '') or ''),
+            (other_evidence_payload(None if other_ev is None else other_ev.get(pid, []),
+                                    None if other_cov is None else other_cov.get(pid, []))
+             if has_other_evidence else None),
         ])
 
     return {
@@ -1084,6 +1095,8 @@ def build_losses_payload(
             for s in proteomes
         ],
         'tblastn_genomes': tb_genomes,
+        'has_other_evidence': has_other_evidence,
+        'other_signal_qcov': other_signal_qcov,
         'fsources': fsources,
         'descriptions': descriptions.table,
         'go_sets': go_sets.table,

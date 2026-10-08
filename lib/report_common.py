@@ -351,6 +351,71 @@ BASE_PAGE_CSS = r"""
 # helper (or plain textContent), never innerHTML -- see CLAUDE.md's report
 # constraints. Protein IDs and annotation text come from FASTA headers and
 # SwissProt/Pfam text and are not sanitised upstream.
+# Other-group signal (issue #208), shared by novelties.html ("Outgroup signal") and
+# losses.html ("Ingroup signal"). Needs EL_HELPER_JS. `oe` is a row's payload object
+# {c, p, t} (lib/report_data.py ROW_FIELDS 'oe'); null = not measured.
+OTHER_SIGNAL_CSS = r"""
+  .osig { display: inline-block; padding: 1px 7px; border: 1px solid var(--border); border-radius: 999px;
+          font-size: 11px; background: var(--page); }
+  .osig.osig-none { color: var(--muted); }
+  .osig.osig-domain_only { border-color: var(--series-2); color: var(--text-primary); }
+  .osig.osig-broad { border-color: var(--series-1); color: var(--text-primary); font-weight: 600; }
+  table.oe { border-collapse: collapse; font-size: 11px; margin-top: 4px; width: 100%; }
+  table.oe th, table.oe td { border-bottom: 1px solid var(--border); padding: 2px 5px; text-align: left; }
+"""
+
+OTHER_SIGNAL_JS = r"""
+  // none (no hit), domain_only (best coverage < thr), broad (>= thr); "" when not measured.
+  function oeClass(oe, thr) {
+    if (!oe) return "";
+    if (!oe.p.length && !oe.t.length) return "none";
+    if (oe.c == null) return "";
+    return oe.c >= thr ? "broad" : "domain_only";
+  }
+  // Sort key: none first, then ascending coverage (weakest signal first); unmeasured last.
+  function oeRank(oe) {
+    if (!oe) return 1e9;
+    if (!oe.p.length && !oe.t.length) return -1;
+    return oe.c == null ? 1e8 : oe.c;
+  }
+  function oeNum(v, digits) {
+    return v == null ? "" : (digits === undefined ? String(v) : Number(v).toPrecision(digits));
+  }
+  function oeDetailNode(oe, thr, groupLabel) {
+    var box = el("div");
+    var cls = oeClass(oe, thr);
+    box.appendChild(el("div", "field-value", cls +
+      (oe.c == null ? "" : " — best " + groupLabel + " query coverage " + Math.round(oe.c) + "% (threshold " + thr + "%)")));
+    function table(head, rows) {
+      var t = el("table", "oe"), h = el("tr");
+      head.forEach(function (x) { h.appendChild(el("th", null, x)); });
+      t.appendChild(h);
+      rows.forEach(function (r) {
+        var tr = el("tr");
+        r.forEach(function (v) { tr.appendChild(el("td", null, String(v))); });
+        t.appendChild(tr);
+      });
+      return t;
+    }
+    if (oe.p.length) {
+      box.appendChild(table(
+        [groupLabel + " proteome", "Best target", "E-value", "Bits", "qcov %", "Status", "Paralog", "Paralog E", "Δlog10"],
+        oe.p.map(function (x) {
+          return [x[0], x[1], oeNum(x[2], 3), oeNum(x[3]), x[4] == null ? "" : Math.round(x[4]),
+                  x[5], x[6] || "", oeNum(x[7], 3), x[8] == null ? "" : Math.round(x[8] * 10) / 10];
+        })));
+    }
+    if (oe.t.length) {
+      box.appendChild(table(
+        ["Genome (TBLASTN)", "Query span", "Coverage %", "HSPs", "E-value"],
+        oe.t.map(function (x) {
+          return [x[0], x[2] + "–" + x[3], x[1] == null ? "" : Math.round(x[1] * 100), x[4], oeNum(x[5], 3)];
+        })));
+    }
+    return box;
+  }
+"""
+
 EL_HELPER_JS = r"""
   function el(tag, cls, text) {
     var n = document.createElement(tag);

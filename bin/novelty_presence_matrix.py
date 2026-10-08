@@ -42,6 +42,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
+from other_evidence import evidence_from_records  # noqa: E402
 from family_presence import (  # noqa: E402
     load_cluster_membership,
     parse_domtblout,
@@ -160,6 +161,9 @@ def main():
                     help='Max fraction of DISCOVERY_OUT proteomes a candidate may be present in')
     ap.add_argument('--output-matrix', required=True, dest='output_matrix')
     ap.add_argument('--output-candidates', required=True, dest='output_candidates')
+    ap.add_argument('--output-other-evidence', default=None, dest='output_other_evidence',
+                    help='Optional gzip TSV (issue #208): DISCOVERY_OUT hit evidence for the '
+                         'singleton pairwise path, incl. hits filter 2/3 removed. Evidence only.')
     ap.add_argument('--output-evalues', default=None, dest='output_evalues',
                     help='Optional sidecar TSV, same shape as --output-matrix, holding the '
                          'family-HMM or singleton hit e-value per (protein, proteome) cell '
@@ -223,6 +227,7 @@ def main():
     # Filter 3 judges only DISCOVERY_OUT cells -- the absence side of phase 1. A narrow
     # DISCOVERY_TARGET hit is still target presence (see bin/build_presence_matrix.py).
     singleton_stats = {}
+    evidence_records = [] if args.output_other_evidence else None
     try:
         singleton_presence, singleton_evalue = score_singleton_hits(
             all_singleton_hits, singleton_reps, paralog_of,
@@ -232,6 +237,7 @@ def main():
             coverage_floor_qcov=args.other_coverage_floor_qcov,
             floor_shorts={s.short for s in samples if s.group == 'DISCOVERY_OUT'},
             stats=singleton_stats,
+            evidence_out=evidence_records,
         )
     except ValueError as exc:
         sys.exit(f'ERROR: --other-coverage-floor-qcov: {exc}')
@@ -241,6 +247,13 @@ def main():
         print(f"Singleton hits rejected by filter 3, coverage floor "
               f"(qcov < {args.other_coverage_floor_qcov:g}): "
               f"{singleton_stats['floor_rejected']} hit(s)", file=sys.stderr)
+
+    if args.output_other_evidence:
+        # Issue #208: DISCOVERY_OUT hits incl. filter-removed ones; evidence only.
+        evidence_from_records(
+            evidence_records, protein_to_proteome,
+            {s.short for s in samples if s.group == 'DISCOVERY_OUT'},
+        ).to_csv(args.output_other_evidence, sep='\t', index=False, compression='gzip')
 
     # --- Build combined presence matrix ---
     # Collect all proteins: family members + singletons
