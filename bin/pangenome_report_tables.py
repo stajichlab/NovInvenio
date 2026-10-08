@@ -56,8 +56,15 @@ def add_island_locus(
     member_to_rep: dict[str, str],
     gene_positions: dict[tuple[str, str], dict],
     id_sep: str = "|",
+    reference_strains: list[str] | None = None,
 ) -> list[dict]:
-    """Adds locus_id/locus_contig/locus_start/locus_end/
+    """`reference_strains` (ordered, optional): the display strain of an island is the first
+    listed strain that carries it, meaning every member family has an annotated gene on one
+    contig there; otherwise the island's `example_strain` is kept. The chosen strain replaces
+    `example_strain` (so the locus coordinates, ordering, labels and DNA-check targets of every
+    later step use it) and the strain BUILD_ISLANDS found first is kept as `first_strain`.
+
+    Adds locus_id/locus_contig/locus_start/locus_end/
     n_members_with_coordinates/n_contigs_in_locus to each island row, by
     resolving member_families (rep-protein IDs, comma-joined -- always,
     regardless of `id_sep`, matching bin/pangenome_build_islands.py's
@@ -80,12 +87,10 @@ def add_island_locus(
     for member, rep in member_to_rep.items():
         rep_to_members.setdefault(rep, []).append(member)
 
-    out = []
-    for row in islands_rows:
-        strain = row["example_strain"]
+    def span_in(strain: str, families: list[str]):
         starts, ends, contigs = [], [], set()
         n_resolved = 0
-        for family in row["member_families"].split(","):
+        for family in families:
             resolved_pos = None
             for candidate in rep_to_members.get(family, [family]):
                 cand_strain, cand_protein = split_member_id(candidate, id_sep)
@@ -100,8 +105,23 @@ def add_island_locus(
             ends.append(resolved_pos["end"])
             contigs.add(resolved_pos["contig"])
             n_resolved += 1
+        return starts, ends, contigs, n_resolved
+
+    out = []
+    for row in islands_rows:
+        families = row["member_families"].split(",")
+        first_strain = row["example_strain"]
+        strain = first_strain
+        for ref in reference_strains or []:
+            _s, _e, ref_contigs, ref_n = span_in(ref, families)
+            if ref_n == len(families) and len(ref_contigs) == 1:
+                strain = ref
+                break
+        starts, ends, contigs, n_resolved = span_in(strain, families)
 
         new_row = dict(row)
+        new_row["example_strain"] = strain
+        new_row["first_strain"] = first_strain
         if n_resolved == 0:
             new_row.update({
                 "locus_id": "-", "locus_contig": "-", "locus_start": "-",
@@ -332,6 +352,10 @@ def main() -> int:
     ap.add_argument("--gene_positions", required=True)
     ap.add_argument("--id_sep", default="|")
     ap.add_argument("--samplesheet", default=None)
+    ap.add_argument("--island_reference_strains", default="",
+                    help="Comma-separated Short IDs in order of preference. An island's display "
+                         "strain (coordinates, ordering, column labels) is the first listed strain "
+                         "that carries it; else the strain BUILD_ISLANDS found first.")
     ap.add_argument("--strain_inventory", default=None)
     ap.add_argument("--ingroup_label", default="IN")
     ap.add_argument("--outgroup_label", default="OUT")
@@ -358,7 +382,9 @@ def main() -> int:
                 gene_positions[(row["Short"], row["protein_id"])] = {
                     "contig": row["contig"], "start": int(row["start"]), "end": int(row["end"]),
                 }
-        annotated = add_island_locus(annotated, member_to_rep, gene_positions, id_sep=args.id_sep)
+        annotated = add_island_locus(
+            annotated, member_to_rep, gene_positions, id_sep=args.id_sep,
+            reference_strains=[s.strip() for s in args.island_reference_strains.split(",") if s.strip()])
 
         with open(out_dir / "islands_with_domains.tsv", "w", newline="") as out:
             fieldnames = list(annotated[0].keys()) if annotated else [

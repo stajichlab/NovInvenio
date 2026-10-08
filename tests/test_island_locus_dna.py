@@ -23,7 +23,8 @@ class FakeMatrix:
         return self.calls.get((fam, strain), "absent")
 
 
-def fixture():
+def fixture(min_column_strains=1):
+    """min_column_strains=1 keeps the pre-2026-10-08 classes, which these DNA tests were written for."""
     pos, calls, locs = {}, {}, {}
 
     def put(strain, contig, ranks):
@@ -43,7 +44,8 @@ def fixture():
     loc = Locus(root={"members": ["A", "B"], "locus_id": "FULL:c1:1-9"},
                 variants=[{"n_strains": "2"}])
     res = compute_locus(loc, Placement("FULL", "c1", 11, 12, 11, 38, 51), "full", cols,
-                        ["EMPTY", "FRAG", "FULL", "PART"], pos, spans, FakeMatrix(calls), SPECIES)
+                        ["EMPTY", "FRAG", "FULL", "PART"], pos, spans, FakeMatrix(calls), SPECIES,
+                        min_column_strains=min_column_strains)
     return res, pos, locs
 
 
@@ -207,3 +209,25 @@ def test_informative_score_uses_dna_confirmed_empty_sites_only():
     assert res["informative_score"] == 4
     apply_dna_calls(res, {}, SPECIES)
     assert res["informative_score"] == -1
+
+
+def test_dna_check_with_shared_columns_only():
+    # Default threshold 2: column B is in place in FULL only, so it is not used to classify.
+    res, _, _ = fixture(min_column_strains=2)
+    assert res["locus_mask"] == [1, 0]
+    assert res["_row_class"] == {"EMPTY": "empty", "FRAG": "uninformative", "FULL": "full", "PART": "full"}
+    assert dna_checked_strains(res) == ["EMPTY"]            # PART is now a full locus, so it needs no DNA check
+    apply_dna_calls(res, {"EMPTY": {1: "present", 2: "present"}}, SPECIES)
+    assert res["_row_class"]["EMPTY"] == "model_difference"
+    assert res["counts"] == {"full": 2, "partial": 0, "empty": 0, "model_difference": 1,
+                             "uninformative": 1}
+    # the comparison counts keep the old, all-columns rule
+    assert res["counts_all_columns"] == {"full": 1, "partial": 1, "empty": 0, "model_difference": 1,
+                                         "uninformative": 1}
+
+
+def test_private_column_dna_does_not_change_a_strains_class_under_the_default():
+    res, _, _ = fixture(min_column_strains=2)
+    apply_dna_calls(res, {"EMPTY": {1: "absent", 2: "present"}}, SPECIES)
+    # Informative column A: DNA absent, so the site is empty; B's DNA being present is not used.
+    assert res["_row_class"]["EMPTY"] == "empty"
