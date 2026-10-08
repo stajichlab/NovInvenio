@@ -17,6 +17,8 @@ from __future__ import annotations
 import collections
 from dataclasses import dataclass
 
+from island_labels import column_labels
+
 # ---- cell state codes (one character per column in a row's `codes`) -------
 ABSENT = "0"
 IN_PLACE = "1"
@@ -634,6 +636,7 @@ def locus_payload(result: dict, key: str, bins: dict[str, str],
                             if exemplar_span else None)
     if family_locations is not None:
         out["family_locations"] = family_locations
+    out["family_labels"], out["label_kinds"] = column_labels(result["families"], family_locations)
     if ranks is not None:
         out["ranks"] = {k: ranks[k] for k in
                         ("whole_annot", "whole_dna", "presence", "species", "within")}

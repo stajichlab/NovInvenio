@@ -371,7 +371,8 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   var currentHaps = [];
 
   function islandHaystack(isl) {
-    return (isl.locus_id + " " + isl.families.join(" ")).toLowerCase();
+    return (isl.locus_id + " " + isl.families.join(" ") + " " +
+            (isl.family_labels ? isl.family_labels.join(" ") : "")).toLowerCase();
   }
 
   function applySidebarFilter() {
@@ -604,6 +605,14 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   }
 
   var LABEL_FONT = "600 11px system-ui, -apple-system, 'Segoe UI', sans-serif";
+  var LABEL_FONT_REP = "italic 600 11px system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+  // Column label: the example strain's own gene ID (payload family_labels, see
+  // lib/island_labels.py). `families[i]` is the family's mmseqs representative, the stable
+  // key for joining to tables. It is the visible label only for a family the example
+  // strain has no annotated gene for (label_kinds[i] === "rep"), drawn in italics.
+  function colLabel(isl, i) { return (isl.family_labels && isl.family_labels[i]) || isl.families[i]; }
+  function colLabelIsRep(isl, i) { return !!(isl.label_kinds && isl.label_kinds[i] === "rep"); }
 
   // Rotated labels rise LABEL_ANGLE from the column centre. Adjacent labels
   // are CELL_W * sin(LABEL_ANGLE) ~ 19 px apart perpendicular to the text,
@@ -612,8 +621,8 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
   function labelLayout(isl) {
     hctx.font = LABEL_FONT;
     var maxW = 0;
-    isl.families.forEach(function (fam) {
-      maxW = Math.max(maxW, Math.min(LABEL_MAX_W, hctx.measureText(fam).width));
+    isl.families.forEach(function (fam, i) {
+      maxW = Math.max(maxW, Math.min(LABEL_MAX_W, hctx.measureText(colLabel(isl, i)).width));
     });
     return {
       head: Math.ceil(maxW * Math.sin(LABEL_ANGLE)) + GLYPH_H + 26,
@@ -651,10 +660,10 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       hctx.translate(x + CELL_W / 2, glyphY - 6);
       hctx.rotate(-LABEL_ANGLE);
       hctx.fillStyle = P.primary;
-      hctx.font = LABEL_FONT;
+      hctx.font = colLabelIsRep(isl, i) ? LABEL_FONT_REP : LABEL_FONT;
       hctx.textAlign = "left";
       hctx.textBaseline = "middle";
-      hctx.fillText(ellipsize(hctx, fam, LABEL_MAX_W), 0, 0);
+      hctx.fillText(ellipsize(hctx, colLabel(isl, i), LABEL_MAX_W), 0, 0);
       hctx.restore();
     });
 
@@ -776,7 +785,14 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     return { present: present, total: total };
   }
   function appendColumnInfo(isl, ci) {
-    tipEl.appendChild(el("div", "tip-id", isl.families[ci]));
+    tipEl.appendChild(el("div", "tip-id", colLabel(isl, ci)));
+    if (colLabelIsRep(isl, ci)) {
+      tipEl.appendChild(el("div", null, "No annotated gene in " + (isl.example_strain || "the example strain") +
+        "; label is the family's representative from another strain."));
+    } else if (isl.family_labels && isl.family_labels[ci] !== isl.families[ci]) {
+      tipEl.appendChild(el("div", null, "Gene in " + (isl.example_strain || "the example strain") +
+        "; family representative: " + isl.families[ci]));
+    }
     tipEl.appendChild(el("div", null, "Column " + (ci + 1) + " of " + isl.families.length));
     var pc = columnPresenceCount(isl, ci);
     tipEl.appendChild(el("div", null, "Present in " + pc.present + " of " + pc.total + " strains"));
@@ -927,6 +943,8 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
         (isl.locus_start >= 0 ? ":" + isl.locus_start + "-" + isl.locus_end : "") : "") +
       ". Columns: consecutive genes along this contig in " + (isl.example_strain || "the example strain") +
       ", left to right by position (a run of non-core families with no core gene between them). " +
+      "Column labels are that strain's own gene IDs; an italic label is a family this strain has no annotated gene for, " +
+      "shown by a representative from another strain. " +
       "Rows: strains with the same presence pattern; a filled cell means the family is present " +
       "in that strain somewhere in the genome, not necessarily at this locus.";
 

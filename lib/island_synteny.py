@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 
 from pfam_classes import CLASS_LABELS, dominant_class
 
+from island_labels import column_labels
+
 
 def _as_int(value, default: int = 0) -> int:
     """Parse a TSV cell to int, tolerating '' and the '-' missing sentinel."""
@@ -266,6 +268,10 @@ def build_payload(island_rows: list[dict], matrix, positions: dict,
                 ordered, example, locus_contig or None,
                 _as_int(row.get("locus_start"), -1), _as_int(row.get("locus_end"), -1),
                 gene_locations, rescue_locations)
+        # Display labels: the example strain's own gene IDs (see lib/island_labels.py);
+        # `families` stays the stable representative-ID key.
+        island["family_labels"], island["label_kinds"] = column_labels(
+            ordered, island.get("family_locations"))
         islands.append(island)
 
     return {
