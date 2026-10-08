@@ -131,7 +131,7 @@ def test_main_writes_new_columns(tmp_path, monkeypatch):
     cols = header.split('\t')
     assert cols[:8] == ['family_a', 'family_b', 'jaccard', 'fisher_p', 'fdr_q',
                         'permutation_p', 'direction_a', 'clade_composition']
-    assert cols[8:] == ['asymmetry_a', 'direction_a_freq']
+    assert cols[8:] == ['asymmetry_a', 'direction_a_freq', 'permutation_q']   # q added 2026-10-08
     x = dict(zip(cols, next(r.split('\t') for r in rows if r.startswith('X\t'))))
     assert x['direction_a'] == 'ambiguous'
     assert x['asymmetry_a'] == '0.9000'

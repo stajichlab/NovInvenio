@@ -132,6 +132,30 @@ def benjamini_hochberg(pvalues: list[float]) -> list[float]:
     return list(false_discovery_control(pvalues, method="bh"))
 
 
+def format_permutation_p(p: float, fmt: str = "sci") -> str:
+    """Text form of the exact stratified p-value.
+
+    'sci' (default) writes 4 significant figures, so a p below 5e-5 is kept (the old fixed
+    4-decimal form printed 17,676 of 1.36 million values as 0.0000 in full_v070, which
+    blocks any later multiple-testing correction). 'fixed4' is the legacy form.
+    """
+    if fmt == "fixed4":
+        return f"{p:.4f}"
+    return f"{p:.4e}"
+
+
+def add_permutation_q(rows: list[dict]) -> None:
+    """Add `permutation_q`: Benjamini-Hochberg over every pair that got the exact stratified
+    test (the pairs that cleared the first FDR screen). The correction is conditional on that
+    selection, so it is approximate. Used by pair classification when
+    --perm_correction bh."""
+    if not rows:
+        return
+    qs = benjamini_hochberg([r["permutation_p"] for r in rows])
+    for r, q in zip(rows, qs):
+        r["permutation_q"] = float(q)
+
+
 def benjamini_hochberg_sparse(pvalues: list[float], total_m: int) -> list[float]:
     """BH-FDR q-values for a SPARSE subset of hypotheses that already
     survived `quick_screen_pvalue` -- a "streaming two-pass BH". Every
@@ -487,6 +511,9 @@ def main() -> None:
         help="direction_a_freq = gain when at most this fraction of outgroup strains "
         "carry the family (default %(default)s; symmetric choice, not calibrated)",
     )
+    ap.add_argument("--permutation_p_format", choices=["sci", "fixed4"], default="sci",
+                    help="Text format of permutation_p: 'sci' = 4 significant figures (default), "
+                         "'fixed4' = legacy 4 decimals (small p print as 0.0000).")
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
     try:
@@ -572,18 +599,21 @@ def main() -> None:
     # without a tree produces a byte-identical header to before (issue #140).
     tree_cols = ["direction_a_tree", "gain_node", "n_loss_events", "loss_clades",
                  "asr_method"] if species_tree is not None else []
+    add_permutation_q(pairs)
     with open_maybe_compressed_write(args.output) as fh:
         fh.write("\t".join(
             ["family_a", "family_b", "jaccard", "fisher_p", "fdr_q", "permutation_p",
-             "direction_a", "clade_composition", "asymmetry_a", "direction_a_freq"]
+             "direction_a", "clade_composition", "asymmetry_a", "direction_a_freq",
+             "permutation_q"]
             + tree_cols) + "\n")
         for row in pairs:
             line = (
                 f"{row['family_a']}\t{row['family_b']}\t{row['jaccard']:.4f}\t"
-                f"{row['fisher_p']:.2e}\t{row['fdr_q']:.2e}\t{row['permutation_p']:.4f}\t"
+                f"{row['fisher_p']:.2e}\t{row['fdr_q']:.2e}\t"
+                f"{format_permutation_p(row['permutation_p'], args.permutation_p_format)}\t"
                 f"{row['direction_a']}\t{row['clade_composition']}\t"
                 f"{'' if row['asymmetry_a'] is None else format(row['asymmetry_a'], '.4f')}\t"
-                f"{row['direction_a_freq']}"
+                f"{row['direction_a_freq']}\t{row['permutation_q']:.4e}"
             )
             for c in tree_cols:
                 line += f"\t{row[c]}"

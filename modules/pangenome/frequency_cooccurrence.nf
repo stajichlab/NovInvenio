@@ -66,6 +66,7 @@ process COOCCURRENCE {
         --screen_alpha ${params.pangenome_screen_alpha} \
         --polarity_loss_min_frac ${params.pangenome_polarity_loss_min_frac} \
         --polarity_gain_max_frac ${params.pangenome_polarity_gain_max_frac} \
+        --permutation_p_format ${params.pangenome_permutation_p_format} \
         --output cooccurring_pairs.tsv.zst
     """
 }
