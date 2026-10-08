@@ -26,6 +26,8 @@ include { EMPTY_EVALUES_STUB } from './modules/empty_evalues_stub'
 // context-search stub (issue #48) needs its own aliased imports alongside the e-value
 // stub (issue #44) -- both are the same trivial "touch an empty file" process.
 include { EMPTY_EVALUES_STUB as EMPTY_CONTEXT_MATRIX_STUB  } from './modules/empty_evalues_stub'
+include { EMPTY_EVALUES_STUB as EMPTY_OTHER_EVIDENCE_STUB  } from './modules/empty_evalues_stub'   // issue #208
+include { EMPTY_EVALUES_STUB as EMPTY_TBLASTN_COV_STUB     } from './modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CONTEXT_EVALUES_STUB } from './modules/empty_evalues_stub'
 
 // Original novelty_discovery/novelty_screen GROUP labels (issues #24-#29), renamed for
@@ -189,6 +191,8 @@ workflow NOVINVENIO {
         // Query-group low-coverage counts (issue #159) come from the pairwise matrix
         // builder only; family-HMM presence has no per-hit qcov.
         novelty_query_lowcov = EMPTY_EVALUES_STUB.out.evalues
+        EMPTY_OTHER_EVIDENCE_STUB()      // issue #208: pairwise-only evidence; 0 bytes = not measured
+        novelty_other_evidence = EMPTY_OTHER_EVIDENCE_STUB.out.evalues
         // NEAR_INGROUP/BROAD_OUTGROUP context search (issue #48) is pairwise-only for now
         // -- mmseqs/PROFILE_SEARCH has no self-vs-self paralog cutoffs to filter against.
         EMPTY_CONTEXT_MATRIX_STUB()
@@ -244,6 +248,8 @@ workflow NOVINVENIO {
         novelty_targets      = EMPTY_EVALUES_STUB.out.evalues
         novelty_descriptions = EMPTY_EVALUES_STUB.out.evalues
         novelty_query_lowcov = EMPTY_EVALUES_STUB.out.evalues   // pairwise-only (issue #159)
+        EMPTY_OTHER_EVIDENCE_STUB()      // issue #208: pairwise-only evidence
+        novelty_other_evidence = EMPTY_OTHER_EVIDENCE_STUB.out.evalues
         // novelty_discovery already has its own NEAR_INGROUP/BROAD_OUTGROUP screen
         // (NOVELTY_SCREEN) -- the pairwise-only context search (issue #48) doesn't apply.
         EMPTY_CONTEXT_MATRIX_STUB()
@@ -279,6 +285,8 @@ workflow NOVINVENIO {
         // evidence the final report surfaces is a report-rendering decision left to #28
         // alongside the novelty_category column.
         novelty_tblastn_summary = NOVELTY_DISCOVERY.out.summary
+        EMPTY_TBLASTN_COV_STUB()
+        novelty_tblastn_cov = EMPTY_TBLASTN_COV_STUB.out.evalues
     }
     else {
         SEARCH(ingroup_prot_ch, outgroup_prot_ch, file(params.config))
@@ -288,6 +296,7 @@ workflow NOVINVENIO {
         novelty_targets      = SEARCH.out.targets
         novelty_descriptions = SEARCH.out.descriptions
         novelty_query_lowcov = SEARCH.out.query_lowcov
+        novelty_other_evidence = SEARCH.out.other_evidence
 
         CLUSTER(novelty_candidates, ingroup_prot_ch, file(params.config), 'candidates.fa', 'clusters')
         cand_fa          = CLUSTER.out.candidates_fa
@@ -317,11 +326,13 @@ workflow NOVINVENIO {
         VALIDATE(cand_reps, outgroup_dna_ch, cand_cluster_tsv, 'tblastn_summary.tsv',
                  novelty_candidates, 'alignments', novelty_descriptions)
         novelty_tblastn_summary = VALIDATE.out.summary
+        novelty_tblastn_cov     = VALIDATE.out.coverage
     }
 
     ANNOTATE(cand_fa, novelty_matrix, pfam_abs, sprot_abs, morgs_abs, '', uniprot_xref_files)
 
-    SUMMARIZE(ANNOTATE.out.annotated_matrix, novelty_tblastn_summary, cand_cluster_tsv, file(params.config))
+    SUMMARIZE(ANNOTATE.out.annotated_matrix, novelty_tblastn_summary, cand_cluster_tsv, file(params.config),
+              novelty_other_evidence, novelty_tblastn_cov)
 
     // Loss direction — candidate lineage-specific gene losses (present in the outgroup,
     // absent from the ingroup). --cluster_tool selects the producer, mirroring the novelty

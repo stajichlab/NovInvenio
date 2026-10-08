@@ -111,9 +111,9 @@ def main():
         sys.exit('--ingroup_min must be in (0, 1]')
 
     tblastn = load_tblastn_summary(args.tblastn_summary)
-    with_signal = bool(args.other_evidence or args.tblastn_coverage)
     prot_ev = load_protein_evidence(args.other_evidence) if args.other_evidence else None
     tb_cov = load_tblastn_coverage(args.tblastn_coverage) if args.tblastn_coverage else None
+    with_signal = prot_ev is not None or tb_cov is not None
 
     families = {}
     if args.cluster_tsv and os.path.exists(args.cluster_tsv):

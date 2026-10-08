@@ -97,12 +97,16 @@ def _num(x):
 
 
 def load_protein_evidence(path):
-    """Return {protein_id: [row dict, ...]} from a *.other_evidence.tsv(.gz); {} if missing/empty."""
+    """Return {protein_id: [row dict, ...]} from a *.other_evidence.tsv(.gz).
+
+    None when the file is missing or 0 bytes (a stub): the evidence was not measured. A
+    header-only file returns {} (measured, nothing found).
+    """
     import csv
     import gzip
     import os
     if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
-        return {}
+        return None
     opener = gzip.open if str(path).endswith('.gz') else open
     out = {}
     with opener(path, 'rt', newline='') as fh:
@@ -112,7 +116,7 @@ def load_protein_evidence(path):
 
 
 def load_tblastn_coverage(path):
-    """Return {protein_id: [row dict, ...]} from tblastn_summary.coverage.tsv(.gz)."""
+    """Return {protein_id: [row dict, ...]} from tblastn_summary.coverage.tsv(.gz); None if a stub."""
     return load_protein_evidence(path)
 
 
