@@ -19,6 +19,7 @@ from report_common import (
     BREADCRUMB_NAV_CSS,
     DOWNLOAD_JS,
     EL_HELPER_JS,
+    HOW_TO_READ_CSS,
     OTHER_SIGNAL_CSS,
     OTHER_SIGNAL_JS,
     EXTERNAL_LINKS_JS,
@@ -48,7 +49,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
      skin owns the colour instead of this page hardcoding a light/dark pair. */
   /*__ALIGNMENT_CSS__*/
 """ + FOOTER_CSS + r"""
-""" + OTHER_SIGNAL_CSS + r"""</style>
+""" + OTHER_SIGNAL_CSS + HOW_TO_READ_CSS + r"""</style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
@@ -86,6 +87,16 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       </div>
     </div>
   </section>
+
+  <details class="how">
+    <summary>How to read this page</summary>
+    <ul>
+      <li><b>Loss candidate.</b> An outgroup-sourced protein that has a qualifying hit in at least the stated fraction of the outgroup proteomes and in at most the stated fraction of the ingroup proteomes (default: none). The search runs in the opposite direction to the novelty search.</li>
+      <li><b>Qualifying hit.</b> Passes the E-value cutoff and the paralog-competition filter. "No qualifying hit" in the ingroup is not proof of loss: it may be an annotation gap.</li>
+      <li><b>Ingroup TBLASTN</b> counts ingroup genomes where TBLASTN of the cluster representative found a hit. It is evidence only and does not remove a candidate.</li>
+      <li><b>Ingroup signal</b> (when recorded) is the strongest ingroup evidence by query coverage, including filtered hits: none, domain_only or broad, at an adjustable threshold. Evidence only.</li>
+    </ul>
+  </details>
 
   <div class="filters" role="group" aria-label="Filter loss candidates">
     <input type="search" id="f-search" placeholder="Search ID, gene, product, Pfam…" aria-label="Search proteins">
@@ -617,7 +628,7 @@ LOSSES_HTML_TEMPLATE = r"""<!doctype html>
       "prioritized by ingroup retention (cleanest loss first), outgroup family breadth, and " +
       "absence of ingroup genomic (TBLASTN) evidence.";
     document.getElementById("t-total").textContent = nRows.toLocaleString();
-    document.getElementById("t-out").textContent = nOut + (nOut === 1 ? " species" : " species");
+    document.getElementById("t-out").textContent = nOut + " species";
     document.getElementById("t-fam").textContent = FAMILIES.length.toLocaleString();
     document.getElementById("t-flagged").textContent =
       nRows ? flagged.toLocaleString() + " (" + Math.round((flagged / nRows) * 100) + "%)" : "—";

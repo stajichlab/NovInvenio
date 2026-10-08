@@ -7,12 +7,15 @@ writes novelties.<SHORT>.tsv containing proteins that are:
   1. Present in that species (presence matrix column == 1)
   2. Present in >= ingroup_min of ingroup proteomes
   3. Absent from all outgroup proteomes (all outgroup columns == 0)
-  4. Absent from all outgroup genomes (no significant TBLASTN hit in tblastn_summary)
+  4. (Optional filter, OFF in the pipeline) absent from all outgroup genomes: no
+     significant TBLASTN hit in tblastn_summary. The pipeline's SUMMARIZE step passes
+     --skip_tblastn_filter, so TBLASTN hits are REPORTED in the tblastn_outgroup_hits
+     column but do not remove a candidate. Run this script without the flag to apply it.
 
 The annotated presence matrix (presence_matrix.function.tsv) must already
 contain the Best_Swissprot and Pfam_Names columns added by
-annotate_presence_matrix.py.  If tblastn_summary.tsv is absent, step 4 is
-skipped with a warning.
+annotate_presence_matrix.py.  If tblastn_summary.tsv is absent, the TBLASTN
+column is empty and a warning is printed.
 
 When --cluster_tsv (mmseqs easy-cluster *_cluster.tsv) is supplied, each row
 also gets family_id/family_size/family_members columns identifying the

@@ -64,7 +64,7 @@ genes like actin and a core P-type ATPase were wrongly called absent from
 purely because their own near-identical in-genome paralog outscored the real
 ortholog hit.
 
-The filter is now two steps, and only the second one is paralog-aware:
+The filter has two default steps, plus one optional step, and only the second one is paralog-aware:
 
 1. **Significance filter.** A cross-proteome hit only counts if its E-value
    is better than a flat `--evalue` (default `1e-5`, `DEFAULT_EVALUE` in
@@ -76,13 +76,30 @@ The filter is now two steps, and only the second one is paralog-aware:
    (not an absolute-magnitude proxy), so it stays sound regardless of how
    close or distant the query's own paralog is. `--paralog-competition-scope`
    controls the granularity:
-   - `proteome` (default, strict): disqualify if the paralog's best hit
-     *anywhere in the target proteome* beats the query's hit.
-   - `target`: disqualify only if the paralog beats the query on the *same
-     target protein*. Looser — preserves calls where the paralog also has a
-     real, distinct ortholog in the target genome (documented example:
-     HEX-1 vs its paralog eIF5A survives under `target` scope but is
-     incorrectly dropped under `proteome` scope).
+   - `target` (default, `--paralog_competition_scope target`): disqualify only
+     if the paralog beats the query on the *same target protein*. Preserves
+     calls where the paralog also has a real, distinct ortholog in the target
+     genome (documented example: HEX-1 vs its paralog eIF5A survives under
+     `target` scope but is incorrectly dropped under `proteome` scope).
+   - `proteome` (stricter): disqualify if the paralog's best hit *anywhere in
+     the target proteome* beats the query's hit.
+
+   Two rescue arms keep a hit that filter 2 would drop. The floor
+   (`--paralog_rescue_evalue`, default `1e-20`) never disqualifies a hit whose
+   own E-value is at or below the floor. The delta arm
+   (`--paralog_rescue_delta`, off by default) keeps a hit the paralog beat by
+   fewer than DELTA orders of magnitude.
+3. **Coverage floor (optional, off by default).** With
+   `--other_coverage_floor_qcov Q`, an other-group hit whose query coverage is
+   below Q percent does not count. It needs alignment coverage, so it works
+   with diamond and blast, not phmmer.
+
+A protein with no hit that survives these filters has no row in the matrix.
+At `ingroup_min_frac <= 1/N` a true single-species orphan is therefore not
+listed. Hits that filters 2 and 3 remove are not lost: they are recorded in
+`presence_matrix.other_evidence.tsv.gz` (with the paralog's E-value) and shown
+as the **Outgroup signal** on the report. That signal is evidence only. It
+never changes a presence call or the candidate list.
 
 ### Candidate rule
 
@@ -98,20 +115,24 @@ other_frac <= other_max_frac     (default 0.0 — strictly absent from every oth
 
 `other_max_frac` is the knob that turns a strict novelty/loss rule into a
 "nearly missing" one (`--loss_ingroup_max_frac` for the loss direction). Note
-this predicate only shapes `candidates.txt` — the matrix itself always keeps
-every scored row, both novel and non-novel, so reports can recompute
-different thresholds without re-running search.
+this predicate only shapes `candidates.txt`. The matrix keeps every protein
+that has at least one hit passing the filters, novel or not, so reports can
+recompute thresholds without re-running search.
 
 ### Genomic validation and annotation
 
 Candidates are extracted, clustered with `mmseqs easy-cluster`
-(`--min-seq-id 0.3 -c 0.8 --cov-mode 0`, purely to deduplicate near-identical
-candidates before TBLASTN — not a presence call), and cluster representatives
+(`--min-seq-id 0.3 -c 0.8 --cov-mode 0`, to group candidates into families and
+to run TBLASTN once per family representative instead of once per protein.
+At 30% identity, members of one family can differ a lot from the
+representative. It is not a presence call), and cluster representatives
 are TBLASTN'd (`-evalue` = same `--evalue` param) against outgroup genomes.
 In the novelty direction this runs with `--skip_tblastn_filter`: a TBLASTN
 hit is reported as a column, not used to disqualify a candidate, because the
 significance-filtered, paralog-competition-checked absence call is already trusted. Pfam (`hmmscan`) and
-SwissProt (`diamond blastp`) annotate every row in the final matrix.
+SwissProt (`diamond blastp`) annotate the candidate proteins (`candidates.fa`).
+Other rows of the matrix carry no annotation. TBLASTN hits and coverage are
+computed on the representative and copied to every member of its cluster.
 
 mmseqs recognizes several FASTA defline conventions (UniProt's
 `sp|ACC|NAME`/`tr|ACC|NAME`, and a handful of NCBI-style ones) and reports a

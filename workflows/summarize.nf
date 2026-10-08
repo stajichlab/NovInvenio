@@ -1,9 +1,10 @@
 nextflow.enable.dsl=2
 
 // Produce per-species novelty candidate files (novelties.<SHORT>.tsv).
-// Combines the annotated presence matrix with TBLASTN summary to apply the
-// final filter: present in ingroup, absent from all outgroup proteomes AND
-// absent from all outgroup genomes.
+// Combines the annotated presence matrix with the TBLASTN summary: present in the ingroup
+// and absent from all outgroup proteomes. TBLASTN hits against outgroup genomes are
+// reported in the tblastn_outgroup_hits column but are NOT used as a filter (MAKE_NOVELTIES
+// passes --skip_tblastn_filter), so a candidate can have outgroup genomic hits.
 
 workflow SUMMARIZE {
     take:

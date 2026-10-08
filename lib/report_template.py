@@ -23,6 +23,7 @@ between the three reports.
 from report_common import (
     BREADCRUMB_NAV_CSS,
     EL_HELPER_JS,
+    HOW_TO_READ_CSS,
     OTHER_SIGNAL_CSS,
     OTHER_SIGNAL_JS,
     EXTERNAL_LINKS_JS,
@@ -210,7 +211,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     background: var(--page);
   }
   .chip:hover { border-color: var(--series-1); }
-""" + OTHER_SIGNAL_CSS + r"""
+""" + OTHER_SIGNAL_CSS + HOW_TO_READ_CSS + r"""
   a.pfam-link { color: var(--series-1); text-decoration: none; }
   a.pfam-link:hover { text-decoration: underline; }
   .links { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -359,6 +360,18 @@ HTML_TEMPLATE = r"""<!doctype html>
     </div>
   </section>
 
+  <details class="how">
+    <summary>How to read this page</summary>
+    <ul>
+      <li><b>Candidate.</b> A protein from an ingroup proteome that has a qualifying hit in at least the stated fraction of the ingroup proteomes (its own proteome counts) and no qualifying hit in any outgroup proteome. Counts are proteins, not gene families.</li>
+      <li><b>Qualifying hit.</b> A protein-search hit that passes the E-value cutoff (default 1e-5), is not explained away by the query's own in-genome paralog (a hit is dropped when the paralog hits the same target better, unless the hit is itself stronger than 1e-20), and passes the optional query-coverage floor when one was set. "No qualifying hit" is not proof of absence: a filtered or weak hit is not counted.</li>
+      <li><b>Gene family.</b> Candidates are clustered with mmseqs before TBLASTN. A family groups candidates from different ingroup species that cluster together. A single protein is its own family.</li>
+      <li><b>TBLASTN column.</b> The number of outgroup genomes where TBLASTN of the cluster representative found a hit at the E-value cutoff. The result is copied to every cluster member. It is evidence only: it does not remove a candidate. A TBLASTN hit with no protein hit often means an unannotated or mis-annotated outgroup gene.</li>
+      <li><b>Outgroup signal</b> (when the run recorded it). The strongest outgroup evidence by query coverage, including hits that were filtered out: <i>none</i> (no hit), <i>domain_only</i> (best coverage below the threshold, often one shared domain) or <i>broad</i> (at or above it). The threshold box on this page changes the split. The default of 50% is the median seen in one run, not a validated cutoff. Protein coverage is a single alignment; TBLASTN coverage is the union of all aligned spans in a genome, so the two differ in kind. Evidence only: it never changes the candidate list.</li>
+      <li><b>What to check next.</b> Rows with a TBLASTN hit or a broad outgroup signal may be old families with a lineage-specific member or annotation gaps. Open the alignment (TBLASTN cell) and the Outgroup signal detail before treating a row as novel.</li>
+    </ul>
+  </details>
+
   <div class="filters" role="group" aria-label="Filter candidates">
     <input type="search" id="f-search" placeholder="Search ID, gene, product, Pfam…" aria-label="Search proteins">
     <select id="f-src" aria-label="Source proteome"></select>
@@ -412,7 +425,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <div class="legend">
           <span class="legend-item"><span class="swatch pres"></span>Present (protein search)</span>
           <span class="legend-item"><span class="swatch tb"></span>TBLASTN hit (outgroup genome)</span>
-          <span class="legend-item"><span class="swatch absent"></span>Absent</span>
+          <span class="legend-item"><span class="swatch absent"></span>No qualifying hit</span>
         </div>
         <div class="grid-hscroll">
           <canvas class="head" id="head"></canvas>
@@ -924,7 +937,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         ? row[F.pres].charCodeAt(col.idx) === 49
         : row[F.tb].charCodeAt(col.idx) === 49;
       var verb = col.kind === "pres"
-        ? (on ? "Present" : "Absent")
+        ? (on ? "Present" : "No qualifying hit")
         : (on ? "TBLASTN hit" : "No TBLASTN hit");
       tipEl.appendChild(el("div", "tip-value", verb));       // value leads
       var sp = col.proteome;
@@ -1005,7 +1018,8 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     if (row[F.nov]) {
       detailEl.appendChild(field("Status", "Novelty candidate — present in ≥ " +
-        Math.round(DATA.ingroup_min_frac * 100) + "% of the ingroup and absent from every outgroup proteome."));
+        Math.round(DATA.ingroup_min_frac * 100) + "% of the ingroup proteomes and has no qualifying hit in any outgroup proteome " +
+        "(see \"How to read this page\")."));
     }
 
     // novelty_category (issues #27/#28) — only present for novelty_discovery/novelty_screen
@@ -1077,7 +1091,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       // keyboard-and-touch-operable control, not just a hover target.
       var chip = el("button", "pm " + (on ? "on-pres" : "off"), p.short);
       chip.type = "button";
-      chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "absent") +
+      chip.title = p.species + (p.strain ? " " + p.strain : "") + " — " + (on ? "present" : "no qualifying hit") +
         (p.context ? " (context, not scored)" : "") + (ev ? " (E=" + ev + ")" : "") +
         (tgt ? " [hit: " + tgt + "]" : "");
       chip.addEventListener("click", function () {
@@ -1433,9 +1447,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("hero").textContent = novTotal.toLocaleString();
     document.getElementById("hero-note").textContent =
       "Present in ≥ " + Math.round(DATA.ingroup_min_frac * 100) +
-      "% of the ingroup and absent from every outgroup proteome.";
+      "% of the ingroup proteomes, with no qualifying hit in any outgroup proteome. Counts are proteins, not gene families.";
     document.getElementById("t-total").textContent = nRows.toLocaleString();
-    document.getElementById("t-in").textContent = N_IN + (N_IN === 1 ? " species" : " species");
+    document.getElementById("t-in").textContent = N_IN + " species";
     document.getElementById("t-out").textContent = (N_SCORED - N_IN) + " species";
     document.getElementById("t-annot").textContent =
       nRows ? Math.round((annot / nRows) * 100) + "%" : "—";
