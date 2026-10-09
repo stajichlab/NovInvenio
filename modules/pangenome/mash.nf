@@ -124,6 +124,7 @@ process FILL_TAXON_GROUP {
     """
     pangenome_fill_taxon_group.py \
         --config ${samplesheet} --clade_assignments ${clade_assignments} \
+        ${params.pangenome_stratum_source == 'mash_clade' ? '--stratum_from_mash' : ''} \
         --output samplesheet.with_clades.csv
     """
 }
