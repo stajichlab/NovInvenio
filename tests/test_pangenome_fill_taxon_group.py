@@ -102,3 +102,11 @@ def test_cooccurrence_stratifies_on_stratum_when_present(tmp_path):
                    "IN,sp1,c,p.fa,d.fa,,S3,sp1,\n")
     s = {x.short: x.stratum_label for x in parse_config(cfg)}
     assert s == {"S1": "clade_0", "S2": "clade_1", "S3": "sp1"}    # blank Stratum falls back to TaxonGroup
+
+
+def test_fill_taxon_group_command_text_is_unchanged_on_the_default():
+    """A Nextflow task hash covers the command text; the default must not add a blank line."""
+    nf = (Path(__file__).parent.parent / "modules" / "pangenome" / "mash.nf").read_text()
+    proc = nf.split("process FILL_TAXON_GROUP")[1]
+    assert "--clade_assignments ${clade_assignments}${stratum_arg} \\\n        --output samplesheet.with_clades.csv" in proc
+    assert "' --stratum_from_mash' : ''" in proc
