@@ -739,6 +739,10 @@ CORE_ROW_FIELDS = [
     'tgt',       # comma-separated best-hit target protein IDs, one per payload['proteomes']
                  # entry ('' = no qualifying hit; the row's own proteome holds its own ID);
                  # names come from payload['protein_names'] (see ROW_FIELDS' 'tgt')
+    'ev',        # comma-separated best-hit E-values, aligned with 'tgt' ('' = none)
+    'qc',        # comma-separated best-hit query coverage in percent, aligned with 'tgt'. Only
+                 # measured where the other-group evidence sidecar has the cell (the outgroup
+                 # columns); '' elsewhere
 ]
 
 
@@ -751,6 +755,8 @@ def build_core_payload(
     gff3_paths=None,
     targets_path=None,
     descriptions_path=None,
+    evalues_path=None,
+    other_evidence_path=None,
 ) -> dict:
     """Build the embedded payload for the CORE (near-universal genes) report.
 
@@ -777,10 +783,16 @@ def build_core_payload(
     extract_protein_descriptions.py output (same sidecars build_payload() takes). They fill each
     row's 'tgt' and payload['protein_names'], so the card can name the gene each other species
     carries. Missing or empty = no names.
+
+    evalues_path / other_evidence_path: optional presence_matrix.evalues.tsv and
+    presence_matrix.other_evidence.tsv.gz. They fill each row's 'ev' (E-value of every best hit)
+    and 'qc' (query coverage, only for the cells the other-group evidence measured).
     """
     header, rows = read_matrix(matrix_path)
     target_lookup = read_targets(targets_path)
     descriptions_lookup = read_descriptions(descriptions_path)
+    evalue_lookup = read_evalues(evalues_path)
+    other_ev = load_protein_evidence(other_evidence_path) if other_evidence_path else None
     referenced_target_ids: set[str] = set()
 
     fam_index = FamilyIndex(cluster_tsv)
@@ -833,6 +845,11 @@ def build_core_payload(
         row_targets = target_lookup.get(pid, {})
         row_target_ids = [row_targets.get(sh, '') for sh in shorts]
         referenced_target_ids.update(t for t in row_target_ids if t)
+        row_evalues = evalue_lookup.get(pid, {})
+        qcov_by_other = {}
+        for e in (other_ev or {}).get(pid, []):
+            if e.get('evidence') == 'protein' and e.get('best_qcov') not in (None, ''):
+                qcov_by_other[e['other_proteome']] = f"{float(e['best_qcov']):.0f}"
 
         out_rows.append([
             pid,
@@ -860,6 +877,8 @@ def build_core_payload(
             int(row['uniprot_reviewed']) if (row.get('uniprot_reviewed') or '') != '' else -1,
             pub_sets.intern(row.get('uniprot_pubs', '') or ''),
             ','.join(row_target_ids),
+            ','.join(_round_evalue(row_evalues.get(sh, '')) for sh in shorts),
+            ','.join(qcov_by_other.get(sh, '') for sh in shorts),
         ])
 
     return {

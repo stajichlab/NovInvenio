@@ -1051,3 +1051,23 @@ def test_core_payload_without_target_sidecars_has_empty_tgt(core_run_dir, sample
     row = core_rows_by_id(payload)['core1']
     assert set(row[F['tgt']].split(',')) == {''}
     assert payload['protein_names'] == {}
+
+
+def test_core_payload_carries_hit_evalues_and_outgroup_coverage(core_run_dir, samples):
+    (core_run_dir / 'core_ev.tsv').write_text(
+        'protein_id\tsource_proteome\tNcra\tAfum\tSpom\tScer\n'
+        'core1\tNcra\t\t4.549999999999999e-230\t1.2e-40\t\n')
+    (core_run_dir / 'core_oe.tsv').write_text(
+        'protein_id\tsource_proteome\tother_proteome\tevidence\tbest_target_id\tbest_evalue\tbest_bitscore\t'
+        'best_qcov\tmax_qcov\tn_hits\tstatus\tparalog_id\tparalog_evalue\tparalog_delta\n'
+        'core1\tNcra\tSpom\tprotein\tsp|P2|P2_SCHPO\t1.2e-40\t150\t87.6\t87.6\t1\tkept\t\t\t\n')
+    payload = build_core_payload(core_run_dir / 'core_matrix.tsv', samples,
+                                 evalues_path=core_run_dir / 'core_ev.tsv',
+                                 other_evidence_path=core_run_dir / 'core_oe.tsv')
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    shorts = [p['short'] for p in payload['proteomes']]
+    row = core_rows_by_id(payload)['core1']
+    ev = dict(zip(shorts, row[F['ev']].split(',')))
+    qc = dict(zip(shorts, row[F['qc']].split(',')))
+    assert ev['Spom'] == '1.2e-40' and ev['Afum'].startswith('4.55e-230') and ev['Scer'] == ''
+    assert qc == {'Ncra': '', 'Afum': '', 'Spom': '88', 'Scer': ''}

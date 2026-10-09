@@ -42,7 +42,9 @@ def test_report_call_order_matches_take_order():
 
 def test_core_report_gets_targets_and_descriptions():
     text = (ROOT / "workflows" / "report.nf").read_text()
-    assert "MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, targets, descriptions, config_csv, data_dir)" in text
+    assert "MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, targets, descriptions, evalues, other_evidence, config_csv, data_dir)" in text
     proc = text.split("process MAKE_CORE_REPORT")[1]
-    assert proc.index("path(targets") < proc.index("path(descriptions") < proc.index("path(config_csv)")
+    assert (proc.index("path(targets") < proc.index("path(descriptions") < proc.index("path(evalues")
+            < proc.index("path(other_evidence") < proc.index("path(config_csv)"))
     assert "--targets targets.tsv" in proc and "--descriptions descriptions.tsv" in proc
+    assert "--evalues evalues.tsv" in proc and "--other_evidence other_evidence.in.tsv.gz" in proc

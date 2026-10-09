@@ -396,6 +396,8 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
   function hitsNode(row) {
     var tgts = row[F.tgt] ? row[F.tgt].split(",") : [];
     var names = DATA.protein_names || {};
+    var evs = row[F.ev] ? row[F.ev].split(",") : [];
+    var qcs = row[F.qc] ? row[F.qc].split(",") : [];
     var box = el("div", "hits");
     var shown = 0;
     PROTEOMES.forEach(function (p, i) {
@@ -410,7 +412,10 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
       var label = [nm.gene_name, nm.description].filter(Boolean).join(" — ");
       if (label) cell.appendChild(document.createTextNode(label + " "));
       else if (!self) cell.appendChild(el("span", "none", "unnamed "));
-      cell.appendChild(el("span", "hid", "(" + (self ? "this protein" : tid) + ")"));
+      var stats = [];
+      if (!self && evs[i]) stats.push("E=" + fmtEvalue(evs[i]));
+      if (!self && qcs[i]) stats.push("query cov " + qcs[i] + "%");
+      cell.appendChild(el("span", "hid", "(" + (self ? "this protein" : tid) + (stats.length ? " · " + stats.join(" · ") : "") + ")"));
       box.appendChild(lab);
       box.appendChild(cell);
     });
