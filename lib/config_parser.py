@@ -28,6 +28,14 @@ class Sample:
     taxid: str = ''      # optional NCBI taxonomy ID. Report-only -- turns the species name
                          # in a report's detail panel into an NCBI Taxonomy link; without it
                          # the link falls back to a by-name search.
+    stratum: str = ''    # optional population/clade label used ONLY to stratify the
+                         # co-occurrence null (pangenome_cooccurrence.py). Empty = use
+                         # taxon_group. Lets TaxonGroup stay a display label (e.g. the species
+                         # name) while the null is stratified by population structure.
+
+    @property
+    def stratum_label(self) -> str:
+        return self.stratum or self.taxon_group
 
 
 # All recognised group labels. IN/OUT are the classic pairwise/mmseqs pathway roles;
@@ -74,6 +82,7 @@ def parse_config(config_path: Union[str, Path]) -> list[Sample]:
                 gff3=(row.get('GFF3') or '').strip(),
                 source_db=(row.get('SourceDB') or '').strip(),
                 taxid=(row.get('NCBI_TaxID') or '').strip(),
+                stratum=(row.get('Stratum') or '').strip(),
             ))
     return samples
 

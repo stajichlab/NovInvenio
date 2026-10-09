@@ -121,9 +121,12 @@ process FILL_TAXON_GROUP {
     path("samplesheet.with_clades.csv"), emit: samplesheet
 
     script:
+    // Appended to the --clade_assignments line, so the default command text is unchanged and a
+    // cached run still resumes.
+    def stratum_arg = params.pangenome_stratum_source == 'mash_clade' ? ' --stratum_from_mash' : ''
     """
     pangenome_fill_taxon_group.py \
-        --config ${samplesheet} --clade_assignments ${clade_assignments} \
+        --config ${samplesheet} --clade_assignments ${clade_assignments}${stratum_arg} \
         --output samplesheet.with_clades.csv
     """
 }

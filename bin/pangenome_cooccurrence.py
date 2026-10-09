@@ -525,7 +525,7 @@ def main() -> None:
     from config_parser import parse_config  # noqa: E402
 
     samples = parse_config(args.config)
-    clade_of_strain = {s.short: s.taxon_group for s in samples}
+    clade_of_strain = {s.short: s.stratum_label for s in samples}
     outgroup_shorts = [s.short for s in samples if s.group == args.outgroup_label]
     ingroup_shorts = [s.short for s in samples if s.group == args.ingroup_label]
     if args.inventory:

@@ -48,8 +48,14 @@ def read_clade_labels(path: str) -> dict[str, str]:
     return labels
 
 
-def fill_taxon_group(config_path: str, clade_labels: dict[str, str], output_path: str) -> tuple[int, int]:
-    """Returns (n_filled, n_total_rows)."""
+def fill_taxon_group(config_path: str, clade_labels: dict[str, str], output_path: str,
+                     stratum_from_mash: bool = False) -> tuple[int, int]:
+    """Returns (n_filled, n_total_rows).
+
+    stratum_from_mash: also write a `Stratum` column (added when absent) holding the Mash clade of
+    every strain that has one and no Stratum yet. pangenome_cooccurrence.py stratifies its null
+    on Stratum (falling back to TaxonGroup), so TaxonGroup can stay a display label such as the
+    species name. An existing Stratum value is never overwritten."""
     with open(config_path, newline="") as fh:
         reader = csv.DictReader(fh)
         fieldnames = reader.fieldnames
@@ -61,8 +67,12 @@ def fill_taxon_group(config_path: str, clade_labels: dict[str, str], output_path
         )
         sys.exit(1)
 
+    if stratum_from_mash and "Stratum" not in fieldnames:
+        fieldnames = list(fieldnames) + ["Stratum"]
     n_filled = 0
     for row in rows:
+        if stratum_from_mash and not (row.get("Stratum") or "").strip():
+            row["Stratum"] = clade_labels.get(row["Short"], "")
         if not (row.get("TaxonGroup") or "").strip():
             clade = clade_labels.get(row["Short"])
             if clade:
@@ -81,10 +91,14 @@ def main() -> None:
     ap.add_argument("--config", required=True)
     ap.add_argument("--clade_assignments", required=True)
     ap.add_argument("--output", required=True)
+    ap.add_argument("--stratum_from_mash", action="store_true",
+                    help="Also fill a Stratum column from the Mash clades (used to stratify the "
+                         "co-occurrence null instead of TaxonGroup).")
     args = ap.parse_args()
 
     clade_labels = read_clade_labels(args.clade_assignments)
-    n_filled, n_total = fill_taxon_group(args.config, clade_labels, args.output)
+    n_filled, n_total = fill_taxon_group(args.config, clade_labels, args.output,
+                                         stratum_from_mash=args.stratum_from_mash)
     print(
         f"pangenome_fill_taxon_group: filled {n_filled}/{n_total} rows' empty "
         "TaxonGroup from clade_assignments.tsv (existing values kept as-is)",
