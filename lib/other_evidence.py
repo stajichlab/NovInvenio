@@ -96,6 +96,19 @@ def _num(x):
     return None if math.isnan(v) else v
 
 
+# JSON has no Infinity. A paralog_delta of +-inf (an E-value of 0) goes into the report payload
+# as +-DELTA_CAP; the sidecar TSV keeps the true value. 400 is past log10 of the smallest double
+# (about 5e-324), so no real E-value ratio reaches it.
+DELTA_CAP = 400.0
+
+
+def _delta_num(x):
+    v = _num(x)
+    if v is None:
+        return None
+    return max(-DELTA_CAP, min(DELTA_CAP, v))
+
+
 def load_protein_evidence(path):
     """Return {protein_id: [row dict, ...]} from a *.other_evidence.tsv(.gz).
 
@@ -176,7 +189,7 @@ def other_evidence_payload(protein_rows, tblastn_rows):
     cs = [c for c in cs if c is not None]
     p = [[r['other_proteome'], r['best_target_id'], _num(r['best_evalue']), _num(r['best_bitscore']),
           _num(r['best_qcov']), r['status'], r['paralog_id'], _num(r['paralog_evalue']),
-          _num(r['paralog_delta'])] for r in protein_rows]
+          _delta_num(r['paralog_delta'])] for r in protein_rows]
     t = [[r['genome'], _num(r['query_span_cov']), int(r['span_start']), int(r['span_end']),
           int(r['n_hsps']), _num(r['best_evalue'])] for r in tblastn_rows]
     return {'c': max(cs) if cs else None, 'p': p, 't': t}

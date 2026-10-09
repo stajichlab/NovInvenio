@@ -103,7 +103,7 @@ def main():
         other_signal_qcov=args.other_signal_qcov,
     )
 
-    payload_json = json.dumps(payload, separators=(',', ':'))
+    payload_json = json.dumps(payload, separators=(',', ':'), allow_nan=False)
     payload_json = payload_json.replace('</', '<\\/')
 
     doc = (LOSSES_HTML_TEMPLATE
