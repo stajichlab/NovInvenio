@@ -38,6 +38,16 @@ def main():
     ap.add_argument('--cluster_tsv',
                     help='mmseqs easy-cluster *_cluster.tsv (rep -> member), used to group '
                          'candidates into gene families across ingroup species (optional)')
+    ap.add_argument('--targets',
+                    help='presence_matrix.targets.tsv (best-hit target protein per species; optional). '
+                         'With --descriptions it lets each card name the gene every other species carries.')
+    ap.add_argument('--descriptions',
+                    help='extract_protein_descriptions.py output TSV (optional; resolves --targets IDs to names)')
+    ap.add_argument('--evalues',
+                    help='presence_matrix.evalues.tsv (best-hit E-value per species; optional)')
+    ap.add_argument('--other_evidence',
+                    help='presence_matrix.other_evidence.tsv.gz (optional; gives the query coverage of '
+                         'the outgroup hits)')
     ap.add_argument('--core_min_frac', type=float, default=0.95,
                     help='Minimum presence fraction across all proteomes (ingroup + outgroup) '
                          'for a gene to count as core (default: 0.95)')
@@ -63,6 +73,10 @@ def main():
         core_min_frac=args.core_min_frac,
         project=project,
         gff3_paths=resolve_gff3_paths(samples, args.data_dir),
+        targets_path=args.targets,
+        descriptions_path=args.descriptions,
+        evalues_path=args.evalues,
+        other_evidence_path=args.other_evidence,
     )
 
     # separators: drop the whitespace json.dumps adds after every delimiter.

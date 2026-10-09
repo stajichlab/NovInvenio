@@ -42,7 +42,14 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
 """ + FAVICON_LINK_HTML + r"""
 <style>
 """ + SKIN_VARS_CSS + BASE_PAGE_CSS + LOGO_CSS + BREADCRUMB_NAV_CSS + FOOTER_CSS + r"""
-""" + HOW_TO_READ_CSS + r"""</style>
+""" + HOW_TO_READ_CSS + r"""
+  .hits { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; font-size: 12.5px; }
+  .hits .hs { font-weight: 600; white-space: nowrap; }
+  .hits .hs.out { color: var(--muted, #666); }
+  .hits .hn { word-break: break-word; }
+  .hits .hid { color: var(--muted, #666); font-size: 11.5px; }
+  .hits .none { color: var(--muted, #888); }
+</style>
 <script>""" + SKIN_BOOT_JS + r"""</script>
 </head>
 <body>
@@ -384,6 +391,38 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
     return f;
   }
 
+  // One line per proteome: the best qualifying hit (protein ID) and, when the descriptions
+  // table knows it, that protein's gene name and product. Ingroup first, then outgroup.
+  function hitsNode(row) {
+    var tgts = row[F.tgt] ? row[F.tgt].split(",") : [];
+    var names = DATA.protein_names || {};
+    var evs = row[F.ev] ? row[F.ev].split(",") : [];
+    var qcs = row[F.qc] ? row[F.qc].split(",") : [];
+    var box = el("div", "hits");
+    var shown = 0;
+    PROTEOMES.forEach(function (p, i) {
+      var tid = tgts[i] || "";
+      if (!tid) return;
+      shown++;
+      var self = i === row[F.src];
+      var lab = el("div", "hs" + (p.group === "IN" ? "" : " out"), p.short);
+      lab.title = p.species + (p.strain ? " " + p.strain : "") + (p.group === "IN" ? " (ingroup)" : " (outgroup)");
+      var nm = names[tid] || {};
+      var cell = el("div", "hn");
+      var label = [nm.gene_name, nm.description].filter(Boolean).join(" — ");
+      if (label) cell.appendChild(document.createTextNode(label + " "));
+      else if (!self) cell.appendChild(el("span", "none", "unnamed "));
+      var stats = [];
+      if (!self && evs[i]) stats.push("E=" + fmtEvalue(evs[i]));
+      if (!self && qcs[i]) stats.push("query cov " + qcs[i] + "%");
+      cell.appendChild(el("span", "hid", "(" + (self ? "this protein" : tid) + (stats.length ? " · " + stats.join(" · ") : "") + ")"));
+      box.appendChild(lab);
+      box.appendChild(cell);
+    });
+    if (!shown) box.appendChild(el("div", "none", "No hit table in this run."));
+    return box;
+  }
+
   function renderDetail() {
     detailEl.textContent = "";
     var ri = state.selected;
@@ -412,6 +451,8 @@ CORE_HTML_TEMPLATE = r"""<!doctype html>
     detailEl.appendChild(field("Status", "Present in " + Math.round(row[F.frac] * 100) +
       "% of all sampled proteomes (ingroup + outgroup) — at or above the " +
       Math.round(DATA.core_min_frac * 100) + "% core threshold."));
+
+    detailEl.appendChild(field("Best hit in each species", hitsNode(row)));
 
     if (row[F.fam] >= 0) {
       var fam = FAMILIES[row[F.fam]];
