@@ -66,7 +66,7 @@ def main():
     )
 
     # separators: drop the whitespace json.dumps adds after every delimiter.
-    payload_json = json.dumps(payload, separators=(',', ':'))
+    payload_json = json.dumps(payload, separators=(',', ':'), allow_nan=False)
     # The payload lives in a <script> block, so a literal "</script" inside any
     # annotation string would close it early.
     payload_json = payload_json.replace('</', '<\\/')

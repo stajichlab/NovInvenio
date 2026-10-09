@@ -122,3 +122,19 @@ def test_header_only_when_there_are_no_other_group_hits(tmp_path):
     ev = run(tmp_path, hits)
     assert len(ev) == 0
     assert 'paralog_delta' in ev.columns
+
+
+def test_payload_with_a_zero_paralog_evalue_is_valid_json():
+    """paralog_delta is +-inf when an E-value is 0; JSON has no Infinity, so the payload carries +-400
+    (2026-10-08: agaricomycetes_pairwise novelties.html was blank, JSON.parse failed on 'Infinity')."""
+    import json
+    from other_evidence import DELTA_CAP, other_evidence_payload
+    rows = [{'other_proteome': 'Cneo', 'best_target_id': 'X', 'best_evalue': '7.9e-10', 'best_bitscore': '56.6',
+             'best_qcov': '50.5', 'status': 'paralog_filtered', 'paralog_id': 'Y', 'paralog_evalue': '0.0',
+             'paralog_delta': 'inf', 'max_qcov': '50.5'},
+            {'other_proteome': 'Rtor', 'best_target_id': 'Z', 'best_evalue': '0.0', 'best_bitscore': '900',
+             'best_qcov': '99', 'status': 'kept', 'paralog_id': 'Y', 'paralog_evalue': '1e-20',
+             'paralog_delta': '-inf', 'max_qcov': '99'}]
+    out = other_evidence_payload(rows, [])
+    assert [r[8] for r in out['p']] == [DELTA_CAP, -DELTA_CAP]
+    json.dumps(out, allow_nan=False)
