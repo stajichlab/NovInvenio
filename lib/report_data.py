@@ -736,6 +736,9 @@ CORE_ROW_FIELDS = [
     'urev',      # uniprot_reviewed as int (1 Swiss-Prot, 0 TrEMBL), -1 when no match
     'pubs',      # index into payload['pub_sets'], or -1 -- uniprot_pubs,
                  # "PMID;DOI;scope;title|..." (title is the last ;-field), interned
+    'tgt',       # comma-separated best-hit target protein IDs, one per payload['proteomes']
+                 # entry ('' = no qualifying hit; the row's own proteome holds its own ID);
+                 # names come from payload['protein_names'] (see ROW_FIELDS' 'tgt')
 ]
 
 
@@ -746,8 +749,11 @@ def build_core_payload(
     core_min_frac=0.95,
     project='NovInvenio',
     gff3_paths=None,
+    targets_path=None,
+    descriptions_path=None,
 ) -> dict:
     """Build the embedded payload for the CORE (near-universal genes) report.
+
 
     Unlike build_payload(), this needs no new search or annotation step — it
     re-reads the same annotated presence matrix and asks the opposite
@@ -765,8 +771,17 @@ def build_core_payload(
     gff3_paths: optional {short: resolved GFF3 file path} — see build_payload()'s
     docstring; supplies each row's 'chrom'/'start' from its (always ingroup)
     source proteome's GFF3.
+    
+
+    targets_path / descriptions_path: optional presence_matrix.targets.tsv and
+    extract_protein_descriptions.py output (same sidecars build_payload() takes). They fill each
+    row's 'tgt' and payload['protein_names'], so the card can name the gene each other species
+    carries. Missing or empty = no names.
     """
     header, rows = read_matrix(matrix_path)
+    target_lookup = read_targets(targets_path)
+    descriptions_lookup = read_descriptions(descriptions_path)
+    referenced_target_ids: set[str] = set()
 
     fam_index = FamilyIndex(cluster_tsv)
     gff3_paths = gff3_paths or {}
@@ -815,6 +830,9 @@ def build_core_payload(
 
         fam_i = fam_index.index_of(pid, src)
         chrom, start = _chrom_start(pid, src, gff3_paths, gff3_cache)
+        row_targets = target_lookup.get(pid, {})
+        row_target_ids = [row_targets.get(sh, '') for sh in shorts]
+        referenced_target_ids.update(t for t in row_target_ids if t)
 
         out_rows.append([
             pid,
@@ -841,6 +859,7 @@ def build_core_payload(
             (row.get('uniprot_match_species', '') or '') if row.get('uniprot_match') == 'seq_other' else '',
             int(row['uniprot_reviewed']) if (row.get('uniprot_reviewed') or '') != '' else -1,
             pub_sets.intern(row.get('uniprot_pubs', '') or ''),
+            ','.join(row_target_ids),
         ])
 
     return {
@@ -856,6 +875,11 @@ def build_core_payload(
             for s in proteomes
         ],
         'fsources': fsources,
+        'protein_names': {
+            tid: {'gene_name': descriptions_lookup[tid][0], 'description': descriptions_lookup[tid][1]}
+            for tid in referenced_target_ids if tid in descriptions_lookup
+            and (descriptions_lookup[tid][0] or descriptions_lookup[tid][1])
+        },
         'families': fam_index.payload(),
         'rows': out_rows,
     }

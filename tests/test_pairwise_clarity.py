@@ -45,3 +45,8 @@ def test_core_family_tile_counts_only_families_core_rows_belong_to():
 def test_make_novelties_docstring_does_not_claim_tblastn_filters_candidates():
     doc = (REPO / "bin" / "make_novelties.py").read_text().split('"""')[1]
     assert "OFF in the pipeline" in doc and "--skip_tblastn_filter" in doc
+
+
+def test_core_card_lists_the_hit_in_each_species():
+    assert 'field("Best hit in each species", hitsNode(row))' in CORE_HTML_TEMPLATE
+    assert "DATA.protein_names" in CORE_HTML_TEMPLATE

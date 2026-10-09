@@ -59,7 +59,7 @@ workflow REPORT {
     // alignment popup (issue #74's ALIGNMENT_POPUP_JS).
     MAKE_REPORT(annotated_matrix, tblastn_summary, novelties, candidates_fa, cluster_tsv,
                evalues, targets, descriptions, context_matrix, context_evalues, query_lowcov, other_evidence, tblastn_coverage, config_csv, data_dir)
-    MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, config_csv, data_dir)
+    MAKE_CORE_REPORT(annotated_matrix, cluster_tsv, targets, descriptions, config_csv, data_dir)
     MAKE_LOSSES_REPORT(loss_annotated_matrix, loss_tblastn_summary, loss_other_evidence, loss_tblastn_coverage, loss_cluster_tsv, config_csv, data_dir)
 
     // docs/ copy: fetch-capable (GitHub Pages), regenerated (not copied) with
@@ -257,6 +257,8 @@ process MAKE_CORE_REPORT {
     input:
     path(annotated_matrix)
     path(cluster_tsv)
+    path(targets, stageAs: 'targets.tsv')
+    path(descriptions, stageAs: 'descriptions.tsv')
     path(config_csv)
     val(data_dir)
 
@@ -269,6 +271,8 @@ process MAKE_CORE_REPORT {
         --matrix ${annotated_matrix} \
         --config ${config_csv} \
         --cluster_tsv ${cluster_tsv} \
+        --targets targets.tsv \
+        --descriptions descriptions.tsv \
         --project ${Helpers.projectName(params)} \
         --core_min_frac ${params.core_min_frac} \
         --data_dir ${data_dir} \
