@@ -109,8 +109,10 @@ def _delta_num(x):
     return max(-DELTA_CAP, min(DELTA_CAP, v))
 
 
-def load_protein_evidence(path):
+def load_protein_evidence(path, keep=None):
     """Return {protein_id: [row dict, ...]} from a *.other_evidence.tsv(.gz).
+
+    keep: optional set of protein IDs; other rows are not stored (memory).
 
     None when the file is missing or 0 bytes (a stub): the evidence was not measured. A
     header-only file returns {} (measured, nothing found).
@@ -124,7 +126,8 @@ def load_protein_evidence(path):
     out = {}
     with opener(path, 'rt', newline='') as fh:
         for row in csv.DictReader(fh, delimiter='\t'):
-            out.setdefault(row['protein_id'], []).append(row)
+            if keep is None or row['protein_id'] in keep:
+                out.setdefault(row['protein_id'], []).append(row)
     return out
 
 

@@ -251,6 +251,7 @@ process MAKE_REPORT_ONLINE {
 
 process MAKE_CORE_REPORT {
     label 'low_cpu'
+    memory { 8.GB * task.attempt }   // 4 GB (low_cpu) was OOM-killed on the 23-genome FOXY set
     container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
     publishDir { "${params.outdir}/${Helpers.projectName(params)}" }, mode: 'copy'
 

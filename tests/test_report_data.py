@@ -1071,3 +1071,17 @@ def test_core_payload_carries_hit_evalues_and_outgroup_coverage(core_run_dir, sa
     qc = dict(zip(shorts, row[F['qc']].split(',')))
     assert ev['Spom'] == '1.2e-40' and ev['Afum'].startswith('4.55e-230') and ev['Scer'] == ''
     assert qc == {'Ncra': '', 'Afum': '', 'Spom': '88', 'Scer': ''}
+
+
+def test_core_payload_reads_sidecars_for_core_rows_only(core_run_dir, samples):
+    """The sidecars are filtered while reading (memory); the payload must match the unfiltered one."""
+    from report_data import read_evalues
+    (core_run_dir / 'ev.tsv').write_text(
+        'protein_id\tsource_proteome\tNcra\tAfum\n'
+        'core1\tNcra\t\t1e-30\nlow\tNcra\t\t2e-5\nnear\tNcra\t\t3e-9\n')
+    assert set(read_evalues(core_run_dir / 'ev.tsv')) == {'core1', 'low', 'near'}
+    assert set(read_evalues(core_run_dir / 'ev.tsv', {'core1'})) == {'core1'}
+    payload = build_core_payload(core_run_dir / 'core_matrix.tsv', samples,
+                                 evalues_path=core_run_dir / 'ev.tsv')
+    F = {n: i for i, n in enumerate(payload['fields'])}
+    assert core_rows_by_id(payload)['core1'][F['ev']].split(',')[1] == '1e-30'
