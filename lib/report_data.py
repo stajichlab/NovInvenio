@@ -210,7 +210,7 @@ def read_tblastn_summary(path: str | Path | None) -> tuple[list[str], dict[str, 
     return genomes, hits
 
 
-def read_evalues(path: str | Path | None) -> dict[str, dict[str, str]]:
+def read_evalues(path: str | Path | None, keep=None) -> dict[str, dict[str, str]]:
     """Return {protein_id: {proteome_short: evalue_str}} from an evalues sidecar TSV.
 
     Same shape as the presence matrix (protein_id, source_proteome, <proteome columns>)
@@ -219,6 +219,9 @@ def read_evalues(path: str | Path | None) -> dict[str, dict[str, str]]:
     Missing, unreadable, or empty/header-only files (e.g. EMPTY_EVALUES_STUB for pathways
     that don't track e-values yet) return an empty dict — callers treat that as "no
     evidence available" rather than an error.
+
+    keep: optional set of protein IDs; other rows are skipped while reading (the core report
+    needs a few percent of the rows, and the full table does not fit in 4 GB for large studies).
     """
     if not path or not Path(path).exists() or not Path(path).stat().st_size:
         return {}
@@ -228,20 +231,20 @@ def read_evalues(path: str | Path | None) -> dict[str, dict[str, str]]:
         out: dict[str, dict[str, str]] = {}
         for row in reader:
             pid = row.get('protein_id', '')
-            if not pid:
+            if not pid or (keep is not None and pid not in keep):
                 continue
             out[pid] = {c: row.get(c, '') or '' for c in cols}
     return out
 
 
-def read_targets(path: str | Path | None) -> dict[str, dict[str, str]]:
+def read_targets(path: str | Path | None, keep=None) -> dict[str, dict[str, str]]:
     """Return {protein_id: {proteome_short: target_id}} from a targets sidecar TSV --
     same shape as read_evalues(), just a different sidecar (bin/build_presence_matrix.py's
     --output-targets): the *target protein ID* of the best qualifying hit per (protein,
     proteome) cell, instead of its e-value. Report-only, same "empty dict means no
     evidence" contract as read_evalues().
     """
-    return read_evalues(path)
+    return read_evalues(path, keep)
 
 
 def read_query_lowcov(path: str | Path | None) -> tuple[float | None, dict[tuple, tuple]]:
@@ -264,7 +267,7 @@ def read_query_lowcov(path: str | Path | None) -> tuple[float | None, dict[tuple
     return (threshold, out) if out else (None, {})
 
 
-def read_descriptions(path: str | Path | None) -> dict[str, tuple[str, str]]:
+def read_descriptions(path: str | Path | None, keep=None) -> dict[str, tuple[str, str]]:
     """Return {protein_id: (gene_name, description)} from bin/extract_protein_
     descriptions.py's output TSV -- used to resolve a target_id (from read_targets())
     into a human-readable name for the report, the same lookup build_alignment_shards.py
@@ -277,7 +280,7 @@ def read_descriptions(path: str | Path | None) -> dict[str, tuple[str, str]]:
         out: dict[str, tuple[str, str]] = {}
         for row in reader:
             pid = row.get('protein_id', '')
-            if not pid:
+            if not pid or (keep is not None and pid not in keep):
                 continue
             out[pid] = (row.get('gene_name', '') or '', row.get('description', '') or '')
     return out
@@ -789,10 +792,6 @@ def build_core_payload(
     and 'qc' (query coverage, only for the cells the other-group evidence measured).
     """
     header, rows = read_matrix(matrix_path)
-    target_lookup = read_targets(targets_path)
-    descriptions_lookup = read_descriptions(descriptions_path)
-    evalue_lookup = read_evalues(evalues_path)
-    other_ev = load_protein_evidence(other_evidence_path) if other_evidence_path else None
     referenced_target_ids: set[str] = set()
 
     fam_index = FamilyIndex(cluster_tsv)
@@ -810,6 +809,17 @@ def build_core_payload(
             f'No proteome columns from the config are present in {matrix_path}. '
             f'Matrix columns: {header}'
         )
+
+    # Sidecars are read for the core proteins only: the full evidence tables are several times
+    # the size of the matrix and ran the 4 GB report task out of memory on large studies.
+    core_pids = {
+        row.get('protein_id', '') for row in rows
+        if row.get('source_proteome', '') in ingroup_ids
+        and sum(1 for sh in shorts if row.get(sh, '0') == '1') / len(shorts) >= core_min_frac
+    }
+    target_lookup = read_targets(targets_path, core_pids)
+    evalue_lookup = read_evalues(evalues_path, core_pids)
+    other_ev = load_protein_evidence(other_evidence_path, core_pids) if other_evidence_path else None
 
     fsources: list[str] = []
     fsource_idx: dict[str, int] = {}
@@ -880,6 +890,8 @@ def build_core_payload(
             ','.join(_round_evalue(row_evalues.get(sh, '')) for sh in shorts),
             ','.join(qcov_by_other.get(sh, '') for sh in shorts),
         ])
+
+    descriptions_lookup = read_descriptions(descriptions_path, referenced_target_ids)
 
     return {
         'project': project,
