@@ -419,3 +419,21 @@ def test_if_no_column_is_shared_every_column_is_used():
     res = compute_locus(loc, Placement("EX", "c1", 11, 12, 11, 38, 51), "full", cols,
                         ["EX", "GONE"], pos, spans, FakeMatrix(calls), {}, min_column_strains=2)
     assert res["locus_mask"] == [1, 1]                    # nothing reaches 2 strains in the locus block: keep all
+
+
+def test_candidate_loci_strata_spread_over_frequency_bins():
+    def mk(i, n, size):
+        return Locus(root={"members": [f"f{i}_{k}" for k in range(size)], "locus_id": f"L{i}"},
+                     variants=[{"n_strains": n}])
+    loci = [mk(i, 95, 3) for i in range(6)] + [mk(10 + i, 5, 4) for i in range(6)]
+    # no strata: the six near-fixed loci fill four slots
+    top = candidate_loci(loci, 100, "presence", 4, 2)
+    assert all(loc.locus_id.startswith("L") and int(loc.locus_id[1:]) < 6 for loc in top)
+    # two bins (cut at 0.5): two loci from each bin
+    got = candidate_loci(loci, 100, "presence", 4, 2, (0.5,))
+    ids = sorted(loc.locus_id for loc in got)
+    assert sum(int(i[1:]) < 6 for i in ids) == 2 and sum(int(i[1:]) >= 10 for i in ids) == 2
+    # a short bin passes its share on
+    few = loci[:6] + loci[6:7]
+    got = candidate_loci(few, 100, "presence", 4, 2, (0.5,))
+    assert len(got) == 4 and sum(int(loc.locus_id[1:]) >= 10 for loc in got) == 1

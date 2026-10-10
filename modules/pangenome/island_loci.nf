@@ -43,6 +43,7 @@ process ISLAND_LOCI {
     path("island_regions.tsv"), emit: regions
 
     script:
+    def strata_arg = params.pangenome_locus_candidate_strata ? " --candidate_strata '${params.pangenome_locus_candidate_strata}'" : ''
     def clinker_n = Helpers.asBool(params.pangenome_clinker) ? params.pangenome_clinker_max_strains : 0
     """
     pangenome_island_loci.py \
@@ -72,7 +73,7 @@ process ISLAND_LOCI {
         --poly_min_frac ${params.pangenome_locus_poly_min_frac} \
         --poly_max_frac ${params.pangenome_locus_poly_max_frac} \
         --fixed_diff ${params.pangenome_locus_fixed_diff} \
-        --candidates ${params.pangenome_locus_candidates} \
+        --candidates ${params.pangenome_locus_candidates}${strata_arg} \
         --rescue_positions ${rescue_positions} \
         --dna_check ${dna_check} \
         --dna_calls ${dna_calls} \
