@@ -53,6 +53,7 @@ process ISLAND_DNA_TARGETS {
     path("dna_targets/batch_*.tsv"), optional: true, emit: batches
 
     script:
+    def strata_arg = params.pangenome_locus_candidate_strata ? " --candidate_strata '${params.pangenome_locus_candidate_strata}'" : ''
     """
     pangenome_island_loci.py \
         --islands_with_domains ${islands_with_domains} \
@@ -81,7 +82,7 @@ process ISLAND_DNA_TARGETS {
         --poly_min_frac ${params.pangenome_locus_poly_min_frac} \
         --poly_max_frac ${params.pangenome_locus_poly_max_frac} \
         --fixed_diff ${params.pangenome_locus_fixed_diff} \
-        --candidates ${params.pangenome_locus_candidates} \
+        --candidates ${params.pangenome_locus_candidates}${strata_arg} \
         --min_strains ${params.pangenome_top_islands_min_strains} \
         --dna_targets_dir dna_targets \
         --dna_batch ${params.pangenome_locus_dna_batch} \

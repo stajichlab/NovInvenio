@@ -132,15 +132,42 @@ def group_loci(island_rows: list[dict], containment: float = DEFAULT_CONTAINMENT
 
 
 def candidate_loci(loci: list[Locus], n_strains_total: int, rank_by: str,
-                   n_candidates: int, min_strains: int = 2) -> list[Locus]:
+                   n_candidates: int, min_strains: int = 2,
+                   strata: tuple = ()) -> list[Locus]:
     """Loci whose states are computed. `rank_by == "size"` pre-selects by root
-    size; any other rank pre-selects by carrier_proxy()."""
+    size; any other rank pre-selects by carrier_proxy().
+
+    `strata` is a sorted tuple of carrier-fraction cut points, for example
+    (0.05, 0.2, 0.5, 0.8). The loci are cut into len(strata) + 1 bins by
+    carrier_proxy / n_strains_total. Each bin supplies the same number of
+    candidates, largest locus first, and a bin that is short passes its share
+    to the others. With no strata, the highest-carrier loci are kept (a set
+    that is biased toward near-fixed loci)."""
     kept = [loc for loc in loci if loc.carrier_proxy(n_strains_total) >= min_strains]
     if rank_by == "size":
         kept.sort(key=lambda loc: (-loc.size, -loc.carrier_proxy(n_strains_total), loc.locus_id))
     else:
         kept.sort(key=lambda loc: (-loc.carrier_proxy(n_strains_total), -loc.size, loc.locus_id))
-    return kept[:n_candidates]
+    if not strata:
+        return kept[:n_candidates]
+    bins: list[list[Locus]] = [[] for _ in range(len(strata) + 1)]
+    for loc in kept:
+        frac = loc.carrier_proxy(n_strains_total) / max(n_strains_total, 1)
+        bins[sum(frac >= cut for cut in strata)].append(loc)
+    for b in bins:
+        b.sort(key=lambda loc: (-loc.size, loc.locus_id))
+    take = [0] * len(bins)
+    left = n_candidates
+    while left > 0 and any(take[i] < len(b) for i, b in enumerate(bins)):
+        open_bins = [i for i, b in enumerate(bins) if take[i] < len(b)]
+        share = max(left // len(open_bins), 1)
+        for i in open_bins:
+            n = min(share, len(bins[i]) - take[i], left)
+            take[i] += n
+            left -= n
+            if left == 0:
+                break
+    return [loc for i, b in enumerate(bins) for loc in b[:take[i]]]
 
 
 # ---- 2. exemplar -----------------------------------------------------------

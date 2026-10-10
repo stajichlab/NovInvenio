@@ -118,7 +118,8 @@ def build(args) -> dict:
     islands = read_islands(args.islands_with_domains)
     strains = read_matrix_strains(args.presence_matrix)
     loci = group_loci(islands, args.containment)
-    cands = candidate_loci(loci, len(strains), args.rank_by, args.candidates, args.min_strains)
+    strata = tuple(sorted(float(x) for x in args.candidate_strata.split(",") if x.strip()))
+    cands = candidate_loci(loci, len(strains), args.rank_by, args.candidates, args.min_strains, strata)
     n50 = read_n50(args.assembly_quality)
     species_of = ({s.short: s.species for s in parse_config(args.config)} if args.config else {})
     reference_strains = [s.strip() for s in args.island_reference_strains.split(",") if s.strip()]
@@ -498,6 +499,9 @@ def parse_args(argv=None):
                     help="rank 'species': minimum loss-fraction difference between species "
                     "(default: 0.95)")
     ap.add_argument("--candidates", type=int, default=200)
+    ap.add_argument("--candidate_strata", default="",
+                    help="comma list of carrier-fraction cut points, for example 0.05,0.2,0.5,0.8; "
+                    "candidates are then spread evenly over the bins. Empty keeps the highest-carrier loci")
     ap.add_argument("--dna_targets_dir", default=None,
                     help="pass 1 of the DNA presence check: write batch_NNN.tsv work lists here")
     ap.add_argument("--dna_batch", type=int, default=50, help="loci per DNA check batch file")
