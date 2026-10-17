@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### New: optional Starship element / SM-cluster overlap with islands (precomputed tables)
+
+- **New params** `--pangenome_starship_annotation` (element table) and
+  `--pangenome_sm_clusters` (SM cluster table), default null, plus
+  `--pangenome_starship_permutations` (1000) and `--pangenome_starship_seed` (20261017).
+  Each table gates its own process: `STARSHIP_OVERLAP` -> `pangenome/starship_overlap/`,
+  `SM_OVERLAP` -> `pangenome/starship_overlap/sm/` (`modules/pangenome/starship_overlap.nf`).
+  Without the params the workflow graph is unchanged (the default `-preview` DAG file is
+  identical to origin/main's).
+- **Schemas** (`lib/starship_tables.py`, methods section 3.25): elements = `element_id`,
+  `strain`, `contig`, `start`, `end` [, `label`, `confidence`] or the gene-level form
+  `strain`, `gene_id`, `element_id`; SM clusters = `cluster_id`, `strain`, `contig`,
+  `start`, `end`, `type` [, `genes`, `core_genes`]. Checked at workflow start against the
+  samplesheet (`pangenome.nf`); contigs checked against gene_positions in the process
+  (`input_checks.tsv`).
+- **Scripts** `bin/pangenome_starship_overlap.py` (port of NovInvenio_Investigations
+  `bin/starship_island_overlap.py`) and `bin/pangenome_sm_overlap.py` (table-driven port
+  of the NII Af293 antiSMASH analysis). File names and columns follow NII, so NII's
+  `sync_pangenome_report.py` builds the `starship_overlap.html` page from them. On the
+  A. fumigatus full_v072 run with the NII inputs, the Starship tables are byte-identical to
+  NII's and `sm_by_type.tsv` is byte-identical (44 regions, 3 / 1 overlapping an element).
+- **Not included:** per-family gain/loss polarity (the `direction` columns are `NA`; the
+  scripts take `--gain_loss` when run by hand), figures, and coordinates for genes missing
+  from gene_positions (`--extra_gene_positions`, scripts only).
+
 ### Fixed: islands without a Pfam HMM; REPORT_TABLES stub collision (#193, #203)
 
 - **`BUILD_ISLANDS` and `MARKER_HMMSEARCH` run on every pangenome run.** They were inside the
