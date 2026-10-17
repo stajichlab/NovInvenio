@@ -87,6 +87,8 @@ Several scripts do not use the flat/subdir search. They use a fixed path:
 - `--pangenome_marker_names` / `--pangenome_marker_hmm_paths` (named marker HMMs).
 - `--pangenome_pfam2go` (local pfam2go file).
 - `--pangenome_species_tree` (rooted Newick, tips = `Short` IDs of all matrix strains).
+- `--pangenome_starship_annotation` (precomputed Starship element table) and
+  `--pangenome_sm_clusters` (precomputed SM cluster table). Schemas in section 3.25.
 
 ---
 
@@ -623,6 +625,99 @@ Gate: `pangenome_clinker` = true (inside the Pfam branch).
   `island_synteny.html`; islands with a resolved locus and `n_strains >= 2`, top 50 by
   size; strains collapsed to haplotype rows; embeds the loci JSON and links the clinker pages.
 
+### 3.25 Starship element and SM cluster overlap (optional, precomputed tables)
+
+Gate: `pangenome_starship_annotation` and/or `pangenome_sm_clusters` (default null). Each
+table runs its own process; a run with neither has no new process (checked with
+`-preview`, `"tests/test_pangenome_starship_gating.py"`). The pipeline does not call
+elements or clusters. The tables come from outside (e.g. starfish element calls, a
+published element table, antiSMASH regions) and are matched to the run.
+
+Input schemas (`"lib/starship_tables.py"`). TSV; CSV when the name ends in `.csv`; `.gz`
+read. Blank lines and `#` lines are skipped. Examples:
+`"docs/examples/starship_overlap/"` (Table S7 of Gluck-Thaler et al. 2025, 8 Af293
+elements; 4 Af293 antiSMASH regions).
+
+| table | required columns | optional columns |
+|---|---|---|
+| Starship elements | `element_id`, `strain` (samplesheet `Short`; alias `Short`), `contig`, `start`, `end` (1-based, inclusive) | `label`; `confidence` (only `high` counts as high) |
+| Starship elements, gene-level | `strain`, `gene_id` (protein ID as in gene_positions), `element_id` | `label`, `confidence` |
+| SM clusters | `cluster_id`, `strain`, `contig`, `start`, `end`, `type` | `genes`, `core_genes` (comma-separated protein IDs); `contig_edge`, `knowncluster_top_hit`, `knowncluster_description`, `knowncluster_similarity` (copied) |
+
+Checks. At workflow start (`pangenome.nf`, `validate_region_table`): required columns;
+integer coordinates >= 1 with start <= end; unique IDs; every strain is a `Short` of a
+samplesheet row in the ingroup or outgroup. The run stops before any task on a failure.
+Inside the processes the same checks run again; contigs are checked against
+gene_positions: an element or cluster on a contig with no gene gets a warning and a count
+in `input_checks.tsv`.
+
+`STARSHIP_OVERLAP` (`"bin/pangenome_starship_overlap.py"`, a port of NII
+`bin/starship_island_overlap.py`). Inputs: the element table, `frequency_table.tsv`,
+`significant_islands.tsv`, `tier1_cluster.tsv`, `gene_positions.tsv.zst`,
+`family_positions.tsv.zst`, `rescue_positions.tsv`, the captain tblout (when a captain
+HMM is set). Output `pangenome/starship_overlap/`:
+
+- Starship family: a family with >= 1 member gene, in a strain with elements, whose
+  midpoint `(start+end)//2` lies inside an element (gene-level table: a listed gene; the
+  element span is then the min-max of its genes on the contig with most of them).
+  `starship_high`: the same for `high` elements. Captain family: >= 1 member with a
+  captain hit at full-sequence E <= 1e-5 (stricter than the scan's `-E 1e-3`, 3.12).
+- `summary.tsv` (run, metric, value, definition), `enrichment.tsv` (hypergeometric upper
+  tail and one-sided Fisher odds ratio of set families among island families; universes
+  `cooc_eligible` = shell/cloud with `strain_count` >= 5, `noncore` = not core/soft_core/`-`,
+  each also restricted to families with a gene in an annotated strain),
+  `class_breakdown.tsv`, `per_starship.tsv`, `per_island.tsv.gz`,
+  `annotated_families.tsv.gz`, `coord_permutation.tsv`, `input_checks.tsv`,
+  `PROVENANCE.yaml`.
+- Island instance (coordinate level): in a strain with elements, a maximal run of
+  non-core entries of `family_positions` on one contig whose family set equals an
+  island's family set; its span comes from gene and rescue positions in rank order.
+- `coord_permutation.tsv`: each element is moved to a random start on its own contig,
+  same length (`pangenome_starship_permutations` 1000, `pangenome_starship_seed`
+  20261017); contig length = largest gene end on that contig. p = (#null >= obs + 1) /
+  (n + 1).
+
+`SM_OVERLAP` (`"bin/pangenome_sm_overlap.py"`, a table-driven port of the NII Af293
+antiSMASH analysis). Inputs: the SM table, the element table when set, the run tables
+above and the captain tblout. Output `pangenome/starship_overlap/sm/`:
+
+- Cluster genes: the `genes` list (an ID not in gene_positions is kept, counted in
+  `n_genes`, never inside an element), else the strain's genes with start >= cluster
+  start and end <= cluster end. Rule A: >= 1 cluster gene inside an element. Rule B:
+  >= 50% of the cluster genes inside elements. Overlap is tested only in strains that
+  have elements; other clusters get `NA`.
+- `sm_clusters.tsv.gz`, `sm_by_type.tsv`, `sm_starship_overlap.tsv` (per element),
+  `sm_permutation.tsv` (element shift as above; rule A, rule B and gene counts; contig
+  length = largest gene/cluster/element end), `sm_core_families.tsv.gz`,
+  `sm_family_class_direction.tsv`, `summary.tsv` (metric, value, source),
+  `input_checks.tsv`, `PROVENANCE.yaml`.
+
+Limits:
+
+- Coordinates exist only for the strains in the tables. Family-level results transfer
+  those calls to all strains through tier-1 family membership; coordinate-level results
+  (island instances, permutations, gene-level hypergeometric tests) apply to the
+  annotated strains only.
+- A strain with no SM row is treated as not annotated, not as "no SM cluster".
+- A gene missing from gene_positions cannot be placed. In the A. fumigatus full_v072 run,
+  961 of 9,647 Af293 members (Swiss-Prot `sp|` entries) have no gene_positions row; the
+  NII analysis added 941 of them from a separate table (`--extra_gene_positions` of the
+  scripts; not wired into the process).
+- No per-family gain/loss polarity is computed by the pipeline (COOCCURRENCE polarizes
+  only `family_a` of significant pairs). The `direction` columns of
+  `class_breakdown.tsv`, `annotated_families.tsv.gz`, `sm_core_families.tsv.gz` and
+  `sm_family_class_direction.tsv` are `NA`; `input_checks.tsv` says `not_computed`. The
+  scripts accept a per-family table (`--gain_loss`, columns family, direction) when run
+  by hand.
+- The pipeline writes tables only. The HTML page (`starship_overlap.html`) is built by
+  NII's `bin/sync_pangenome_report.py` (`--starship_overlap_dir <pangenome>/starship_overlap
+  --starship_sm_dir <pangenome>/starship_overlap/sm`); no figures are drawn here.
+- Reproduction (2026-10-17, A. fumigatus full_v072, same inputs as NII): `summary.tsv`,
+  `per_starship.tsv`, `class_breakdown.tsv`, `enrichment.tsv`, `coord_permutation.tsv`
+  byte-identical; `per_island.tsv.gz`, `annotated_families.tsv.gz` identical after
+  decompression; SM `sm_by_type.tsv` byte-identical (44 regions, 3 with >= 1 gene in an
+  element, 1 with >= 50%).
+
 ---
 
 ## 4. Denominators
@@ -646,6 +741,8 @@ Gate: `pangenome_clinker` = true (inside the Pfam branch).
 | per-strain outlier median/MAD | reps of the strain's own group | `"bin/pangenome_report_tables.py"` |
 | accumulation curve, Heaps fit, presence raster | all matrix strains (ingroup + outgroup, reps + non-reps) | `"bin/pangenome_report_render.py"` |
 | locus view counts and ranks | all matrix strains | `"bin/pangenome_island_loci.py"` |
+| Starship/SM family sets, enrichment universes | families (unit); bins from ingroup reps | `"bin/pangenome_starship_overlap.py"`, `"bin/pangenome_sm_overlap.py"` |
+| Starship/SM coordinate tests, permutations | strains named in the element / SM tables only | same |
 
 Inconsistencies found:
 
@@ -705,6 +802,9 @@ in `"nextflow.config"`.
 | `pangenome_species_tree` | null | 3.10 | Dollo columns | optional input; not in Doc |
 | `pangenome_captain_hmm` / `_hmm_name` / `pangenome_pfam_hmm` | null | 3.12 | captain search | structural (Doc sec. 7) |
 | `pangenome_captain_hmm_evalue` | 1e-3 | 3.12 | hmmsearch -E | convention (Doc sec. 7) |
+| `pangenome_starship_annotation` / `pangenome_sm_clusters` | null | 3.25 | precomputed element / SM tables; gate STARSHIP_OVERLAP / SM_OVERLAP | structural (Doc sec. 7) |
+| `pangenome_starship_permutations` | 1000 | 3.25 | element-shift permutations | convention; not swept (Doc sec. 7) |
+| `pangenome_starship_seed` | 20261017 | 3.25 | permutation seed | reproducibility; NII analysis value (Doc sec. 7) |
 | `pangenome_pair_class_k` | 10 | 3.13 | linkage window (genes) | no justification found (Doc sec. 6) |
 | `pangenome_pair_class_physical_threshold` | 0.5 | 3.13 | physical call | no justification found (Doc sec. 6) |
 | `pangenome_pair_class_trans_threshold` | 0.05 | 3.13 | trans call | no justification found (Doc sec. 6) |

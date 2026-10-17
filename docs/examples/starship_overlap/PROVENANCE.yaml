@@ -1,0 +1,21 @@
+# Example inputs for the optional Starship / SM-cluster overlap step
+# (--pangenome_starship_annotation, --pangenome_sm_clusters). Schemas: lib/starship_tables.py,
+# paper/methods_pangenome.md section 3.25. Copied 2026-10-17 from NovInvenio_Investigations (NII).
+af293_starships_table_s7.elements.tsv:
+  sha256: 285270131d443597ce67cc7c9559b0eec722eaedbe1e0641adae504faed2f493
+  copied_from: NII studies/fungi/Afumigatus_pangenome/analysis/starship_island_overlap/inputs/af293_starships_table_s7.elements.tsv
+  source: Gluck-Thaler et al. 2025 mBio doi:10.1128/mbio.01092-25, Table S7 (mbio.01092-25-s0002.xlsx,
+    sha256 40d9e5258c6fe68c6f89ad733dda726bef87b3586aaf91148b29aeae5dc0b920), CC BY 4.0
+  derived_by: "NII: awk column reorder of Table S7: element_id=starship_id, label=name+haplotype,
+    confidence, Short=Asfu_Af293, contig, start, end (NII inputs/PROVENANCE.yaml)"
+  note: uses the 'Short' alias column; 'confidence' has values high and unknown (only 'high' counts as high)
+sm_clusters.example.tsv:
+  sha256: a620f11067d97c798bb7cb20c05957533dc028e3b1e41033e85d97fe05bf4368
+  derived_from: NII studies/fungi/Afumigatus_pangenome/analysis/starship_island_overlap/full_v072_antismash/sm_clusters.tsv.gz
+  derived_from_sha256: 3c00bc191c1389212a14b4bf090280409d0e078c01542b5fdf3f9bf090766ff8
+  upstream: antiSMASH 8.0.4 regions of A. fumigatus Af293 (UniProt UP000002530 genome and GFF3 of the NII
+    Afumigatus_pangenome study), NII antismash_sm_starship.py
+  derived_by: "4 of 44 rows (CM000169.1.region001, CM000169.1.region002, CM000171.1.region002,
+    CM000173.1.region009); strain=Asfu_Af293; genes = NII 'members' column (protein IDs), an empty member
+    slot replaced by the NII locus tag; core_genes = 'core_members' (same rule); contig_edge and
+    knowncluster_* copied"
