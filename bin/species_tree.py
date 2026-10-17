@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Root a species tree (Newick) on the OUT group and draw it as inline SVG.
 
-Rooting: pick the edge whose split best separates OUT tips from all other tips
+Rooting: OUT means GROUP == OUT only (other roles such as NEAR_INGROUP stay
+ordinary tips). Pick the edge whose split best separates OUT tips from all other tips
 (score = OUT tips on one side minus non-OUT tips on that side; ties go to the
 longest edge) and root at the middle of that edge. If the tree has no OUT tips,
 midpoint-root. `n_out_outside` counts OUT tips that are not on the OUT side of
@@ -256,12 +257,10 @@ def _midpoint_edge(adj, labels, edges):
 
 def root_on_outgroup(newick: str, groups: dict[str, str]) -> tuple[str, dict]:
     """Root `newick`; `groups` maps tip label -> GROUP. Returns (newick, info)."""
-    from config_parser import OUTGROUP_ROLES
-
     tree = parse_newick(newick)
     adj, labels, edges = _to_graph(tree)
     tip_ids = [i for i in adj if _is_tip(adj, i)]
-    is_out = {i: groups.get(labels[i]) in OUTGROUP_ROLES for i in tip_ids}
+    is_out = {i: groups.get(labels[i]) == "OUT" for i in tip_ids}
     n_out = sum(is_out.values())
     n_tips = len(tip_ids)
 

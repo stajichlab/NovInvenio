@@ -102,7 +102,7 @@ def test_cli_writes_outputs(tmp_path):
     cfg.write_text(
         "GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup\n"
         "IN,x,1,p,d,a,T\nIN,x,2,p,d,b,T\nIN,x,3,p,d,c,T\n"
-        "DISC_OUT,y,1,p,d,o1,T\nDISC_OUT,y,2,p,d,o2,T\n"
+        "OUT,y,1,p,d,o1,T\nOUT,y,2,p,d,o2,T\n"
     )
     nwk = tmp_path / "t.nwk"
     nwk.write_text("((o1:1,o2:1):2,(a:1,b:1):1,c:1);\n")
@@ -113,3 +113,15 @@ def test_cli_writes_outputs(tmp_path):
     assert (tmp_path / "species_tree.svg").read_text().lstrip().startswith("<svg")
     info = json.loads((tmp_path / "species_tree.rooting.json").read_text())
     assert info["method"] == "outgroup" and info["n_out"] == 2
+
+
+def test_near_ingroup_not_treated_as_out():
+    g = _groups(["o1", "o2"], ["a", "b"])
+    g["n1"] = "NEAR_INGROUP"
+    g["d1"] = "DISCOVERY_OUT"
+    nwk = "((o1:1,o2:1):2,((a:1,b:1):1,n1:1):1,d1:1);"
+    rooted, info = st.root_on_outgroup(nwk, g)
+    assert info["n_out"] == 2
+    assert info["method"] == "outgroup"
+    assert info["n_out_outside"] == 0
+    assert {"o1", "o2"} in _side_tips(rooted)
