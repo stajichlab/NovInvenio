@@ -53,6 +53,73 @@ def resolve_fa(String data_dir_abs, String basename, List<String> subdirs) {
     return hit
 }
 
+// Split one line of a TSV or CSV table (CSV: double-quoted fields may hold commas).
+def split_table_line(String line, String sep) {
+    if (sep == '\t') return line.split('\t', -1).collect { it.trim() }
+    return line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/, -1).collect { it.trim().replaceAll(/^"|"$/, '') }
+}
+
+// Workflow-start check of a precomputed Starship element or SM cluster table
+// (--pangenome_starship_annotation / --pangenome_sm_clusters). Mirrors
+// lib/starship_tables.py, which the processes run again (and which the unit tests
+// cover): required columns, integer 1-based coordinates with start <= end, unique
+// IDs, and every strain a Short ID of this run's samplesheet rows. Contig names are
+// checked against gene_positions inside the process (warning + input_checks.tsv).
+// kind: 'elements' or 'sm'. .zst tables are checked only inside the process.
+def validate_region_table(String param_name, String path_str, String kind, Set known_strains) {
+    def f = file(path_str)
+    if (!f.exists()) error "ERROR: --${param_name} file not found: ${path_str}"
+    def name = f.name
+    if (name.endsWith('.zst')) {
+        log.warn "--${param_name}: .zst table is checked inside the process, not at workflow start"
+        return
+    }
+    def sep = name.replaceAll(/\.gz$/, '').endsWith('.csv') ? ',' : '\t'
+    def stream = name.endsWith('.gz') ? new java.util.zip.GZIPInputStream(f.newInputStream()) : f.newInputStream()
+    def lines = stream.withReader('UTF-8') { it.readLines() }.findAll { it.trim() && !it.startsWith('#') }
+    if (!lines) error "ERROR: --${param_name} ${path_str}: empty table (no header line)"
+    def header = split_table_line(lines[0], sep)
+    def scol = ['strain', 'Short'].find { it in header }
+    if (!scol) error "ERROR: --${param_name} ${path_str}: missing column 'strain' (or its alias 'Short'); found ${header}"
+    def gene_level = kind == 'elements' && 'gene_id' in header && !('start' in header) && !('end' in header)
+    def id_col = kind == 'elements' ? 'element_id' : 'cluster_id'
+    def required = gene_level ? ['element_id', 'gene_id'] :
+                   (kind == 'elements' ? ['element_id', 'contig', 'start', 'end'] : ['cluster_id', 'contig', 'start', 'end', 'type'])
+    def missing = required.findAll { !(it in header) }
+    if (missing) error "ERROR: --${param_name} ${path_str}: missing column(s) ${missing}"
+    def errors = []
+    def seen = [] as Set
+    lines.drop(1).eachWithIndex { line, i ->
+        def v = split_table_line(line, sep)
+        def row = [header, v].transpose().collectEntries { it }
+        def where = "line ${i + 2}"
+        def strain = row[scol] ?: ''
+        if (!strain) errors << "${where}: empty strain"
+        else if (!(strain in known_strains)) errors << "${where}: strain '${strain}' is not a Short ID of this run's samplesheet"
+        def id = row[id_col] ?: ''
+        if (!id) errors << "${where}: empty ${id_col}"
+        if (gene_level) {
+            if (!row['gene_id']) errors << "${where}: empty gene_id"
+            return
+        }
+        if (id && !seen.add(id)) errors << "${where}: duplicate ${id_col} '${id}'"
+        if (!row['contig']) errors << "${where}: empty contig"
+        if (kind == 'sm' && !row['type']) errors << "${where}: empty type"
+        def s = (row['start'] ?: '') ==~ /^[0-9]+$/ ? (row['start'] as long) : null
+        def e = (row['end'] ?: '') ==~ /^[0-9]+$/ ? (row['end'] as long) : null
+        if (s == null || s < 1) errors << "${where}: start '${row['start']}' is not an integer >= 1"
+        if (e == null || e < 1) errors << "${where}: end '${row['end']}' is not an integer >= 1"
+        if (s != null && e != null && s > e) errors << "${where}: start ${s} > end ${e}"
+    }
+    if (lines.size() < 2) errors << "no data rows"
+    if (errors) {
+        def shown = errors.take(20)
+        error "ERROR: --${param_name} ${path_str}: ${errors.size()} problem(s):\n  " + shown.join('\n  ') +
+              (errors.size() > shown.size() ? "\n  ... and ${errors.size() - shown.size()} more" : '')
+    }
+    log.info "--${param_name}: ${lines.size() - 1} row(s) passed the workflow-start check"
+}
+
 def print_help() {
     log.info """
     Pangenome cluster-profiling subworkflow
@@ -91,6 +158,21 @@ def print_help() {
       --pangenome_captain_hmm          Path to a pre-built captain-gene HMM.
       --pangenome_captain_hmm_name     Named captain-gene model + --pangenome_pfam_hmm
                                        to build one from Pfam-A.hmm.
+      --pangenome_starship_annotation  Precomputed Starship element table (TSV; CSV if
+                                       *.csv). Columns: element_id, strain (samplesheet
+                                       Short), contig, start, end (1-based, inclusive)
+                                       [, label, confidence ('high' = high)]; or the
+                                       gene-level form strain, gene_id, element_id.
+                                       Enables STARSHIP_OVERLAP -> pangenome/starship_overlap/
+                                       (off by default).
+      --pangenome_sm_clusters          Precomputed secondary-metabolite cluster table:
+                                       cluster_id, strain, contig, start, end, type
+                                       [, genes, core_genes (comma-separated protein IDs)].
+                                       Enables SM_OVERLAP -> pangenome/starship_overlap/sm/
+                                       (off by default). Each table runs its part alone.
+      --pangenome_starship_permutations  Element-shift permutations for both parts
+                                       (default: 1000).
+      --pangenome_starship_seed        RNG seed of those permutations (default: 20261017).
       --pangenome_dereplicate          Dereplicate near-identical strains via mash
                                        (default: true).
       --pangenome_assign_clades        Assign clades via mash + scipy clustering
@@ -301,6 +383,24 @@ workflow {
     def gff3_dir_abs = params.pangenome_gff3_dir ?: "${data_dir_abs}/gff3"
     def in_label  = params.pangenome_ingroup_label
     def out_label = params.pangenome_outgroup_label
+
+    // Optional precomputed Starship / SM-cluster tables: check them before any task
+    // is submitted (workflows/pangenome_profile.nf step 9a runs the overlap).
+    if (params.pangenome_starship_annotation || params.pangenome_sm_clusters) {
+        def ss_lines = file(params.pangenome_samplesheet).readLines().findAll { it.trim() }
+        def ss_header = split_table_line(ss_lines[0], ',')
+        def run_strains = ss_lines.drop(1).collect { [ss_header, split_table_line(it, ',')].transpose().collectEntries { it } }
+            .findAll { (it.GROUP ?: '').trim() in [in_label, out_label] }
+            .collect { (it.Short ?: '').trim() } as Set
+        ['pangenome_starship_permutations', 'pangenome_starship_seed'].each { p ->
+            if (!(params[p].toString() ==~ /^[0-9]+$/))
+                error "ERROR: --${p} must be an integer >= 0 (got: ${params[p]})"
+        }
+        if (params.pangenome_starship_annotation)
+            validate_region_table('pangenome_starship_annotation', params.pangenome_starship_annotation.toString(), 'elements', run_strains)
+        if (params.pangenome_sm_clusters)
+            validate_region_table('pangenome_sm_clusters', params.pangenome_sm_clusters.toString(), 'sm', run_strains)
+    }
 
     samples_ch = Channel
         .fromPath(params.pangenome_samplesheet)

@@ -22,6 +22,7 @@ nextflow.enable.dsl=2
 //     -> [positions branch] FAMILY_POSITIONS (gene_positions + rescue_positions)
 //     -> [captain branch, optional] HMMFETCH_CAPTAIN? -> CAPTAIN_HMMSEARCH
 //     -> PAIR_CLASSIFICATION
+//     -> BUILD_ISLANDS -> [optional, precomputed tables] STARSHIP_OVERLAP / SM_OVERLAP
 //
 // GENE_POSITIONS runs right after PRESENCE_MATRIX (moved ahead of the rescue
 // branch when issue #133 added the structural rescue filter) rather than
@@ -66,6 +67,7 @@ include { ISLAND_DNA_TARGETS; ISLAND_DNA_CHECK }                           from 
 include { EMPTY_EVALUES_STUB as EMPTY_DNA_CALLS_STUB }                     from '../modules/empty_evalues_stub'
 include { LEIDEN_MODULES; MODULE_DOMAINS; MODULE_NEIGHBORHOOD }            from '../modules/pangenome/trans_modules'
 include { PFAM2GO } from '../modules/pangenome/pfam2go'
+include { STARSHIP_OVERLAP; SM_OVERLAP }                                   from '../modules/pangenome/starship_overlap'
 include { EMPTY_EVALUES_STUB as EMPTY_RESCUE_POSITIONS_STUB } from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_CAPTAIN_STUB }          from '../modules/empty_evalues_stub'
 include { EMPTY_EVALUES_STUB as EMPTY_INVENTORY_STUB }        from '../modules/empty_evalues_stub'
@@ -307,6 +309,38 @@ workflow PANGENOME_PROFILE {
         marker_names_ch,
         marker_tblout_files_ch,
     )
+
+    // --- 9a. Optional Starship element / SM-cluster overlap with islands -----
+    // Precomputed tables only (element and cluster calling happen outside the
+    // pipeline). Off unless --pangenome_starship_annotation and/or
+    // --pangenome_sm_clusters is set; each part runs without the other. The
+    // tables were validated against the samplesheet at workflow start
+    // (pangenome.nf). See modules/pangenome/starship_overlap.nf.
+    if (params.pangenome_starship_annotation) {
+        STARSHIP_OVERLAP(
+            file(params.pangenome_starship_annotation, checkIfExists: true),
+            FREQUENCY_BINS.out.table,
+            BUILD_ISLANDS.out.islands,
+            CLUSTER_TIER1.out.cluster_tsv,
+            GENE_POSITIONS.out.positions,
+            FAMILY_POSITIONS.out.positions,
+            rescue_positions,
+            captain_tblout,
+            samplesheet,
+        )
+    }
+    if (params.pangenome_sm_clusters) {
+        SM_OVERLAP(
+            file(params.pangenome_sm_clusters, checkIfExists: true),
+            params.pangenome_starship_annotation ? file(params.pangenome_starship_annotation, checkIfExists: true) : [],
+            FREQUENCY_BINS.out.table,
+            BUILD_ISLANDS.out.islands,
+            CLUSTER_TIER1.out.cluster_tsv,
+            GENE_POSITIONS.out.positions,
+            captain_tblout,
+            samplesheet,
+        )
+    }
 
     // Pfam-dependent steps only (issue #193): BUILD_ISLANDS above does not use Pfam output.
     if (params.pangenome_island_pfam_hmm) {
