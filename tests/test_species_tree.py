@@ -125,3 +125,18 @@ def test_near_ingroup_not_treated_as_out():
     assert info["method"] == "outgroup"
     assert info["n_out_outside"] == 0
     assert {"o1", "o2"} in _side_tips(rooted)
+
+
+def test_cli_fails_when_no_tip_label_matches_config(tmp_path):
+    cfg = tmp_path / "config.csv"
+    cfg.write_text(
+        "GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup\n"
+        "IN,x,1,p,d,a,T\nIN,x,2,p,d,b,T\nOUT,y,1,o1,d,o1,T\n"
+    )
+    nwk = tmp_path / "t.nwk"
+    nwk.write_text("((o_1:1,a_:1):2,b_:1,c_:1);\n")
+    r = subprocess.run([sys.executable, str(SCRIPT), "--newick", str(nwk),
+                        "--config", str(cfg), "--out_prefix", str(tmp_path / "x")],
+                       capture_output=True, text=True)
+    assert r.returncode == 3
+    assert "tree tip labels do not match config Short names" in r.stderr

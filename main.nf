@@ -18,6 +18,7 @@ include { UNIPROT_LINK } from './modules/uniprot_link'
 include { UNIPROT_INDEX_BUILD } from './workflows/uniprot_index'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
+include { SPECIES_TREE } from './modules/species_tree'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
 include { NOVELTY_SCREEN } from './workflows/novelty_screen'
 include { EMPTY_LOSS_STUB } from './modules/empty_loss_stub'
@@ -395,6 +396,17 @@ workflow NOVINVENIO {
         loss_tblastn_summary  = LOSS_VALIDATE.out.summary
         loss_tblastn_cov      = LOSS_VALIDATE.out.coverage     // issue #208
     }
+
+    // Species tree (phyling + FastTree) over every config proteome. Never fails the run and
+    // nothing in the novelty/loss path depends on it; REPORT consumes the outputs (Task 3).
+    species_tree_in_ch = samples_ch
+        .map { meta, prot, dna -> [ meta.id, prot ] }
+        .toSortedList { it[0] }
+        .map { l -> [ l.collect { it[0] }, l.collect { it[1] } ] }
+    SPECIES_TREE(species_tree_in_ch, file(params.config))
+    species_tree_svg    = SPECIES_TREE.out.svg
+    species_tree_nwk    = SPECIES_TREE.out.nwk
+    species_tree_status = SPECIES_TREE.out.status
 
     REPORT(
         ANNOTATE.out.annotated_matrix,

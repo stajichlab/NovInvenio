@@ -394,7 +394,11 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     groups = {s.short: s.group for s in parse_config(a.config)}
-    rooted, info = root_on_outgroup(Path(a.newick).read_text(), groups)
+    text = Path(a.newick).read_text()
+    if "OUT" in groups.values() and not set(tip_labels(parse_newick(text))) & set(groups):
+        print("tree tip labels do not match config Short names", file=sys.stderr)
+        return 3
+    rooted, info = root_on_outgroup(text, groups)
     Path(f"{a.out_prefix}.rooted.nwk").write_text(rooted + "\n")
     Path(f"{a.out_prefix}.svg").write_text(render_svg(rooted, groups))
     Path(f"{a.out_prefix}.rooting.json").write_text(json.dumps(info, indent=2) + "\n")
