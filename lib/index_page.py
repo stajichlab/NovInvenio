@@ -165,9 +165,12 @@ def _rooting_line(spec: str) -> str:
     if method == 'outgroup':
         return 'rooted on OUT group (monophyletic)'
     if method == 'outgroup_best_split':
-        return ('rooted on best OUT/non-OUT split: '
+        text = ('rooted on best OUT/non-OUT split: '
                 f'{kv.get("n_out_outside", "?")} of {kv.get("n_out", "?")} '
                 'OUT tips outside the OUT side')
+        if 'n_non_out_inside' in kv:  # absent in status files from older runs
+            text += f'; {kv["n_non_out_inside"]} non-OUT tips inside the OUT side'
+        return text
     if method == 'midpoint':
         return 'midpoint rooted (no OUT tips)'
     return ''
@@ -177,7 +180,7 @@ def render_species_tree_section(svg_text: str | None, status_text: str | None) -
     """The ``<section id="species-tree">`` card.
 
     ``status_text`` is species_tree.status.txt (line 1 `ok` | `skipped: ...` |
-    `failed: ...`; optional `markers: N` and `rooting: method=... ` lines).
+    `failed: ...`; optional `markers: N`, `rooting: method=... ` and `markerset: <name>` lines).
     Anything but a usable `ok` + non-empty SVG renders `tree not available: <reason>`.
     """
     first, extra = _parse_tree_status(status_text or '')
@@ -186,7 +189,11 @@ def render_species_tree_section(svg_text: str | None, status_text: str | None) -
         svg = re.sub(r'^<\?xml[^>]*\?>\s*', '', svg)
         n = extra.get('markers', '')
         markers = f'{n} markers' if n.isdigit() else 'top markers'
-        lines = [f'FastTree, {markers} (top treeness/RCV), fungi_odb12']
+        markerset = extra.get('markerset', '')
+        method = f'FastTree, {markers} (top treeness/RCV)'
+        if markerset:
+            method += f', {markerset}'
+        lines = [method]
         rooting = _rooting_line(extra.get('rooting', ''))
         if rooting:
             lines.append(rooting)

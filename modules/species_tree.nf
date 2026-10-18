@@ -2,14 +2,19 @@
 // tree over every proteome in the config, rooted on the OUT rows by bin/species_tree.py.
 // Docs: docs/superpowers/specs/2026-10-17-species-tree-design.md
 //
+// Called from main.nf only when `species_tree` is true and `phyling_markerset_dir` is set;
+// otherwise main.nf feeds tracked stub status files (assets/species_tree_stub) to the report.
 // Never fails the run. The script always exits 0 and always writes all four outputs;
 // species_tree.status.txt line 1 is `ok`, `skipped: <reason>` or `failed: <reason>`;
-// an `ok` file also has `markers: <N>` and `rooting: method=... n_out=... n_out_outside=...` lines.
-// Runs in phyling's own image (ghcr.io/stajichlab/phyling:<species_tree_container_version>),
-// not the main NovInvenio image. The image has phyling, FastTree, aster (ASTRAL), muscle and
-// python3 (stdlib is enough for bin/species_tree.py). Outside a container (no -profile
-// docker/singularity) the script falls back to the `phyling/2.3` environment module when
-// `module` exists. Not phyling/2.3.1: its `filter` subcommand fails ("No module specified").
+// an `ok` file also has `markers: <N>`, `rooting: method=... n_out=... n_out_outside=...
+// n_non_out_inside=...` and `markerset: <name>` lines.
+// Runs in phyling's own image (ghcr.io/stajichlab/phyling:<species_tree_container_version>).
+// Image contents (phyling, FastTree, aster/ASTRAL, muscle, python3) are taken from the phyling
+// Dockerfile. The image was NOT pulled or run when this was written; only phyling 2.5.0 installed
+// with pip was run on real data. bin/species_tree.py needs only the python3 stdlib.
+// Outside a container (no -profile docker/singularity) the script falls back to the `phyling/2.3`
+// environment module when `module` exists. Not phyling/2.3.1: its `filter` subcommand fails
+// ("No module specified").
 // phyling_markerset_dir must be on a path the container can read (UCR: /bigdata is bound).
 // Proteomes are staged as <Short>.faa so the Newick tip labels equal config Short.
 process SPECIES_TREE {
@@ -18,6 +23,7 @@ process SPECIES_TREE {
     container "ghcr.io/stajichlab/phyling:${params.species_tree_container_version}"
     publishDir "${params.outdir}/${Helpers.projectName(params)}", mode: 'copy'
     errorStrategy 'ignore'
+    time '2.h'
 
     input:
     tuple val(shorts), path(proteomes, stageAs: 'prot_?/*')
@@ -30,7 +36,6 @@ process SPECIES_TREE {
     path("species_tree.status.txt"),  emit: status
 
     script:
-    def enabled   = (params.species_tree && params.species_tree.toString() != 'false') ? 'yes' : 'no'
     def markerdir = params.phyling_markerset_dir ? "${params.phyling_markerset_dir}/${params.species_tree_markerset}" : ''
     """
     set +e
@@ -41,10 +46,8 @@ process SPECIES_TREE {
 
     SHORTS=(${shorts.join(' ')})
     FILES=(${proteomes instanceof List ? proteomes.join(' ') : proteomes})
-    [ "${enabled}" = yes ] || status "skipped: disabled"
     [ "\${#SHORTS[@]}" -ge 4 ] || status "skipped: fewer than 4 species"
     MARKERDIR="${markerdir}"
-    [ -n "\$MARKERDIR" ] || status "failed: phyling_markerset_dir is not set"
     [ -d "\$MARKERDIR/hmms" ] || status "failed: markerset not found: \$MARKERDIR/hmms"
 
     # only when phyling is not already on PATH (it is, inside the container)
@@ -82,14 +85,15 @@ process SPECIES_TREE {
     fi
     # Extra status lines for the report (line 1 stays the status word):
     #   markers: <N>   alignments (files or symlinks) kept by `phyling filter` (falls back to the requested N)
-    #   rooting: method=<m> n_out=<n> n_out_outside=<k>   from bin/species_tree.py
+    #   rooting: method=<m> n_out=<n> n_out_outside=<k> n_non_out_inside=<m>   from bin/species_tree.py
     NM=\$(find phyling_filter -maxdepth 1 \\( -type f -o -type l \\) \\( -name '*.fa' -o -name '*.faa' -o -name '*.fas' -o -name '*.fasta' -o -name '*.aln' -o -name '*.mfa' \\) 2>/dev/null | wc -l)
     [ "\$NM" -gt 0 ] || NM=${params.species_tree_markers}
-    ROOTING=\$(python3 -c "import json;d=json.load(open('species_tree.rooting.json'));print('method=%s n_out=%s n_out_outside=%s'%(d['method'],d['n_out'],d['n_out_outside']))" 2>/dev/null)
+    ROOTING=\$(python3 -c "import json;d=json.load(open('species_tree.rooting.json'));print('method=%s n_out=%s n_out_outside=%s n_non_out_inside=%s'%(d['method'],d['n_out'],d['n_out_outside'],d.get('n_non_out_inside',0)))" 2>/dev/null)
     {
         echo ok
         echo "markers: \$NM"
         [ -z "\$ROOTING" ] || echo "rooting: \$ROOTING"
+        echo "markerset: ${params.species_tree_markerset}"
     } > species_tree.status.txt
     exit 0
     """

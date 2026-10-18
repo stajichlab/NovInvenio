@@ -10,8 +10,10 @@
 - **New params** `--species_tree` (true), `--species_tree_markers` (10), `--species_tree_markerset`
   (`fungi_odb12`), `--phyling_markerset_dir` (null; must be on a container-visible path) and
   `--species_tree_container_version` (`2.5.0`).
+- **Runs only with `--phyling_markerset_dir`:** without it (or with `--species_tree false`) no SPECIES_TREE job starts, no phyling image is pulled, and the report shows `tree not available: ...`. The status file also records `markerset:` and `n_non_out_inside` (non-OUT tips on the OUT side of an impure split); the report shows both.
 - **Container:** this process uses `ghcr.io/stajichlab/phyling:<tag>`. The main image, its version and
-  `--container_version` are unchanged.
+  `--container_version` are unchanged. The container path (`ghcr.io/stajichlab/phyling:2.5.0`) is not yet exercised end to end;
+  only phyling 2.5.0 installed with pip was run on real data.
 
 ### New: optional Starship element / SM-cluster overlap with islands (precomputed tables)
 

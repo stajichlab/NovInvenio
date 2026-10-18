@@ -403,16 +403,27 @@ workflow NOVINVENIO {
         .map { meta, prot, dna -> [ meta.id, prot ] }
         .toSortedList { it[0] }
         .map { l -> [ l.collect { it[0] }, l.collect { it[1] } ] }
-    SPECIES_TREE(species_tree_in_ch, file(params.config))
-    // SPECIES_TREE has errorStrategy 'ignore': after a scheduler kill its channels complete
-    // empty, and COLLATE_REPORTS (required path inputs) would never run. ifEmpty gives it a
-    // stub status + blank svg so report.html still renders "tree not available: ...".
-    // The stubs are tracked files under assets/species_tree_stub (nothing is written at runtime).
-    stub_tree_status = file("${projectDir}/assets/species_tree_stub/species_tree.status.txt")
-    stub_tree_svg    = file("${projectDir}/assets/species_tree_stub/species_tree.svg")
-    species_tree_svg    = SPECIES_TREE.out.svg.ifEmpty(stub_tree_svg)
-    species_tree_nwk    = SPECIES_TREE.out.nwk
-    species_tree_status = SPECIES_TREE.out.status.ifEmpty(stub_tree_status)
+    // SPECIES_TREE runs only when species_tree is true AND phyling_markerset_dir is set.
+    // Otherwise no task (and no phyling image pull) is created and a tracked stub status
+    // (`skipped: disabled` | `skipped: phyling_markerset_dir not set`) goes to the report.
+    // When it runs, errorStrategy 'ignore' means that after a scheduler kill its channels
+    // complete empty and COLLATE_REPORTS (required path inputs) would never run; ifEmpty gives
+    // it a `failed: ...` stub status + blank svg so report.html still renders
+    // "tree not available: ...". All stubs are tracked files under assets/species_tree_stub.
+    stub_dir = "${projectDir}/assets/species_tree_stub"
+    stub_tree_svg = file("${stub_dir}/species_tree.svg")
+    if (Helpers.asBool(params.species_tree) && params.phyling_markerset_dir) {
+        SPECIES_TREE(species_tree_in_ch, file(params.config))
+        species_tree_svg    = SPECIES_TREE.out.svg.ifEmpty(stub_tree_svg)
+        species_tree_nwk    = SPECIES_TREE.out.nwk
+        species_tree_status = SPECIES_TREE.out.status.ifEmpty(file("${stub_dir}/species_tree.status.txt"))
+    } else {
+        stub_tree_status = Helpers.asBool(params.species_tree)
+            ? file("${stub_dir}/skipped_markerset_unset.status.txt")
+            : file("${stub_dir}/skipped_disabled.status.txt")
+        species_tree_svg    = Channel.value(stub_tree_svg)
+        species_tree_status = Channel.value(stub_tree_status)
+    }
 
     REPORT(
         ANNOTATE.out.annotated_matrix,

@@ -33,13 +33,15 @@ def _run(tmp_path, svg=None, status=None):
     return out.read_text()
 
 
-def _ok(method="outgroup", n_out=1, outside=0, markers=10):
+def _ok(method="outgroup", n_out=1, outside=0, markers=10, inside=None, markerset=None):
+    extra = "" if inside is None else f" n_non_out_inside={inside}"
+    ms = "" if markerset is None else f"markerset: {markerset}\n"
     return (f"ok\nmarkers: {markers}\n"
-            f"rooting: method={method} n_out={n_out} n_out_outside={outside}\n")
+            f"rooting: method={method} n_out={n_out} n_out_outside={outside}{extra}\n" + ms)
 
 
 def test_ok_status_embeds_svg_and_method_line(tmp_path):
-    html = _run(tmp_path, SVG, _ok())
+    html = _run(tmp_path, SVG, _ok(markerset="fungi_odb12"))
     assert 'id="species-tree"' in html
     assert "<svg" in html
     assert "FastTree, 10 markers (top treeness/RCV), fungi_odb12" in html
@@ -115,3 +117,38 @@ def test_stub_status_for_incomplete_job_renders_reason(tmp_path):
     html = _run(tmp_path, "\n", "failed: species tree job did not complete\n")
     assert "tree not available: species tree job did not complete" in html
     assert "<svg" not in html
+
+
+def test_markerset_name_comes_from_status(tmp_path):
+    html = _run(tmp_path, SVG, _ok(markerset="eukaryota_odb12"))
+    assert "FastTree, 10 markers (top treeness/RCV), eukaryota_odb12" in html
+    assert "fungi_odb12" not in html
+
+
+def test_missing_markerset_line_uses_neutral_wording(tmp_path):
+    html = _run(tmp_path, SVG, _ok())
+    assert "FastTree, 10 markers (top treeness/RCV)" in html
+    assert "fungi_odb12" not in html
+
+
+def test_rooting_impure_split_names_non_out_inside(tmp_path):
+    html = _run(tmp_path, SVG, _ok("outgroup_best_split", 3, 0, inside=1))
+    assert ("rooted on best OUT/non-OUT split: 0 of 3 OUT tips outside the OUT side; "
+            "1 non-OUT tips inside the OUT side") in html
+
+
+def test_rooting_old_status_without_inside_field_unchanged(tmp_path):
+    html = _run(tmp_path, SVG, _ok("outgroup_best_split", 5, 2))
+    assert "2 of 5 OUT tips outside the OUT side<" in html
+
+
+def test_stub_status_skipped_disabled_renders(tmp_path):
+    stub = (REPO / "assets" / "species_tree_stub" / "skipped_disabled.status.txt").read_text()
+    html = _run(tmp_path, "", stub)
+    assert "tree not available: disabled" in html
+
+
+def test_stub_status_skipped_markerset_unset_renders(tmp_path):
+    stub = (REPO / "assets" / "species_tree_stub" / "skipped_markerset_unset.status.txt").read_text()
+    html = _run(tmp_path, "", stub)
+    assert "tree not available: phyling_markerset_dir not set" in html

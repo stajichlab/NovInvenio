@@ -265,14 +265,14 @@ def root_on_outgroup(newick: str, groups: dict[str, str]) -> tuple[str, dict]:
     n_tips = len(tip_ids)
 
     if n_tips < 2 or not edges:
-        info = {"method": "midpoint", "n_out": n_out, "n_out_outside": n_out}
+        info = {"method": "midpoint", "n_out": n_out, "n_out_outside": n_out, "n_non_out_inside": 0}
         return write_newick(tree), info
 
     if n_out == 0:
         res = _midpoint_edge(adj, labels, edges)
         u, v, w, du = res
         rooted = _reroot(adj, labels, u, v, w, du)
-        return write_newick(rooted), {"method": "midpoint", "n_out": 0, "n_out_outside": 0}
+        return write_newick(rooted), {"method": "midpoint", "n_out": 0, "n_out_outside": 0, "n_non_out_inside": 0}
 
     best = None
     for u, v, w in edges:
@@ -296,6 +296,7 @@ def root_on_outgroup(newick: str, groups: dict[str, str]) -> tuple[str, dict]:
         "method": "outgroup" if pure else "outgroup_best_split",
         "n_out": n_out,
         "n_out_outside": n_out - out_in,
+        "n_non_out_inside": non_in,
     }
     return write_newick(rooted), info
 

@@ -140,3 +140,19 @@ def test_cli_fails_when_no_tip_label_matches_config(tmp_path):
                        capture_output=True, text=True)
     assert r.returncode == 3
     assert "tree tip labels do not match config Short names" in r.stderr
+
+
+def test_impure_split_reports_non_out_inside():
+    # x sits between o1 and o2; the best OUT split puts x on the OUT side
+    g = _groups(["o1", "o2"], ["x", "a", "b", "c"])
+    nwk = "((o1:1,x:1):1,o2:1,(a:1,b:1,c:1):9);"
+    rooted, info = st.root_on_outgroup(nwk, g)
+    assert info["method"] == "outgroup_best_split"
+    assert info["n_out_outside"] == 0
+    assert info["n_non_out_inside"] == 1
+
+
+def test_pure_split_has_zero_non_out_inside():
+    g = _groups(["o1", "o2"], ["a", "b", "c", "d"])
+    _, info = st.root_on_outgroup("((o1:1,o2:1):2,(a:1,b:1):1,(c:1,d:1):1);", g)
+    assert info["n_non_out_inside"] == 0
