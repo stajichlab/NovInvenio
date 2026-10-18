@@ -102,3 +102,12 @@ def test_process_uses_phyling_image_not_main_image():
     assert 'container "ghcr.io/stajichlab/phyling:${params.species_tree_container_version}"' in MODULE
     assert 'novinvenio' not in MODULE.split('process SPECIES_TREE')[1].split('input:')[0]
     assert re.search(r"^\s*species_tree_container_version\s*=\s*'2\.5\.0'", CONFIG, re.M)
+
+
+def test_tip_labels_param_default_species():
+    assert re.search(r"^\s*species_tree_tip_labels\s*=\s*'species'", CONFIG, re.M)
+
+
+def test_process_passes_tip_labels_flag_and_validates():
+    assert '--tip_labels ${params.species_tree_tip_labels}' in MODULE
+    assert 'species_tree_tip_labels must be short or species' in MODULE

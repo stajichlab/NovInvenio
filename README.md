@@ -392,6 +392,7 @@ need to bake it into the image.
 | `--species_tree_markers` | `10` | Number of top markers (by treeness/RCV) kept by `phyling filter -n`. 10 gives a quick tree, not a final phylogeny |
 | `--species_tree_markerset` | `fungi_odb12` | Marker set name: subdirectory of `--phyling_markerset_dir` that holds `hmms/` |
 | `--phyling_markerset_dir` | `null` | The species tree step runs only when this is set. Parent directory of the marker set. The process passes `<dir>/<markerset>/hmms` to `phyling align -m`. Must be on a path the container can read (UCR: `/bigdata` is bound). Fill it once with `phyling download fungi_odb12`. On the UCR cluster it already exists in `~/.phyling` |
+| `--species_tree_tip_labels` | `species` | Tip text in `species_tree.svg`: `species` (samplesheet `Species`; a repeated Species gets ` <Strain>`, or ` (<Short>)` when Strain is empty; empty Species shows the Short ID) or `short` (Short ID). Any other value makes the process write `failed: ...` to the status file. The Newick file and rooting use Short IDs in both modes |
 | `--species_tree_container_version` | `2.5.0` | Tag of `ghcr.io/stajichlab/phyling`. Only the SPECIES_TREE process uses this image. The main image (`--container_version`) is unchanged |
 
 ### Species tree

@@ -156,3 +156,98 @@ def test_pure_split_has_zero_non_out_inside():
     g = _groups(["o1", "o2"], ["a", "b", "c", "d"])
     _, info = st.root_on_outgroup("((o1:1,o2:1):2,(a:1,b:1):1,(c:1,d:1):1);", g)
     assert info["n_non_out_inside"] == 0
+
+
+# ---- tip display labels ---------------------------------------------------
+
+def _width(svg):
+    return int(re.search(r'<svg[^>]* width="(\d+)"', svg).group(1))
+
+
+def test_labels_mapping_shows_display_text_not_id():
+    g = _groups(["o1", "o2"], ["a", "b", "c", "d"])
+    svg = st.render_svg(MONO, g, labels={"a": "Aspergillus fumigatus", "o1": "Out one"})
+    assert ">Aspergillus fumigatus</text>" in svg
+    assert ">Out one</text>" in svg
+    assert ">a</text>" not in svg and ">o1</text>" not in svg
+
+
+def test_labels_missing_tip_falls_back_to_id():
+    g = _groups(["o1", "o2"], ["a", "b", "c", "d"])
+    svg = st.render_svg(MONO, g, labels={"a": "Name A"})
+    assert ">b</text>" in svg and ">o2</text>" in svg
+    assert svg.count('class="tip"') == 6
+
+
+def test_labels_are_xml_escaped():
+    g = _groups(["o1", "o2"], ["a", "b", "c", "d"])
+    svg = st.render_svg(MONO, g, labels={"a": "A & B <x> \"q\" / z"})
+    assert "A &amp; B &lt;x&gt;" in svg
+    assert "A & B" not in svg
+    st_xml = __import__("xml.dom.minidom", fromlist=["x"]).parseString(svg)
+    assert st_xml.documentElement.tagName == "svg"
+
+
+def test_width_uses_displayed_text():
+    g = _groups(["o1", "o2"], ["a", "b", "c", "d"])
+    plain = st.render_svg(MONO, g)
+    long_ = st.render_svg(MONO, g, labels={"a": "Some very long species name strain ABC-123456"})
+    assert _width(long_) > _width(plain)
+    # a short display text must not leave the SVG wider than the ID-sized one
+    short = st.render_svg(MONO, g, labels={t: "x" for t in g})
+    assert _width(short) <= _width(plain)
+
+
+def _cli_cfg(tmp_path, rows):
+    cfg = tmp_path / "config.csv"
+    cfg.write_text("GROUP,Species,Strain,Protein,DNA,Short,TaxonGroup\n" + "".join(
+        f"{grp},{sp},{stn},p,d,{sh},T\n" for grp, sp, stn, sh in rows))
+    nwk = tmp_path / "t.nwk"
+    nwk.write_text("((o1:1,o2:1):2,(a:1,b:1):1,c:1);\n")
+    return cfg, nwk
+
+
+def _run_cli(tmp_path, cfg, nwk, prefix, *extra):
+    subprocess.run([sys.executable, str(SCRIPT), "--newick", str(nwk), "--config", str(cfg),
+                    "--out_prefix", str(tmp_path / prefix), *extra], check=True)
+    return (tmp_path / f"{prefix}.svg").read_text()
+
+
+_ROWS = [("IN", "Sp x", "S1", "a"), ("IN", "Sp x", "", "b"), ("IN", "Sp z", "S3", "c"),
+         ("OUT", "", "S4", "o1"), ("OUT", "Sp y", "S5", "o2")]
+
+
+def test_cli_tip_labels_species_disambiguates(tmp_path):
+    cfg, nwk = _cli_cfg(tmp_path, _ROWS)
+    svg = _run_cli(tmp_path, cfg, nwk, "sp", "--tip_labels", "species")
+    assert ">Sp x S1</text>" in svg       # duplicate species, strain present
+    assert ">Sp x (b)</text>" in svg      # duplicate species, strain empty
+    assert ">Sp z</text>" in svg          # unique species
+    assert ">o1</text>" in svg            # empty Species -> Short
+    assert ">Sp y</text>" in svg
+    assert ">a</text>" not in svg
+
+
+def test_cli_default_labels_are_short_ids(tmp_path):
+    cfg, nwk = _cli_cfg(tmp_path, _ROWS)
+    svg = _run_cli(tmp_path, cfg, nwk, "dflt")
+    for t in ("a", "b", "c", "o1", "o2"):
+        assert f">{t}</text>" in svg
+    assert "Sp x" not in svg
+    explicit = _run_cli(tmp_path, cfg, nwk, "short", "--tip_labels", "short")
+    assert explicit == svg
+
+
+def test_cli_rooting_identical_between_modes(tmp_path):
+    cfg, nwk = _cli_cfg(tmp_path, _ROWS)
+    _run_cli(tmp_path, cfg, nwk, "m_short", "--tip_labels", "short")
+    _run_cli(tmp_path, cfg, nwk, "m_sp", "--tip_labels", "species")
+    for ext in ("rooted.nwk", "rooting.json"):
+        assert (tmp_path / f"m_short.{ext}").read_text() == (tmp_path / f"m_sp.{ext}").read_text()
+
+
+def test_cli_rejects_unknown_tip_labels_value(tmp_path):
+    cfg, nwk = _cli_cfg(tmp_path, _ROWS)
+    r = subprocess.run([sys.executable, str(SCRIPT), "--newick", str(nwk), "--config", str(cfg),
+                        "--tip_labels", "bogus"], capture_output=True, text=True)
+    assert r.returncode != 0
