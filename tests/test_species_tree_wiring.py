@@ -44,3 +44,25 @@ def test_main_includes_and_calls_species_tree():
     assert re.search(r"include \{ SPECIES_TREE \} from './modules/species_tree'", MAIN)
     assert re.search(r'^\s*SPECIES_TREE\(', MAIN, re.M)
     assert 'species_tree_svg' in MAIN and 'species_tree_status' in MAIN
+
+
+REPORT_NF = (REPO / 'workflows' / 'report.nf').read_text()
+
+
+def test_report_workflow_passes_tree_files_to_collate():
+    assert re.search(r'^\s*species_tree_svg\s*//', REPORT_NF, re.M)
+    assert re.search(r'^\s*species_tree_status\s*//', REPORT_NF, re.M)
+    assert re.search(r'config_csv,\s*species_tree_svg,\s*species_tree_status,?\s*\)', REPORT_NF)
+    assert '--species_tree_svg ${species_tree_svg}' in REPORT_NF
+    assert '--species_tree_status ${species_tree_status}' in REPORT_NF
+
+
+def test_main_passes_species_tree_outputs_to_report():
+    report_call = MAIN[MAIN.index('REPORT(\n'):]
+    assert 'species_tree_svg,' in report_call
+    assert 'species_tree_status' in report_call
+
+
+def test_status_file_carries_marker_and_rooting_lines():
+    assert 'markers: ' in MODULE
+    assert 'rooting: method=' in MODULE

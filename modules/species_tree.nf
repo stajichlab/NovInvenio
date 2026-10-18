@@ -3,7 +3,8 @@
 // Docs: docs/superpowers/specs/2026-10-17-species-tree-design.md
 //
 // Never fails the run. The script always exits 0 and always writes all four outputs;
-// species_tree.status.txt line 1 is `ok`, `skipped: <reason>` or `failed: <reason>`.
+// species_tree.status.txt line 1 is `ok`, `skipped: <reason>` or `failed: <reason>`;
+// an `ok` file also has `markers: <N>` and `rooting: method=... n_out=... n_out_outside=...` lines.
 // phyling is not in the container image. The process loads the `phyling/2.3` environment
 // module when `module` exists (HPCC), else expects `phyling` on PATH. Not phyling/2.3.1: its
 // `filter` and `tree` subcommands fail ("No module specified"), phyling/2.3 (2.3.1.post23) works.
@@ -75,6 +76,17 @@ process SPECIES_TREE {
         : > species_tree.svg; : > species_tree.rooted.nwk
         status "failed: \$(tail -1 species_tree.err | cut -c1-200)"
     fi
-    status "ok"
+    # Extra status lines for the report (line 1 stays the status word):
+    #   markers: <N>   alignments kept by `phyling filter` (falls back to the requested N)
+    #   rooting: method=<m> n_out=<n> n_out_outside=<k>   from bin/species_tree.py
+    NM=\$(find phyling_filter -maxdepth 1 -type f \\( -name '*.fa' -o -name '*.faa' -o -name '*.fas' -o -name '*.fasta' -o -name '*.aln' -o -name '*.mfa' \\) 2>/dev/null | wc -l)
+    [ "\$NM" -gt 0 ] || NM=${params.species_tree_markers}
+    ROOTING=\$(python3 -c "import json;d=json.load(open('species_tree.rooting.json'));print('method=%s n_out=%s n_out_outside=%s'%(d['method'],d['n_out'],d['n_out_outside']))" 2>/dev/null)
+    {
+        echo ok
+        echo "markers: \$NM"
+        [ -z "\$ROOTING" ] || echo "rooting: \$ROOTING"
+    } > species_tree.status.txt
+    exit 0
     """
 }

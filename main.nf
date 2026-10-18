@@ -398,7 +398,7 @@ workflow NOVINVENIO {
     }
 
     // Species tree (phyling + FastTree) over every config proteome. Never fails the run and
-    // nothing in the novelty/loss path depends on it; REPORT consumes the outputs (Task 3).
+    // nothing in the novelty/loss path depends on it; REPORT embeds the svg and status on report.html.
     species_tree_in_ch = samples_ch
         .map { meta, prot, dna -> [ meta.id, prot ] }
         .toSortedList { it[0] }
@@ -428,7 +428,9 @@ workflow NOVINVENIO {
         loss_tblastn_cov,
         loss_cand_cluster_tsv,
         file(params.config),
-        data_dir_abs
+        data_dir_abs,
+        species_tree_svg,
+        species_tree_status
     )
 }
 

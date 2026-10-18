@@ -53,6 +53,8 @@ workflow REPORT {
                                //   the reports' chrom/start columns (not staged/channeled like
                                //   the FASTAs; the standalone bin/make_*.py scripts re-resolve
                                //   it themselves, see lib/gff3_genes.resolve_gff3_paths)
+    species_tree_svg         // path: species_tree.svg from SPECIES_TREE (may be an empty file)
+    species_tree_status      // path: species_tree.status.txt (`ok` | `skipped: ..` | `failed: ..`)
 
     main:
     // results/ copy: offline, file://-safe, never carries the TBLASTN
@@ -83,6 +85,8 @@ workflow REPORT {
         MAKE_CORE_REPORT.out.report,
         MAKE_LOSSES_REPORT_ONLINE.out.report,
         config_csv,
+        species_tree_svg,
+        species_tree_status,
     )
 
     emit:
@@ -369,6 +373,8 @@ process COLLATE_REPORTS {
     path(core_html)
     path(losses_html)
     path(config_csv)
+    path(species_tree_svg)
+    path(species_tree_status)
 
     output:
     path("report.html"),     emit: index
@@ -388,6 +394,8 @@ process COLLATE_REPORTS {
         --outgroup_min_frac ${params.outgroup_min_frac} \
         --loss_ingroup_max_frac ${params.loss_ingroup_max_frac} \
         --core_min_frac ${params.core_min_frac} \
+        --species_tree_svg ${species_tree_svg} \
+        --species_tree_status ${species_tree_status} \
         --output report.html
     """
 }
