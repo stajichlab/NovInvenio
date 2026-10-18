@@ -66,3 +66,13 @@ def test_main_passes_species_tree_outputs_to_report():
 def test_status_file_carries_marker_and_rooting_lines():
     assert 'markers: ' in MODULE
     assert 'rooting: method=' in MODULE
+
+
+def test_main_guards_report_against_empty_species_tree_channels():
+    assert 'SPECIES_TREE.out.svg.ifEmpty(' in MAIN
+    assert 'SPECIES_TREE.out.status.ifEmpty(' in MAIN
+    stub = REPO / 'assets' / 'species_tree_stub'
+    assert (stub / 'species_tree.status.txt').read_text().splitlines()[0] == 'failed: species tree job did not complete'
+    assert (stub / 'species_tree.svg').read_text().strip() == ''
+    assert 'assets/species_tree_stub/species_tree.status.txt' in MAIN
+    assert 'assets/species_tree_stub/species_tree.svg' in MAIN

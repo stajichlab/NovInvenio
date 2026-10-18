@@ -109,3 +109,9 @@ def test_rooting_best_split_zero_outside(tmp_path):
 def test_rooting_midpoint(tmp_path):
     html = _run(tmp_path, SVG, _ok("midpoint", 0, 0))
     assert "midpoint rooted (no OUT tips)" in html
+
+
+def test_stub_status_for_incomplete_job_renders_reason(tmp_path):
+    html = _run(tmp_path, "\n", "failed: species tree job did not complete\n")
+    assert "tree not available: species tree job did not complete" in html
+    assert "<svg" not in html

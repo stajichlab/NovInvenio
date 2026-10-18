@@ -404,9 +404,15 @@ workflow NOVINVENIO {
         .toSortedList { it[0] }
         .map { l -> [ l.collect { it[0] }, l.collect { it[1] } ] }
     SPECIES_TREE(species_tree_in_ch, file(params.config))
-    species_tree_svg    = SPECIES_TREE.out.svg
+    // SPECIES_TREE has errorStrategy 'ignore': after a scheduler kill its channels complete
+    // empty, and COLLATE_REPORTS (required path inputs) would never run. ifEmpty gives it a
+    // stub status + blank svg so report.html still renders "tree not available: ...".
+    // The stubs are tracked files under assets/species_tree_stub (nothing is written at runtime).
+    stub_tree_status = file("${projectDir}/assets/species_tree_stub/species_tree.status.txt")
+    stub_tree_svg    = file("${projectDir}/assets/species_tree_stub/species_tree.svg")
+    species_tree_svg    = SPECIES_TREE.out.svg.ifEmpty(stub_tree_svg)
     species_tree_nwk    = SPECIES_TREE.out.nwk
-    species_tree_status = SPECIES_TREE.out.status
+    species_tree_status = SPECIES_TREE.out.status.ifEmpty(stub_tree_status)
 
     REPORT(
         ANNOTATE.out.annotated_matrix,
