@@ -41,7 +41,7 @@ LOCUS_VIEW_HTML = r"""
     <div class="isv-explorer">
       <aside class="isv-sidebar">
         <div class="isv-sidebar-controls">
-          <input type="search" id="lv-search" placeholder="Search locus key, exemplar strain or gene ID…" aria-label="Search loci">
+          <input type="search" id="lv-search" placeholder="Search locus key, exemplar strain, gene ID or Pfam domain…" aria-label="Search loci">
           <select id="lv-sort" aria-label="Sort loci by">
             <option value="presence" title="min(strains that lack island DNA, strains that carry it)">Presence/absence (DNA)</option>
             <option value="within" title="loss frequency 5-95% within one species">Within-species polymorphic</option>
@@ -390,7 +390,8 @@ LOCUS_VIEW_JS = r"""
 
   function locusHaystack(locus) {
     return (locus.key + " " + locus.locus_id + " " + locus.exemplar + " " + locus.families.join(" ") + " " +
-            (locus.family_labels ? locus.family_labels.join(" ") : "")).toLowerCase();
+            (locus.family_labels ? locus.family_labels.join(" ") : "") + " " +
+            (locus.family_domains ? locus.family_domains.join(" ") : "")).toLowerCase();
   }
   function applyLocusFilter() {
     var q = lstate.search.trim().toLowerCase();
@@ -528,8 +529,17 @@ LOCUS_VIEW_JS = r"""
     lhctx.clearRect(0, 0, W, H);
     lhctx.fillStyle = P.surface;
     lhctx.fillRect(0, 0, W, H);
+    var hits = matchingColumns(locus, lstate.search);
     locus.families.forEach(function (fam, i) {
       var x = lcolX(i);
+      if (hits[i]) {
+        // Search match: translucent band plus a bar under the column.
+        lhctx.globalAlpha = 0.18;
+        lhctx.fillStyle = P.primary;
+        lhctx.fillRect(x, 0, L_CELL_W, H);
+        lhctx.globalAlpha = 1;
+        lhctx.fillRect(x, H - 3, L_CELL_W, 3);
+      }
       lhctx.fillStyle = classColor((locus.family_classes && locus.family_classes[i]) || "unannotated");
       lhctx.fillRect(x + 3, glyphY, L_CELL_W - 6, GLYPH_H);
       if (isFlank(locus, i)) {
@@ -591,6 +601,15 @@ LOCUS_VIEW_JS = r"""
         if (st.hatch) hatch(lgctx, x, y + 1, cw, ch, P.surface);
       }
     });
+    // Search match: outline matching columns in the text colour (the cell
+    // fills already use --series-1/-2/--warn for evidence state).
+    var hits = matchingColumns(locus, lstate.search);
+    lgctx.strokeStyle = P.primary;
+    lgctx.lineWidth = 2;
+    hits.forEach(function (on, ci) {
+      if (on) lgctx.strokeRect(lcolX(ci) + 1, 1, L_CELL_W - 2, h - 2);
+    });
+    lgctx.lineWidth = 1;
     lgctx.fillStyle = P.axis;
     lgctx.fillRect(lcolX(locus.n_left), 0, 1, h);
     lgctx.fillRect(lcolX(locus.n_left + locus.n_locus), 0, 1, h);
@@ -771,6 +790,7 @@ LOCUS_VIEW_JS = r"""
     lstate.search = e.target.value;
     applyLocusFilter();
     renderLocusSidebar();
+    renderLocusMain();
   });
   document.getElementById("lv-sort").addEventListener("change", function (e) {
     lstate.sort = e.target.value;
