@@ -24,7 +24,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'lib'))
 from config_parser import parse_config  # noqa: E402
-from index_page import render_alignment_viewer_page, render_project_page  # noqa: E402
+from index_page import (  # noqa: E402
+    render_alignment_viewer_page, render_project_page, render_species_tree_section,
+)
 from report_common import NOVINVENIO_DISPLAY_VERSION, NOVINVENIO_RELEASE_STATUS  # noqa: E402
 from report_data import INGROUP_ROLES, OUTGROUP_ROLES  # noqa: E402
 
@@ -89,6 +91,10 @@ def main():
     ap.add_argument('--outgroup_min_frac', type=float, default=None)
     ap.add_argument('--loss_ingroup_max_frac', type=float, default=None)
     ap.add_argument('--core_min_frac', type=float, default=None)
+    ap.add_argument('--species_tree_svg', default=None,
+                    help='species_tree.svg from SPECIES_TREE (optional)')
+    ap.add_argument('--species_tree_status', default=None,
+                    help='species_tree.status.txt from SPECIES_TREE (optional)')
     args = ap.parse_args()
 
     samples = parse_config(args.config)
@@ -105,6 +111,18 @@ def main():
     n_in = sum(1 for s in samples if s.group in INGROUP_ROLES)
     n_out = sum(1 for s in samples if s.group in OUTGROUP_ROLES)
 
+    tree_html = ''
+    if args.species_tree_svg or args.species_tree_status:
+        # A species-tree problem must never fail the report: unreadable files
+        # degrade to "tree not available".
+        def _read(path):
+            try:
+                return Path(path).read_text(encoding='utf-8') if path else None
+            except OSError:
+                return None
+        tree_html = render_species_tree_section(_read(args.species_tree_svg),
+                                                _read(args.species_tree_status))
+
     doc = render_project_page(
         project=project,
         reports=[
@@ -115,6 +133,7 @@ def main():
         ingroup=_species_rows(samples, INGROUP_ROLES),
         outgroup=_species_rows(samples, OUTGROUP_ROLES),
         note=f'Parameters and proteomes from {Path(args.config).name}.',
+        extra_sections_html=tree_html,
     )
 
     if out.parent != Path(''):

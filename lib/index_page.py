@@ -12,6 +12,7 @@ happens here.
 from __future__ import annotations
 
 import html
+import re
 
 from report_common import (
     ALIGNMENT_POPUP_CSS,
@@ -145,6 +146,71 @@ def _report_cards(reports: list[dict]) -> str:
     return '\n'.join(out)
 
 
+def _parse_tree_status(text: str) -> tuple[str, dict]:
+    """Split a species_tree.status.txt into (first line, {key: value} of the rest)."""
+    lines = [ln.strip() for ln in text.splitlines()]
+    first = lines[0] if lines else ''
+    extra = {}
+    for ln in lines[1:]:
+        key, sep, val = ln.partition(':')
+        if sep:
+            extra[key.strip()] = val.strip()
+    return first, extra
+
+
+def _rooting_line(spec: str) -> str:
+    """Rooting sentence from `method=<m> n_out=<n> n_out_outside=<k>`; '' if unparsable."""
+    kv = dict(tok.split('=', 1) for tok in spec.split() if '=' in tok)
+    method = kv.get('method')
+    if method == 'outgroup':
+        return 'rooted on OUT group (monophyletic)'
+    if method == 'outgroup_best_split':
+        text = ('rooted on best OUT/non-OUT split: '
+                f'{kv.get("n_out_outside", "?")} of {kv.get("n_out", "?")} '
+                'OUT tips outside the OUT side')
+        if 'n_non_out_inside' in kv:  # absent in status files from older runs
+            text += f'; {kv["n_non_out_inside"]} non-OUT tips inside the OUT side'
+        return text
+    if method == 'midpoint':
+        return 'midpoint rooted (no OUT tips)'
+    return ''
+
+
+def render_species_tree_section(svg_text: str | None, status_text: str | None) -> str:
+    """The ``<section id="species-tree">`` card.
+
+    ``status_text`` is species_tree.status.txt (line 1 `ok` | `skipped: ...` |
+    `failed: ...`; optional `markers: N`, `rooting: method=... ` and `markerset: <name>` lines).
+    Anything but a usable `ok` + non-empty SVG renders `tree not available: <reason>`.
+    """
+    first, extra = _parse_tree_status(status_text or '')
+    svg = (svg_text or '').strip()
+    if first == 'ok' and svg:
+        svg = re.sub(r'^<\?xml[^>]*\?>\s*', '', svg)
+        n = extra.get('markers', '')
+        markers = f'{n} markers' if n.isdigit() else 'top markers'
+        markerset = extra.get('markerset', '')
+        method = f'FastTree, {markers} (top treeness/RCV)'
+        if markerset:
+            method += f', {markerset}'
+        lines = [method]
+        rooting = _rooting_line(extra.get('rooting', ''))
+        if rooting:
+            lines.append(rooting)
+        notes = ''.join(f'    <p class="card-note">{html.escape(ln)}</p>\n'
+                        for ln in lines)
+        content = notes + f'    <div class="species-tree-svg">{svg}</div>\n'
+    else:
+        if first == 'ok':
+            reason = 'species tree image is missing or empty'
+        else:
+            reason = re.sub(r'^(skipped|failed):\s*', '', first) or 'no status recorded'
+        content = (f'    <p class="card-note">tree not available: '
+                   f'{html.escape(reason)}</p>\n')
+    return ('\n  <section class="card" id="species-tree">\n'
+            '    <h2 class="card-title">Species tree</h2>\n' + content + '  </section>\n')
+
+
 def render_project_page(
     *,
     project: str,
@@ -154,6 +220,7 @@ def render_project_page(
     outgroup: list[dict],
     note: str = '',
     footer: str = '',
+    extra_sections_html: str = '',
 ) -> str:
     """Render one project folder's ``report.html``.
 
@@ -176,7 +243,8 @@ def render_project_page(
         + (f'    <p class="card-note">{html.escape(note)}</p>\n' if note else '')
         + '    <div class="tiles">\n' + _tiles(tiles) + '\n    </div>\n'
           '  </section>\n'
-          '\n  <div class="groups">\n'
+        + extra_sections_html
+        + '\n  <div class="groups">\n'
           '    <section class="card">\n'
           f'      <h2 class="card-title">Ingroup ({len(ingroup)})</h2>\n'
           '      <p class="card-note">Genes are called lineage-specific relative to '

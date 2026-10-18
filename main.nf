@@ -18,6 +18,7 @@ include { UNIPROT_LINK } from './modules/uniprot_link'
 include { UNIPROT_INDEX_BUILD } from './workflows/uniprot_index'
 include { SUMMARIZE } from './workflows/summarize'
 include { REPORT   } from './workflows/report'
+include { SPECIES_TREE } from './modules/species_tree'
 include { NOVELTY_DISCOVERY } from './workflows/novelty_discovery'
 include { NOVELTY_SCREEN } from './workflows/novelty_screen'
 include { EMPTY_LOSS_STUB } from './modules/empty_loss_stub'
@@ -396,6 +397,34 @@ workflow NOVINVENIO {
         loss_tblastn_cov      = LOSS_VALIDATE.out.coverage     // issue #208
     }
 
+    // Species tree (phyling + FastTree) over every config proteome. Never fails the run and
+    // nothing in the novelty/loss path depends on it; REPORT embeds the svg and status on report.html.
+    species_tree_in_ch = samples_ch
+        .map { meta, prot, dna -> [ meta.id, prot ] }
+        .toSortedList { it[0] }
+        .map { l -> [ l.collect { it[0] }, l.collect { it[1] } ] }
+    // SPECIES_TREE runs only when species_tree is true AND phyling_markerset_dir is set.
+    // Otherwise no task (and no phyling image pull) is created and a tracked stub status
+    // (`skipped: disabled` | `skipped: phyling_markerset_dir not set`) goes to the report.
+    // When it runs, errorStrategy 'ignore' means that after a scheduler kill its channels
+    // complete empty and COLLATE_REPORTS (required path inputs) would never run; ifEmpty gives
+    // it a `failed: ...` stub status + blank svg so report.html still renders
+    // "tree not available: ...". All stubs are tracked files under assets/species_tree_stub.
+    stub_dir = "${projectDir}/assets/species_tree_stub"
+    stub_tree_svg = file("${stub_dir}/species_tree.svg")
+    if (Helpers.asBool(params.species_tree) && params.phyling_markerset_dir) {
+        SPECIES_TREE(species_tree_in_ch, file(params.config))
+        species_tree_svg    = SPECIES_TREE.out.svg.ifEmpty(stub_tree_svg)
+        species_tree_nwk    = SPECIES_TREE.out.nwk
+        species_tree_status = SPECIES_TREE.out.status.ifEmpty(file("${stub_dir}/species_tree.status.txt"))
+    } else {
+        stub_tree_status = Helpers.asBool(params.species_tree)
+            ? file("${stub_dir}/skipped_markerset_unset.status.txt")
+            : file("${stub_dir}/skipped_disabled.status.txt")
+        species_tree_svg    = Channel.value(stub_tree_svg)
+        species_tree_status = Channel.value(stub_tree_status)
+    }
+
     REPORT(
         ANNOTATE.out.annotated_matrix,
         novelty_tblastn_summary,
@@ -416,7 +445,9 @@ workflow NOVINVENIO {
         loss_tblastn_cov,
         loss_cand_cluster_tsv,
         file(params.config),
-        data_dir_abs
+        data_dir_abs,
+        species_tree_svg,
+        species_tree_status
     )
 }
 
