@@ -451,3 +451,50 @@ def test_template_greys_unclassified_columns_and_explains_them():
     assert "Not used to classify strains" in LOCUS_VIEW_JS
     assert "Classifying on every column instead would give" in LOCUS_VIEW_JS
     assert "counts_all_columns" in LOCUS_VIEW_JS
+
+
+# ---- domain-name search in the locus view ----------------------------------
+
+_LOCI_JS = """
+var A = {key: "K1", locus_id: "S1:c1:1-9", exemplar: "StrainX", families: ["famA", "famB", "famC"],
+         family_labels: ["geneA", "famB", "famC"],
+         family_domains: ["SnoaL_2,Fungal_trans", "", "Fungal_trans"]};
+var B = {key: "K2", locus_id: "S2:c2:1-9", exemplar: "StrainY", families: ["famX"],
+         family_labels: ["famX"], family_domains: ["PKS_KS"]};
+var NOD = {key: "K3", locus_id: "S3:c3:1-9", exemplar: "StrainZ", families: ["famY"]};
+"""
+
+
+def test_locus_search_matches_domain_names():
+    out = run_node(["locusHaystack"], _LOCI_JS + """
+      console.log(JSON.stringify([
+        locusHaystack(A).indexOf("snoal_2") !== -1,
+        locusHaystack(A).indexOf("fungal_trans") !== -1,
+        locusHaystack(B).indexOf("snoal_2") === -1,
+        locusHaystack(B).indexOf("pks_ks") !== -1,
+        locusHaystack(NOD).indexOf("famy") !== -1]));""")
+    assert out == [True] * 5
+
+
+def test_locus_search_keeps_existing_fields():
+    out = run_node(["locusHaystack"], _LOCI_JS + """
+      console.log(JSON.stringify(["k1", "s1:c1", "strainx", "famc", "genea"].map(function (q) {
+        return locusHaystack(A).indexOf(q) !== -1; })));""")
+    assert out == [True] * 5
+
+
+def test_locus_columns_highlight_only_matching_domain_columns():
+    out = run_node(["columnMatchesSearch", "matchingColumns"], _LOCI_JS + """
+      console.log(JSON.stringify([matchingColumns(A, "fungal_trans"), matchingColumns(A, "snoal"),
+        matchingColumns(A, "famb"), matchingColumns(A, "genea"), matchingColumns(A, ""),
+        matchingColumns(A, "zzz"), matchingColumns(NOD, "famy")]));""")
+    assert out == [[True, False, True], [True, False, False], [False, True, False],
+                   [True, False, False], [False, False, False], [False, False, False], [True]]
+
+
+def test_locus_view_wires_highlight_placeholder_and_redraw():
+    assert "Pfam domain" in LOCUS_VIEW_HTML
+    assert "matchingColumns(locus, lstate.search)" in LOCUS_VIEW_JS
+    seg = LOCUS_VIEW_JS.split('getElementById("lv-search").addEventListener', 1)[1][:300]
+    assert "renderLocusMain()" in seg
+    assert not re.findall(r"(?<![\w-])#[0-9a-fA-F]{3,8}(?![\w-])", LOCUS_VIEW_JS)
