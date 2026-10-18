@@ -630,3 +630,61 @@ def test_island_logo_colours_are_css_custom_properties_with_dark_values():
     # A dark-mode value is given somewhere beyond the default :root block.
     assert style.count("--isv-logo-water") >= 2
     assert "prefers-color-scheme: dark" in style
+
+
+# ---- domain-name search: sidebar filter + column highlight ----------------
+
+_SEARCH_ISL = r"""
+var A = {locus_id: "S1:c1:1-9", families: ["famA", "famB", "famC"],
+         family_labels: ["geneA", "famB", "famC"],
+         family_domains: ["SnoaL_2,Fungal_trans", "", "Fungal_trans"]};
+var B = {locus_id: "S2:c2:1-9", families: ["famX"], family_labels: ["famX"],
+         family_domains: ["PKS_KS"]};
+var NOD = {locus_id: "S3:c3:1-9", families: ["famY"]};
+"""
+
+
+def test_domain_name_search_matches_island_haystack():
+    cases = _SEARCH_ISL + r"""
+function check(n, ok) { console.log((ok ? "PASS " : "FAIL ") + n); }
+check("domain hit", islandHaystack(A).indexOf("snoal_2") !== -1);
+check("domain case-insens via lowercase query", islandHaystack(A).indexOf("fungal_trans") !== -1);
+check("domain on other island absent", islandHaystack(B).indexOf("snoal_2") === -1);
+check("no family_domains does not throw", islandHaystack(NOD).indexOf("famy") !== -1);
+"""
+    _run_node_cases(["islandHaystack"], cases)
+
+
+def test_existing_search_fields_still_match():
+    cases = _SEARCH_ISL + r"""
+function check(n, ok) { console.log((ok ? "PASS " : "FAIL ") + n); }
+check("locus id", islandHaystack(A).indexOf("s1:c1") !== -1);
+check("family id", islandHaystack(A).indexOf("famc") !== -1);
+check("family label", islandHaystack(A).indexOf("genea") !== -1);
+"""
+    _run_node_cases(["islandHaystack"], cases)
+
+
+def test_matching_columns_mark_exactly_the_columns_with_the_domain():
+    cases = _SEARCH_ISL + r"""
+function check(n, ok) { console.log((ok ? "PASS " : "FAIL ") + n); }
+function eq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+check("domain on two columns", eq(matchingColumns(A, "fungal_trans"), [true, false, true]));
+check("domain on one column", eq(matchingColumns(A, "snoal"), [true, false, false]));
+check("family id", eq(matchingColumns(A, "famb"), [false, true, false]));
+check("label", eq(matchingColumns(A, "genea"), [true, false, false]));
+check("no match", eq(matchingColumns(A, "zzz"), [false, false, false]));
+check("empty search clears", eq(matchingColumns(A, ""), [false, false, false]));
+check("whitespace search clears", eq(matchingColumns(A, "   "), [false, false, false]));
+check("case-insensitive", eq(matchingColumns(A, "FUNGAL_TRANS"), [true, false, true]));
+check("missing family_domains ok", eq(matchingColumns(NOD, "famy"), [true]));
+"""
+    _run_node_cases(["columnMatchesSearch", "matchingColumns"], cases)
+
+
+def test_draw_code_uses_matching_columns_and_theme_token():
+    assert "matchingColumns(isl, state.search)" in ISLAND_SYNTENY_TEMPLATE
+    assert 'css("--series-1")' in ISLAND_SYNTENY_TEMPLATE
+    # typing in the search box must redraw the open island
+    seg = ISLAND_SYNTENY_TEMPLATE.split('getElementById("f-search").addEventListener', 1)[1][:300]
+    assert "renderMain()" in seg

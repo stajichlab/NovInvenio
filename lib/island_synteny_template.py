@@ -247,7 +247,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     <div class="isv-explorer" id="isv-explorer">
       <aside class="isv-sidebar">
         <div class="isv-sidebar-controls">
-          <input type="search" id="f-search" placeholder="Search locus or family ID…" aria-label="Search islands">
+          <input type="search" id="f-search" placeholder="Search locus, family ID or Pfam domain…" aria-label="Search islands">
           <select id="f-sidebar-sort" aria-label="Sort islands by">
             <option value="size">Sort: size (families)</option>
             <option value="haplotypes">Sort: haplotype count</option>
@@ -347,7 +347,8 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       secondary: css("--text-secondary"),
       muted: css("--muted"),
       wash: css("--wash"),
-      hover: css("--hover-wash")
+      hover: css("--hover-wash"),
+      match: css("--series-1")
     };
   }
   function classColor(key) {
@@ -372,7 +373,26 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
 
   function islandHaystack(isl) {
     return (isl.locus_id + " " + isl.families.join(" ") + " " +
-            (isl.family_labels ? isl.family_labels.join(" ") : "")).toLowerCase();
+            (isl.family_labels ? isl.family_labels.join(" ") : "") + " " +
+            (isl.family_domains ? isl.family_domains.join(" ") : "")).toLowerCase();
+  }
+
+  // Per-column search match, used to highlight columns. `q` is the raw
+  // search string; empty/blank matches nothing. Matches the column's family
+  // id, label or Pfam domain names (case-insensitive substring), so a domain
+  // search highlights only the columns carrying that domain.
+  function columnMatchesSearch(isl, i, q) {
+    q = (q || "").trim().toLowerCase();
+    if (!q) return false;
+    var parts = [isl.families[i],
+                 isl.family_labels ? isl.family_labels[i] : "",
+                 isl.family_domains ? isl.family_domains[i] : ""];
+    return parts.join(" ").toLowerCase().indexOf(q) !== -1;
+  }
+  function matchingColumns(isl, q) {
+    var out = [];
+    for (var i = 0; i < isl.families.length; i++) out.push(columnMatchesSearch(isl, i, q));
+    return out;
   }
 
   function applySidebarFilter() {
@@ -649,8 +669,15 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     hctx.fillStyle = P.surface;
     hctx.fillRect(0, 0, W, H);
 
+    var hits = matchingColumns(isl, state.search);
     isl.families.forEach(function (fam, i) {
       var x = colX(i);
+      if (hits[i]) {
+        hctx.globalAlpha = 0.22;
+        hctx.fillStyle = P.match;
+        hctx.fillRect(x, 0, CELL_W, H);
+        hctx.globalAlpha = 1;
+      }
       // Class-coloured glyph sits just above the grid; the label rises from
       // above the glyph, so the two never overlap.
       hctx.fillStyle = classColor(familyClassAt(isl, i));
@@ -665,6 +692,10 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
       hctx.textBaseline = "middle";
       hctx.fillText(ellipsize(hctx, colLabel(isl, i), LABEL_MAX_W), 0, 0);
       hctx.restore();
+      if (hits[i]) {
+        hctx.fillStyle = P.match;
+        hctx.fillRect(x, H - 3, CELL_W, 3);
+      }
     });
 
     hctx.fillStyle = P.axis;
@@ -678,6 +709,17 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     gctx.clearRect(0, 0, totalW, h);
     gctx.fillStyle = P.surface;
     gctx.fillRect(0, 0, totalW, h);
+
+    var hits = matchingColumns(isl, state.search);
+    // Search highlight: a translucent band behind matching columns, drawn
+    // before the cells so presence/absence stays readable.
+    gctx.save();
+    gctx.globalAlpha = 0.22;
+    gctx.fillStyle = P.match;
+    hits.forEach(function (on, ci) {
+      if (on) gctx.fillRect(colX(ci), 0, CELL_W, h);
+    });
+    gctx.restore();
 
     haps.forEach(function (hap, ri) {
       var y = ri * ROW_H;
@@ -1016,6 +1058,7 @@ ISLAND_SYNTENY_TEMPLATE = r"""<!doctype html>
     state.search = e.target.value;
     applySidebarFilter();
     renderSidebar();
+    renderMain();
   });
   document.getElementById("f-sidebar-sort").addEventListener("change", function (e) {
     state.sidebarSort = e.target.value;
