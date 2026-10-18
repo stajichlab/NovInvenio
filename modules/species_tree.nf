@@ -5,14 +5,17 @@
 // Never fails the run. The script always exits 0 and always writes all four outputs;
 // species_tree.status.txt line 1 is `ok`, `skipped: <reason>` or `failed: <reason>`;
 // an `ok` file also has `markers: <N>` and `rooting: method=... n_out=... n_out_outside=...` lines.
-// phyling is not in the container image. The process loads the `phyling/2.3` environment
-// module when `module` exists (HPCC), else expects `phyling` on PATH. Not phyling/2.3.1: its
-// `filter` and `tree` subcommands fail ("No module specified"), phyling/2.3 (2.3.1.post23) works.
+// Runs in phyling's own image (ghcr.io/stajichlab/phyling:<species_tree_container_version>),
+// not the main NovInvenio image. The image has phyling, FastTree, aster (ASTRAL), muscle and
+// python3 (stdlib is enough for bin/species_tree.py). Outside a container (no -profile
+// docker/singularity) the script falls back to the `phyling/2.3` environment module when
+// `module` exists. Not phyling/2.3.1: its `filter` subcommand fails ("No module specified").
+// phyling_markerset_dir must be on a path the container can read (UCR: /bigdata is bound).
 // Proteomes are staged as <Short>.faa so the Newick tip labels equal config Short.
 process SPECIES_TREE {
     label 'med_cpu'
     tag "species_tree"
-    container "ghcr.io/stajichlab/novinvenio:${params.container_version}"
+    container "ghcr.io/stajichlab/phyling:${params.species_tree_container_version}"
     publishDir "${params.outdir}/${Helpers.projectName(params)}", mode: 'copy'
     errorStrategy 'ignore'
 
@@ -44,7 +47,8 @@ process SPECIES_TREE {
     [ -n "\$MARKERDIR" ] || status "failed: phyling_markerset_dir is not set"
     [ -d "\$MARKERDIR/hmms" ] || status "failed: markerset not found: \$MARKERDIR/hmms"
 
-    command -v module >/dev/null 2>&1 && module load phyling/2.3 >/dev/null 2>&1
+    # only when phyling is not already on PATH (it is, inside the container)
+    command -v phyling >/dev/null 2>&1 || { command -v module >/dev/null 2>&1 && module load phyling/2.3 fasttree/2.1.11 >/dev/null 2>&1; }
     command -v phyling >/dev/null 2>&1 || status "failed: phyling not found"
 
     mkdir -p phyling_in
@@ -77,9 +81,9 @@ process SPECIES_TREE {
         status "failed: \$(tail -1 species_tree.err | cut -c1-200)"
     fi
     # Extra status lines for the report (line 1 stays the status word):
-    #   markers: <N>   alignments kept by `phyling filter` (falls back to the requested N)
+    #   markers: <N>   alignments (files or symlinks) kept by `phyling filter` (falls back to the requested N)
     #   rooting: method=<m> n_out=<n> n_out_outside=<k>   from bin/species_tree.py
-    NM=\$(find phyling_filter -maxdepth 1 -type f \\( -name '*.fa' -o -name '*.faa' -o -name '*.fas' -o -name '*.fasta' -o -name '*.aln' -o -name '*.mfa' \\) 2>/dev/null | wc -l)
+    NM=\$(find phyling_filter -maxdepth 1 \\( -type f -o -type l \\) \\( -name '*.fa' -o -name '*.faa' -o -name '*.fas' -o -name '*.fasta' -o -name '*.aln' -o -name '*.mfa' \\) 2>/dev/null | wc -l)
     [ "\$NM" -gt 0 ] || NM=${params.species_tree_markers}
     ROOTING=\$(python3 -c "import json;d=json.load(open('species_tree.rooting.json'));print('method=%s n_out=%s n_out_outside=%s'%(d['method'],d['n_out'],d['n_out_outside']))" 2>/dev/null)
     {

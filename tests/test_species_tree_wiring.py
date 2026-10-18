@@ -76,3 +76,9 @@ def test_main_guards_report_against_empty_species_tree_channels():
     assert (stub / 'species_tree.svg').read_text().strip() == ''
     assert 'assets/species_tree_stub/species_tree.status.txt' in MAIN
     assert 'assets/species_tree_stub/species_tree.svg' in MAIN
+
+
+def test_process_uses_phyling_image_not_main_image():
+    assert 'container "ghcr.io/stajichlab/phyling:${params.species_tree_container_version}"' in MODULE
+    assert 'novinvenio' not in MODULE.split('process SPECIES_TREE')[1].split('input:')[0]
+    assert re.search(r"^\s*species_tree_container_version\s*=\s*'2\.5\.0'", CONFIG, re.M)

@@ -388,6 +388,17 @@ need to bake it into the image.
 | `--hmm_mpi` | `false` | Run hmmsearch in MPI mode (requires MPI-enabled HMMER) |
 | `--hmm_mpi_tasks` | `null` | Number of MPI tasks; defaults to `max_cpus` when `--hmm_mpi true` |
 | `--container_version` | `0.7.0` | Docker/Singularity image tag (e.g. `0.7.0`, `latest`). See [Running with Docker / Singularity](#running-with-docker--singularity) |
+| `--species_tree` | `true` | Build a species tree (phyling + FastTree) and show it on the report landing page. `false` skips it |
+| `--species_tree_markers` | `10` | Number of top markers (by treeness/RCV) kept by `phyling filter -n`. 10 gives a quick tree, not a final phylogeny |
+| `--species_tree_markerset` | `fungi_odb12` | Marker set name: subdirectory of `--phyling_markerset_dir` that holds `hmms/` |
+| `--phyling_markerset_dir` | `null` | Parent directory of the marker set. The process passes `<dir>/<markerset>/hmms` to `phyling align -m`. Must be on a path the container can read (UCR: `/bigdata` is bound). Fill it once with `phyling download fungi_odb12`. On the UCR cluster it already exists in `~/.phyling` |
+| `--species_tree_container_version` | `2.5.0` | Tag of `ghcr.io/stajichlab/phyling`. Only the SPECIES_TREE process uses this image. The main image (`--container_version`) is unchanged |
+
+### Species tree
+
+Process `SPECIES_TREE` runs `phyling align`, `phyling filter` and `phyling tree -M ft` on every proteome in the config. phyling builds one FastTree tree per marker and combines them as a 50% consensus. `bin/species_tree.py` roots the tree on the `OUT` rows and writes `species_tree.svg`, `species_tree.rooted.nwk`, `species_tree.markers.tsv` and `species_tree.status.txt`. The report landing page shows the tree and the marker count.
+
+The process never fails the run. Line 1 of `species_tree.status.txt` is `ok`, `skipped: <reason>` or `failed: <reason>`. On `skipped` or `failed` the report shows `tree not available: <reason>`. The process is skipped for fewer than 4 species.
 
 ## Config CSV format
 
