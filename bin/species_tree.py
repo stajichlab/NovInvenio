@@ -13,6 +13,8 @@ parser reads quoted labels and writes quotes when a label needs them.
 
 Usage:
   species_tree.py --newick tree.nwk --config config.csv --out_prefix species_tree
+Option --tip_labels species draws the samplesheet Species name instead of Short
+(duplicates get ` <Strain>` or ` (<Short>)`). Only the SVG text changes.
 Writes <prefix>.rooted.nwk, <prefix>.svg and <prefix>.rooting.json.
 """
 from __future__ import annotations
@@ -317,9 +319,16 @@ _FONT = 12
 _CHAR_W = 7.0
 
 
-def render_svg(newick: str, groups: dict[str, str]) -> str:
+def render_svg(newick: str, groups: dict[str, str],
+               labels: dict[str, str] | None = None) -> str:
+    """Draw the tree. `labels` maps tip ID -> display text; a missing tip shows its ID."""
     root = parse_newick(newick)
     tips = tip_labels(root)
+    labels = labels or {}
+
+    def shown(tip: str) -> str:
+        return labels.get(tip) or tip
+
     colour: dict[str, str] = {}
     for g in sorted(set(groups.get(t, "unknown") for t in tips)):
         colour[g] = _PALETTE.get(g) or _FALLBACK[len(
@@ -345,7 +354,7 @@ def render_svg(newick: str, groups: dict[str, str]) -> str:
     max_depth = max(xs.values()) or 1.0
     plot_w = 500.0
     left = 20.0
-    label_w = max(len(t) for t in tips) * _CHAR_W + 20
+    label_w = max(len(shown(t)) for t in tips) * _CHAR_W + 20
     legend_h = 24 + 18 * len(colour)
     height = counter[0] * _ROW + _ROW + 20
     height = max(height, legend_h + 10)
@@ -374,7 +383,7 @@ def render_svg(newick: str, groups: dict[str, str]) -> str:
             g = groups.get(node.label, "unknown")
             parts.append(
                 f'<text class="tip" x="{px(node) + 6:.1f}" y="{ys[id(node)] + 4:.1f}" '
-                f'fill="{colour[g]}">{escape(node.label, quote=False)}</text>')
+                f'fill="{colour[g]}">{escape(shown(node.label), quote=False)}</text>')
     lx = left + plot_w + label_w + 10
     parts.append(f'<g class="legend"><text x="{lx:.0f}" y="16" font-weight="bold">GROUP</text>')
     for i, (g, c) in enumerate(colour.items()):
@@ -385,6 +394,27 @@ def render_svg(newick: str, groups: dict[str, str]) -> str:
     return "\n".join(parts) + "\n"
 
 
+def species_labels(samples) -> dict[str, str]:
+    """Short -> unique display name from the Species column.
+
+    Tips that share a Species value get ` <Strain>` (or ` (<Short>)` when Strain is
+    empty). Empty Species gives no entry, so the tip keeps its Short ID.
+    """
+    counts: dict[str, int] = {}
+    for s in samples:
+        if s.species:
+            counts[s.species] = counts.get(s.species, 0) + 1
+    out: dict[str, str] = {}
+    for s in samples:
+        if not s.species:
+            continue
+        if counts[s.species] > 1:
+            out[s.short] = f"{s.species} {s.strain}" if s.strain else f"{s.species} ({s.short})"
+        else:
+            out[s.short] = s.species
+    return out
+
+
 def main(argv=None) -> int:
     from config_parser import parse_config
 
@@ -392,16 +422,20 @@ def main(argv=None) -> int:
     ap.add_argument("--newick", required=True)
     ap.add_argument("--config", required=True)
     ap.add_argument("--out_prefix", default="species_tree")
+    ap.add_argument("--tip_labels", choices=("short", "species"), default="short",
+                    help="SVG tip text: samplesheet Short ID (default) or Species name")
     a = ap.parse_args(argv)
 
-    groups = {s.short: s.group for s in parse_config(a.config)}
+    samples = parse_config(a.config)
+    groups = {s.short: s.group for s in samples}
+    labels = species_labels(samples) if a.tip_labels == "species" else None
     text = Path(a.newick).read_text()
     if "OUT" in groups.values() and not set(tip_labels(parse_newick(text))) & set(groups):
         print("tree tip labels do not match config Short names", file=sys.stderr)
         return 3
     rooted, info = root_on_outgroup(text, groups)
     Path(f"{a.out_prefix}.rooted.nwk").write_text(rooted + "\n")
-    Path(f"{a.out_prefix}.svg").write_text(render_svg(rooted, groups))
+    Path(f"{a.out_prefix}.svg").write_text(render_svg(rooted, groups, labels))
     Path(f"{a.out_prefix}.rooting.json").write_text(json.dumps(info, indent=2) + "\n")
     return 0
 

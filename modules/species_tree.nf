@@ -46,6 +46,10 @@ process SPECIES_TREE {
 
     SHORTS=(${shorts.join(' ')})
     FILES=(${proteomes instanceof List ? proteomes.join(' ') : proteomes})
+    case "${params.species_tree_tip_labels}" in
+        short|species) ;;
+        *) status "failed: species_tree_tip_labels must be short or species (got: ${params.species_tree_tip_labels})" ;;
+    esac
     [ "\${#SHORTS[@]}" -ge 4 ] || status "skipped: fewer than 4 species"
     MARKERDIR="${markerdir}"
     [ -d "\$MARKERDIR/hmms" ] || status "failed: markerset not found: \$MARKERDIR/hmms"
@@ -77,6 +81,7 @@ process SPECIES_TREE {
     [ ! -s "\$TSV" ] || cp "\$TSV" species_tree.markers.tsv
 
     species_tree.py --newick "\$TREE" --config ${config_csv} \\
+        --tip_labels ${params.species_tree_tip_labels} \\
         --out_prefix species_tree 2> species_tree.err
     rc=\$?
     if [ \$rc -ne 0 ]; then
